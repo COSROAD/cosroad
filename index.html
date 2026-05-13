@@ -221,7 +221,6 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .empty-state{text-align:center;padding:36px 20px;color:var(--gray-400);font-size:13px;}
 .info-box{background:var(--warning-light);border:1px solid #FDE68A;border-radius:var(--radius-sm);padding:9px 13px;margin:0 16px 10px;font-size:11px;color:#92400E;}
 </style>
-<script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=94961729e3fc7ed924bd6e41f03b2ee8&libraries=services"></script>
 </head>
 <body>
 
@@ -465,14 +464,6 @@ let etaMap={};
 let currentMode='';
 const now=new Date();
 
-
-// ── GPS 위치 공유 변수 ──
-let watchId = null;
-let currentPosition = null;
-let locationHistory = [];
-let isTracking = false;
-let shareSessionId = null;
-
 // ── 로그인 ──
 function loginDriver(){currentMode='driver';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();}
 function loginAdmin(){
@@ -690,197 +681,191 @@ function openTmap(){
 }
 
 // ── 학부모 공유 ──
+// ── GPS 위치 공유 ──
+let watchId = null;
+let currentPosition = null;
+let isTracking = false;
+let shareSessionId = null;
+let kakaoMap = null;
+let kakaoMarker = null;
+
 function showSharePanel(){
-  const active=getActiveStudents();
-  const car=cars.find(c=>c.id===currentCarId)||cars[0];
-  const course=courses.find(c=>c.id===currentCourseId)||courses[0];
-  const ordered=optimizedOrder||active;
-  const shareText=`[${orgSettings.name}] 🚐 ${car.name} 운행 안내\n`+
-    `📅 ${currentDay}요일 ${course.name} (${course.depart} 출발)\n`+
-    `📍 픽업 순서:\n`+ordered.map((s,i)=>{
-      const eta=etaMap[s.id]?` → 도착예정 ${etaMap[s.id]}`:'';
-      return `  ${i+1}. ${s.name} (${s.location})${eta}`;
-    }).join('\n')+
-    `\n🏫 ${orgSettings.destName} 도착예정: ${course.arrive}`;
+  const active = getActiveStudents();
+  const car = cars.find(c=>c.id===currentCarId) || cars[0];
+  const course = courses.find(c=>c.id===currentCourseId) || courses[0];
+  const ordered = optimizedOrder || active;
 
-  const trackingStatus = isTracking
-    ? `<div style="background:var(--success-light);border:1px solid #6CE9A6;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:#027A48;display:flex;align-items:center;gap:8px;">
-        <span style="width:8px;height:8px;border-radius:50%;background:#12B76A;display:inline-block;animation:pulse 1.5s infinite;"></span>
-        GPS 추적 중 · 학부모 공유 링크 활성화됨
-      </div>`
-    : `<div style="background:var(--warning-light);border:1px solid #FDE68A;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:#92400E;">
-        ⚠ GPS 추적이 꺼져 있어요. 운행 시작을 눌러주세요.
-      </div>`;
+  const shareText = '[' + orgSettings.name + '] 🚐 ' + car.name + ' 운행 안내\n'
+    + '📅 ' + currentDay + '요일 ' + course.name + ' (' + course.depart + ' 출발)\n'
+    + '📍 픽업 순서:\n'
+    + ordered.map((s,i) => {
+        const eta = etaMap[s.id] ? ' → 도착예정 ' + etaMap[s.id] : '';
+        return '  ' + (i+1) + '. ' + s.name + ' (' + s.location + ')' + eta;
+      }).join('\n')
+    + '\n🏫 ' + orgSettings.destName + ' 도착예정: ' + course.arrive;
 
-  const shareUrl = shareSessionId
-    ? `https://cosroad.com?track=${shareSessionId}`
-    : null;
+  const trackBadge = isTracking
+    ? '<div style="background:#ECFDF3;border:1px solid #6CE9A6;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#027A48;display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#12B76A;display:inline-block;"></span>GPS 추적 중 · 위치 공유 활성화됨</div>'
+    : '<div style="background:#FFFAEB;border:1px solid #FDE68A;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#92400E;">⚠ GPS 꺼짐 · 운행 시작을 눌러주세요.</div>';
 
-  document.getElementById('share-content').innerHTML=`
-    <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}</style>
-    ${trackingStatus}
+  const shareLink = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
+  const shareLinkHtml = shareLink
+    ? '<div style="margin-bottom:12px;">'
+      + '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:6px;">📍 학부모 공유 링크</div>'
+      + '<div style="background:#F2F4F7;border-radius:8px;padding:10px;font-size:11px;color:#475467;word-break:break-all;margin-bottom:8px;">' + shareLink + '</div>'
+      + '<div style="display:flex;gap:6px;">'
+      + '<button onclick="copyShareLink()" style="flex:1;padding:10px;background:#FEE500;color:#3A1D1D;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">카카오톡 공유</button>'
+      + '<button onclick="copyLinkOnly()" style="flex:1;padding:10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">링크 복사</button>'
+      + '<button onclick="sendSMSWithLink()" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">문자 전송</button>'
+      + '</div></div>'
+    : '';
 
-    <div style="margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:8px;">🚐 운행 제어</div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="startGPSTracking()" id="start-track-btn" style="flex:1;padding:12px;background:${isTracking?'var(--gray-200)':'#EA580C'};color:${isTracking?'var(--gray-400)':'white'};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" ${isTracking?'disabled':''}>
-          ${isTracking?'✅ 추적 중':'🚀 운행 시작 (GPS 켜기)'}
-        </button>
-        <button onclick="stopGPSTracking()" style="flex:1;padding:12px;background:${isTracking?'var(--danger)':'var(--gray-200)'};color:${isTracking?'white':'var(--gray-400)'};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" ${!isTracking?'disabled':''}>
-          ⏹ 운행 종료
-        </button>
-      </div>
-    </div>
-
-    ${shareUrl ? `
-    <div style="margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:6px;">📍 학부모 공유 링크</div>
-      <div style="background:var(--gray-100);border-radius:8px;padding:10px;font-size:11px;color:var(--gray-700);word-break:break-all;margin-bottom:8px;">${shareUrl}</div>
-      <div style="display:flex;gap:6px;">
-        <button onclick="copyShareLink('${shareUrl}')" style="flex:1;padding:10px;background:#FEE500;color:#3A1D1D;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">카카오톡 공유</button>
-        <button onclick="navigator.clipboard.writeText('${shareUrl}').then(()=>alert('✅ 링크 복사됨!'))" style="flex:1;padding:10px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">링크 복사</button>
-        <button onclick="sendSMSWithLink('${shareUrl}')" style="flex:1;padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">문자 전송</button>
-      </div>
-    </div>` : ''}
-
-    <div style="margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:8px;">📋 운행 정보 공유</div>
-      <div style="background:var(--gray-100);border-radius:8px;padding:10px;font-size:11px;color:var(--gray-700);white-space:pre-line;margin-bottom:8px;">${shareText}</div>
-      <div style="display:flex;gap:6px;">
-        <button onclick="copyShareText()" style="flex:1;padding:10px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📋 텍스트 복사</button>
-        <button onclick="sendSMS()" style="flex:1;padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📱 문자 보내기</button>
-      </div>
-    </div>
-
-    <div id="kakao-map-container" style="display:${isTracking?'block':'none'}">
-      <div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:6px;">🗺 현재 차량 위치</div>
-      <div id="kakao-map" style="width:100%;height:200px;border-radius:8px;overflow:hidden;"></div>
-    </div>`;
+  document.getElementById('share-content').innerHTML =
+    trackBadge
+    + '<div style="margin-bottom:12px;">'
+    + '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:8px;">🚐 운행 제어</div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<button onclick="startGPSTracking()" style="flex:1;padding:12px;background:' + (isTracking ? '#EAECF0' : '#EA580C') + ';color:' + (isTracking ? '#98A2B3' : 'white') + ';border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">' + (isTracking ? '✅ 추적 중' : '🚀 운행 시작') + '</button>'
+    + '<button onclick="stopGPSTracking()" style="flex:1;padding:12px;background:' + (isTracking ? '#F04438' : '#EAECF0') + ';color:' + (isTracking ? 'white' : '#98A2B3') + ';border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">⏹ 운행 종료</button>'
+    + '</div></div>'
+    + shareLinkHtml
+    + '<div style="margin-bottom:12px;">'
+    + '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:6px;">📋 운행 정보</div>'
+    + '<div style="background:#F2F4F7;border-radius:8px;padding:10px;font-size:11px;color:#475467;white-space:pre-line;margin-bottom:8px;">' + shareText + '</div>'
+    + '<div style="display:flex;gap:6px;">'
+    + '<button onclick="copyShareText()" style="flex:1;padding:10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📋 텍스트 복사</button>'
+    + '<button onclick="sendSMS()" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📱 문자 보내기</button>'
+    + '</div></div>'
+    + (isTracking ? '<div id="kakao-map" style="width:100%;height:200px;border-radius:8px;overflow:hidden;margin-top:4px;"></div>' : '');
 
   document.getElementById('share-modal').classList.add('show');
-  window._shareText=shareText;
-  window._activeStudents=active;
+  window._shareText = shareText;
+  window._activeStudents = active;
 
   if(isTracking && currentPosition){
-    setTimeout(()=>initKakaoMap(currentPosition.lat, currentPosition.lon), 300);
+    setTimeout(function(){ initKakaoMap(currentPosition.lat, currentPosition.lon); }, 400);
   }
 }
 
 function startGPSTracking(){
-  if(!navigator.geolocation){alert('이 기기는 GPS를 지원하지 않습니다.');return;}
+  if(!navigator.geolocation){ alert('이 기기는 GPS를 지원하지 않습니다.'); return; }
   shareSessionId = 'cr_' + Date.now();
-  navigator.geolocation.getCurrentPosition(pos=>{
-    currentPosition={lat:pos.coords.latitude, lon:pos.coords.longitude};
-    isTracking=true;
-    locationHistory=[];
-    watchId=navigator.geolocation.watchPosition(
-      p=>{
-        currentPosition={lat:p.coords.latitude, lon:p.coords.longitude};
-        locationHistory.push({...currentPosition, time:Date.now()});
-        updateKakaoMap(currentPosition.lat, currentPosition.lon);
-        saveLocationToStorage();
-      },
-      e=>console.log('GPS error',e),
-      {enableHighAccuracy:true, timeout:10000, maximumAge:3000}
-    );
-    showSharePanel();
-  }, e=>{
-    alert('GPS 권한을 허용해 주세요.
-설정 > 브라우저 > 위치 접근 허용');
-  },{enableHighAccuracy:true,timeout:10000});
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      currentPosition = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      isTracking = true;
+      watchId = navigator.geolocation.watchPosition(
+        function(p){
+          currentPosition = { lat: p.coords.latitude, lon: p.coords.longitude };
+          updateKakaoMap(currentPosition.lat, currentPosition.lon);
+        },
+        function(e){ console.log('GPS error', e); },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
+      );
+      showSharePanel();
+    },
+    function(e){ alert('GPS 권한을 허용해 주세요.\n설정 > 브라우저 > 위치 접근 허용'); },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 function stopGPSTracking(){
-  if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;}
-  isTracking=false;
-  currentPosition=null;
-  shareSessionId=null;
-  locationHistory=[];
-  localStorage.removeItem('cosroad_location');
+  if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  isTracking = false;
+  currentPosition = null;
+  shareSessionId = null;
   showSharePanel();
 }
 
-function saveLocationToStorage(){
-  if(!currentPosition||!shareSessionId)return;
-  const data={
-    sessionId:shareSessionId,
-    lat:currentPosition.lat,
-    lon:currentPosition.lon,
-    time:Date.now(),
-    carName:cars.find(c=>c.id===currentCarId)?.name||'',
-    orgName:orgSettings.name
-  };
-  localStorage.setItem('cosroad_location',JSON.stringify(data));
+function initKakaoMap(lat, lon){
+  const container = document.getElementById('kakao-map');
+  if(!container){ return; }
+  if(typeof kakao === 'undefined'){
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#F2F4F7;font-size:12px;color:#98A2B3;">카카오맵 로딩 중...</div>';
+    var script = document.createElement('script');
+    script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=94961729e3fc7ed924bd6e41f03b2ee8&autoload=false';
+    script.onload = function(){
+      kakao.maps.load(function(){
+        renderKakaoMap(container, lat, lon);
+      });
+    };
+    document.head.appendChild(script);
+    return;
+  }
+  renderKakaoMap(container, lat, lon);
 }
 
-function initKakaoMap(lat, lon){
-  const container=document.getElementById('kakao-map');
-  if(!container||!window.kakao)return;
-  const options={center:new kakao.maps.LatLng(lat,lon),level:3};
-  const map=new kakao.maps.Map(container,options);
-  window._kakaoMap=map;
-  const marker=new kakao.maps.Marker({position:new kakao.maps.LatLng(lat,lon),map});
-  window._kakaoMarker=marker;
-  const circle=new kakao.maps.Circle({
-    center:new kakao.maps.LatLng(lat,lon),
-    radius:30,strokeWeight:2,strokeColor:'#EA580C',strokeOpacity:0.8,
-    fillColor:'#EA580C',fillOpacity:0.2,map
+function renderKakaoMap(container, lat, lon){
+  var options = { center: new kakao.maps.LatLng(lat, lon), level: 3 };
+  kakaoMap = new kakao.maps.Map(container, options);
+  var imgSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png';
+  var imgSize = new kakao.maps.Size(24, 35);
+  var markerImg = new kakao.maps.MarkerImage(imgSrc, imgSize);
+  kakaoMarker = new kakao.maps.Marker({
+    position: new kakao.maps.LatLng(lat, lon),
+    image: markerImg,
+    map: kakaoMap
   });
-  window._kakaoCircle=circle;
 }
 
 function updateKakaoMap(lat, lon){
-  if(!window._kakaoMap||!window._kakaoMarker)return;
-  const pos=new kakao.maps.LatLng(lat,lon);
-  window._kakaoMarker.setPosition(pos);
-  window._kakaoCircle?.setPosition(pos);
-  window._kakaoMap.setCenter(pos);
+  if(!kakaoMap || !kakaoMarker){ return; }
+  var pos = new kakao.maps.LatLng(lat, lon);
+  kakaoMarker.setPosition(pos);
+  kakaoMap.setCenter(pos);
 }
 
-function copyShareLink(url){
-  navigator.clipboard.writeText(url).then(()=>{
-    alert('✅ 링크가 복사됐어요!\n카카오톡에 붙여넣기 해서 학부모님께 보내주세요.');
-  }).catch(()=>{
-    const ta=document.createElement('textarea');ta.value=url;
-    document.body.appendChild(ta);ta.select();
-    document.execCommand('copy');document.body.removeChild(ta);
-    alert('✅ 링크가 복사됐어요!');
+function copyShareLink(){
+  var link = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
+  if(!link){ alert('운행을 먼저 시작해 주세요.'); return; }
+  navigator.clipboard.writeText(link).then(function(){
+    alert('✅ 링크 복사됐어요!\n카카오톡에 붙여넣기해서 학부모님께 보내주세요.');
+  }).catch(function(){
+    var ta = document.createElement('textarea'); ta.value = link;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    alert('✅ 링크 복사됐어요!');
   });
 }
 
-function sendSMSWithLink(url){
-  const phones=(window._activeStudents||[]).map(s=>s.phone).filter(Boolean);
-  const car=cars.find(c=>c.id===currentCarId)||cars[0];
-  const course=courses.find(c=>c.id===currentCourseId)||courses[0];
-  const msg=`[${orgSettings.name}] 🚐 ${car.name} 운행 중\n실시간 위치: ${url}\n도착예정: ${course.arrive}`;
-  if(phones.length>0){
-    window.open(`sms:${phones[0]}?body=${encodeURIComponent(msg)}`,'_blank');
-  } else {
-    window.open(`sms:?body=${encodeURIComponent(msg)}`,'_blank');
-  }
+function copyLinkOnly(){
+  var link = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
+  navigator.clipboard.writeText(link).then(function(){ alert('✅ 링크 복사됐어요!'); });
+}
+
+function sendSMSWithLink(){
+  var link = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
+  var car = cars.find(function(c){ return c.id === currentCarId; }) || cars[0];
+  var course = courses.find(function(c){ return c.id === currentCourseId; }) || courses[0];
+  var msg = '[' + orgSettings.name + '] 🚐 ' + car.name + ' 운행 중\n실시간 위치: ' + link + '\n도착예정: ' + course.arrive;
+  var phones = (window._activeStudents || []).map(function(s){ return s.phone; }).filter(Boolean);
+  var to = phones.length > 0 ? phones[0] : '';
+  window.open('sms:' + to + '?body=' + encodeURIComponent(msg), '_blank');
 }
 
 function copyShareText(){
-  navigator.clipboard.writeText(window._shareText||'').then(()=>alert('✅ 복사되었습니다!\n카카오톡에 붙여넣기 하세요.')).catch(()=>{
-    const ta=document.createElement('textarea');ta.value=window._shareText;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('✅ 복사되었습니다!');
+  var text = window._shareText || '';
+  navigator.clipboard.writeText(text).then(function(){
+    alert('✅ 복사됐어요!\n카카오톡에 붙여넣기 하세요.');
+  }).catch(function(){
+    var ta = document.createElement('textarea'); ta.value = text;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    alert('✅ 복사됐어요!');
   });
 }
 
 function sendSMS(){
-  const phones=(window._activeStudents||[]).map(s=>s.phone).filter(Boolean);
-  if(phones.length===0){alert('연락처가 등록된 학부모가 없습니다.');return;}
-  const body=encodeURIComponent(window._shareText||'');
-  window.open(`sms:${phones[0]}?body=${body}`,'_blank');
+  var phones = (window._activeStudents || []).map(function(s){ return s.phone; }).filter(Boolean);
+  if(phones.length === 0){ alert('연락처가 등록된 학부모가 없습니다.'); return; }
+  window.open('sms:' + phones[0] + '?body=' + encodeURIComponent(window._shareText || ''), '_blank');
 }
 
 function openNaverMap(){
-  const active=window._activeStudents||[];
-  if(active.length===0){alert('탑승 이용자가 없습니다.');return;}
-  const ordered=optimizedOrder||active;
-  const dest=`${orgSettings.destLat},${orgSettings.destLon}`;
-  let url=`https://map.naver.com/v5/directions/-/-/${dest},${encodeURIComponent(orgSettings.destName)}/transit`;
-  window.open(url,'_blank');
+  var active = window._activeStudents || [];
+  if(active.length === 0){ alert('탑승 이용자가 없습니다.'); return; }
+  var url = 'https://map.naver.com/v5/directions/-/-/' + orgSettings.destLat + ',' + orgSettings.destLon + ',' + encodeURIComponent(orgSettings.destName) + '/transit';
+  window.open(url, '_blank');
 }
+
 
 // ── 관리자 탭 ──
 function switchAdminTab(tab){
