@@ -316,6 +316,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <button class="admin-nav-btn" onclick="switchAdminTab('excel')">📊 엑셀업로드</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('cars')">🚐 차량관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('schedule')">📅 스케줄</button>
+      <button class="admin-nav-btn" onclick="switchAdminTab('payment')">💰 수납관리</button>
+      <button class="admin-nav-btn" onclick="switchAdminTab('tax')">📊 세무관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('settings')">⚙ 설정</button>
     </div>
     <div id="admin-content"></div>
@@ -363,6 +365,14 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <div class="day-check"><input type="checkbox" id="d-thu"/><label for="d-thu">목</label></div>
       <div class="day-check"><input type="checkbox" id="d-fri"/><label for="d-fri">금</label></div>
     </div>
+    <div class="form-row">
+      <div><label class="form-label">등록비 (원)</label>
+      <input class="form-input" type="number" id="m-regfee" placeholder="예) 50000"/></div>
+      <div><label class="form-label">월정액 (원)</label>
+      <input class="form-input" type="number" id="m-monthly" placeholder="예) 100000"/></div>
+    </div>
+    <label class="form-label">출석 PIN 번호 (4자리) *</label>
+    <input class="form-input" type="number" id="m-pin" placeholder="예) 1234" maxlength="4"/>
     <label class="form-label">특이사항</label>
     <input class="form-input" type="text" id="m-note" placeholder="예) 정문 우측 대기"/>
     <button class="modal-save" onclick="saveMember()">저장</button>
@@ -740,7 +750,7 @@ function openNaverMap(){
 function switchAdminTab(tab){
   currentAdminTab=tab;
   document.querySelectorAll('.admin-nav-btn').forEach((b,i)=>{
-    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','settings'][i]===tab);
+    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','payment','tax','settings'][i]===tab);
   });
   renderAdminTab(tab);
 }
@@ -749,10 +759,12 @@ function renderAdminTab(tab){
   const c=document.getElementById('admin-content');
   if(tab==='dashboard')c.innerHTML=renderDashboard();
   else if(tab==='members')c.innerHTML=renderAdminMembers();
-  else if(tab==='attendance'){renderAttendance();}
+  else if(tab==='attendance'){renderAttendance();return;}
   else if(tab==='excel')c.innerHTML=renderExcel();
   else if(tab==='cars')c.innerHTML=renderCars();
   else if(tab==='schedule')c.innerHTML=renderSchedule();
+  else if(tab==='payment'){renderPayment();return;}
+  else if(tab==='tax'){renderTax();return;}
   else if(tab==='settings')c.innerHTML=renderSettings();
 }
 
@@ -786,65 +798,54 @@ function renderDashboard(){
 }
 
 function renderAdminMembers(){
-  const q = document.getElementById('admin-search')?.value?.toLowerCase()||'';
-  const filtered = members.filter(m=>!q||m.name.toLowerCase().includes(q));
-  return '<div class="search-bar" style="padding-top:12px;">'
-    + '<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색" oninput="renderAdminTab('members')" value="'+q+'"/>'
-    + '</div>'
-    + '<div style="padding:0 16px 10px;">'
-    + filtered.map(function(m){
-        const course=courses.find(function(c){return c.id===m.courseId;});
-        const car=cars.find(function(c){return c.id===m.carId;});
-        const photoHtml = m.photo
-          ? '<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;" />'
-          : '<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>';
-        const todayAtt = getAttendanceToday(m.id);
-        const attBadge = todayAtt==='present'
-          ? '<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ 출석</span>'
-          : todayAtt==='absent'
-          ? '<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:10px;font-weight:700;">❌ 결석</span>'
-          : '<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미처리</span>';
-        return '<div class="member-card" style="margin:0 0 8px;">'
-          + '<div class="member-header">'
-          + photoHtml
-          + '<div style="flex:1;">'
-          + '<div style="display:flex;align-items:center;gap:6px;"><div class="member-name">'+m.name+'</div>'+attBadge+'</div>'
-          + '<div class="member-class">'+(course?.name||'–')+'</div>'
-          + '</div>'
-          + '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
-          + '<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
-          + '<label style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;">📷 사진<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/></label>'
-          + '</div>'
-          + '</div>'
-          + '<div class="member-info">'
-          + '<div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">'+m.location+'</span></div>'
-          + '<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
-          + (m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
-          + '</div>'
-          + '<div class="days-row">'+DAYS.map(function(d){return '<div class="day-dot '+(m.days.includes(d)?'on':'')+'">' + d + '</div>';}).join('')+'</div>'
-          + '<span class="car-badge">🚐 '+(car?.name||'미배정')+'</span>'
-          + (m.note?'<div class="member-note">※ '+m.note+'</div>':'')
-          + '</div>';
-      }).join('')
-    + '</div>'
-    + '<button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>';
-}
-
-function uploadMemberPhoto(memberId, input){
-  const file = input.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const idx = members.findIndex(function(m){return m.id===memberId;});
-    if(idx>=0){
-      members[idx].photo = e.target.result;
-      saveMembers();
-      renderAdminTab('members');
+  var q='',el=document.getElementById('admin-search');
+  if(el) q=el.value.toLowerCase();
+  var filtered=members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;});
+  var html='<div class="search-bar" style="padding-top:12px;">'
+    +'<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색"'
+    +' oninput="renderAdminTab(\'members\')" value="'+q+'"/>'
+    +'</div><div style="padding:0 16px 10px;">';
+  for(var i=0;i<filtered.length;i++){
+    var m=filtered[i];
+    var course=null,car=null;
+    for(var a=0;a<courses.length;a++){if(courses[a].id===m.courseId){course=courses[a];break;}}
+    for(var b=0;b<cars.length;b++){if(cars[b].id===m.carId){car=cars[b];break;}}
+    var photo=m.photo
+      ?('<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+      :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>');
+    var att=getAttendanceToday(m.id);
+    var badge=att==='present'
+      ?'<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ 출석</span>'
+      :att==='absent'
+      ?'<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:10px;font-weight:700;">❌ 결석</span>'
+      :'<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미처리</span>';
+    var dayDots='';
+    for(var d=0;d<DAYS.length;d++){
+      dayDots+='<div class="day-dot '+(m.days.indexOf(DAYS[d])>=0?'on':'')+'">'+ DAYS[d]+'</div>';
     }
-  };
-  reader.readAsDataURL(file);
+    var pin=m.pin?'PIN: '+m.pin:'PIN 미설정';
+    html+='<div class="member-card" style="margin:0 0 8px;">'
+      +'<div class="member-header">'+photo
+      +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
+      +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
+      +'<div class="member-class">'+(course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span></div></div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+      +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
+      +'<label style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;">📷 사진'
+      +'<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/>'
+      +'</label></div></div>'
+      +'<div class="member-info">'
+      +'<div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">'+m.location+'</span></div>'
+      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
+      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
+      +'</div><div class="days-row">'+dayDots+'</div>'
+      +'<span class="car-badge">🚐 '+(car?car.name:'미배정')+'</span>'
+      +(m.note?'<div class="member-note">※ '+m.note+'</div>':'')
+      +'</div>';
+  }
+  html+='</div><button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>';
+  return html;
 }
-
 // ── 엑셀 업로드 ──
 function renderExcel(){
   return`
@@ -967,9 +968,7 @@ function renderCars(){
           </div>
           <div style="font-size:10px;color:var(--gray-400);margin-bottom:5px;">${m.location}</div>
           <div style="display:flex;gap:4px;">
-            ${DAYS.map(d=>`<button onclick="toggleMemberDay(${m.id},'${d}')" style="width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;font-size:11px;font-weight:700;
-              background:${m.days.includes(d)?'#EA580C':'var(--gray-200)'};
-              color:${m.days.includes(d)?'white':'var(--gray-400)'};">${d}</button>`).join('')}
+            ${(function(){var r='';for(var _i=0;_i<DAYS.length;_i++){var _d=DAYS[_i];var _on=m.days.indexOf(_d)>=0;r+='<button onclick="toggleMemberDay('+m.id+',\''+_d+'\')" style="width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;font-size:11px;font-weight:700;background:'+(_on?'#EA580C':'var(--gray-200)')+';color:'+(_on?'white':'var(--gray-400)')+';">'+ _d+'</button>';} return r;})()}
           </div>
         </div>`).join('')}
 
@@ -1007,184 +1006,6 @@ function removeMemberFromCar(memberId){
   m.carId='';
   saveMembers();
   renderAdminTab('cars');
-}
-
-
-// ── 출결 관리 ──
-function loadAttendance(){
-  return JSON.parse(localStorage.getItem('tkd_attendance')||'{}');
-}
-function saveAttendance(data){
-  // 3개월치만 보관
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate()).toISOString().slice(0,10);
-  Object.keys(data).forEach(function(date){
-    if(date < cutoff) delete data[date];
-  });
-  localStorage.setItem('tkd_attendance', JSON.stringify(data));
-}
-
-function getAttendanceToday(memberId){
-  const today = new Date().toISOString().slice(0,10);
-  const data = loadAttendance();
-  return (data[today] && data[today][memberId]) || null;
-}
-
-function setAttendance(memberId, status){
-  const data = loadAttendance();
-  const today = attViewDate || new Date().toISOString().slice(0,10);
-  if(!data[today]) data[today]={};
-  if(data[today][memberId]===status) delete data[today][memberId];
-  else data[today][memberId]=status;
-  saveAttendance(data);
-  renderAttendance();
-}
-
-let attViewDate = new Date().toISOString().slice(0,10);
-let attFilterCourse = '';
-
-function renderAttendance(){
-  const c = document.getElementById('admin-content');
-  const data = loadAttendance();
-  const dateMembers = members.filter(function(m){
-    const d = new Date(attViewDate);
-    const dayStr = ['일','월','화','수','목','금','토'][d.getDay()];
-    return m.days.includes(dayStr) && (!attFilterCourse || m.courseId===attFilterCourse);
-  });
-  const presentCount = dateMembers.filter(function(m){ return data[attViewDate]&&data[attViewDate][m.id]==='present'; }).length;
-  const absentCount = dateMembers.filter(function(m){ return data[attViewDate]&&data[attViewDate][m.id]==='absent'; }).length;
-  const unprocessed = dateMembers.length - presentCount - absentCount;
-
-  let html = '<div style="padding:12px 16px 0;">';
-
-  // 날짜 선택
-  html += '<div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:14px;margin-bottom:10px;">'
-    + '<div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:8px;">📅 날짜 선택</div>'
-    + '<input type="date" value="'+attViewDate+'" onchange="attViewDate=this.value;renderAttendance();" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:14px;outline:none;">'
-    + '</div>';
-
-  // 코스 필터
-  html += '<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">'
-    + '<button onclick="attFilterCourse='';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:1.5px solid '+(attFilterCourse===''?'var(--admin)':'var(--gray-200)')+';background:'+(attFilterCourse===''?'var(--admin-light)':'white')+';color:'+(attFilterCourse===''?'var(--admin)':'var(--gray-600)')+';font-size:11px;font-weight:600;cursor:pointer;">전체</button>'
-    + courses.map(function(cs){
-        return '<button onclick="attFilterCourse=''+cs.id+'';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:1.5px solid '+(attFilterCourse===cs.id?'var(--admin)':'var(--gray-200)')+';background:'+(attFilterCourse===cs.id?'var(--admin-light)':'white')+';color:'+(attFilterCourse===cs.id?'var(--admin)':'var(--gray-600)')+';font-size:11px;font-weight:600;cursor:pointer;">'+cs.name+'</button>';
-      }).join('')
-    + '</div>';
-
-  // 통계 요약
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
-    + '<div style="background:var(--success-light);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--success);">'+presentCount+'</div><div style="font-size:10px;color:var(--success);">출석</div></div>'
-    + '<div style="background:var(--danger-light);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--danger);">'+absentCount+'</div><div style="font-size:10px;color:var(--danger);">결석</div></div>'
-    + '<div style="background:var(--gray-100);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--gray-400);">'+unprocessed+'</div><div style="font-size:10px;color:var(--gray-400);">미처리</div></div>'
-    + '</div>';
-
-  // 학부모 알림 버튼
-  html += '<button onclick="sendAttendanceNotice()" style="width:100%;padding:11px;background:#EA580C;color:white;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📱 학부모 출결 알림 발송</button>';
-
-  // 회원별 출결 처리
-  if(dateMembers.length===0){
-    html += '<div class="empty-state">해당 날짜에 등원 예정 원생이 없습니다.</div>';
-  } else {
-    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
-    dateMembers.forEach(function(m){
-      const status = data[attViewDate]&&data[attViewDate][m.id];
-      const photoHtml = m.photo
-        ? '<img src="'+m.photo+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>'
-        : '<div style="width:42px;height:42px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--primary);flex-shrink:0;">'+m.name.slice(0,1)+'</div>';
-      const course = courses.find(function(cs){return cs.id===m.courseId;});
-      html += '<div style="background:white;border-radius:var(--radius);padding:12px 14px;border:1.5px solid '+(status==='present'?'var(--success)':status==='absent'?'var(--danger)':'var(--gray-200)')+';">'
-        + '<div style="display:flex;align-items:center;gap:10px;">'
-        + photoHtml
-        + '<div style="flex:1;">'
-        + '<div style="font-size:14px;font-weight:700;">'+m.name+'</div>'
-        + '<div style="font-size:11px;color:var(--gray-400);">'+(course?.name||'')+(m.phone?' · '+m.phone:'')+'</div>'
-        + '</div>'
-        + '<div style="display:flex;gap:6px;">'
-        + '<button onclick="setAttendance('+m.id+','present')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(status==='present'?'var(--success)':'var(--gray-100)')+';color:'+(status==='present'?'white':'var(--gray-600)')+';">✅ 출석</button>'
-        + '<button onclick="setAttendance('+m.id+','absent')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(status==='absent'?'var(--danger)':'var(--gray-100)')+';color:'+(status==='absent'?'white':'var(--gray-600)')+';">❌ 결석</button>'
-        + '</div>'
-        + '</div>'
-        + (m.note?'<div style="font-size:11px;color:var(--warning);margin-top:6px;padding-left:52px;">※ '+m.note+'</div>':'')
-        + '</div>';
-    });
-    html += '</div>';
-  }
-
-  // 월별 달력 출결 현황
-  html += '<div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:14px;margin-top:10px;">'
-    + '<div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:10px;">📅 이번 달 출결 현황</div>'
-    + renderAttendanceCalendar(data)
-    + '</div>';
-
-  html += '</div>';
-  c.innerHTML = html;
-}
-
-function renderAttendanceCalendar(data){
-  const d = new Date(attViewDate);
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const lastDate = new Date(year, month+1, 0).getDate();
-  const dayNames = ['일','월','화','수','목','금','토'];
-  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">';
-  dayNames.forEach(function(d){ html += '<div style="font-size:10px;font-weight:700;color:var(--gray-400);padding:3px 0;">'+d+'</div>'; });
-  for(let i=0;i<firstDay;i++) html += '<div></div>';
-  for(let date=1;date<=lastDate;date++){
-    const dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(date).padStart(2,'0');
-    const dayData = data[dateStr];
-    const isToday = dateStr===new Date().toISOString().slice(0,10);
-    const isSelected = dateStr===attViewDate;
-    const presentCnt = dayData ? Object.values(dayData).filter(function(v){return v==='present';}).length : 0;
-    const absentCnt = dayData ? Object.values(dayData).filter(function(v){return v==='absent';}).length : 0;
-    const hasDot = presentCnt>0||absentCnt>0;
-    html += '<div onclick="attViewDate=''+dateStr+'';renderAttendance();" style="cursor:pointer;padding:4px 2px;border-radius:6px;background:'+(isSelected?'var(--admin)':isToday?'var(--admin-light)':'transparent')+';border:1px solid '+(isSelected?'var(--admin)':isToday?'var(--admin)':'transparent')+';">'
-      + '<div style="font-size:12px;font-weight:'+(isToday||isSelected?'700':'400')+';color:'+(isSelected?'white':isToday?'var(--admin)':'var(--gray-700)')+';">'+date+'</div>'
-      + (hasDot?'<div style="display:flex;gap:1px;justify-content:center;margin-top:1px;">'
-        +(presentCnt>0?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSelected?'white':'var(--success)')+'"></div>':'')
-        +(absentCnt>0?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSelected?'#FCA5A5':'var(--danger)')+'"></div>':'')
-        +'</div>':'')
-      + '</div>';
-  }
-  html += '</div>';
-  return html;
-}
-
-function sendAttendanceNotice(){
-  const data = loadAttendance();
-  const today = attViewDate || new Date().toISOString().slice(0,10);
-  const dateMembers = members.filter(function(m){
-    const d = new Date(today);
-    const dayStr = ['일','월','화','수','목','금','토'][d.getDay()];
-    return m.days.includes(dayStr);
-  });
-  const dateFormatted = today.replace(/-/g,'년 ').replace(/-/,'월 ')+'일';
-  const presentList = dateMembers.filter(function(m){return data[today]&&data[today][m.id]==='present';});
-  const absentList = dateMembers.filter(function(m){return data[today]&&data[today][m.id]==='absent';});
-
-  const msg = '['+orgSettings.name+'] 출결 안내 ('+dateFormatted+')
-'
-    + '✅ 출석 ('+presentList.length+'명): '+presentList.map(function(m){return m.name;}).join(', ')+'
-'
-    + '❌ 결석 ('+absentList.length+'명): '+absentList.map(function(m){return m.name;}).join(', ')+'
-'
-    + '📱 상세 확인: https://cosroad.com';
-
-  // 전체 학부모 연락처 수집
-  const phones = dateMembers.map(function(m){return m.phone;}).filter(Boolean);
-
-  if(phones.length===0){ alert('등록된 연락처가 없습니다.'); return; }
-
-  // 클립보드 복사 + 문자 앱 열기
-  navigator.clipboard.writeText(msg).then(function(){
-    alert('✅ 출결 알림 내용이 복사됐어요!
-카카오톡/문자에 붙여넣기 하세요.
-
-또는 문자앱으로 이동합니다.');
-    window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
-  }).catch(function(){
-    window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
-  });
 }
 
 // ── 스케줄 ──
@@ -1351,6 +1172,9 @@ function openEditModal(id){
   document.getElementById('m-phone2').value=m.phone2||'';
   document.getElementById('m-location').value=m.location;
   document.getElementById('m-note').value=m.note;
+  if(document.getElementById('m-pin'))document.getElementById('m-pin').value=m.pin||'';
+  if(document.getElementById('m-regfee'))document.getElementById('m-regfee').value=m.regfee||'';
+  if(document.getElementById('m-monthly'))document.getElementById('m-monthly').value=m.monthly||'';
   DAYS.forEach(d=>document.getElementById('d-'+dayIdMap[d]).checked=m.days.includes(d));
   document.getElementById('modal-del-btn').style.display='block';
   document.getElementById('member-modal').classList.add('show');
@@ -1377,6 +1201,878 @@ function deleteMember(){
 
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');}));
+
+// ══════════════════════
+// 사진 업로드
+// ══════════════════════
+function uploadMemberPhoto(memberId, input){
+  var file=input.files[0];
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    for(var i=0;i<members.length;i++){
+      if(members[i].id===memberId){members[i].photo=e.target.result;break;}
+    }
+    saveMembers();
+    renderAdminTab('members');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══════════════════════
+// 출결 관리
+// ══════════════════════
+var attViewDate=new Date().toISOString().slice(0,10);
+var attFilterCourse='';
+
+function loadAttendance(){
+  return JSON.parse(localStorage.getItem('tkd_attendance')||'{}');
+}
+function saveAttendanceData(data){
+  var cutoff=new Date();
+  cutoff.setMonth(cutoff.getMonth()-3);
+  var cs=cutoff.toISOString().slice(0,10);
+  Object.keys(data).forEach(function(k){if(k<cs)delete data[k];});
+  localStorage.setItem('tkd_attendance',JSON.stringify(data));
+}
+function getAttendanceToday(memberId){
+  var today=new Date().toISOString().slice(0,10);
+  var data=loadAttendance();
+  return (data[today]&&data[today][memberId])||null;
+}
+function setAttendance(memberId,status){
+  var data=loadAttendance();
+  var date=attViewDate||new Date().toISOString().slice(0,10);
+  if(!data[date])data[date]={};
+  if(data[date][memberId]===status)delete data[date][memberId];
+  else data[date][memberId]=status;
+  saveAttendanceData(data);
+  renderAttendance();
+}
+
+function renderAttendance(){
+  var cont=document.getElementById('admin-content');
+  if(!cont)return;
+  var data=loadAttendance();
+  var d=new Date(attViewDate);
+  var dayStr=['일','월','화','수','목','금','토'][d.getDay()];
+  var dm=members.filter(function(m){
+    return m.days.indexOf(dayStr)>=0&&(!attFilterCourse||m.courseId===attFilterCourse);
+  });
+  var pc=0,ac=0;
+  for(var i=0;i<dm.length;i++){
+    var s=data[attViewDate]&&data[attViewDate][dm[i].id];
+    if(s==='present')pc++;
+    else if(s==='absent')ac++;
+  }
+  var uc=dm.length-pc-ac;
+  var h='<div style="padding:12px 16px 0;">';
+
+  // PIN 체크인 버튼
+  h+='<button onclick="openPinCheckin();" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔢 PIN 체크인 모드 열기</button>';
+
+  // 날짜 선택
+  h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
+  h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:8px;">📅 날짜 선택</div>';
+  h+='<input type="date" value="'+attViewDate+'" onchange="attViewDate=this.value;renderAttendance();"';
+  h+=' style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;outline:none;"></div>';
+
+  // 코스 필터
+  h+='<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">';
+  var allBorder=attFilterCourse===''?'var(--admin)':'#EAECF0';
+  var allBg=attFilterCourse===''?'var(--admin-light)':'white';
+  var allColor=attFilterCourse===''?'var(--admin)':'#475467';
+  h+='<button onclick="attFilterCourse=\'\';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+allBorder+';background:'+allBg+';color:'+allColor+';">전체</button>';
+  for(var ci=0;ci<courses.length;ci++){
+    var cs2=courses[ci];var ia=attFilterCourse===cs2.id;
+    h+='<button onclick=\"attFilterCourse=\''+cs2.id+'\';\3\" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+(ia?'var(--admin)':'#EAECF0')+';background:'+(ia?'var(--admin-light)':'white')+';color:'+(ia?'var(--admin)':'#475467')+';">'+cs2.name+'</button>';
+  }
+  h+='</div>';
+
+  // 통계
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">';
+  h+='<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#12B76A;">'+pc+'</div><div style="font-size:10px;color:#12B76A;">출석</div></div>';
+  h+='<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#F04438;">'+ac+'</div><div style="font-size:10px;color:#F04438;">결석</div></div>';
+  h+='<div style="background:#F2F4F7;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#98A2B3;">'+uc+'</div><div style="font-size:10px;color:#98A2B3;">미처리</div></div>';
+  h+='</div>';
+
+  // 학부모 알림
+  h+='<button onclick="sendAttendanceNotice();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📱 학부모 출결 알림 발송</button>';
+
+  // 회원 목록
+  if(dm.length===0){
+    h+='<div style="text-align:center;padding:36px;color:#98A2B3;font-size:13px;">해당 날짜에 등원 예정 원생이 없습니다.</div>';
+  }else{
+    h+='<div style="display:flex;flex-direction:column;gap:8px;">';
+    for(var mi=0;mi<dm.length;mi++){
+      var m=dm[mi];
+      var st=data[attViewDate]&&data[attViewDate][m.id];
+      var cr=null;for(var k=0;k<courses.length;k++){if(courses[k].id===m.courseId){cr=courses[k];break;}}
+      var pe=m.photo
+        ?('<img src="'+m.photo+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+        :('<div style="width:42px;height:42px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
+      var bc=st==='present'?'#12B76A':st==='absent'?'#F04438':'#EAECF0';
+      h+='<div style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+bc+';">';
+      h+='<div style="display:flex;align-items:center;gap:10px;">'+pe;
+      h+='<div style="flex:1;"><div style="font-size:14px;font-weight:700;">'+m.name+'</div>';
+      h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?cr.name:'')+(m.phone?' · '+m.phone:'')+(m.pin?' · PIN:'+m.pin:'')+'</div></div>';
+      h+='<div style="display:flex;gap:6px;">';
+      h+='<button onclick="setAttendance('+m.id+',\'present\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='present'?'#12B76A':'#F2F4F7')+';color:'+(st==='present'?'white':'#475467')+';">✅ 출석</button>';
+      h+='<button onclick="setAttendance('+m.id+',\'absent\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='absent'?'#F04438':'#F2F4F7')+';color:'+(st==='absent'?'white':'#475467')+';">❌ 결석</button>';
+      h+='</div></div>';
+      if(m.note)h+='<div style="font-size:11px;color:#F79009;margin-top:6px;padding-left:52px;">※ '+m.note+'</div>';
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+
+  // 달력
+  var cy=d.getFullYear(),cm=d.getMonth();
+  var fd=new Date(cy,cm,1).getDay(),ld=new Date(cy,cm+1,0).getDate();
+  var dns=['일','월','화','수','목','금','토'];
+  h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-top:10px;">';
+  h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:10px;">📅 이번 달 출결 현황</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">';
+  for(var di=0;di<7;di++)h+='<div style="font-size:10px;font-weight:700;color:#98A2B3;padding:3px 0;">'+dns[di]+'</div>';
+  for(var fi=0;fi<fd;fi++)h+='<div></div>';
+  for(var dt=1;dt<=ld;dt++){
+    var mo=String(cm+1).padStart(2,'0'),da=String(dt).padStart(2,'0');
+    var ds=cy+'-'+mo+'-'+da;
+    var it=ds===new Date().toISOString().slice(0,10),isel=ds===attViewDate;
+    var dd=data[ds]||{};var dpc=0,dac=0;
+    Object.values(dd).forEach(function(v){if(v==='present')dpc++;else if(v==='absent')dac++;});
+    h+='<div onclick="attViewDate=\''+ds+'\';renderAttendance();" style="cursor:pointer;padding:4px 2px;border-radius:6px;background:'+(isel?'var(--admin)':it?'var(--admin-light)':'transparent')+';">';
+    h+='<div style="font-size:12px;font-weight:'+(isel||it?'700':'400')+';color:'+(isel?'white':it?'var(--admin)':'#344054')+';">'+dt+'</div>';
+    if(dpc>0||dac>0){
+      h+='<div style="display:flex;gap:1px;justify-content:center;">';
+      if(dpc>0)h+='<div style="width:4px;height:4px;border-radius:50%;background:'+(isel?'white':'#12B76A')+'"></div>';
+      if(dac>0)h+='<div style="width:4px;height:4px;border-radius:50%;background:'+(isel?'#FCA5A5':'#F04438')+'"></div>';
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+  h+='</div></div></div>';
+  cont.innerHTML=h;
+}
+
+function sendAttendanceNotice(){
+  var data=loadAttendance();
+  var today=attViewDate||new Date().toISOString().slice(0,10);
+  var d=new Date(today);
+  var dayStr=['일','월','화','수','목','금','토'][d.getDay()];
+  var dm=members.filter(function(m){return m.days.indexOf(dayStr)>=0;});
+  var pl=dm.filter(function(m){return data[today]&&data[today][m.id]==='present';});
+  var al=dm.filter(function(m){return data[today]&&data[today][m.id]==='absent';});
+  var df=today.slice(0,4)+'년 '+parseInt(today.slice(5,7))+'월 '+parseInt(today.slice(8,10))+'일';
+  var pn=pl.map(function(m){return m.name;}).join(', ');
+  var an=al.map(function(m){return m.name;}).join(', ');
+  var msg='['+orgSettings.name+'] 출결 안내 ('+df+')\n✅ 출석 ('+pl.length+'명): '+pn+'\n❌ 결석 ('+al.length+'명): '+an+'\n📱 확인: https://cosroad.com';
+  var phones=dm.map(function(m){return m.phone;}).filter(Boolean);
+  navigator.clipboard.writeText(msg).then(function(){alert('✅ 출결 알림이 복사됐어요!\n카카오톡에 붙여넣기 하세요.');}).catch(function(){});
+  if(phones.length>0)window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
+}
+
+// ══════════════════════
+// PIN 체크인 모드
+// ══════════════════════
+var pinInput='';
+var pinCheckinOpen=false;
+
+function openPinCheckin(){
+  pinInput='';
+  pinCheckinOpen=true;
+  document.getElementById('pin-checkin-modal').classList.add('show');
+  renderPinDisplay();
+}
+function closePinCheckin(){
+  pinCheckinOpen=false;
+  pinInput='';
+  document.getElementById('pin-checkin-modal').classList.remove('show');
+}
+function pinPress(val){
+  if(val==='del'){
+    pinInput=pinInput.slice(0,-1);
+  }else if(val==='clear'){
+    pinInput='';
+  }else{
+    if(pinInput.length>=4)return;
+    pinInput+=val;
+    if(pinInput.length===4){
+      setTimeout(function(){checkPin();},200);
+    }
+  }
+  renderPinDisplay();
+}
+function renderPinDisplay(){
+  var disp=document.getElementById('pin-dots');
+  if(!disp)return;
+  var h='';
+  for(var i=0;i<4;i++){
+    h+='<div style="width:16px;height:16px;border-radius:50%;background:'+(i<pinInput.length?'#EA580C':'#EAECF0')+';margin:0 6px;"></div>';
+  }
+  disp.innerHTML=h;
+}
+function checkPin(){
+  var member=null;
+  for(var i=0;i<members.length;i++){
+    if(members[i].pin&&members[i].pin===pinInput){member=members[i];break;}
+  }
+  if(!member){
+    document.getElementById('pin-result').innerHTML='<div style="color:#F04438;font-size:14px;font-weight:700;text-align:center;padding:10px;">❌ PIN 번호가 올바르지 않습니다.</div>';
+    pinInput='';
+    setTimeout(function(){
+      var r=document.getElementById('pin-result');
+      if(r)r.innerHTML='';
+      renderPinDisplay();
+    },1500);
+    return;
+  }
+
+  // 출석 처리
+  var today=new Date().toISOString().slice(0,10);
+  var data=loadAttendance();
+  if(!data[today])data[today]={};
+  data[today][member.id]='present';
+  saveAttendanceData(data);
+
+  // 시간 기록
+  var now=new Date();
+  var timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+  // 성공 화면
+  var photo=member.photo
+    ?('<img src="'+member.photo+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;"/>')
+    :('<div style="width:80px;height:80px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#1A6BFF;margin:0 auto 12px;">'+member.name.slice(0,1)+'</div>');
+  document.getElementById('pin-result').innerHTML=
+    '<div style="text-align:center;padding:10px;">'+photo
+    +'<div style="font-size:22px;font-weight:800;color:#12B76A;margin-bottom:4px;">✅ 출석 완료!</div>'
+    +'<div style="font-size:18px;font-weight:700;color:#344054;margin-bottom:4px;">'+member.name+'</div>'
+    +'<div style="font-size:13px;color:#98A2B3;">'+timeStr+' 도착</div>'
+    +'</div>';
+
+  // 학부모 문자 발송
+  sendCheckinSMS(member, timeStr);
+
+  pinInput='';
+  setTimeout(function(){
+    var r=document.getElementById('pin-result');
+    if(r)r.innerHTML='';
+    renderPinDisplay();
+  },3000);
+}
+function sendCheckinSMS(member, timeStr){
+  if(!member.phone&&!member.phone2)return;
+  var msg='['+orgSettings.name+'] '+member.name+' 출석 알림\n'+timeStr+' 도착했습니다. ✅\n📱 cosroad.com';
+  var phone=member.phone||member.phone2;
+  // 문자앱 연동
+  window.open('sms:'+phone+'?body='+encodeURIComponent(msg),'_blank');
+}
+
+
+// ══════════════════════════════════════════
+// 수납 관리
+// ══════════════════════════════════════════
+function loadPayments(){
+  return JSON.parse(localStorage.getItem('tkd_payments')||'{}');
+}
+function savePayments(data){
+  localStorage.setItem('tkd_payments',JSON.stringify(data));
+}
+function getPaymentKey(memberId, year, month){
+  return memberId+'_'+year+'_'+String(month).padStart(2,'0');
+}
+
+var payViewYear = new Date().getFullYear();
+var payViewMonth = new Date().getMonth()+1;
+var payFilterCourse2 = '';
+
+function renderPayment(){
+  var cont = document.getElementById('admin-content');
+  if(!cont) return;
+  var data = loadPayments();
+  var now = new Date();
+
+  // 이번달 수납 통계
+  var totalExpected = 0, totalPaid = 0, totalUnpaid = 0;
+  members.forEach(function(m){
+    if(!m.monthly) return;
+    totalExpected += m.monthly;
+    var key = getPaymentKey(m.id, payViewYear, payViewMonth);
+    if(data[key] && data[key].paid) totalPaid += m.monthly;
+    else totalUnpaid += m.monthly;
+  });
+
+  var h = '<div style="padding:12px 16px 0;">';
+
+  // 연월 선택
+  h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
+  h += '<select onchange="payViewYear=parseInt(this.value);renderPayment();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
+  for(var y=now.getFullYear()-1; y<=now.getFullYear()+1; y++){
+    h += '<option value="'+y+'"'+(y===payViewYear?' selected':'')+'>'+y+'년</option>';
+  }
+  h += '</select>';
+  h += '<select onchange="payViewMonth=parseInt(this.value);renderPayment();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
+  for(var mo=1; mo<=12; mo++){
+    h += '<option value="'+mo+'"'+(mo===payViewMonth?' selected':'')+'>'+mo+'월</option>';
+  }
+  h += '</select></div>';
+
+  // 통계 카드
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+totalExpected.toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">예상수납(원)</div></div>';
+  h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+totalPaid.toLocaleString()+'</div><div style="font-size:10px;color:#12B76A;">납부완료(원)</div></div>';
+  h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+totalUnpaid.toLocaleString()+'</div><div style="font-size:10px;color:#F04438;">미납(원)</div></div>';
+  h += '</div>';
+
+  // 수강료 일괄/개별 설정
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
+  h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">💳 수강료 설정</div>';
+
+  // 탭 (일괄/개별)
+  h += '<div style="display:flex;gap:6px;margin-bottom:12px;">';
+  h += '<button onclick="payFeeTab=String.fromCharCode(98,117,108,107);renderPayment();" style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(payFeeTab==='bulk'?'var(--admin)':'#EAECF0')+';background:'+(payFeeTab==='bulk'?'var(--admin-light)':'white')+';color:'+(payFeeTab==='bulk'?'var(--admin)':'#475467')+';">일괄 설정</button>';
+  h += '<button onclick="payFeeTab=String.fromCharCode(105,110,100,105,118,105,100,117,97,108);renderPayment();" style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(payFeeTab==='individual'?'var(--admin)':'#EAECF0')+';background:'+(payFeeTab==='individual'?'var(--admin-light)':'white')+';color:'+(payFeeTab==='individual'?'var(--admin)':'#475467')+';">개별 설정</button>';
+  h += '</div>';
+
+  if(payFeeTab==='bulk'){
+    // 일괄 설정
+    h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">코스별로 동일한 금액을 일괄 적용합니다.</div>';
+    courses.forEach(function(cs){
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;background:#F2F4F7;border-radius:8px;">';
+      h += '<span style="font-size:13px;font-weight:600;flex:1;">'+cs.name+'</span>';
+      h += '<div style="display:flex;flex-direction:column;gap:4px;">';
+      h += '<div style="display:flex;align-items:center;gap:4px;">';
+      h += '<span style="font-size:11px;color:#475467;width:42px;">등록비</span>';
+      h += '<input type="number" id="bulk-reg-'+cs.id+'" placeholder="0" style="width:90px;padding:5px 8px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;text-align:right;"/>';
+      h += '<span style="font-size:11px;color:#475467;">원</span></div>';
+      h += '<div style="display:flex;align-items:center;gap:4px;">';
+      h += '<span style="font-size:11px;color:#475467;width:42px;">월정액</span>';
+      h += '<input type="number" id="bulk-mon-'+cs.id+'" placeholder="0" style="width:90px;padding:5px 8px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;text-align:right;"/>';
+      h += '<span style="font-size:11px;color:#475467;">원</span></div>';
+      h += '</div>';
+      h += '<button onclick="applyBulkFee(cs.id)" style="padding:6px 12px;background:var(--admin);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">적용</button>';
+      h += '</div>';
+    });
+    // 전체 일괄
+    h += '<div style="border-top:1px solid #EAECF0;padding-top:10px;margin-top:4px;">';
+    h += '<div style="font-size:11px;font-weight:700;color:#344054;margin-bottom:8px;">전체 회원 일괄 적용</div>';
+    h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+    h += '<div style="flex:1;"><div style="font-size:10px;color:#475467;margin-bottom:3px;">등록비(원)</div>';
+    h += '<input type="number" id="bulk-all-reg" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/></div>';
+    h += '<div style="flex:1;"><div style="font-size:10px;color:#475467;margin-bottom:3px;">월정액(원)</div>';
+    h += '<input type="number" id="bulk-all-mon" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/></div>';
+    h += '</div>';
+    h += '<button onclick="applyBulkFee(String.fromCharCode(97,108,108))" style="width:100%;padding:10px;background:#EA580C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">🔄 전체 회원 일괄 적용</button>';
+    h += '</div>';
+  } else {
+    // 개별 설정
+    h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">회원별로 개별 금액을 설정합니다.</div>';
+    members.forEach(function(m){
+      var cs = courses.find(function(c){return c.id===m.courseId;});
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;background:#F2F4F7;border-radius:8px;">';
+      var photo = m.photo
+        ?('<img src="'+m.photo+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+        :('<div style="width:32px;height:32px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
+      h += photo;
+      h += '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+m.name+'</div>';
+      h += '<div style="font-size:10px;color:#98A2B3;">'+(cs?cs.name:'')+'</div></div>';
+      h += '<div style="display:flex;flex-direction:column;gap:3px;">';
+      h += '<div style="display:flex;align-items:center;gap:3px;">';
+      h += '<span style="font-size:10px;color:#475467;width:38px;">등록비</span>';
+      h += '<input type="number" id="ind-reg-'+m.id+'" value="'+(m.regfee||'')+'" placeholder="0" style="width:80px;padding:4px 6px;border:1px solid #EAECF0;border-radius:6px;font-size:11px;text-align:right;" onchange="saveIndFee('+m.id+')"/>';
+      h += '<span style="font-size:10px;color:#475467;">원</span></div>';
+      h += '<div style="display:flex;align-items:center;gap:3px;">';
+      h += '<span style="font-size:10px;color:#475467;width:38px;">월정액</span>';
+      h += '<input type="number" id="ind-mon-'+m.id+'" value="'+(m.monthly||'')+'" placeholder="0" style="width:80px;padding:4px 6px;border:1px solid #EAECF0;border-radius:6px;font-size:11px;text-align:right;" onchange="saveIndFee('+m.id+')"/>';
+      h += '<span style="font-size:10px;color:#475467;">원</span></div>';
+      h += '</div></div>';
+    });
+    h += '<button onclick="alert(\'✅ 변경사항이 자동 저장됩니다.\')" style="width:100%;padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">✅ 개별 설정 완료</button>';
+  }
+  h += '</div>';
+
+  // 미납 알림 버튼
+  h += '<button onclick="sendUnpaidNotice();" style="width:100%;padding:11px;background:#F04438;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📱 미납 회원 알림 발송</button>';
+
+  // 엑셀 출력 버튼
+  h += '<button onclick="exportPaymentExcel();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">📊 수납 내역 엑셀 출력</button>';
+
+  // 회원별 수납 목록
+  h += '<div style="display:flex;flex-direction:column;gap:8px;">';
+  var filtered2 = members.filter(function(m){ return !payFilterCourse2||m.courseId===payFilterCourse2; });
+
+  if(filtered2.length===0){
+    h += '<div style="text-align:center;padding:36px;color:#98A2B3;font-size:13px;">등록된 회원이 없습니다.</div>';
+  } else {
+    filtered2.forEach(function(m){
+      var key = getPaymentKey(m.id, payViewYear, payViewMonth);
+      var payData = data[key]||{paid:false,method:'',date:'',memo:''};
+      var isPaid = payData.paid;
+      var course = null;
+      for(var i=0;i<courses.length;i++){ if(courses[i].id===m.courseId){course=courses[i];break;} }
+      var photo = m.photo
+        ?('<img src="'+m.photo+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+        :('<div style="width:40px;height:40px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
+
+      h += '<div style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+(isPaid?'#12B76A':'#EAECF0')+';">';
+      h += '<div style="display:flex;align-items:center;gap:10px;">'+photo;
+      h += '<div style="flex:1;">';
+      h += '<div style="font-size:14px;font-weight:700;">'+m.name+'</div>';
+      h += '<div style="font-size:11px;color:#98A2B3;">'+(course?course.name:'')+(m.monthly?' · 월 '+m.monthly.toLocaleString()+'원':'')+'</div>';
+      if(m.regfee) h += '<div style="font-size:10px;color:#7C3AED;">등록비: '+m.regfee.toLocaleString()+'원</div>';
+      h += '</div>';
+      h += '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">';
+      h += '<button onclick="togglePayment('+m.id+')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(isPaid?'#12B76A':'#F2F4F7')+';color:'+(isPaid?'white':'#475467')+';white-space:nowrap;">'+(isPaid?'✅ 납부':'미납')+'</button>';
+      h += '</div></div>';
+
+      if(isPaid){
+        h += '<div style="margin-top:8px;padding:8px 10px;background:#ECFDF3;border-radius:8px;font-size:11px;color:#027A48;">';
+        h += '납부일: '+(payData.date||'미기록')+' · '+(payData.method||'현금');
+        if(payData.memo) h += ' · '+payData.memo;
+        h += '</div>';
+      }
+
+      // 납부 처리 폼 (미납 시)
+      if(!isPaid && m.monthly){
+        h += '<div style="margin-top:8px;display:flex;gap:6px;">';
+        h += '<select id="pay-method-'+m.id+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;">';
+        h += '<option value="현금">현금</option><option value="카드">카드</option><option value="계좌이체">계좌이체</option>';
+        h += '</select>';
+        h += '<input type="date" id="pay-date-'+m.id+'" value="'+new Date().toISOString().slice(0,10)+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;"/>';
+        h += '<button onclick="confirmPayment('+m.id+')" style="padding:6px 12px;background:#7C3AED;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">납부처리</button>';
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+  }
+  h += '</div></div>';
+  cont.innerHTML = h;
+}
+
+function togglePayment(memberId){
+  var data = loadPayments();
+  var key = getPaymentKey(memberId, payViewYear, payViewMonth);
+  if(data[key] && data[key].paid){
+    if(!confirm('납부 취소하시겠습니까?')) return;
+    data[key].paid = false;
+  } else {
+    data[key] = {paid:true, method:'현금', date:new Date().toISOString().slice(0,10), memo:''};
+  }
+  savePayments(data);
+  renderPayment();
+}
+
+function confirmPayment(memberId){
+  var data = loadPayments();
+  var key = getPaymentKey(memberId, payViewYear, payViewMonth);
+  var method = document.getElementById('pay-method-'+memberId);
+  var date = document.getElementById('pay-date-'+memberId);
+  data[key] = {
+    paid: true,
+    method: method?method.value:'현금',
+    date: date?date.value:new Date().toISOString().slice(0,10),
+    memo: ''
+  };
+  savePayments(data);
+  // 세무 데이터에도 자동 기록
+  var m = members.find(function(x){return x.id===memberId;});
+  if(m && m.monthly){
+    addIncomeRecord(payViewYear, payViewMonth, m.name+' 수강료', m.monthly, '수강료');
+  }
+  renderPayment();
+}
+
+function sendUnpaidNotice(){
+  var data = loadPayments();
+  var unpaid = members.filter(function(m){
+    if(!m.monthly) return false;
+    var key = getPaymentKey(m.id, payViewYear, payViewMonth);
+    return !(data[key]&&data[key].paid);
+  });
+  if(unpaid.length===0){ alert('미납 회원이 없습니다! ✅'); return; }
+  var msg = '['+orgSettings.name+'] '+payViewYear+'년 '+payViewMonth+'월 수강료 안내\n미납 회원: '+unpaid.map(function(m){return m.name;}).join(', ')+'\n빠른 납부 부탁드립니다.\n문의: cosroad.com';
+  navigator.clipboard.writeText(msg).then(function(){alert('✅ 미납 알림 복사됐어요!\n카카오톡에 붙여넣기 하세요.');}).catch(function(){});
+  var phones = unpaid.map(function(m){return m.phone;}).filter(Boolean);
+  if(phones.length>0) window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
+}
+
+function exportPaymentExcel(){
+  var XLSX = window.XLSX;
+  if(!XLSX){ alert('잠시 후 다시 시도해주세요.'); return; }
+  var data = loadPayments();
+  var rows = [['이름','코스','월정액','등록비','납부여부','납부방법','납부일']];
+  members.forEach(function(m){
+    var key = getPaymentKey(m.id, payViewYear, payViewMonth);
+    var pd = data[key]||{};
+    var course = courses.find(function(c){return c.id===m.courseId;});
+    rows.push([m.name, course?course.name:'', m.monthly||0, m.regfee||0, pd.paid?'납부':'미납', pd.method||'', pd.date||'']);
+  });
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, payViewYear+'년'+payViewMonth+'월 수납');
+  XLSX.writeFile(wb, payViewYear+'년_'+payViewMonth+'월_수납내역.xlsx');
+}
+
+// ══════════════════════════════════════════
+// 세무 관리
+// ══════════════════════════════════════════
+function loadTaxData(){
+  return JSON.parse(localStorage.getItem('tkd_tax')||'{}');
+}
+function saveTaxData(data){
+  localStorage.setItem('tkd_tax',JSON.stringify(data));
+}
+function addIncomeRecord(year, month, name, amount, category){
+  var data = loadTaxData();
+  var key = year+'_'+String(month).padStart(2,'0');
+  if(!data[key]) data[key]={income:[],expense:[]};
+  data[key].income.push({name:name, amount:amount, category:category, date:new Date().toISOString().slice(0,10), taxType:'과세'});
+  saveTaxData(data);
+}
+
+var taxViewYear2 = new Date().getFullYear();
+var taxViewMonth2 = new Date().getMonth()+1;
+var taxTab = 'monthly'; // monthly | records | tax
+
+function renderTax(){
+  var cont = document.getElementById('admin-content');
+  if(!cont) return;
+  var data = loadTaxData();
+  var now = new Date();
+
+  var h = '<div style="padding:0;">';
+
+  // 탭
+  h += '<div style="display:flex;border-bottom:1px solid #EAECF0;background:white;margin-bottom:0;">';
+  h += '<button onclick=\"taxTab=\'monthly\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='monthly'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='monthly'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='monthly'?'var(--admin)':'transparent')+';">📅 월별현황</button>';
+  h += '<button onclick=\"taxTab=\'records\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='records'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='records'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='records'?'var(--admin)':'transparent')+';">📋 수입/지출</button>';
+  h += '<button onclick=\"taxTab=\'tax\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='tax'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='tax'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='tax'?'var(--admin)':'transparent')+';">🧾 세금계산</button>';
+  h += '</div>';
+
+  h += '<div style="padding:12px 16px 0;">';
+
+  if(taxTab==='monthly'){
+    // 연간 월별 현황
+    h += '<div style="margin-bottom:12px;display:flex;gap:8px;">';
+    h += '<select onchange="taxViewYear2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
+    for(var y=now.getFullYear()-1;y<=now.getFullYear();y++){
+      h += '<option value="'+y+'"'+(y===taxViewYear2?' selected':'')+'>'+y+'년</option>';
+    }
+    h += '</select></div>';
+
+    var annualIncome=0, annualExpense=0;
+    h += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    for(var mo2=1;mo2<=12;mo2++){
+      var key2 = taxViewYear2+'_'+String(mo2).padStart(2,'0');
+      var md = data[key2]||{income:[],expense:[]};
+      var inc = md.income.reduce(function(s,r){return s+r.amount;},0);
+      var exp = md.expense.reduce(function(s,r){return s+r.amount;},0);
+      var profit = inc-exp;
+      annualIncome+=inc; annualExpense+=exp;
+      var isCurrentMonth = mo2===now.getMonth()+1&&taxViewYear2===now.getFullYear();
+      h += '<div onclick="taxViewMonth2=\'+mo2+\';taxTab=\'records\';renderTax();" style="background:white;border-radius:10px;padding:12px 14px;border:1.5px solid '+(isCurrentMonth?'var(--admin)':'#EAECF0')+';cursor:pointer;">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+      h += '<span style="font-size:13px;font-weight:700;color:'+(isCurrentMonth?'var(--admin)':'#344054')+';">'+mo2+'월</span>';
+      h += '<span style="font-size:12px;font-weight:700;color:'+(profit>=0?'#12B76A':'#F04438')+';">'+(profit>=0?'+':'')+profit.toLocaleString()+'원</span>';
+      h += '</div>';
+      if(inc>0||exp>0){
+        h += '<div style="display:flex;gap:12px;font-size:11px;">';
+        h += '<span style="color:#12B76A;">수입 '+inc.toLocaleString()+'</span>';
+        h += '<span style="color:#F04438;">지출 '+exp.toLocaleString()+'</span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    h += '</div>';
+    h += '<div style="background:#F3EEFF;border-radius:12px;padding:14px;margin-top:12px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#7C3AED;margin-bottom:8px;">'+taxViewYear2+'년 연간 요약</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">';
+    h += '<div><div style="font-size:15px;font-weight:800;color:#12B76A;">'+annualIncome.toLocaleString()+'</div><div style="font-size:10px;color:#98A2B3;">총 수입</div></div>';
+    h += '<div><div style="font-size:15px;font-weight:800;color:#F04438;">'+annualExpense.toLocaleString()+'</div><div style="font-size:10px;color:#98A2B3;">총 지출</div></div>';
+    h += '<div><div style="font-size:15px;font-weight:800;color:#7C3AED;">'+(annualIncome-annualExpense).toLocaleString()+'</div><div style="font-size:10px;color:#98A2B3;">순이익</div></div>';
+    h += '</div></div>';
+
+  } else if(taxTab==='records'){
+    // 수입/지출 입력
+    h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
+    h += '<select onchange="taxViewYear2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
+    for(var y2=now.getFullYear()-1;y2<=now.getFullYear();y2++){
+      h += '<option value="'+y2+'"'+(y2===taxViewYear2?' selected':'')+'>'+y2+'년</option>';
+    }
+    h += '</select>';
+    h += '<select onchange="taxViewMonth2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
+    for(var mo3=1;mo3<=12;mo3++){
+      h += '<option value="'+mo3+'"'+(mo3===taxViewMonth2?' selected':'')+'>'+mo3+'월</option>';
+    }
+    h += '</select></div>';
+
+    var key3 = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
+    var md2 = data[key3]||{income:[],expense:[]};
+    var inc2 = md2.income.reduce(function(s,r){return s+r.amount;},0);
+    var exp2 = md2.expense.reduce(function(s,r){return s+r.amount;},0);
+
+    // 요약
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+    h += '<div style="background:#ECFDF3;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#12B76A;">'+inc2.toLocaleString()+'</div><div style="font-size:10px;color:#12B76A;">수입</div></div>';
+    h += '<div style="background:#FEF3F2;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#F04438;">'+exp2.toLocaleString()+'</div><div style="font-size:10px;color:#F04438;">지출</div></div>';
+    h += '<div style="background:#F3EEFF;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#7C3AED;">'+(inc2-exp2).toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">순이익</div></div>';
+    h += '</div>';
+
+    // 수입 입력
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#12B76A;margin-bottom:10px;">➕ 수입 추가</div>';
+    h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+    h += '<input type="text" id="inc-name" placeholder="항목명 (예: 수강료)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input type="number" id="inc-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '</div>';
+    h += '<div style="display:flex;gap:6px;">';
+    h += '<select id="inc-category" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>수강료</option><option>등록비</option><option>기타수입</option></select>';
+    h += '<select id="inc-tax" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>과세</option><option>면세</option></select>';
+    h += '<button onclick="addTaxRecord(\'income\')" style="padding:8px 14px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
+    h += '</div></div>';
+
+    // 지출 입력
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#F04438;margin-bottom:10px;">➖ 지출 추가</div>';
+    h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+    h += '<input type="text" id="exp-name" placeholder="항목명 (예: 임대료)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input type="number" id="exp-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '</div>';
+    h += '<div style="display:flex;gap:6px;">';
+    h += '<select id="exp-category" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></select>';
+    h += '<button onclick="addTaxRecord(\'expense\')" style="padding:8px 14px;background:#F04438;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
+    h += '</div></div>';
+
+    // 내역 목록
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#344054;">📋 내역</div>';
+    h += '<button onclick="exportTaxExcel();" style="padding:5px 12px;background:var(--success);color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">엑셀 출력</button>';
+    h += '</div>';
+    var allRecords = [];
+    md2.income.forEach(function(r,i){allRecords.push({type:'income',idx:i,data:r});});
+    md2.expense.forEach(function(r,i){allRecords.push({type:'expense',idx:i,data:r});});
+    if(allRecords.length===0){
+      h += '<div style="text-align:center;padding:20px;color:#98A2B3;font-size:13px;">내역이 없습니다.</div>';
+    } else {
+      allRecords.forEach(function(rec){
+        var r=rec.data;
+        h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F2F4F7;">';
+        h += '<span style="font-size:11px;background:'+(rec.type==='income'?'#ECFDF3':'#FEF3F2')+';color:'+(rec.type==='income'?'#12B76A':'#F04438')+';padding:2px 7px;border-radius:10px;font-weight:700;white-space:nowrap;">'+(rec.type==='income'?'수입':'지출')+'</span>';
+        h += '<div style="flex:1;"><div style="font-size:13px;font-weight:600;">'+r.name+'</div>';
+        h += '<div style="font-size:10px;color:#98A2B3;">'+r.category+(r.taxType?' · '+r.taxType:'')+'</div></div>';
+        h += '<div style="font-size:13px;font-weight:700;color:'+(rec.type==='income'?'#12B76A':'#F04438')+';">'+(rec.type==='income'?'+':'-')+r.amount.toLocaleString()+'원</div>';
+        h += '<button onclick="deleteTaxRecord(\''+rec.type+'\','+rec.idx+')" style="padding:3px 7px;border:1px solid #EAECF0;border-radius:5px;font-size:10px;color:#98A2B3;background:white;cursor:pointer;">삭제</button>';
+        h += '</div>';
+      });
+    }
+    h += '</div>';
+
+  } else if(taxTab==='tax'){
+    // 부가세 계산
+    h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
+    h += '<select onchange="taxViewYear2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
+    for(var y3=now.getFullYear()-1;y3<=now.getFullYear();y3++){
+      h += '<option value="'+y3+'"'+(y3===taxViewYear2?' selected':'')+'>'+y3+'년</option>';
+    }
+    h += '</select></div>';
+
+    // 반기별 부가세 계산
+    var half1Income=0, half1Vat=0, half2Income=0, half2Vat=0;
+    for(var hm=1;hm<=12;hm++){
+      var hkey = taxViewYear2+'_'+String(hm).padStart(2,'0');
+      var hd = data[hkey]||{income:[],expense:[]};
+      hd.income.forEach(function(r){
+        if(r.taxType==='과세'){
+          var base = Math.round(r.amount/1.1);
+          var vat = r.amount - base;
+          if(hm<=6){half1Income+=r.amount;half1Vat+=vat;}
+          else{half2Income+=r.amount;half2Vat+=vat;}
+        }
+      });
+    }
+
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:10px;">';
+    h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:12px;">🧾 부가세 신고 현황 ('+taxViewYear2+'년)</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+    h += '<div style="background:#F3EEFF;border-radius:10px;padding:14px;">';
+    h += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:8px;">1기 (1~6월)</div>';
+    h += '<div style="font-size:11px;color:#475467;">과세 수입: '+half1Income.toLocaleString()+'원</div>';
+    h += '<div style="font-size:14px;font-weight:800;color:#7C3AED;margin-top:4px;">부가세: '+half1Vat.toLocaleString()+'원</div>';
+    h += '<div style="font-size:10px;color:#98A2B3;margin-top:4px;">신고기간: 7월 25일</div>';
+    h += '</div>';
+    h += '<div style="background:#F3EEFF;border-radius:10px;padding:14px;">';
+    h += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:8px;">2기 (7~12월)</div>';
+    h += '<div style="font-size:11px;color:#475467;">과세 수입: '+half2Income.toLocaleString()+'원</div>';
+    h += '<div style="font-size:14px;font-weight:800;color:#7C3AED;margin-top:4px;">부가세: '+half2Vat.toLocaleString()+'원</div>';
+    h += '<div style="font-size:10px;color:#98A2B3;margin-top:4px;">신고기간: 다음해 1월 25일</div>';
+    h += '</div></div>';
+    h += '<div style="margin-top:12px;padding:10px;background:#FFFAEB;border-radius:8px;font-size:11px;color:#92400E;">⚠ 체육시설 수강료는 부가세 면세 대상일 수 있습니다. 정확한 세무처리는 세무사와 상담하세요.</div>';
+    h += '</div>';
+
+    // 세금계산서 발행 내역
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📄 세금계산서 발행 내역</div>';
+    var allInvoices = [];
+    Object.keys(data).forEach(function(k){
+      if(k.startsWith(taxViewYear2+'_')){
+        (data[k].income||[]).forEach(function(r){
+          if(r.invoice) allInvoices.push(r);
+        });
+      }
+    });
+    if(allInvoices.length===0){
+      h += '<div style="text-align:center;padding:16px;color:#98A2B3;font-size:12px;">발행된 세금계산서가 없습니다.</div>';
+    }
+    h += '<button onclick="exportTaxSummary();" style="width:100%;padding:11px;background:#7C3AED;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">📊 세무 요약 엑셀 출력</button>';
+    h += '</div>';
+  }
+
+  h += '</div></div>';
+  cont.innerHTML = h;
+}
+
+function addTaxRecord(type){
+  var data = loadTaxData();
+  var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
+  if(!data[key]) data[key]={income:[],expense:[]};
+  if(type==='income'){
+    var name=document.getElementById('inc-name').value.trim();
+    var amount=parseInt(document.getElementById('inc-amount').value)||0;
+    var category=document.getElementById('inc-category').value;
+    var taxType=document.getElementById('inc-tax').value;
+    if(!name||!amount){alert('항목명과 금액을 입력해주세요.');return;}
+    data[key].income.push({name:name,amount:amount,category:category,date:new Date().toISOString().slice(0,10),taxType:taxType});
+  } else {
+    var name2=document.getElementById('exp-name').value.trim();
+    var amount2=parseInt(document.getElementById('exp-amount').value)||0;
+    var category2=document.getElementById('exp-category').value;
+    if(!name2||!amount2){alert('항목명과 금액을 입력해주세요.');return;}
+    data[key].expense.push({name:name2,amount:amount2,category:category2,date:new Date().toISOString().slice(0,10)});
+  }
+  saveTaxData(data);
+  renderTax();
+}
+
+function deleteTaxRecord(type, idx){
+  if(!confirm('삭제하시겠습니까?')) return;
+  var data = loadTaxData();
+  var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
+  if(data[key] && data[key][type]){
+    data[key][type].splice(idx,1);
+    saveTaxData(data);
+    renderTax();
+  }
+}
+
+function exportTaxExcel(){
+  var XLSX = window.XLSX;
+  if(!XLSX){alert('잠시 후 다시 시도해주세요.');return;}
+  var data = loadTaxData();
+  var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
+  var md = data[key]||{income:[],expense:[]};
+  var rows=[['구분','항목','카테고리','세금유형','금액','날짜']];
+  md.income.forEach(function(r){rows.push(['수입',r.name,r.category,r.taxType||'',r.amount,r.date]);});
+  md.expense.forEach(function(r){rows.push(['지출',r.name,r.category,'',r.amount,r.date]);});
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:8},{wch:14},{wch:10},{wch:8},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,taxViewYear2+'년'+taxViewMonth2+'월');
+  XLSX.writeFile(wb,taxViewYear2+'년_'+taxViewMonth2+'월_세무내역.xlsx');
+}
+
+function exportTaxSummary(){
+  var XLSX = window.XLSX;
+  if(!XLSX){alert('잠시 후 다시 시도해주세요.');return;}
+  var data = loadTaxData();
+  var rows=[['월','수입합계','지출합계','순이익','부가세(과세)']];
+  for(var mo=1;mo<=12;mo++){
+    var key=taxViewYear2+'_'+String(mo).padStart(2,'0');
+    var md=data[key]||{income:[],expense:[]};
+    var inc=md.income.reduce(function(s,r){return s+r.amount;},0);
+    var exp=md.expense.reduce(function(s,r){return s+r.amount;},0);
+    var vat=md.income.filter(function(r){return r.taxType==='과세';}).reduce(function(s,r){return s+Math.round((r.amount/1.1)*0.1);},0);
+    rows.push([mo+'월',inc,exp,inc-exp,vat]);
+  }
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,taxViewYear2+'년 세무요약');
+  XLSX.writeFile(wb,taxViewYear2+'년_세무요약.xlsx');
+}
+
+
+var payFeeTab = 'bulk';
+
+function applyBulkFee(courseId){
+  var regfee, monthly;
+  if(courseId === 'all'){
+    regfee = parseInt(document.getElementById('bulk-all-reg').value)||0;
+    monthly = parseInt(document.getElementById('bulk-all-mon').value)||0;
+    if(!monthly && !regfee){ alert('금액을 입력해주세요.'); return; }
+    if(!confirm('전체 '+members.length+'명에게 적용하시겠습니까?')) return;
+    members.forEach(function(m){
+      if(regfee) m.regfee = regfee;
+      if(monthly) m.monthly = monthly;
+    });
+  } else {
+    regfee = parseInt(document.getElementById('bulk-reg-'+courseId).value)||0;
+    monthly = parseInt(document.getElementById('bulk-mon-'+courseId).value)||0;
+    if(!monthly && !regfee){ alert('금액을 입력해주세요.'); return; }
+    var courseMembers = members.filter(function(m){ return m.courseId===courseId; });
+    if(!confirm(courseMembers.length+'명에게 적용하시겠습니까?')) return;
+    courseMembers.forEach(function(m){
+      if(regfee) m.regfee = regfee;
+      if(monthly) m.monthly = monthly;
+    });
+  }
+  saveMembers();
+  alert('✅ 적용 완료!');
+  renderPayment();
+}
+
+function saveIndFee(memberId){
+  var m = members.find(function(x){ return x.id===memberId; });
+  if(!m) return;
+  var reg = document.getElementById('ind-reg-'+memberId);
+  var mon = document.getElementById('ind-mon-'+memberId);
+  if(reg) m.regfee = parseInt(reg.value)||0;
+  if(mon) m.monthly = parseInt(mon.value)||0;
+  saveMembers();
+}
+
 </script>
+
+<!-- PIN 체크인 모달 -->
+<div class="modal-bg" id="pin-checkin-modal" style="align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:24px;padding:28px 24px;width:92%;max-width:360px;position:relative;">
+    <button onclick="closePinCheckin()" style="position:absolute;top:16px;right:16px;font-size:20px;border:none;background:none;cursor:pointer;color:#98A2B3;">✕</button>
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:32px;margin-bottom:6px;">🔢</div>
+      <div style="font-size:18px;font-weight:800;color:#344054;">PIN 체크인</div>
+      <div style="font-size:12px;color:#98A2B3;margin-top:4px;">4자리 PIN 번호를 입력하세요</div>
+    </div>
+    <!-- PIN 표시 -->
+    <div id="pin-dots" style="display:flex;justify-content:center;margin-bottom:20px;"></div>
+    <!-- 결과 -->
+    <div id="pin-result" style="min-height:40px;margin-bottom:12px;"></div>
+    <!-- 키패드 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <button onclick="pinPress('1')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">1</button>
+      <button onclick="pinPress('2')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">2</button>
+      <button onclick="pinPress('3')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">3</button>
+      <button onclick="pinPress('4')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">4</button>
+      <button onclick="pinPress('5')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">5</button>
+      <button onclick="pinPress('6')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">6</button>
+      <button onclick="pinPress('7')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">7</button>
+      <button onclick="pinPress('8')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">8</button>
+      <button onclick="pinPress('9')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">9</button>
+      <button onclick="pinPress('clear')" style="padding:18px;font-size:14px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;color:#475467;">초기화</button>
+      <button onclick="pinPress('0')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">0</button>
+      <button onclick="pinPress('del')" style="padding:18px;font-size:18px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;">⌫</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
