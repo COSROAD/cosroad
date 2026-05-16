@@ -312,6 +312,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div class="admin-nav" id="admin-nav">
       <button class="admin-nav-btn active" onclick="switchAdminTab('dashboard')">📊 현황</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('members')">👥 원생관리</button>
+      <button class="admin-nav-btn" onclick="switchAdminTab('attendance')">📋 출결관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('excel')">📊 엑셀업로드</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('cars')">🚐 차량관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('schedule')">📅 스케줄</button>
@@ -681,197 +682,65 @@ function openTmap(){
 }
 
 // ── 학부모 공유 ──
-// ── GPS 위치 공유 ──
-let watchId = null;
-let currentPosition = null;
-let isTracking = false;
-let shareSessionId = null;
-let kakaoMap = null;
-let kakaoMarker = null;
-
 function showSharePanel(){
-  const active = getActiveStudents();
-  const car = cars.find(c=>c.id===currentCarId) || cars[0];
-  const course = courses.find(c=>c.id===currentCourseId) || courses[0];
-  const ordered = optimizedOrder || active;
+  const active=getActiveStudents();
+  const car=cars.find(c=>c.id===currentCarId)||cars[0];
+  const course=courses.find(c=>c.id===currentCourseId)||courses[0];
+  const ordered=optimizedOrder||active;
+  const shareText=`[${orgSettings.name}] 🚐 ${car.name} 운행 안내\n`+
+    `📅 ${currentDay}요일 ${course.name} (${course.depart} 출발)\n`+
+    `📍 픽업 순서:\n`+ordered.map((s,i)=>{
+      const eta=etaMap[s.id]?` → 도착예정 ${etaMap[s.id]}`:''
+      return `  ${i+1}. ${s.name} (${s.location})${eta}`;
+    }).join('\n')+
+    `\n🏫 ${orgSettings.destName} 도착예정: ${course.arrive}`;
 
-  const shareText = '[' + orgSettings.name + '] 🚐 ' + car.name + ' 운행 안내\n'
-    + '📅 ' + currentDay + '요일 ' + course.name + ' (' + course.depart + ' 출발)\n'
-    + '📍 픽업 순서:\n'
-    + ordered.map((s,i) => {
-        const eta = etaMap[s.id] ? ' → 도착예정 ' + etaMap[s.id] : '';
-        return '  ' + (i+1) + '. ' + s.name + ' (' + s.location + ')' + eta;
-      }).join('\n')
-    + '\n🏫 ' + orgSettings.destName + ' 도착예정: ' + course.arrive;
+  const tmapUrl=`https://www.tmap.co.kr/tmap2/public/tmap.jsp?rGoName=${encodeURIComponent(orgSettings.destName)}&rGoX=${orgSettings.destLon}&rGoY=${orgSettings.destLat}`;
 
-  const trackBadge = isTracking
-    ? '<div style="background:#ECFDF3;border:1px solid #6CE9A6;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#027A48;display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#12B76A;display:inline-block;"></span>GPS 추적 중 · 위치 공유 활성화됨</div>'
-    : '<div style="background:#FFFAEB;border:1px solid #FDE68A;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#92400E;">⚠ GPS 꺼짐 · 운행 시작을 눌러주세요.</div>';
-
-  const shareLink = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
-  const shareLinkHtml = shareLink
-    ? '<div style="margin-bottom:12px;">'
-      + '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:6px;">📍 학부모 공유 링크</div>'
-      + '<div style="background:#F2F4F7;border-radius:8px;padding:10px;font-size:11px;color:#475467;word-break:break-all;margin-bottom:8px;">' + shareLink + '</div>'
-      + '<div style="display:flex;gap:6px;">'
-      + '<button onclick="copyShareLink()" style="flex:1;padding:10px;background:#FEE500;color:#3A1D1D;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">카카오톡 공유</button>'
-      + '<button onclick="copyLinkOnly()" style="flex:1;padding:10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">링크 복사</button>'
-      + '<button onclick="sendSMSWithLink()" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">문자 전송</button>'
-      + '</div></div>'
-    : '';
-
-  document.getElementById('share-content').innerHTML =
-    trackBadge
-    + '<div style="margin-bottom:12px;">'
-    + '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:8px;">🚐 운행 제어</div>'
-    + '<div style="display:flex;gap:8px;">'
-    + '<button onclick="startGPSTracking()" style="flex:1;padding:12px;background:' + (isTracking ? '#EAECF0' : '#EA580C') + ';color:' + (isTracking ? '#98A2B3' : 'white') + ';border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">' + (isTracking ? '✅ 추적 중' : '🚀 운행 시작') + '</button>'
-    + '<button onclick="stopGPSTracking()" style="flex:1;padding:12px;background:' + (isTracking ? '#F04438' : '#EAECF0') + ';color:' + (isTracking ? 'white' : '#98A2B3') + ';border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">⏹ 운행 종료</button>'
-    + '</div></div>'
-    + shareLinkHtml
-    + '<div style="margin-bottom:12px;">'
-    + '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:6px;">📋 운행 정보</div>'
-    + '<div style="background:#F2F4F7;border-radius:8px;padding:10px;font-size:11px;color:#475467;white-space:pre-line;margin-bottom:8px;">' + shareText + '</div>'
-    + '<div style="display:flex;gap:6px;">'
-    + '<button onclick="copyShareText()" style="flex:1;padding:10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📋 텍스트 복사</button>'
-    + '<button onclick="sendSMS()" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📱 문자 보내기</button>'
-    + '</div></div>'
-    + (isTracking ? '<div id="kakao-map" style="width:100%;height:200px;border-radius:8px;overflow:hidden;margin-top:4px;"></div>' : '');
-
+  document.getElementById('share-content').innerHTML=`
+    <div style="background:var(--gray-100);border-radius:var(--radius-sm);padding:12px;font-size:12px;color:var(--gray-700);white-space:pre-line;margin-bottom:14px;">${shareText}</div>
+    <div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:8px;">📲 공유 방법 선택</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button onclick="copyShareText()" style="padding:12px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">📋 운행 정보 복사 → 카카오톡 붙여넣기</button>
+      <button onclick="sendSMS()" style="padding:12px;background:var(--success);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">📱 문자 보내기</button>
+      <button onclick="openNaverMap()" style="padding:12px;background:#03C75A;color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">🗺 네이버지도로 경로 확인</button>
+      <button onclick="window.open('${tmapUrl}','_blank')" style="padding:12px;background:#1C6EFE;color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">🗺 T맵으로 경로 확인</button>
+    </div>
+    <div style="margin-top:14px;padding:10px;background:var(--warning-light);border-radius:var(--radius-sm);font-size:11px;color:#92400E;">
+      ⚠ 실시간 GPS 위치 공유는 GitHub Pages 배포 후 지원됩니다.<br>현재는 운행 정보 텍스트 공유 방식으로 제공됩니다.
+    </div>`;
   document.getElementById('share-modal').classList.add('show');
-  window._shareText = shareText;
-  window._activeStudents = active;
-
-  if(isTracking && currentPosition){
-    setTimeout(function(){ initKakaoMap(currentPosition.lat, currentPosition.lon); }, 400);
-  }
-}
-
-function startGPSTracking(){
-  if(!navigator.geolocation){ alert('이 기기는 GPS를 지원하지 않습니다.'); return; }
-  shareSessionId = 'cr_' + Date.now();
-  navigator.geolocation.getCurrentPosition(
-    function(pos){
-      currentPosition = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      isTracking = true;
-      watchId = navigator.geolocation.watchPosition(
-        function(p){
-          currentPosition = { lat: p.coords.latitude, lon: p.coords.longitude };
-          updateKakaoMap(currentPosition.lat, currentPosition.lon);
-        },
-        function(e){ console.log('GPS error', e); },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
-      );
-      showSharePanel();
-    },
-    function(e){ alert('GPS 권한을 허용해 주세요.\n설정 > 브라우저 > 위치 접근 허용'); },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
-}
-
-function stopGPSTracking(){
-  if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
-  isTracking = false;
-  currentPosition = null;
-  shareSessionId = null;
-  showSharePanel();
-}
-
-function initKakaoMap(lat, lon){
-  const container = document.getElementById('kakao-map');
-  if(!container){ return; }
-  if(typeof kakao === 'undefined'){
-    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#F2F4F7;font-size:12px;color:#98A2B3;">카카오맵 로딩 중...</div>';
-    var script = document.createElement('script');
-    script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=94961729e3fc7ed924bd6e41f03b2ee8&autoload=false';
-    script.onload = function(){
-      kakao.maps.load(function(){
-        renderKakaoMap(container, lat, lon);
-      });
-    };
-    document.head.appendChild(script);
-    return;
-  }
-  renderKakaoMap(container, lat, lon);
-}
-
-function renderKakaoMap(container, lat, lon){
-  var options = { center: new kakao.maps.LatLng(lat, lon), level: 3 };
-  kakaoMap = new kakao.maps.Map(container, options);
-  var imgSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png';
-  var imgSize = new kakao.maps.Size(24, 35);
-  var markerImg = new kakao.maps.MarkerImage(imgSrc, imgSize);
-  kakaoMarker = new kakao.maps.Marker({
-    position: new kakao.maps.LatLng(lat, lon),
-    image: markerImg,
-    map: kakaoMap
-  });
-}
-
-function updateKakaoMap(lat, lon){
-  if(!kakaoMap || !kakaoMarker){ return; }
-  var pos = new kakao.maps.LatLng(lat, lon);
-  kakaoMarker.setPosition(pos);
-  kakaoMap.setCenter(pos);
-}
-
-function copyShareLink(){
-  var link = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
-  if(!link){ alert('운행을 먼저 시작해 주세요.'); return; }
-  navigator.clipboard.writeText(link).then(function(){
-    alert('✅ 링크 복사됐어요!\n카카오톡에 붙여넣기해서 학부모님께 보내주세요.');
-  }).catch(function(){
-    var ta = document.createElement('textarea'); ta.value = link;
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    alert('✅ 링크 복사됐어요!');
-  });
-}
-
-function copyLinkOnly(){
-  var link = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
-  navigator.clipboard.writeText(link).then(function(){ alert('✅ 링크 복사됐어요!'); });
-}
-
-function sendSMSWithLink(){
-  var link = shareSessionId ? 'https://cosroad.com?track=' + shareSessionId : '';
-  var car = cars.find(function(c){ return c.id === currentCarId; }) || cars[0];
-  var course = courses.find(function(c){ return c.id === currentCourseId; }) || courses[0];
-  var msg = '[' + orgSettings.name + '] 🚐 ' + car.name + ' 운행 중\n실시간 위치: ' + link + '\n도착예정: ' + course.arrive;
-  var phones = (window._activeStudents || []).map(function(s){ return s.phone; }).filter(Boolean);
-  var to = phones.length > 0 ? phones[0] : '';
-  window.open('sms:' + to + '?body=' + encodeURIComponent(msg), '_blank');
+  window._shareText=shareText;
+  window._activeStudents=active;
 }
 
 function copyShareText(){
-  var text = window._shareText || '';
-  navigator.clipboard.writeText(text).then(function(){
-    alert('✅ 복사됐어요!\n카카오톡에 붙여넣기 하세요.');
-  }).catch(function(){
-    var ta = document.createElement('textarea'); ta.value = text;
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    alert('✅ 복사됐어요!');
+  navigator.clipboard.writeText(window._shareText||'').then(()=>alert('✅ 복사되었습니다!\n카카오톡에 붙여넣기 하세요.')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=window._shareText;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('✅ 복사되었습니다!');
   });
 }
 
 function sendSMS(){
-  var phones = (window._activeStudents || []).map(function(s){ return s.phone; }).filter(Boolean);
-  if(phones.length === 0){ alert('연락처가 등록된 학부모가 없습니다.'); return; }
-  window.open('sms:' + phones[0] + '?body=' + encodeURIComponent(window._shareText || ''), '_blank');
+  const phones=(window._activeStudents||[]).map(s=>s.phone).filter(Boolean);
+  if(phones.length===0){alert('연락처가 등록된 학부모가 없습니다.');return;}
+  const body=encodeURIComponent(window._shareText||'');
+  window.open(`sms:${phones[0]}?body=${body}`,'_blank');
 }
 
 function openNaverMap(){
-  var active = window._activeStudents || [];
-  if(active.length === 0){ alert('탑승 이용자가 없습니다.'); return; }
-  var url = 'https://map.naver.com/v5/directions/-/-/' + orgSettings.destLat + ',' + orgSettings.destLon + ',' + encodeURIComponent(orgSettings.destName) + '/transit';
-  window.open(url, '_blank');
+  const active=window._activeStudents||[];
+  if(active.length===0){alert('탑승 이용자가 없습니다.');return;}
+  const ordered=optimizedOrder||active;
+  const dest=`${orgSettings.destLat},${orgSettings.destLon}`;
+  let url=`https://map.naver.com/v5/directions/-/-/${dest},${encodeURIComponent(orgSettings.destName)}/transit`;
+  window.open(url,'_blank');
 }
-
 
 // ── 관리자 탭 ──
 function switchAdminTab(tab){
   currentAdminTab=tab;
   document.querySelectorAll('.admin-nav-btn').forEach((b,i)=>{
-    b.classList.toggle('active',['dashboard','members','excel','cars','schedule','settings'][i]===tab);
+    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','settings'][i]===tab);
   });
   renderAdminTab(tab);
 }
@@ -880,6 +749,7 @@ function renderAdminTab(tab){
   const c=document.getElementById('admin-content');
   if(tab==='dashboard')c.innerHTML=renderDashboard();
   else if(tab==='members')c.innerHTML=renderAdminMembers();
+  else if(tab==='attendance'){renderAttendance();}
   else if(tab==='excel')c.innerHTML=renderExcel();
   else if(tab==='cars')c.innerHTML=renderCars();
   else if(tab==='schedule')c.innerHTML=renderSchedule();
@@ -916,32 +786,63 @@ function renderDashboard(){
 }
 
 function renderAdminMembers(){
-  return`
-  <div class="search-bar" style="padding-top:12px;">
-    <input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색" oninput="renderAdminTab('members')" />
-  </div>
-  <div style="padding:0 16px 10px;">
-    ${members.filter(m=>{const q=document.getElementById('admin-search')?.value?.toLowerCase()||'';return !q||m.name.toLowerCase().includes(q);}).map(m=>{
-      const course=courses.find(c=>c.id===m.courseId);
-      const car=cars.find(c=>c.id===m.carId);
-      return`<div class="member-card" style="margin:0 0 8px;">
-        <div class="member-header">
-          <div class="member-avatar">${m.name.slice(0,1)}</div>
-          <div><div class="member-name">${m.name}</div><div class="member-class">${course?.name||'–'}</div></div>
-          <button class="member-edit-btn" onclick="openEditModal(${m.id})">수정</button>
-        </div>
-        <div class="member-info">
-          <div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">${m.location}</span></div>
-          <div class="info-row"><span class="info-label">연락처</span><span class="info-val">${m.phone||'–'}</span></div>
-          ${m.phone2?`<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">${m.phone2}</span></div>`:''}
-        </div>
-        <div class="days-row">${DAYS.map(d=>`<div class="day-dot ${m.days.includes(d)?'on':''}">${d}</div>`).join('')}</div>
-        <span class="car-badge">🚐 ${car?.name||'미배정'}</span>
-        ${m.note?`<div class="member-note">※ ${m.note}</div>`:''}
-      </div>`;
-    }).join('')}
-  </div>
-  <button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>`;
+  const q = document.getElementById('admin-search')?.value?.toLowerCase()||'';
+  const filtered = members.filter(m=>!q||m.name.toLowerCase().includes(q));
+  return '<div class="search-bar" style="padding-top:12px;">'
+    + '<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색" oninput="renderAdminTab('members')" value="'+q+'"/>'
+    + '</div>'
+    + '<div style="padding:0 16px 10px;">'
+    + filtered.map(function(m){
+        const course=courses.find(function(c){return c.id===m.courseId;});
+        const car=cars.find(function(c){return c.id===m.carId;});
+        const photoHtml = m.photo
+          ? '<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;" />'
+          : '<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>';
+        const todayAtt = getAttendanceToday(m.id);
+        const attBadge = todayAtt==='present'
+          ? '<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ 출석</span>'
+          : todayAtt==='absent'
+          ? '<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:10px;font-weight:700;">❌ 결석</span>'
+          : '<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미처리</span>';
+        return '<div class="member-card" style="margin:0 0 8px;">'
+          + '<div class="member-header">'
+          + photoHtml
+          + '<div style="flex:1;">'
+          + '<div style="display:flex;align-items:center;gap:6px;"><div class="member-name">'+m.name+'</div>'+attBadge+'</div>'
+          + '<div class="member-class">'+(course?.name||'–')+'</div>'
+          + '</div>'
+          + '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+          + '<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
+          + '<label style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;">📷 사진<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/></label>'
+          + '</div>'
+          + '</div>'
+          + '<div class="member-info">'
+          + '<div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">'+m.location+'</span></div>'
+          + '<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
+          + (m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
+          + '</div>'
+          + '<div class="days-row">'+DAYS.map(function(d){return '<div class="day-dot '+(m.days.includes(d)?'on':'')+'">' + d + '</div>';}).join('')+'</div>'
+          + '<span class="car-badge">🚐 '+(car?.name||'미배정')+'</span>'
+          + (m.note?'<div class="member-note">※ '+m.note+'</div>':'')
+          + '</div>';
+      }).join('')
+    + '</div>'
+    + '<button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>';
+}
+
+function uploadMemberPhoto(memberId, input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const idx = members.findIndex(function(m){return m.id===memberId;});
+    if(idx>=0){
+      members[idx].photo = e.target.result;
+      saveMembers();
+      renderAdminTab('members');
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 // ── 엑셀 업로드 ──
@@ -1106,6 +1007,184 @@ function removeMemberFromCar(memberId){
   m.carId='';
   saveMembers();
   renderAdminTab('cars');
+}
+
+
+// ── 출결 관리 ──
+function loadAttendance(){
+  return JSON.parse(localStorage.getItem('tkd_attendance')||'{}');
+}
+function saveAttendance(data){
+  // 3개월치만 보관
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate()).toISOString().slice(0,10);
+  Object.keys(data).forEach(function(date){
+    if(date < cutoff) delete data[date];
+  });
+  localStorage.setItem('tkd_attendance', JSON.stringify(data));
+}
+
+function getAttendanceToday(memberId){
+  const today = new Date().toISOString().slice(0,10);
+  const data = loadAttendance();
+  return (data[today] && data[today][memberId]) || null;
+}
+
+function setAttendance(memberId, status){
+  const data = loadAttendance();
+  const today = attViewDate || new Date().toISOString().slice(0,10);
+  if(!data[today]) data[today]={};
+  if(data[today][memberId]===status) delete data[today][memberId];
+  else data[today][memberId]=status;
+  saveAttendance(data);
+  renderAttendance();
+}
+
+let attViewDate = new Date().toISOString().slice(0,10);
+let attFilterCourse = '';
+
+function renderAttendance(){
+  const c = document.getElementById('admin-content');
+  const data = loadAttendance();
+  const dateMembers = members.filter(function(m){
+    const d = new Date(attViewDate);
+    const dayStr = ['일','월','화','수','목','금','토'][d.getDay()];
+    return m.days.includes(dayStr) && (!attFilterCourse || m.courseId===attFilterCourse);
+  });
+  const presentCount = dateMembers.filter(function(m){ return data[attViewDate]&&data[attViewDate][m.id]==='present'; }).length;
+  const absentCount = dateMembers.filter(function(m){ return data[attViewDate]&&data[attViewDate][m.id]==='absent'; }).length;
+  const unprocessed = dateMembers.length - presentCount - absentCount;
+
+  let html = '<div style="padding:12px 16px 0;">';
+
+  // 날짜 선택
+  html += '<div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:14px;margin-bottom:10px;">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:8px;">📅 날짜 선택</div>'
+    + '<input type="date" value="'+attViewDate+'" onchange="attViewDate=this.value;renderAttendance();" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:14px;outline:none;">'
+    + '</div>';
+
+  // 코스 필터
+  html += '<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">'
+    + '<button onclick="attFilterCourse='';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:1.5px solid '+(attFilterCourse===''?'var(--admin)':'var(--gray-200)')+';background:'+(attFilterCourse===''?'var(--admin-light)':'white')+';color:'+(attFilterCourse===''?'var(--admin)':'var(--gray-600)')+';font-size:11px;font-weight:600;cursor:pointer;">전체</button>'
+    + courses.map(function(cs){
+        return '<button onclick="attFilterCourse=''+cs.id+'';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:1.5px solid '+(attFilterCourse===cs.id?'var(--admin)':'var(--gray-200)')+';background:'+(attFilterCourse===cs.id?'var(--admin-light)':'white')+';color:'+(attFilterCourse===cs.id?'var(--admin)':'var(--gray-600)')+';font-size:11px;font-weight:600;cursor:pointer;">'+cs.name+'</button>';
+      }).join('')
+    + '</div>';
+
+  // 통계 요약
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+    + '<div style="background:var(--success-light);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--success);">'+presentCount+'</div><div style="font-size:10px;color:var(--success);">출석</div></div>'
+    + '<div style="background:var(--danger-light);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--danger);">'+absentCount+'</div><div style="font-size:10px;color:var(--danger);">결석</div></div>'
+    + '<div style="background:var(--gray-100);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:var(--gray-400);">'+unprocessed+'</div><div style="font-size:10px;color:var(--gray-400);">미처리</div></div>'
+    + '</div>';
+
+  // 학부모 알림 버튼
+  html += '<button onclick="sendAttendanceNotice()" style="width:100%;padding:11px;background:#EA580C;color:white;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📱 학부모 출결 알림 발송</button>';
+
+  // 회원별 출결 처리
+  if(dateMembers.length===0){
+    html += '<div class="empty-state">해당 날짜에 등원 예정 원생이 없습니다.</div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    dateMembers.forEach(function(m){
+      const status = data[attViewDate]&&data[attViewDate][m.id];
+      const photoHtml = m.photo
+        ? '<img src="'+m.photo+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>'
+        : '<div style="width:42px;height:42px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--primary);flex-shrink:0;">'+m.name.slice(0,1)+'</div>';
+      const course = courses.find(function(cs){return cs.id===m.courseId;});
+      html += '<div style="background:white;border-radius:var(--radius);padding:12px 14px;border:1.5px solid '+(status==='present'?'var(--success)':status==='absent'?'var(--danger)':'var(--gray-200)')+';">'
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+        + photoHtml
+        + '<div style="flex:1;">'
+        + '<div style="font-size:14px;font-weight:700;">'+m.name+'</div>'
+        + '<div style="font-size:11px;color:var(--gray-400);">'+(course?.name||'')+(m.phone?' · '+m.phone:'')+'</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px;">'
+        + '<button onclick="setAttendance('+m.id+','present')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(status==='present'?'var(--success)':'var(--gray-100)')+';color:'+(status==='present'?'white':'var(--gray-600)')+';">✅ 출석</button>'
+        + '<button onclick="setAttendance('+m.id+','absent')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(status==='absent'?'var(--danger)':'var(--gray-100)')+';color:'+(status==='absent'?'white':'var(--gray-600)')+';">❌ 결석</button>'
+        + '</div>'
+        + '</div>'
+        + (m.note?'<div style="font-size:11px;color:var(--warning);margin-top:6px;padding-left:52px;">※ '+m.note+'</div>':'')
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // 월별 달력 출결 현황
+  html += '<div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:14px;margin-top:10px;">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--gray-600);margin-bottom:10px;">📅 이번 달 출결 현황</div>'
+    + renderAttendanceCalendar(data)
+    + '</div>';
+
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function renderAttendanceCalendar(data){
+  const d = new Date(attViewDate);
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month+1, 0).getDate();
+  const dayNames = ['일','월','화','수','목','금','토'];
+  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">';
+  dayNames.forEach(function(d){ html += '<div style="font-size:10px;font-weight:700;color:var(--gray-400);padding:3px 0;">'+d+'</div>'; });
+  for(let i=0;i<firstDay;i++) html += '<div></div>';
+  for(let date=1;date<=lastDate;date++){
+    const dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(date).padStart(2,'0');
+    const dayData = data[dateStr];
+    const isToday = dateStr===new Date().toISOString().slice(0,10);
+    const isSelected = dateStr===attViewDate;
+    const presentCnt = dayData ? Object.values(dayData).filter(function(v){return v==='present';}).length : 0;
+    const absentCnt = dayData ? Object.values(dayData).filter(function(v){return v==='absent';}).length : 0;
+    const hasDot = presentCnt>0||absentCnt>0;
+    html += '<div onclick="attViewDate=''+dateStr+'';renderAttendance();" style="cursor:pointer;padding:4px 2px;border-radius:6px;background:'+(isSelected?'var(--admin)':isToday?'var(--admin-light)':'transparent')+';border:1px solid '+(isSelected?'var(--admin)':isToday?'var(--admin)':'transparent')+';">'
+      + '<div style="font-size:12px;font-weight:'+(isToday||isSelected?'700':'400')+';color:'+(isSelected?'white':isToday?'var(--admin)':'var(--gray-700)')+';">'+date+'</div>'
+      + (hasDot?'<div style="display:flex;gap:1px;justify-content:center;margin-top:1px;">'
+        +(presentCnt>0?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSelected?'white':'var(--success)')+'"></div>':'')
+        +(absentCnt>0?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSelected?'#FCA5A5':'var(--danger)')+'"></div>':'')
+        +'</div>':'')
+      + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function sendAttendanceNotice(){
+  const data = loadAttendance();
+  const today = attViewDate || new Date().toISOString().slice(0,10);
+  const dateMembers = members.filter(function(m){
+    const d = new Date(today);
+    const dayStr = ['일','월','화','수','목','금','토'][d.getDay()];
+    return m.days.includes(dayStr);
+  });
+  const dateFormatted = today.replace(/-/g,'년 ').replace(/-/,'월 ')+'일';
+  const presentList = dateMembers.filter(function(m){return data[today]&&data[today][m.id]==='present';});
+  const absentList = dateMembers.filter(function(m){return data[today]&&data[today][m.id]==='absent';});
+
+  const msg = '['+orgSettings.name+'] 출결 안내 ('+dateFormatted+')
+'
+    + '✅ 출석 ('+presentList.length+'명): '+presentList.map(function(m){return m.name;}).join(', ')+'
+'
+    + '❌ 결석 ('+absentList.length+'명): '+absentList.map(function(m){return m.name;}).join(', ')+'
+'
+    + '📱 상세 확인: https://cosroad.com';
+
+  // 전체 학부모 연락처 수집
+  const phones = dateMembers.map(function(m){return m.phone;}).filter(Boolean);
+
+  if(phones.length===0){ alert('등록된 연락처가 없습니다.'); return; }
+
+  // 클립보드 복사 + 문자 앱 열기
+  navigator.clipboard.writeText(msg).then(function(){
+    alert('✅ 출결 알림 내용이 복사됐어요!
+카카오톡/문자에 붙여넣기 하세요.
+
+또는 문자앱으로 이동합니다.');
+    window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
+  }).catch(function(){
+    window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
+  });
 }
 
 // ── 스케줄 ──
