@@ -1452,15 +1452,17 @@ function checkPin(){
     +'<div style="font-size:13px;color:#98A2B3;">'+timeStr+' 도착</div>'
     +'</div>';
 
-  // 학부모 문자 발송
-  sendCheckinSMS(member, timeStr);
+  // 학부모 알림 팝업 표시
+  setTimeout(function(){
+    showCheckinNoticePopup(member, timeStr, photo);
+  }, 1200);
 
   pinInput='';
   setTimeout(function(){
     var r=document.getElementById('pin-result');
     if(r)r.innerHTML='';
     renderPinDisplay();
-  },3000);
+  },1000);
 }
 function sendCheckinSMS(member, timeStr){
   if(!member.phone&&!member.phone2)return;
@@ -2155,6 +2157,56 @@ function openFamilyLink(){
   }
 }
 
+
+// ══════════════════════════════════════════
+// 체크인 학부모 알림 팝업
+// ══════════════════════════════════════════
+var _popupMember = null;
+var _popupTime = '';
+
+function showCheckinNoticePopup(member, timeStr, photoHtml){
+  _popupMember = member;
+  _popupTime = timeStr;
+
+  // 팝업 내용 업데이트
+  document.getElementById('popup-member-name').textContent = member.name + ' 출석 완료!';
+  document.getElementById('popup-time').textContent = timeStr + ' 학원 도착';
+
+  // 팝업 표시
+  var modal = document.getElementById('checkin-notice-modal');
+  modal.style.display = 'flex';
+
+  // 문자 자동 발송
+  sendCheckinSMS(member, timeStr);
+  setTimeout(function(){
+    var statusEl = document.getElementById('popup-sms-status');
+    if(statusEl) statusEl.textContent = '✅ 발송완료';
+  }, 1500);
+}
+
+function sendCheckinSMSFromPopup(){
+  if(!_popupMember) return;
+  sendCheckinSMS(_popupMember, _popupTime);
+  var btn = document.getElementById('popup-sms-btn');
+  if(btn){ btn.textContent = '✅ 발송완료'; btn.disabled = true; }
+}
+
+function closeCheckinPopup(){
+  var modal = document.getElementById('checkin-notice-modal');
+  if(modal) modal.style.display = 'none';
+  _popupMember = null;
+  _popupTime = '';
+  // PIN 입력 초기화
+  pinInput = '';
+  renderPinDisplay();
+}
+
+// 팝업 외부 클릭 시 닫기
+document.addEventListener('click', function(e){
+  var modal = document.getElementById('checkin-notice-modal');
+  if(modal && e.target === modal) closeCheckinPopup();
+});
+
 </script>
 
 <!-- PIN 체크인 모달 -->
@@ -2184,6 +2236,67 @@ function openFamilyLink(){
       <button onclick="pinPress('clear')" style="padding:18px;font-size:14px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;color:#475467;">초기화</button>
       <button onclick="pinPress('0')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">0</button>
       <button onclick="pinPress('del')" style="padding:18px;font-size:18px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;">⌫</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 체크인 학부모 알림 팝업 -->
+<div id="checkin-notice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:20px;width:100%;max-width:340px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <!-- 헤더 -->
+    <div style="background:linear-gradient(135deg,#EA580C,#C2410C);padding:20px;text-align:center;">
+      <div style="font-size:32px;margin-bottom:6px;">✅</div>
+      <div style="font-size:18px;font-weight:800;color:white;" id="popup-member-name">홍길동</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.85);" id="popup-time">14:30 도착</div>
+    </div>
+
+    <!-- 등원 흐름 -->
+    <div style="padding:16px;">
+      <div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 등원 완료 현황</div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F2F4F7;">
+          <span style="font-size:16px;">🏠</span>
+          <span style="font-size:12px;color:#475467;flex:1;">집 출발</span>
+          <span style="font-size:11px;background:#F2F4F7;color:#98A2B3;padding:2px 8px;border-radius:8px;">패밀리링크</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F2F4F7;">
+          <span style="font-size:16px;">🚐</span>
+          <span style="font-size:12px;color:#475467;flex:1;">차량 탑승</span>
+          <span style="font-size:11px;background:#ECFDF3;color:#027A48;padding:2px 8px;border-radius:8px;">✅ 완료</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F2F4F7;">
+          <span style="font-size:16px;">🗺️</span>
+          <span style="font-size:12px;color:#475467;flex:1;">T맵 경로 운행</span>
+          <span style="font-size:11px;background:#ECFDF3;color:#027A48;padding:2px 8px;border-radius:8px;">✅ 완료</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F2F4F7;">
+          <span style="font-size:16px;">🥋</span>
+          <span style="font-size:12px;font-weight:700;color:#EA580C;flex:1;">학원 도착</span>
+          <span style="font-size:11px;background:#FFEDD5;color:#C2410C;padding:2px 8px;border-radius:8px;font-weight:700;">📍 지금!</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;">
+          <span style="font-size:16px;">📱</span>
+          <span style="font-size:12px;color:#475467;flex:1;">학부모 알림 발송</span>
+          <span style="font-size:11px;background:#ECFDF3;color:#027A48;padding:2px 8px;border-radius:8px;" id="popup-sms-status">발송 중...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 패밀리링크 안내 -->
+    <div style="margin:0 16px 14px;background:#E6F1FB;border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:22px;">📍</span>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:700;color:#0C447C;">구글 패밀리링크</div>
+        <div style="font-size:10px;color:#185FA5;margin-top:1px;">등원 전 자녀 동선 확인</div>
+      </div>
+      <button onclick="openFamilyLink();" style="padding:6px 12px;background:#4285F4;color:white;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">열기</button>
+    </div>
+
+    <!-- 버튼 -->
+    <div style="padding:0 16px 16px;display:flex;gap:8px;">
+      <button onclick="sendCheckinSMSFromPopup();" id="popup-sms-btn" style="flex:1;padding:12px;background:var(--success, #12B76A);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📱 문자 재발송</button>
+      <button onclick="closeCheckinPopup();" style="flex:1;padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">닫기</button>
     </div>
   </div>
 </div>
