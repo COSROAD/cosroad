@@ -1504,26 +1504,34 @@ function checkPin(){
   var photo=member.photo
     ?('<img src="'+member.photo+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;"/>')
     :('<div style="width:80px;height:80px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#1A6BFF;margin:0 auto 12px;">'+member.name.slice(0,1)+'</div>');
-  // 팝업에 출석 정보 업데이트
-  var popupEl = document.getElementById('checkin-notice-modal');
-  if(popupEl){
-    document.getElementById('popup-member-name').textContent = member.name + ' 출석 완료!';
-    document.getElementById('popup-time').textContent = timeStr + ' 학원 도착';
-    var orgEl = document.getElementById('popup-org-name');
-    if(orgEl) orgEl.textContent = orgSettings.name;
-    popupEl.style.display = 'flex';
-  }
-
   // 바로 PIN 입력 화면 복귀
   pinInput='';
   var r=document.getElementById('pin-result');
   if(r)r.innerHTML='';
   renderPinDisplay();
 
-  // 팝업 이미지 캡처 후 문자 자동 발송
+  // 팝업 정보 업데이트 (보이지 않게)
+  var popupEl = document.getElementById('checkin-notice-modal');
+  if(popupEl){
+    document.getElementById('popup-member-name').textContent = member.name + ' 출석 완료!';
+    document.getElementById('popup-time').textContent = timeStr + ' 학원 도착';
+    var orgEl = document.getElementById('popup-org-name');
+    if(orgEl) orgEl.textContent = orgSettings.name;
+    // 화면에 안보이게 숨긴 상태로 렌더링
+    popupEl.style.visibility = 'hidden';
+    popupEl.style.display = 'flex';
+  }
+
+  // 0.3초 후 이미지 캡처 → 문자 발송 → 팝업 완전 숨기기
   setTimeout(function(){
     captureAndSendSMS(member, timeStr);
-  }, 500);
+    setTimeout(function(){
+      if(popupEl){
+        popupEl.style.display = 'none';
+        popupEl.style.visibility = '';
+      }
+    }, 1000);
+  }, 300);
 }
 function sendCheckinSMS(member, timeStr){
   if(!member.phone && !member.phone2) return;
