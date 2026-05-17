@@ -318,6 +318,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <button class="admin-nav-btn" onclick="switchAdminTab('schedule')">📅 스케줄</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('payment')">💰 수납관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('tax')">📊 세무관리</button>
+      <button class="admin-nav-btn" onclick="switchAdminTab('guide')">📖 이용안내</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('settings')">⚙ 설정</button>
     </div>
     <div id="admin-content"></div>
@@ -750,7 +751,7 @@ function openNaverMap(){
 function switchAdminTab(tab){
   currentAdminTab=tab;
   document.querySelectorAll('.admin-nav-btn').forEach((b,i)=>{
-    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','payment','tax','settings'][i]===tab);
+    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','payment','tax','guide','settings'][i]===tab);
   });
   renderAdminTab(tab);
 }
@@ -765,6 +766,7 @@ function renderAdminTab(tab){
   else if(tab==='schedule')c.innerHTML=renderSchedule();
   else if(tab==='payment'){renderPayment();return;}
   else if(tab==='tax'){renderTax();return;}
+  else if(tab==='guide'){renderGuide();return;}
   else if(tab==='settings')c.innerHTML=renderSettings();
 }
 
@@ -1926,6 +1928,16 @@ function renderTax(){
       h += '<div style="text-align:center;padding:16px;color:#98A2B3;font-size:12px;">발행된 세금계산서가 없습니다.</div>';
     }
     h += '<button onclick="exportTaxSummary();" style="width:100%;padding:11px;background:#7C3AED;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">📊 세무 요약 엑셀 출력</button>';
+    h += '<div style="margin-top:12px;background:#F3EEFF;border-radius:12px;padding:14px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#7C3AED;margin-bottom:8px;">🏢 세무대행 서비스</div>';
+    h += '<a href="http://eltax.co.kr/" target="_blank" style="display:flex;align-items:center;gap:10px;background:white;border-radius:10px;padding:12px;text-decoration:none;border:1.5px solid #7C3AED;">';
+    h += '<div style="width:40px;height:40px;border-radius:10px;background:#7C3AED;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧾</div>';
+    h += '<div><div style="font-size:14px;font-weight:700;color:#344054;">이엘택스 (ELTAX)</div>';
+    h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">세무신고·기장·컨설팅 전문 eltax.co.kr</div></div>';
+    h += '<div style="margin-left:auto;font-size:12px;color:#7C3AED;font-weight:700;">바로가기 →</div>';
+    h += '</a>';
+    h += '<div style="font-size:10px;color:#98A2B3;margin-top:8px;text-align:center;">체육시설 수강료 세무처리는 전문가와 상담하세요.</div>';
+    h += '</div>';
     h += '</div>';
   }
 
@@ -2039,6 +2051,108 @@ function saveIndFee(memberId){
   if(reg) m.regfee = parseInt(reg.value)||0;
   if(mon) m.monthly = parseInt(mon.value)||0;
   saveMembers();
+}
+
+
+function renderGuide(){
+  var cont = document.getElementById('admin-content');
+  if(!cont) return;
+  var h = '<div style="padding:12px 16px 0;">';
+
+  // 등원 흐름도
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:14px;">🚐 등원 전 과정 흐름</div>';
+
+  var steps = [
+    {icon:'🏠', color:'#E6F1FB', textColor:'#0C447C', title:'집 출발', desc:'자녀가 집에서 출발합니다', badge:'구글 패밀리링크로 동선 확인'},
+    {icon:'🚐', color:'#EAF3DE', textColor:'#27500A', title:'차량 탑승', desc:'기사님이 탑승 여부 O/X 체크', badge:'코스로드 탑승 관리'},
+    {icon:'🗺️', color:'#EAF3DE', textColor:'#27500A', title:'T맵 경로 최적화 운행', desc:'실시간 교통 반영 최적 경로로 운행', badge:'T맵 API 연동'},
+    {icon:'🥋', color:'#FAECE7', textColor:'#712B13', title:'학원 도착', desc:'자녀가 학원에 도착합니다', badge:'PIN 체크인 → 출결 자동 처리'},
+    {icon:'📱', color:'#EEEDFE', textColor:'#3C3489', title:'학부모 알림 발송', desc:'PIN 체크인 즉시 문자 자동 발송', badge:'카카오 알림톡 (예정)'},
+    {icon:'✅', color:'#E1F5EE', textColor:'#085041', title:'부모님 안심!', desc:'등원 전 과정을 코스로드가 커버합니다', badge:''}
+  ];
+
+  steps.forEach(function(s, i){
+    h += '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:6px;">';
+    h += '<div style="width:40px;height:40px;border-radius:50%;background:'+s.color+';display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">'+s.icon+'</div>';
+    h += '<div style="flex:1;background:#F2F4F7;border-radius:10px;padding:10px 12px;">';
+    h += '<div style="font-size:13px;font-weight:700;color:#344054;">'+s.title+'</div>';
+    h += '<div style="font-size:11px;color:#475467;margin-top:2px;">'+s.desc+'</div>';
+    if(s.badge) h += '<span style="display:inline-block;font-size:10px;background:'+s.color+';color:'+s.textColor+';padding:2px 8px;border-radius:8px;margin-top:5px;font-weight:600;">'+s.badge+'</span>';
+    h += '</div></div>';
+    if(i < steps.length-1){
+      h += '<div style="display:flex;justify-content:flex-start;padding-left:20px;margin-bottom:6px;"><span style="font-size:16px;color:#98A2B3;">↓</span></div>';
+    }
+  });
+  h += '</div>';
+
+  // 패밀리링크 섹션
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">📍 구글 패밀리링크 연동</div>';
+  h += '<div style="font-size:12px;color:#475467;margin-bottom:12px;line-height:1.6;">자녀 스마트폰 위치를 실시간으로 확인할 수 있어요.<br>패밀리링크 앱을 설치하면 집→학원 동선을 파악할 수 있습니다.</div>';
+
+  // 설치 안내
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h += '<a href="https://play.google.com/store/apps/details?id=com.google.android.apps.kids.familylink" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:#E6F1FB;border-radius:10px;padding:12px;text-decoration:none;">';
+  h += '<span style="font-size:24px;">🤖</span>';
+  h += '<span style="font-size:12px;font-weight:700;color:#0C447C;">안드로이드</span>';
+  h += '<span style="font-size:10px;color:#185FA5;">구글플레이 설치</span></a>';
+  h += '<a href="https://apps.apple.com/app/google-family-link/id1150085200" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:#F2F4F7;border-radius:10px;padding:12px;text-decoration:none;">';
+  h += '<span style="font-size:24px;">🍎</span>';
+  h += '<span style="font-size:12px;font-weight:700;color:#344054;">아이폰</span>';
+  h += '<span style="font-size:10px;color:#475467;">앱스토어 설치</span></a>';
+  h += '</div>';
+
+  // 패밀리링크 앱 바로가기
+  h += '<button onclick="openFamilyLink();" style="width:100%;padding:12px;background:#4285F4;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;">📍 패밀리링크 앱 바로 열기</button>';
+
+  h += '<div style="padding:10px;background:#FFFAEB;border-radius:8px;font-size:11px;color:#92400E;">⚠ 패밀리링크는 구글의 서비스로 코스로드와 직접 연동되지 않습니다. 앱을 별도로 사용해 주세요.</div>';
+  h += '</div>';
+
+  // 코스로드 주요 기능 안내
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:12px;">⚡ 코스로드 주요 기능</div>';
+
+  var features = [
+    {icon:'🚐', title:'차량 운행 관리', desc:'요일별·수업반별·차량별 탑승 관리'},
+    {icon:'🔀', title:'T맵 경로 최적화', desc:'실시간 교통 반영 최적 픽업 순서'},
+    {icon:'🔢', title:'PIN 체크인', desc:'4자리 PIN으로 출결 자동 처리'},
+    {icon:'📋', title:'출결 관리', desc:'달력으로 월별 출결 현황 확인'},
+    {icon:'💰', title:'수납 관리', desc:'월정액·등록비 납부 현황 관리'},
+    {icon:'📊', title:'세무 관리', desc:'수입·지출 기록 및 부가세 계산'},
+    {icon:'📍', title:'GPS 위치 공유', desc:'운행 중 학부모에게 실시간 위치 공유'},
+    {icon:'🧾', title:'세무 대행 연결', desc:'이엘택스 세무대행 서비스 연결'}
+  ];
+
+  features.forEach(function(f){
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F4F7;">';
+    h += '<span style="font-size:18px;width:28px;text-align:center;">'+f.icon+'</span>';
+    h += '<div><div style="font-size:13px;font-weight:600;color:#344054;">'+f.title+'</div>';
+    h += '<div style="font-size:11px;color:#98A2B3;">'+f.desc+'</div></div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  // 문의/버전 정보
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:12px;text-align:center;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:6px;">🚐 COSROAD 코스로드</div>';
+  h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">스마트 셔틀 운행 관리 서비스</div>';
+  h += '<a href="https://cosroad.com" target="_blank" style="display:inline-block;padding:8px 20px;background:#EA580C;color:white;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;margin-bottom:6px;">cosroad.com</a>';
+  h += '</div>';
+
+  h += '</div>';
+  cont.innerHTML = h;
+}
+
+function openFamilyLink(){
+  var ua = navigator.userAgent.toLowerCase();
+  if(ua.indexOf('android') >= 0){
+    window.open('https://play.google.com/store/apps/details?id=com.google.android.apps.kids.familylink','_blank');
+  } else if(ua.indexOf('iphone') >= 0 || ua.indexOf('ipad') >= 0){
+    window.open('https://apps.apple.com/app/google-family-link/id1150085200','_blank');
+  } else {
+    window.open('https://families.google.com/familylink/','_blank');
+  }
 }
 
 </script>
