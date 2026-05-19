@@ -314,7 +314,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <button class="admin-nav-btn active" onclick="switchAdminTab('dashboard')">📊 현황</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('members')">👥 원생관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('attendance')">📋 출결관리</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('excel')">📊 엑셀업로드</button>
+      <button class="admin-nav-btn" onclick="switchAdminTab('shop')">🛒 파트너</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('cars')">🚐 차량관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('schedule')">📅 스케줄</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('payment')">💰 수납관리</button>
@@ -752,7 +752,7 @@ function openNaverMap(){
 function switchAdminTab(tab){
   currentAdminTab=tab;
   document.querySelectorAll('.admin-nav-btn').forEach((b,i)=>{
-    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','payment','tax','guide','settings'][i]===tab);
+    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','payment','tax','guide','shop','settings'][i]===tab);
   });
   renderAdminTab(tab);
 }
@@ -768,6 +768,7 @@ function renderAdminTab(tab){
   else if(tab==='payment'){renderPayment();return;}
   else if(tab==='tax'){renderTax();return;}
   else if(tab==='guide'){renderGuide();return;}
+  else if(tab==='shop'){renderShop();return;}
   else if(tab==='settings')c.innerHTML=renderSettings();
 }
 
@@ -804,12 +805,30 @@ function renderAdminMembers(){
   var q='',el=document.getElementById('admin-search');
   if(el) q=el.value.toLowerCase();
   var filtered=members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;}).slice().sort(function(a,b){ return memberSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
-  var html='<div style="display:flex;gap:5px;padding:10px 16px 6px;align-items:center;">'
+  var html='<div style="display:flex;gap:6px;padding:10px 16px 6px;">'
+    +'<button onclick="openAddModal()" style="flex:1;padding:10px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ 이용자 등록</button>'
+    +'<button onclick="toggleExcelPanel()" id="excel-toggle-btn" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📊 엑셀 업로드</button>'
+    +'</div>';
+  html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;">'
     +'<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색"'
     +' oninput="filterAdminMembers(this.value)" value="'+q+'" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>'
     +'<button onclick="setAdminSort(false)" id="admin-sort-asc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#EAECF0':'#EA580C')+';background:'+(adminSortDesc?'white':'#FFEDD5')+';color:'+(adminSortDesc?'#475467':'#EA580C')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>'
     +'<button onclick="setAdminSort(true)" id="admin-sort-desc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#12B76A':'#EAECF0')+';background:'+(adminSortDesc?'#ECFDF3':'white')+';color:'+(adminSortDesc?'#12B76A':'#475467')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↓가나다</button>'
-    +'</div><div id="admin-member-list" style="padding:0 16px 10px;">';
+    +'</div>'
+    +'<div id="excel-panel" style="display:none;padding:0 16px 10px;">'
+    +'<div class="status-card">'
+    +'<div class="status-card-title">📥 샘플 양식 다운로드</div>'
+    +'<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;">샘플 엑셀을 다운로드 후 작성하여 업로드하세요.</div>'
+    +'<button onclick="downloadSampleExcel()" style="padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;width:100%;margin-bottom:10px;">📥 샘플 양식 다운로드</button>'
+    +'</div>'
+    +'<div class="status-card">'
+    +'<div class="status-card-title">📤 엑셀 파일 업로드</div>'
+    +'<div class="upload-area" onclick="document.getElementById(\'excel-upload\').click()"><div class="upload-icon">📊</div><div class="upload-title">엑셀 파일을 여기에 올려주세요</div><div class="upload-sub">.xlsx / .xls 지원</div></div>'
+    +'<input type="file" id="excel-upload" class="upload-input" accept=".xlsx,.xls" onchange="handleExcelFile(this.files[0])"/>'
+    +'<div id="upload-result"></div>'
+    +'</div>'
+    +'</div>'
+    +'<div id="admin-member-list" style="padding:0 16px 10px;">';
   for(var i=0;i<filtered.length;i++){
     var m=filtered[i];
     var course=null,car=null;
@@ -848,13 +867,18 @@ function renderAdminMembers(){
       +(m.note?'<div class="member-note">※ '+m.note+'</div>':'')
       +'</div>';
   }
-  html+='</div><button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>';
+  html+='</div>';
   return html;
 }
 
 // 검색 시 목록만 업데이트 (input 포커스 유지)
 function filterAdminMembers(q){
   q = q.toLowerCase();
+  // 엑셀 패널 닫고 목록 보이기
+  var ep = document.getElementById('excel-panel');
+  var ml = document.getElementById('admin-member-list');
+  if(ep) ep.style.display='none';
+  if(ml) ml.style.display='block';
   var listEl = document.getElementById('admin-member-list');
   if(!listEl){ renderAdminTab('members'); return; }
   var filtered = members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;})
@@ -1226,6 +1250,11 @@ function populateSelects(){
   cv.innerHTML=cars.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
 }
 function openAddModal(){
+  // 엑셀 패널 닫기
+  var ep = document.getElementById('excel-panel');
+  var ml = document.getElementById('admin-member-list');
+  if(ep) ep.style.display='none';
+  if(ml) ml.style.display='block';
   populateSelects();
   document.getElementById('modal-title').textContent='이용자 등록';
   document.getElementById('edit-id').value='';
@@ -2686,6 +2715,133 @@ function sendKakaoAlimtalk(member, timeStr){
       sendKakaoAlimtalk(member, timeStr);
     });
   });
+}
+
+
+function toggleExcelPanel(){
+  var panel = document.getElementById('excel-panel');
+  var memberList = document.getElementById('admin-member-list');
+  if(!panel){
+    renderAdminTab('members');
+    setTimeout(function(){ toggleExcelPanel(); }, 150);
+    return;
+  }
+  // 바로 보이게 - 닫기 없음
+  panel.style.display = 'block';
+  if(memberList) memberList.style.display = 'none';
+}
+
+
+// ══════════════════════════════════════════
+// 파트너/소모품 구매 탭
+// ══════════════════════════════════════════
+var shopCategory = 'all';
+
+var shopPartners = {
+  tax: {
+    label: '🧾 세무/회계',
+    items: [
+      {name:'이엘택스', icon:'🧾', desc:'세무신고·기장·컨설팅', url:'http://eltax.co.kr/', color:'#7C3AED'}
+    ]
+  },
+  car: {
+    label: '🚐 차량/보험',
+    items: [
+      {name:'차량보험', icon:'🚗', desc:'업체 준비 중', url:'', color:'#1A6BFF'},
+      {name:'차량정비', icon:'🔧', desc:'업체 준비 중', url:'', color:'#475467'}
+    ]
+  },
+  sports: {
+    label: '🥋 도복/용품',
+    items: [
+      {name:'태권도용품', icon:'🥋', desc:'업체 준비 중', url:'', color:'#EA580C'},
+      {name:'도복전문점', icon:'👘', desc:'업체 준비 중', url:'', color:'#C2410C'}
+    ]
+  },
+  supply: {
+    label: '🛒 소모품',
+    items: [
+      {name:'FREEZON', icon:'🛒', desc:'소모품 전문 스토어', url:'https://smartstore.naver.com/freezon', color:'#12B76A'}
+    ]
+  },
+  edu: {
+    label: '🏫 교육/자재',
+    items: [
+      {name:'교육자재', icon:'📚', desc:'업체 준비 중', url:'', color:'#F59E0B'}
+    ]
+  },
+  it: {
+    label: '📱 IT/앱',
+    items: [
+      {name:'COSROAD', icon:'🚐', desc:'스마트 셔틀 운행 관리', url:'https://cosroad.com', color:'#EA580C'}
+    ]
+  }
+};
+
+function renderShop(){
+  var cont = document.getElementById('admin-content');
+  if(!cont) return;
+
+  var categories = Object.keys(shopPartners);
+  var h = '<div style="padding:12px 16px 0;">';
+
+  // 배너
+  h += '<div style="background:linear-gradient(135deg,#EA580C,#C2410C);border-radius:14px;padding:16px;margin-bottom:12px;text-align:center;">';
+  h += '<div style="font-size:20px;margin-bottom:4px;">🤝</div>';
+  h += '<div style="font-size:15px;font-weight:800;color:white;">코스로드 파트너</div>';
+  h += '<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:4px;">클릭하면 바로 이동합니다</div>';
+  h += '</div>';
+
+  // 카테고리 탭
+  h += '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">';
+  h += '<button onclick="setShopCategory(\'all\')" style="flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid '+(shopCategory==="all"?'#EA580C':'#EAECF0')+';background:'+(shopCategory==="all"?'#FFEDD5':'white')+';color:'+(shopCategory==="all"?'#EA580C':'#475467')+';font-size:12px;font-weight:700;cursor:pointer;">전체</button>';
+  categories.forEach(function(key){
+    var cat = shopPartners[key];
+    var isActive = shopCategory === key;
+    h += '<button onclick="setShopCategory(\''+key+'\')" style="flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid '+(isActive?'#EA580C':'#EAECF0')+';background:'+(isActive?'#FFEDD5':'white')+';color:'+(isActive?'#EA580C':'#475467')+';font-size:12px;font-weight:700;cursor:pointer;">'+cat.label+'</button>';
+  });
+  h += '</div>';
+
+  // 업체 목록
+  var showCategories = shopCategory === 'all' ? categories : [shopCategory];
+
+  showCategories.forEach(function(key){
+    var cat = shopPartners[key];
+    h += '<div style="margin-bottom:16px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:8px;">'+cat.label+'</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">';
+    cat.items.forEach(function(item){
+      var isReady = item.url !== '';
+      h += '<div onclick="'+(isReady?'openPartner(\''+item.url+'\')':''  )+'" style="background:white;border-radius:12px;border:1.5px solid #EAECF0;padding:14px 8px;text-align:center;cursor:'+(isReady?'pointer':'default')+';opacity:'+(isReady?'1':'0.5')+';">'
+      h += '<div style="width:48px;height:48px;border-radius:12px;background:'+item.color+'20;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:24px;">'+item.icon+'</div>';
+      h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:2px;">'+item.name+'</div>';
+      h += '<div style="font-size:10px;color:#98A2B3;">'+item.desc+'</div>';
+      if(!isReady) h += '<div style="font-size:9px;color:#98A2B3;margin-top:4px;">준비 중</div>';
+      h += '</div>';
+    });
+    h += '</div></div>';
+  });
+
+  // 파트너 문의
+  h += '<div style="background:#F3EEFF;border-radius:12px;padding:14px;text-align:center;margin-top:8px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#7C3AED;margin-bottom:6px;">🤝 파트너 입점 문의</div>';
+  h += '<div style="font-size:11px;color:#475467;margin-bottom:10px;">코스로드 파트너로 등록하시면<br>전국 학원/기관에 홍보할 수 있어요!</div>';
+  h += '<a href="mailto:partner@cosroad.com" style="display:inline-block;padding:10px 20px;background:#7C3AED;color:white;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;">📧 파트너 문의하기</a>';
+  h += '</div>';
+
+  h += '</div>';
+  cont.innerHTML = h;
+}
+
+
+function setShopCategory(cat){
+  shopCategory = cat;
+  renderShop();
+}
+
+
+function openPartner(url){
+  if(url) window.open(url,'_blank');
 }
 
 </script>
