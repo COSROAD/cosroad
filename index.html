@@ -2844,6 +2844,32 @@ function openPartner(url){
   if(url) window.open(url,'_blank');
 }
 
+
+function saveAligoSettings(){
+  ALIGO_API_KEY = document.getElementById('aligo-apikey').value.trim();
+  ALIGO_USER_ID = document.getElementById('aligo-userid').value.trim();
+  ALIGO_SENDER_KEY = document.getElementById('aligo-senderkey').value.trim();
+  ALIGO_TEMPLATE_CODE = document.getElementById('aligo-tplcode').value.trim();
+  localStorage.setItem('tkd_aligo', JSON.stringify({
+    apikey: ALIGO_API_KEY,
+    userid: ALIGO_USER_ID,
+    senderkey: ALIGO_SENDER_KEY,
+    tplcode: ALIGO_TEMPLATE_CODE
+  }));
+  alert('✅ 알리고 설정이 저장됐어요!');
+}
+
+function loadAligoSettings(){
+  var saved = localStorage.getItem('tkd_aligo');
+  if(saved){
+    var d = JSON.parse(saved);
+    ALIGO_API_KEY = d.apikey||'';
+    ALIGO_USER_ID = d.userid||'';
+    ALIGO_SENDER_KEY = d.senderkey||'';
+    ALIGO_TEMPLATE_CODE = d.tplcode||'';
+  }
+}
+
 </script>
 
 <!-- PIN 체크인 모달 -->
