@@ -488,7 +488,7 @@ function loginAdmin(){
 function logout(){currentMode='';document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';}
 
 function initApp(){
-  orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
+  orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();loadAligoSettings();
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
   document.getElementById('org-name-display').textContent=orgSettings.name;
   document.getElementById('org-icon').textContent=orgSettings.icon;
