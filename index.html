@@ -1659,12 +1659,10 @@ function sendCheckinSMSText(member, timeStr){
   var msg = '['+orgSettings.name+'] 출석 알림\n'
     + '━━━━━━━━━━━━━━\n'
     + '👤 이름: '+member.name+'\n'
-    + '📅 날짜: '+dateStr+'\n'
     + '⏰ 도착: '+timeStr+'\n'
-    + (course?'📚 수업: '+course.name+'\n':'')
     + '━━━━━━━━━━━━━━\n'
-    + '✅ 학원에 안전하게 도착했습니다.\n\n'
-    + '👉 출석 확인: '+checkUrl;
+    + '✅ 학원에 안전하게 도착했습니다.\n'
+    + '📍 패밀리링크로 자녀 위치 확인하기';
   if(member.phone){
     window.open('sms:'+member.phone+'?body='+encodeURIComponent(msg),'_blank');
   }
@@ -2595,7 +2593,7 @@ function sendKakaoAlimtalk(member, timeStr){
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
 
-  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n\n📍 패밀리링크로 자녀 위치 확인하기';
+  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n📍 패밀리링크로 자녀 위치 확인하기';
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
