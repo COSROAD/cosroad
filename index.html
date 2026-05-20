@@ -2695,7 +2695,7 @@ function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
   if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_TEMPLATE_CODE){
     // 알리고 미설정 시 기존 이미지 캡처 방식으로 대체
-    sendKakaoAlimtalk(member, timeStr);
+    sendCheckinSMSText(member, timeStr);
     return;
   }
 
@@ -2743,11 +2743,11 @@ function sendKakaoAlimtalk(member, timeStr){
       } else {
         console.log('알림톡 발송 실패:', data.message);
         // 실패 시 이미지 캡처 방식으로 대체
-        sendKakaoAlimtalk(member, timeStr);
+        sendCheckinSMSText(member, timeStr);
       }
     }).catch(function(e){
       console.log('알림톡 오류:', e);
-      sendKakaoAlimtalk(member, timeStr);
+      sendCheckinSMSText(member, timeStr);
     });
   });
 }
