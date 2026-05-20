@@ -366,7 +366,6 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <div class="day-check"><input type="checkbox" id="d-wed"/><label for="d-wed">수</label></div>
       <div class="day-check"><input type="checkbox" id="d-thu"/><label for="d-thu">목</label></div>
       <div class="day-check"><input type="checkbox" id="d-fri"/><label for="d-fri">금</label></div>
-      <div class="day-check"><input type="checkbox" id="d-sat"/><label for="d-sat">토</label></div>
     </div>
     <div class="form-row">
       <div><label class="form-label">등록비 (원)</label>
@@ -395,9 +394,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const DAYS=['월','화','수','목','금','토'];
-const DAY_NAMES=['월요일','화요일','수요일','목요일','금요일','토요일'];
-const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri',토:'sat'};
+const DAYS=['월','화','수','목','금'];
+const DAY_NAMES=['월요일','화요일','수요일','목요일','금요일'];
+const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri'};
 let TMAP_KEY=localStorage.getItem('tmapKey')||'Ev7Wbwethh8ekp1gFRZEJ55f99mltQ24C5nNwpOg';
 let ADMIN_PW=localStorage.getItem('tkd_adminpw')||'1234';
 
@@ -488,7 +487,7 @@ function loginAdmin(){
 function logout(){currentMode='';document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';}
 
 function initApp(){
-  orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();loadAligoSettings();
+  orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
   document.getElementById('org-name-display').textContent=orgSettings.name;
   document.getElementById('org-icon').textContent=orgSettings.icon;
@@ -519,13 +518,13 @@ function initApp(){
   switchTab('drive');
 }
 
-function updateTabs(){document.querySelectorAll('.day-tab').forEach((b,i)=>{if(b)b.classList.toggle('active',DAYS[i]===currentDay);});}
+function updateTabs(){document.querySelectorAll('.day-tab').forEach((b,i)=>b.classList.toggle('active',DAYS[i]===currentDay));}
 
 function switchTab(tab){
   currentTab=tab;
   document.getElementById('drive-screen').style.display='none';
-  var ms=document.getElementById('member-screen');if(ms)ms.classList.remove('show');
-  var as=document.getElementById('admin-screen');if(as)as.classList.remove('show');
+  document.getElementById('member-screen').classList.remove('show');
+  document.getElementById('admin-screen').classList.remove('show');
   document.getElementById('bottom-action').style.display='none';
   document.getElementById('day-tabs').style.display='none';
   document.querySelectorAll('.hbtn').forEach(b=>b.classList.remove('active','admin-active'));
@@ -536,12 +535,12 @@ function switchTab(tab){
     document.getElementById('tab-drive')?.classList.add(currentMode==='admin'?'admin-active':'active');
     renderDrive();
   } else if(tab==='member'){
-    var ms2=document.getElementById('member-screen');if(ms2)ms2.classList.add('show');
+    document.getElementById('member-screen').classList.add('show');
     document.getElementById('tab-member')?.classList.add('active');
     document.getElementById('member-add-area').innerHTML=currentMode==='admin'?`<button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>`:'';
     renderMembers();
   } else if(tab==='admin'){
-    var as2=document.getElementById('admin-screen');if(as2)as2.classList.add('show');
+    document.getElementById('admin-screen').classList.add('show');
     document.getElementById('tab-admin')?.classList.add('admin-active');
     renderAdminTab(currentAdminTab);
   }
@@ -641,7 +640,7 @@ function toggleStudent(mIdx){members[mIdx].on=!members[mIdx].on;optimizedOrder=n
 async function optimizeRoute(){
   const active=getActiveStudents();
   if(active.length<2){alert('탑승 이용자가 2명 이상이어야 합니다.');return;}
-  const btn=document.getElementById('optimize-btn');if(!btn)return;btn.textContent='⏳ 최적화 중...';btn.classList.add('loading');
+  const btn=document.getElementById('optimize-btn');btn.textContent='⏳ 최적화 중...';btn.classList.add('loading');
   try{
     const res=await fetch('https://apis.openapi.sk.com/tmap/routes/optimized-order?version=1&format=json',{
       method:'POST',headers:{'Content-Type':'application/json','appKey':TMAP_KEY},
@@ -722,7 +721,7 @@ function showSharePanel(){
     <div style="margin-top:14px;padding:10px;background:var(--warning-light);border-radius:var(--radius-sm);font-size:11px;color:#92400E;">
       ⚠ 실시간 GPS 위치 공유는 GitHub Pages 배포 후 지원됩니다.<br>현재는 운행 정보 텍스트 공유 방식으로 제공됩니다.
     </div>`;
-  var sm=document.getElementById('share-modal');if(sm)sm.classList.add('show');
+  document.getElementById('share-modal').classList.add('show');
   window._shareText=shareText;
   window._activeStudents=active;
 }
@@ -753,7 +752,7 @@ function openNaverMap(){
 function switchAdminTab(tab){
   currentAdminTab=tab;
   document.querySelectorAll('.admin-nav-btn').forEach((b,i)=>{
-    var tabList=['dashboard','members','attendance','excel','cars','schedule','payment','tax','guide','shop','settings']; if(b) b.classList.toggle('active',tabList[i]===tab);
+    b.classList.toggle('active',['dashboard','members','attendance','excel','cars','schedule','payment','tax','guide','shop','settings'][i]===tab);
   });
   renderAdminTab(tab);
 }
@@ -764,7 +763,7 @@ function renderAdminTab(tab){
   else if(tab==='members')c.innerHTML=renderAdminMembers();
   else if(tab==='attendance'){renderAttendance();return;}
   else if(tab==='excel')c.innerHTML=renderExcel();
-  else if(tab==='cars'){renderCars();return;}
+  else if(tab==='cars')c.innerHTML=renderCars();
   else if(tab==='schedule')c.innerHTML=renderSchedule();
   else if(tab==='payment'){renderPayment();return;}
   else if(tab==='tax'){renderTax();return;}
@@ -780,21 +779,10 @@ function renderDashboard(){
   const pct=todayAll.length?Math.round(todayOn.length/todayAll.length*100):0;
   return `
   <div class="stat-grid">
-    <div class="stat-card" onclick="showDashDetail('all')" style="cursor:pointer;">
-      <div class="stat-num">${total}</div>
-      <div class="stat-label">전체 이용자</div>
-      <div class="stat-sub">${courses.map(c=>c.name+' '+members.filter(m=>m.courseId===c.id).length+'명').join(' · ')}</div>
-      <div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div>
-    </div>
-    <div class="stat-card" onclick="showDashDetail('today')" style="cursor:pointer;">
-      <div class="stat-num">${todayOn.length}</div>
-      <div class="stat-label">오늘(${currentDay}) 탑승</div>
-      <div class="stat-sub">미탑승 ${todayAll.length-todayOn.length}명</div>
-      <div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div>
-    </div>
-    ${cars.map(car=>{const cnt=todayAll.filter(m=>m.carId===car.id&&m.on).length;return`<div class="stat-card" onclick="showDashDetail('${car.id}')" style="cursor:pointer;"><div class="stat-num">${cnt}</div><div class="stat-label">${car.name} 오늘</div><div class="stat-sub">${car.driver?'기사: '+car.driver:'기사 미배정'}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>`;}).join('')}
+    <div class="stat-card"><div class="stat-num">${total}</div><div class="stat-label">전체 이용자</div><div class="stat-sub">${courses.map(c=>c.name+' '+members.filter(m=>m.courseId===c.id).length+'명').join(' · ')}</div></div>
+    <div class="stat-card"><div class="stat-num">${todayOn.length}</div><div class="stat-label">오늘(${currentDay}) 탑승</div><div class="stat-sub">미탑승 ${todayAll.length-todayOn.length}명</div></div>
+    ${cars.map(car=>{const cnt=todayAll.filter(m=>m.carId===car.id&&m.on).length;return`<div class="stat-card"><div class="stat-num">${cnt}</div><div class="stat-label">${car.name} 오늘</div><div class="stat-sub">${car.driver?'기사: '+car.driver:'기사 미배정'}</div></div>`;}).join('')}
   </div>
-  <div id="dash-detail-panel" style="margin:0 16px 10px;display:none;"></div>
   <div style="padding:0 16px 10px;">
     <div class="status-card">
       <div class="status-card-title">오늘(${currentDay}) 탑승률 <span style="color:var(--admin)">${pct}%</span></div>
@@ -820,7 +808,6 @@ function renderAdminMembers(){
   var html='<div style="display:flex;gap:6px;padding:10px 16px 6px;">'
     +'<button onclick="openAddModal()" style="flex:1;padding:10px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ 이용자 등록</button>'
     +'<button onclick="toggleExcelPanel()" id="excel-toggle-btn" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📊 엑셀 업로드</button>'
-    +'<button onclick="downloadMembersExcel()" style="flex:1;padding:10px;background:#1A6BFF;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">⬇ 데이터 다운</button>'
     +'</div>';
   html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;">'
     +'<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색"'
@@ -1032,82 +1019,47 @@ function handleExcelFile(file){
 }
 
 // ── 차량 관리 ──
-var currentCarTab = 0; // 현재 선택된 차량 인덱스
-
 function renderCars(){
-  var DAYS=['월','화','수','목','금','토'];
-  var car = cars[currentCarTab];
-  var i = currentCarTab;
-  if(!car) return;
-  var carMembers = members.filter(function(m){return m.carId===car.id;});
-  var unassigned = members.filter(function(m){return m.carId!==car.id;});
+  const DAYS=['월','화','수','목','금'];
+  return`<div style="padding:12px 16px 0;">
+    ${cars.map((car,i)=>{
+      const carMembers=members.filter(m=>m.carId===car.id);
+      const unassigned=members.filter(m=>m.carId!==car.id);
+      return`
+    <div class="status-card" style="margin-bottom:14px;">
+      <div class="status-card-title" style="margin-bottom:10px;">🚐 ${car.name} <span style="font-size:11px;color:var(--gray-400);">배정 ${carMembers.length}명</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="${car.driver}" oninput="cars[${i}].driver=this.value"/>
+        <input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="${car.phone}" oninput="cars[${i}].phone=this.value" type="tel"/>
+        <input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="${car.plate}" oninput="cars[${i}].plate=this.value"/>
+      </div>
 
-  var html = '<div style="padding:0;">';
+      <div style="font-size:11px;font-weight:700;color:var(--gray-600);margin-bottom:6px;">배정된 회원 (요일별 탑승 조정)</div>
+      ${carMembers.length===0?`<div style="font-size:12px;color:var(--gray-400);padding:8px 0;">배정된 회원이 없습니다.</div>`:''}
+      ${carMembers.map(m=>`
+        <div style="background:var(--gray-100);border-radius:8px;padding:9px 11px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:700;color:var(--gray-900);">${m.name}</span>
+            <div style="display:flex;gap:4px;align-items:center;">
+              <span style="font-size:10px;color:var(--gray-400);">${courses.find(c=>c.id===m.courseId)?.name||''}</span>
+              <button onclick="removeMemberFromCar(${m.id})" style="padding:2px 8px;border:1px solid var(--danger);border-radius:5px;font-size:10px;color:var(--danger);background:white;cursor:pointer;">해제</button>
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--gray-400);margin-bottom:5px;">${m.location}</div>
+          <div style="display:flex;gap:4px;">
+            ${(function(){var r='';for(var _i=0;_i<DAYS.length;_i++){var _d=DAYS[_i];var _on=m.days.indexOf(_d)>=0;r+='<button onclick="toggleMemberDay('+m.id+',\''+_d+'\')" style="width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;font-size:11px;font-weight:700;background:'+(_on?'#EA580C':'var(--gray-200)')+';color:'+(_on?'white':'var(--gray-400)')+';">'+ _d+'</button>';} return r;})()}
+          </div>
+        </div>`).join('')}
 
-  // 차량 탭
-  html += '<div style="display:flex;overflow-x:auto;background:white;padding:4px 8px;border-bottom:1px solid #EAECF0;scrollbar-width:none;gap:4px;">';
-  cars.forEach(function(c, idx){
-    var cnt = members.filter(function(m){return m.carId===c.id;}).length;
-    var isActive = idx === currentCarTab;
-    html += '<button onclick="setCarTab('+idx+')" style="flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;border-radius:20px;margin:6px 4px;background:'+(isActive?'#ABEFC6':'#F2F4F7')+';color:'+(isActive?'#067647':'#475467')+';transition:all 0.2s;">'+c.name+' <span style="font-size:10px;">('+cnt+')</span></button>';
-  });
-  html += '</div>';
-
-  html += '<div style="padding:12px 16px 0;">';
-
-  // 기사 정보
-  html += '<div class="status-card" style="margin-bottom:12px;">';
-  html += '<div class="status-card-title">🚐 '+car.name+' 정보</div>';
-  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-  html += '<input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="'+car.driver+'" oninput="cars['+i+'].driver=this.value"/>';
-  html += '<input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="'+car.phone+'" oninput="cars['+i+'].phone=this.value" type="tel"/>';
-  html += '<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="'+car.plate+'" oninput="cars['+i+'].plate=this.value"/>';
-  html += '</div>';
-  html += '<button onclick="saveCarsAndMembers()" style="width:100%;padding:10px;background:#EA580C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:10px;">💾 저장</button>';
-  html += '</div>';
-
-  // 배정된 회원
-  html += '<div class="status-card" style="margin-bottom:12px;">';
-  html += '<div class="status-card-title">👥 배정된 회원 <span style="font-size:12px;font-weight:400;color:#98A2B3;">'+carMembers.length+'명</span></div>';
-  if(carMembers.length===0){
-    html += '<div style="font-size:12px;color:#98A2B3;padding:8px 0;">배정된 회원이 없습니다.</div>';
-  }
-  carMembers.forEach(function(m){
-    html += '<div style="background:#F2F4F7;border-radius:8px;padding:9px 11px;margin-bottom:6px;">';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
-    html += '<span style="font-size:13px;font-weight:700;">'+m.name+'</span>';
-    html += '<div style="display:flex;gap:4px;align-items:center;">';
-    html += '<span style="font-size:10px;color:#98A2B3;">'+((courses.find(function(c){return c.id===m.courseId;})||{}).name||'')+'</span>';
-    html += '<button onclick="removeMemberFromCar('+m.id+')" style="padding:2px 8px;border:1px solid #F04438;border-radius:5px;font-size:10px;color:#F04438;background:white;cursor:pointer;">해제</button>';
-    html += '</div></div>';
-    html += '<div style="font-size:10px;color:#98A2B3;margin-bottom:5px;">'+m.location+'</div>';
-    html += '<div style="display:flex;gap:4px;">';
-    DAYS.forEach(function(d){
-      var on = m.days.indexOf(d)>=0;
-      html += '<button onclick="toggleMemberDay('+m.id+',\''+d+'\')" style="width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;font-size:11px;font-weight:700;background:'+(on?'#EA580C':'#EAECF0')+';color:'+(on?'white':'#98A2B3')+';">'+d+'</button>';
-    });
-    html += '</div></div>';
-  });
-  html += '</div>';
-
-  // 회원 추가
-  html += '<div class="status-card" style="margin-bottom:12px;">';
-  html += '<div class="status-card-title">➕ 회원 추가</div>';
-  if(unassigned.length===0){
-    html += '<div style="font-size:12px;color:#98A2B3;">미배정 회원이 없습니다.</div>';
-  } else {
-    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-    unassigned.forEach(function(m){
-      html += '<button onclick="assignMemberToCar('+m.id+',\''+car.id+'\')" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+m.name+' +</button>';
-    });
-    html += '</div>';
-  }
-  html += '</div>';
-
-  html += '</div></div>';
-  document.getElementById('admin-content').innerHTML = html;
+      <div style="font-size:11px;font-weight:700;color:var(--gray-600);margin:10px 0 6px;">회원 추가</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${unassigned.map(m=>`<button onclick="assignMemberToCar(${m.id},'${car.id}')" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">${m.name} +</button>`).join('')||'<span style="font-size:11px;color:var(--gray-400);">미배정 회원 없음</span>'}
+      </div>
+    </div>`;
+    }).join('')}
+    <button onclick="saveCars(cars);saveMembers();renderAdminTab('cars');alert('✅ 저장되었습니다.')" style="width:100%;padding:12px;background:var(--admin);color:white;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;">전체 저장</button>
+  </div>`;
 }
-
 
 function toggleMemberDay(memberId, day){
   const m=members.find(m=>m.id===memberId);
@@ -1260,7 +1212,7 @@ function renderMembers(){
   document.getElementById('filter-chips').innerHTML=`<button class="chip ${filterCourse===''?'on':''}" onclick="filterCourse='';renderMembers()">전체</button>`+
     courses.map(c=>`<button class="chip ${filterCourse===c.id?'on':''}" onclick="filterCourse='${c.id}';renderMembers()">${c.name}</button>`).join('')+
     cars.map(c=>`<button class="chip ${filterCar===c.id?'on':''}" onclick="filterCar='${c.id}';renderMembers()">${c.name}</button>`).join('');
-  var frb=document.getElementById('filter-riding-btn');if(frb)frb.classList.toggle('active',filterRiding);
+  document.getElementById('filter-riding-btn').classList.toggle('active',filterRiding);
   let filtered=members.filter(m=>{
     if(query&&!m.name.toLowerCase().includes(query))return false;
     if(filterRiding&&!m.on)return false;
@@ -1358,7 +1310,7 @@ function deleteMember(){
   if(currentTab==='member')renderMembers();else renderAdminTab('members');
 }
 
-function closeModal(id){var el=document.getElementById(id);if(el)el.classList.remove('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');}));
 
 // ══════════════════════
@@ -1456,8 +1408,7 @@ function renderAttendance(){
   h+='</div>';
 
   // 학부모 알림
-  h+='<button onclick="toggleAttSummary()" id="att-summary-btn" style="width:100%;padding:11px;background:#7C3AED;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📊 출결 현황 보기</button>';
-  h+='<div id="att-summary-panel" style="display:none;"></div>';
+  h+='<button onclick="sendAttendanceNotice();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📱 학부모 출결 알림 발송</button>';
 
   // 회원 목록
   if(dm.length===0){
@@ -1541,7 +1492,7 @@ var pinCheckinOpen=false;
 function openPinCheckin(){
   pinInput='';
   pinCheckinOpen=true;
-  var pcm=document.getElementById('pin-checkin-modal');if(pcm)pcm.classList.add('show');
+  document.getElementById('pin-checkin-modal').classList.add('show');
   renderPinDisplay();
 }
 function closePinCheckin(){
@@ -1648,6 +1599,63 @@ function checkPin(){
     renderPinDisplay();
   }, 3000);
 }
+function sendCheckinSMS(member, timeStr){
+  if(!member.phone && !member.phone2) return;
+
+  // 팝업 이미지 캡처 후 MMS 전송
+  var popup = document.querySelector('#checkin-notice-modal > div');
+  if(popup && typeof html2canvas !== 'undefined'){
+    // 버튼 임시 숨기기
+    var btns = popup.querySelectorAll('button');
+    btns.forEach(function(b){ b.style.display='none'; });
+
+    html2canvas(popup, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    }).then(function(canvas){
+      btns.forEach(function(b){ b.style.display=''; });
+
+      canvas.toBlob(function(blob){
+        var fileName = member.name+'_출석완료.png';
+        var file = new File([blob], fileName, {type:'image/png'});
+        var phones = [];
+        if(member.phone) phones.push(member.phone);
+        if(member.phone2) phones.push(member.phone2);
+
+        // Web Share API로 이미지 + 문자앱 연동
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+          navigator.share({
+            title: member.name+' 출석 완료!',
+            text: '['+orgSettings.name+'] '+member.name+' '+timeStr+' 학원 도착 ✅',
+            files: [file]
+          }).catch(function(e){ console.log('공유 취소:', e); });
+        } else {
+          // Web Share 미지원 시 이미지 다운로드 후 안내
+          var link = document.createElement('a');
+          link.download = fileName;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          setTimeout(function(){
+            var msg = '['+orgSettings.name+'] '+member.name+' '+timeStr+' 학원 도착 ✅';
+            if(member.phone){
+              window.open('sms:'+member.phone+'?body='+encodeURIComponent(msg),'_blank');
+            }
+          }, 500);
+        }
+      }, 'image/png');
+    }).catch(function(e){
+      btns.forEach(function(b){ b.style.display=''; });
+      // html2canvas 실패 시 텍스트 문자 발송
+      sendCheckinSMSText(member, timeStr);
+    });
+  } else {
+    // html2canvas 없으면 텍스트 문자 발송
+    sendCheckinSMSText(member, timeStr);
+  }
+}
+
 function sendCheckinSMSText(member, timeStr){
   var today = new Date();
   var dateStr = today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
@@ -1659,10 +1667,12 @@ function sendCheckinSMSText(member, timeStr){
   var msg = '['+orgSettings.name+'] 출석 알림\n'
     + '━━━━━━━━━━━━━━\n'
     + '👤 이름: '+member.name+'\n'
+    + '📅 날짜: '+dateStr+'\n'
     + '⏰ 도착: '+timeStr+'\n'
+    + (course?'📚 수업: '+course.name+'\n':'')
     + '━━━━━━━━━━━━━━\n'
-    + '✅ 학원에 안전하게 도착했습니다.\n'
-    + '📍 패밀리링크로 자녀 위치 확인하기';
+    + '✅ 학원에 안전하게 도착했습니다.\n\n'
+    + '👉 출석 확인: '+checkUrl;
   if(member.phone){
     window.open('sms:'+member.phone+'?body='+encodeURIComponent(msg),'_blank');
   }
@@ -2380,7 +2390,7 @@ function showCheckinNoticePopup(member, timeStr, photoHtml){
   modal.style.display = 'flex';
 
   // 문자 자동 발송
-  sendCheckinSMS(member, timeStr);
+  sendKakaoAlimtalk(member, timeStr);
   setTimeout(function(){
     var statusEl = document.getElementById('popup-sms-status');
     if(statusEl) statusEl.textContent = '✅ 발송완료';
@@ -2409,6 +2419,70 @@ document.addEventListener('click', function(e){
   var modal = document.getElementById('checkin-notice-modal');
   if(modal && e.target === modal) closeCheckinPopup();
 });
+
+
+// ══════════════════════════════════════════
+// 팝업 이미지 저장 + 문자 공유
+// ══════════════════════════════════════════
+function saveAndSharePopupImage(){
+  var popup = document.querySelector('#checkin-notice-modal > div');
+  if(!popup){ alert('팝업을 찾을 수 없습니다.'); return; }
+
+  // 버튼 임시 숨기기
+  var btns = popup.querySelectorAll('button');
+  btns.forEach(function(b){ b.style.display='none'; });
+
+  if(typeof html2canvas === 'undefined'){
+    btns.forEach(function(b){ b.style.display=''; });
+    alert('라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+
+  html2canvas(popup, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    logging: false
+  }).then(function(canvas){
+    // 버튼 다시 보이기
+    btns.forEach(function(b){ b.style.display=''; });
+
+    // 이미지 저장
+    var imgData = canvas.toDataURL('image/png');
+    var link = document.createElement('a');
+    var memberName = document.getElementById('popup-member-name').textContent.replace(' 출석 완료!','');
+    var timeStr = document.getElementById('popup-time').textContent;
+    link.download = memberName+'_출석완료_'+timeStr.replace(':','')+'.png';
+    link.href = imgData;
+    link.click();
+
+    // Web Share API로 공유 (모바일에서 카카오톡/문자 선택 가능)
+    setTimeout(function(){
+      if(navigator.share){
+        // 이미지를 Blob으로 변환
+        canvas.toBlob(function(blob){
+          var file = new File([blob], memberName+'_출석완료.png', {type:'image/png'});
+          navigator.share({
+            title: memberName+' 출석 완료!',
+            text: '['+orgSettings.name+'] '+memberName+' 출석 완료!\n'+timeStr,
+            files: [file]
+          }).then(function(){
+            console.log('공유 완료');
+          }).catch(function(e){
+            console.log('공유 취소:', e);
+          });
+        }, 'image/png');
+      } else {
+        alert('이미지가 저장됐어요!\n저장된 이미지를 카카오톡이나 문자로 전송해 주세요.');
+      }
+    }, 500);
+
+  }).catch(function(e){
+    btns.forEach(function(b){ b.style.display=''; });
+    console.error('캡처 오류:', e);
+    alert('이미지 생성 중 오류가 발생했습니다.');
+  });
+}
 
 
 // ══════════════════════════════════════════
@@ -2585,7 +2659,8 @@ var ALIGO_TEMPLATE_CODE = ''; // 템플릿 코드
 function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
   if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_TEMPLATE_CODE){
-    sendCheckinSMSText(member, timeStr);
+    // 알리고 미설정 시 기존 이미지 캡처 방식으로 대체
+    sendKakaoAlimtalk(member, timeStr);
     return;
   }
 
@@ -2593,32 +2668,51 @@ function sendKakaoAlimtalk(member, timeStr){
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
 
-  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n📍 패밀리링크로 자녀 위치 확인하기';
   phones.forEach(function(phone){
-    fetch('https://cosroad.vercel.app/api/send-alimtalk', {
+    var formData = new FormData();
+    formData.append('apikey', ALIGO_API_KEY);
+    formData.append('userid', ALIGO_USER_ID);
+    formData.append('senderkey', ALIGO_SENDER_KEY);
+    formData.append('tpl_code', ALIGO_TEMPLATE_CODE);
+    formData.append('sender', phone);
+    formData.append('receiver_1', phone);
+    formData.append('recvname_1', member.name);
+    formData.append('subject_1', '['+orgSettings.name+'] 출석 알림');
+    formData.append('message_1',
+      '['+orgSettings.name+'] 출석 알림\n'
+      +'━━━━━━━━━━━━━━\n'
+      +'👤 이름: '+member.name+'\n'
+      +'⏰ 도착: '+timeStr+'\n'
+      +'━━━━━━━━━━━━━━\n'
+      +'✅ 학원에 안전하게 도착했습니다.\n\n'
+      +'📍 패밀리링크로 자녀 위치 확인하기'
+    );
+    // 변수 설정
+    formData.append('button_1', JSON.stringify({
+      button: [{
+        name: '패밀리링크 열기',
+        linkType: 'WL',
+        linkTypeName: '웹링크',
+        linkMo: 'https://families.google.com',
+        linkPc: 'https://families.google.com'
+      }]
+    }));
+
+    fetch('https://kakaoapi.aligo.in/akv10/alimtalk/send/', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        apikey: ALIGO_API_KEY,
-        userid: ALIGO_USER_ID,
-        senderkey: ALIGO_SENDER_KEY,
-        tpl_code: ALIGO_TEMPLATE_CODE,
-        receiver: phone,
-        name: member.name,
-        message: msg,
-        button_url: 'https://families.google.com'
-      })
+      body: formData
     }).then(function(res){ return res.json(); })
     .then(function(data){
       if(data.code === 0){
         console.log('알림톡 발송 성공:', member.name);
       } else {
         console.log('알림톡 발송 실패:', data.message);
-        sendCheckinSMSText(member, timeStr);
+        // 실패 시 이미지 캡처 방식으로 대체
+        sendKakaoAlimtalk(member, timeStr);
       }
     }).catch(function(e){
       console.log('알림톡 오류:', e);
-      sendCheckinSMSText(member, timeStr);
+      sendKakaoAlimtalk(member, timeStr);
     });
   });
 }
@@ -2776,300 +2870,6 @@ function loadAligoSettings(){
   }
 }
 
-
-function downloadMembersExcel(){
-  var XLSX = window.XLSX;
-  if(!XLSX){ alert('잠시 후 다시 시도해주세요.'); return; }
-  var rows = [['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항']];
-  members.forEach(function(m){
-    var course = courses.find(function(c){return c.id===m.courseId;});
-    var car = cars.find(function(c){return c.id===m.carId;});
-    rows.push([
-      m.name,
-      course?course.name:'',
-      car?car.name:'',
-      m.location,
-      m.phone||'',
-      m.phone2||'',
-      (m.days||[]).join(','),
-      m.regfee||0,
-      m.monthly||0,
-      m.pin||'',
-      m.note||''
-    ]);
-  });
-  var wb = XLSX.utils.book_new();
-  var ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:12},{wch:12},{wch:8},{wch:20},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:8},{wch:20}];
-  XLSX.utils.book_append_sheet(wb, ws, '원생명단');
-  var today = new Date();
-  var fileName = today.getFullYear()+'년'+(today.getMonth()+1)+'월'+today.getDate()+'일_원생명단.xlsx';
-  XLSX.writeFile(wb, fileName);
-}
-
-
-function setCarTab(idx){
-  currentCarTab = idx;
-  renderAdminTab('cars');
-}
-
-
-function saveCarsAndMembers(){
-  saveCars(cars);
-  saveMembers();
-  alert('\u2705 저장됐어요!');
-}
-
-
-var attSummaryOpen = false;
-
-function toggleAttSummary(){
-  attSummaryOpen = !attSummaryOpen;
-  var panel = document.getElementById('att-summary-panel');
-  var btn = document.getElementById('att-summary-btn');
-  if(!panel) return;
-  if(attSummaryOpen){
-    if(btn) btn.textContent = '📊 출결 현황 닫기';
-    panel.style.display = 'block';
-    panel.innerHTML = renderAttSummary();
-  } else {
-    if(btn) btn.textContent = '📊 출결 현황 보기';
-    panel.style.display = 'none';
-  }
-}
-
-function renderAttSummary(){
-  var data = loadAttendance();
-  var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth()+1;
-  var daysInMonth = new Date(year, month, 0).getDate();
-  var h = '';
-
-  // ── 월별 출결 통계 ──
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📊 '+month+'월 출결 통계</div>';
-  var totalPresent=0, totalAbsent=0, totalDays=0;
-  members.forEach(function(m){
-    for(var d=1;d<=daysInMonth;d++){
-      var ds = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-      var dayDate = new Date(year, month-1, d);
-      var dayStr = ['일','월','화','수','목','금','토'][dayDate.getDay()];
-      if(!m.days.includes(dayStr)) continue;
-      totalDays++;
-      var st = data[ds] && data[ds][m.id];
-      if(st==='present') totalPresent++;
-      else if(st==='absent') totalAbsent++;
-    }
-  });
-  var pct = totalDays ? Math.round(totalPresent/totalDays*100) : 0;
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">';
-  h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#12B76A;">'+totalPresent+'</div><div style="font-size:10px;color:#12B76A;">총 출석</div></div>';
-  h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#F04438;">'+totalAbsent+'</div><div style="font-size:10px;color:#F04438;">총 결석</div></div>';
-  h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#7C3AED;">'+pct+'%</div><div style="font-size:10px;color:#7C3AED;">출석률</div></div>';
-  h += '</div>';
-  h += '</div>';
-
-  // ── 출결 엑셀 다운로드 ──
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:8px;">📋 출결 엑셀 다운로드</div>';
-  h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">날짜별 출결 데이터를 엑셀로 저장합니다.</div>';
-  h += '<button onclick="exportAttendanceExcel();" style="width:100%;padding:11px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📋 이번 달 출결 다운로드</button>';
-  h += '</div>';
-
-  // ── 연속 결석 알림 ──
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📅 연속 결석 원생 (3일 이상)</div>';
-  var absentMembers = [];
-  members.forEach(function(m){
-    var count = 0;
-    for(var d=daysInMonth;d>=1;d--){
-      var ds = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-      var dayDate = new Date(year, month-1, d);
-      var dayStr = ['일','월','화','수','목','금','토'][dayDate.getDay()];
-      if(!m.days.includes(dayStr)) continue;
-      var st = data[ds] && data[ds][m.id];
-      if(st==='absent') count++;
-      else if(st==='present') break;
-      else break;
-    }
-    if(count>=3) absentMembers.push({m:m, count:count});
-  });
-  if(absentMembers.length===0){
-    h += '<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">🎉 연속 결석 원생이 없습니다!</div>';
-  } else {
-    absentMembers.forEach(function(item){
-      h += '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#FEF3F2;border-radius:8px;margin-bottom:6px;">';
-      h += '<span style="font-size:20px;">⚠️</span>';
-      h += '<div style="flex:1;"><div style="font-size:13px;font-weight:700;">'+item.m.name+'</div>';
-      h += '<div style="font-size:11px;color:#F04438;">'+item.count+'일 연속 결석</div></div>';
-      if(item.m.phone){
-        h += '<a href="tel:'+item.m.phone+'" style="padding:5px 10px;background:#F04438;color:white;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;">📞 연락</a>';
-      }
-      h += '</div>';
-    });
-  }
-  h += '</div>';
-
-  // ── 출석 우수자 ──
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🏆 이달 출석 우수자</div>';
-  var perfect = [];
-  members.forEach(function(m){
-    var scheduled=0, attended=0;
-    for(var d=1;d<=now.getDate();d++){
-      var ds = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-      var dayDate = new Date(year, month-1, d);
-      var dayStr = ['일','월','화','수','목','금','토'][dayDate.getDay()];
-      if(!m.days.includes(dayStr)) continue;
-      scheduled++;
-      var st = data[ds] && data[ds][m.id];
-      if(st==='present') attended++;
-    }
-    if(scheduled>0 && attended===scheduled) perfect.push(m);
-  });
-  if(perfect.length===0){
-    h += '<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">아직 개근 원생이 없습니다.</div>';
-  } else {
-    h += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
-    perfect.forEach(function(m){
-      h += '<div style="padding:6px 12px;background:#FFFAEB;border:1px solid #FDE68A;border-radius:20px;font-size:12px;font-weight:700;color:#92400E;">🏆 '+m.name+'</div>';
-    });
-    h += '</div>';
-  }
-  h += '</div>';
-
-  return h;
-}
-
-function exportAttendanceExcel(){
-  var XLSX = window.XLSX;
-  if(!XLSX){ alert('잠시 후 다시 시도해주세요.'); return; }
-  var data = loadAttendance();
-  var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth()+1;
-  var daysInMonth = new Date(year, month, 0).getDate();
-
-  var headers = ['이름', '코스'];
-  for(var d=1;d<=daysInMonth;d++){
-    headers.push(d+'일');
-  }
-  headers.push('출석', '결석', '출석률');
-
-  var rows = [headers];
-  members.forEach(function(m){
-    var course = courses.find(function(c){return c.id===m.courseId;});
-    var row = [m.name, course?course.name:''];
-    var present=0, absent=0, scheduled=0;
-    for(var d=1;d<=daysInMonth;d++){
-      var ds = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-      var dayDate = new Date(year, month-1, d);
-      var dayStr = ['일','월','화','수','목','금','토'][dayDate.getDay()];
-      if(!m.days.includes(dayStr)){ row.push('–'); continue; }
-      scheduled++;
-      var st = data[ds] && data[ds][m.id];
-      if(st==='present'){ row.push('✅'); present++; }
-      else if(st==='absent'){ row.push('❌'); absent++; }
-      else row.push('');
-    }
-    row.push(present, absent, scheduled?(Math.round(present/scheduled*100)+'%'):'–');
-    rows.push(row);
-  });
-
-  var wb = XLSX.utils.book_new();
-  var ws = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, month+'월 출결');
-  XLSX.writeFile(wb, year+'년_'+month+'월_출결현황.xlsx');
-}
-
-
-var dashDetailType = '';
-
-function showDashDetail(type){
-  var panel = document.getElementById('dash-detail-panel');
-  if(!panel) return;
-
-  // 같은 탭 클릭 시 닫기
-  if(dashDetailType === type && panel.style.display !== 'none'){
-    panel.style.display = 'none';
-    dashDetailType = '';
-    return;
-  }
-  dashDetailType = type;
-  panel.style.display = 'block';
-
-  var todayAll = members.filter(function(m){return m.days.includes(currentDay);});
-  var h = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
-
-  if(type === 'all'){
-    h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">👥 전체 이용자 ('+members.length+'명)</div>';
-    courses.forEach(function(cs){
-      var cms = members.filter(function(m){return m.courseId===cs.id;});
-      h += '<div style="margin-bottom:10px;">';
-      h += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">'+cs.name+' ('+cms.length+'명)</div>';
-      cms.forEach(function(m){
-        var car = cars.find(function(c){return c.id===m.carId;});
-        h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F2F4F7;border-radius:8px;margin-bottom:4px;">';
-        h += '<span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span>';
-        h += '<span style="font-size:10px;color:#98A2B3;">'+(car?car.name:'미배정')+'</span>';
-        h += '</div>';
-      });
-      h += '</div>';
-    });
-
-  } else if(type === 'today'){
-    var todayOn = todayAll.filter(function(m){return m.on;});
-    var todayOff = todayAll.filter(function(m){return !m.on;});
-    h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 오늘('+currentDay+') 탑승 현황</div>';
-    h += '<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ 탑승 ('+todayOn.length+'명)</div>';
-    todayOn.forEach(function(m){
-      var car = cars.find(function(c){return c.id===m.carId;});
-      h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;">';
-      h += '<span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span>';
-      h += '<span style="font-size:10px;color:#027A48;">'+(car?car.name:'')+'</span>';
-      h += '</div>';
-    });
-    if(todayOff.length>0){
-      h += '<div style="font-size:11px;font-weight:700;color:#F04438;margin:10px 0 6px;">❌ 미탑승 ('+todayOff.length+'명)</div>';
-      todayOff.forEach(function(m){
-        h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;">';
-        h += '<span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span>';
-        h += '</div>';
-      });
-    }
-
-  } else {
-    // 차량별
-    var car = cars.find(function(c){return c.id===type;});
-    if(!car){ h += '차량 정보 없음'; h += '</div>'; panel.innerHTML=h; return; }
-    var carMembers = todayAll.filter(function(m){return m.carId===type&&m.on;});
-    var carOff = todayAll.filter(function(m){return m.carId===type&&!m.on;});
-    h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 '+car.name+' 오늘 탑승 현황</div>';
-    if(car.driver) h += '<div style="font-size:11px;color:#475467;margin-bottom:8px;">기사: '+car.driver+(car.phone?' · '+car.phone:'')+'</div>';
-    h += '<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ 탑승 ('+carMembers.length+'명)</div>';
-    carMembers.forEach(function(m){
-      h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;">';
-      h += '<span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span>';
-      h += '<span style="font-size:10px;color:#027A48;">'+m.location+'</span>';
-      h += '</div>';
-    });
-    if(carOff.length>0){
-      h += '<div style="font-size:11px;font-weight:700;color:#F04438;margin:8px 0 6px;">❌ 미탑승 ('+carOff.length+'명)</div>';
-      carOff.forEach(function(m){
-        h += '<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+m.name+'</div>';
-      });
-    }
-    if(carMembers.length===0&&carOff.length===0){
-      h += '<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">오늘 배정된 원생이 없습니다.</div>';
-    }
-  }
-
-  h += '</div>';
-  panel.innerHTML = h;
-  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
-}
-
 </script>
 
 <!-- PIN 체크인 모달 -->
@@ -3132,9 +2932,7 @@ function showDashDetail(type){
       <button onclick="openFamilyLink();" style="width:100%;padding:14px;background:#4285F4;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
         <span style="font-size:20px;">📍</span> 패밀리링크 바로 열기
       </button>
-      <button onclick="saveAndSharePopupImage();" style="width:100%;padding:14px;background:#12B76A;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span style="font-size:20px;">📸</span> 이미지로 저장 후 전송
-      </button>
+
       <!-- 패밀리링크 설명 -->
       <div style="margin-top:10px;background:#E6F1FB;border-radius:10px;padding:12px 14px;">
         <div style="font-size:12px;font-weight:700;color:#0C447C;margin-bottom:6px;">📍 구글 패밀리링크란?</div>
