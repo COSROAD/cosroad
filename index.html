@@ -118,9 +118,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .section-label{font-size:10px;font-weight:700;color:var(--gray-400);letter-spacing:0.5px;margin-bottom:8px;}
 
 /* 관리자 화면 */
-.admin-screen{display:none;padding:0 0 20px;}
-.admin-screen.show{display:block;}
-.admin-nav{display:flex;gap:0;background:white;border-bottom:1px solid var(--gray-200);overflow-x:auto;scrollbar-width:none;}
+.admin-screen{display:none;flex-direction:column;}
+.admin-screen.show{display:flex;position:fixed;top:70px;left:0;right:0;bottom:0;z-index:50;background:var(--gray-100);}
+.admin-nav{display:flex;gap:0;background:white;border-bottom:1px solid var(--gray-200);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
 .admin-nav::-webkit-scrollbar{display:none;}
 .admin-nav-btn{flex-shrink:0;padding:11px 14px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--gray-600);border-bottom:2px solid transparent;}
 .admin-nav-btn.active{color:var(--admin);border-bottom-color:var(--admin);font-weight:700;}
@@ -322,7 +322,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <button class="admin-nav-btn" onclick="switchAdminTab('guide')">📖 이용안내</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('settings')">⚙ 설정</button>
     </div>
-    <div id="admin-content"></div>
+    <div id="admin-content" style="flex:1;overflow-y:auto;padding-bottom:80px;"></div>
   </div>
 
   <div class="bottom-action" id="bottom-action" style="display:none;">
@@ -488,6 +488,8 @@ function loginAdmin(){
 function logout(){currentMode='';document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';}
 
 function initApp(){
+  // 헤더 높이 동적 설정
+
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
   document.getElementById('org-name-display').textContent=orgSettings.name;
@@ -807,12 +809,12 @@ function renderAdminMembers(){
   var q='',el=document.getElementById('admin-search');
   if(el) q=el.value.toLowerCase();
   var filtered=members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;}).slice().sort(function(a,b){ return memberSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
-  var html='<div style="display:flex;gap:6px;padding:10px 16px 6px;">'
+  var html='<div style="display:flex;gap:6px;padding:10px 16px 6px;position:sticky;top:0;background:var(--gray-100);z-index:98;">'
     +'<button onclick="openAddModal()" style="flex:1;padding:10px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ 이용자 등록</button>'
     +'<button onclick="toggleExcelPanel()" id="excel-toggle-btn" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📊 엑셀 업로드</button>'
     +'<button onclick="downloadMembersExcel()" style="flex:1;padding:10px;background:#1A6BFF;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">⬇ 데이터 다운</button>'
     +'</div>';
-  html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;">'
+  html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;position:sticky;top:52px;z-index:97;background:var(--gray-100);">'
     +'<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색"'
     +' oninput="filterAdminMembers(this.value)" value="'+q+'" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>'
     +'<button onclick="setAdminSort(false)" id="admin-sort-asc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#EAECF0':'#EA580C')+';background:'+(adminSortDesc?'white':'#FFEDD5')+';color:'+(adminSortDesc?'#475467':'#EA580C')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>'
@@ -1382,19 +1384,20 @@ function renderAttendance(){
     else if(s==='absent')ac++;
   }
   var uc=dm.length-pc-ac;
-  var h='<div style="padding:12px 16px 0;">';
+  var h='<div>';
 
-  // PIN 체크인 버튼
-  h+='<button onclick="openPinCheckin();" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔢 PIN 체크인 모드 열기</button>';
 
-  // 날짜 선택
-  h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:8px;">📅 날짜 선택</div>';
+  // PIN 체크인 버튼 + 날짜 선택 (함께 고정)
+  h+='<div style="position:sticky;top:0;z-index:98;background:var(--gray-100);padding:12px 16px 8px;">';
+  h+='<button onclick="openPinCheckin();" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">🔢 PIN 체크인 모드 열기</button>';
+  h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:12px;">';
+  h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:6px;">📅 날짜 선택</div>';
   h+='<input type="date" value="'+attViewDate+'" onchange="attViewDate=this.value;renderAttendance();"';
-  h+=' style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;outline:none;"></div>';
+  h+=' style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;outline:none;">';
+  h+='</div></div>';
 
+  h+='<div style="padding:0 16px;">';
   // 코스 필터
-  h+='<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">';
   var allBorder=attFilterCourse===''?'var(--admin)':'#EAECF0';
   var allBg=attFilterCourse===''?'var(--admin-light)':'white';
   var allColor=attFilterCourse===''?'var(--admin)':'#475467';
@@ -1723,10 +1726,11 @@ function renderPayment(){
     else totalUnpaid += m.monthly;
   });
 
-  var h = '<div style="padding:12px 16px 0;">';
+  var h = '<div>';
 
-  // 연월 선택
-  h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
+  // 연월 선택 (sticky)
+  h += '<div style="position:sticky;top:0;z-index:97;background:var(--gray-100);padding:12px 16px 6px;">';
+  h += '<div style="display:flex;gap:8px;">';
   h += '<select onchange="payViewYear=parseInt(this.value);renderPayment();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
   for(var y=now.getFullYear()-1; y<=now.getFullYear()+1; y++){
     h += '<option value="'+y+'"'+(y===payViewYear?' selected':'')+'>'+y+'년</option>';
@@ -1736,7 +1740,8 @@ function renderPayment(){
   for(var mo=1; mo<=12; mo++){
     h += '<option value="'+mo+'"'+(mo===payViewMonth?' selected':'')+'>'+mo+'월</option>';
   }
-  h += '</select></div>';
+  h += '</select></div></div>';
+  h += '<div style="padding:0 16px;">';
 
   // 통계 카드
   h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
@@ -1867,6 +1872,7 @@ function renderPayment(){
     });
   }
   h += '</div></div>';
+  h += '</div>';
   cont.innerHTML = h;
 }
 
@@ -1965,7 +1971,7 @@ function renderTax(){
   var h = '<div style="padding:0;">';
 
   // 탭
-  h += '<div style="display:flex;border-bottom:1px solid #EAECF0;background:white;margin-bottom:0;">';
+  h += '<div style="display:flex;border-bottom:1px solid #EAECF0;background:white;margin-bottom:0;position:sticky;top:0;z-index:97;">';
   h += '<button onclick=\"taxTab=\'monthly\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='monthly'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='monthly'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='monthly'?'var(--admin)':'transparent')+';">📅 월별현황</button>';
   h += '<button onclick=\"taxTab=\'records\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='records'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='records'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='records'?'var(--admin)':'transparent')+';">📋 수입/지출</button>';
   h += '<button onclick=\"taxTab=\'tax\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='tax'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='tax'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='tax'?'var(--admin)':'transparent')+';">🧾 세금계산</button>';
@@ -2766,17 +2772,18 @@ function renderShop(){
   if(!cont) return;
 
   var categories = Object.keys(shopPartners);
-  var h = '<div style="padding:12px 16px 0;">';
+  var h = '<div>';
 
   // 배너
+  h += '<div style="padding:12px 16px 0;">';
   h += '<div style="background:linear-gradient(135deg,#EA580C,#C2410C);border-radius:14px;padding:16px;margin-bottom:12px;text-align:center;">';
   h += '<div style="font-size:20px;margin-bottom:4px;">🤝</div>';
   h += '<div style="font-size:15px;font-weight:800;color:white;">코스로드 파트너</div>';
   h += '<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:4px;">클릭하면 바로 이동합니다</div>';
-  h += '</div>';
+  h += '</div></div>';
 
-  // 카테고리 탭
-  h += '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">';
+  // 카테고리 탭 (sticky)
+  h += '<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 16px;position:sticky;top:0;z-index:97;background:var(--gray-100);border-bottom:1px solid #EAECF0;">';
   h += '<button onclick="setShopCategory(\'all\')" style="flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid '+(shopCategory==="all"?'#EA580C':'#EAECF0')+';background:'+(shopCategory==="all"?'#FFEDD5':'white')+';color:'+(shopCategory==="all"?'#EA580C':'#475467')+';font-size:12px;font-weight:700;cursor:pointer;">전체</button>';
   categories.forEach(function(key){
     var cat = shopPartners[key];
@@ -2786,6 +2793,7 @@ function renderShop(){
   h += '</div>';
 
   // 업체 목록
+  h += '<div style="padding:8px 16px 0;">';
   var showCategories = shopCategory === 'all' ? categories : [shopCategory];
 
   showCategories.forEach(function(key){
@@ -2864,7 +2872,7 @@ function renderCars(){
   var carMembers=members.filter(function(m){return m.carId===car.id;});
   var unassigned=members.filter(function(m){return m.carId!==car.id;});
   var html='<div style="padding:0;">';
-  html+='<div style="display:flex;overflow-x:auto;background:white;padding:4px 8px;border-bottom:1px solid #EAECF0;scrollbar-width:none;gap:4px;">';
+  html+='<div style="display:flex;overflow-x:auto;background:white;padding:4px 8px;border-bottom:1px solid #EAECF0;scrollbar-width:none;gap:4px;position:sticky;top:0;z-index:97;">';
   cars.forEach(function(c,idx){
     var cnt=members.filter(function(m){return m.carId===c.id;}).length;
     var isActive=idx===currentCarTab;
