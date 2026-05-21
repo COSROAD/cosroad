@@ -2670,6 +2670,7 @@ var ALIGO_TEMPLATE_CODE = ''; // 템플릿 코드
 
 function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
+loadAligoSettings();
   if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_TEMPLATE_CODE){
     sendCheckinSMSText(member, timeStr);
     return;
