@@ -2362,8 +2362,9 @@ function showCheckinNoticePopup(member, timeStr, photoHtml){
   var modal = document.getElementById('checkin-notice-modal');
   modal.style.display = 'flex';
 
-  // 문자 자동 발송
-  sendCheckinSMS(member, timeStr);
+  // 카카오 알림톡 발송
+  loadAligoSettings();
+  sendKakaoAlimtalk(member, timeStr);
   setTimeout(function(){
     var statusEl = document.getElementById('popup-sms-status');
     if(statusEl) statusEl.textContent = '✅ 발송완료';
