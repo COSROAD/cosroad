@@ -1,3 +1,6 @@
+if (req.method === 'GET') {
+  return res.status(200).json({ ip: req.headers['x-forwarded-for'] });
+}
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://cosroad.com');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
