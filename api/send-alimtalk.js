@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     formData.append('userid', userid);
     formData.append('senderkey', senderkey);
     formData.append('tpl_code', tpl_code);
-    formData.append('sender', receiver);
+    formData.append('sender', 01036603911);
     formData.append('receiver_1', receiver);
     formData.append('recvname_1', name || '');
     formData.append('subject_1', '출석 알림');
