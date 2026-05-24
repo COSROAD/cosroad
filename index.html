@@ -531,6 +531,7 @@ function updateTabs(){document.querySelectorAll('.day-tab').forEach((b,i)=>{if(b
 
 function switchTab(tab){
   currentTab=tab;
+  cars=loadCars(); members=loadMembers(); courses=loadCourses();
   document.getElementById('drive-screen').classList.remove('active');
   document.getElementById('member-screen').classList.remove('show');
   document.getElementById('admin-screen').classList.remove('show');
@@ -564,6 +565,7 @@ function getActiveStudents(){
 }
 
 function renderDrive(){
+  cars=loadCars(); members=loadMembers(); courses=loadCourses();
   const content=document.getElementById('app-content');
   let html='';
   const todayM=members.filter(m=>m.days.includes(currentDay));
@@ -1049,7 +1051,6 @@ function assignMemberToCar(memberId, carId){
 function removeMemberFromCar(memberId){
   const m=members.find(m=>m.id===memberId);
   if(!m)return;
-  if(!confirm(`'${m.name}'을 이 차량에서 해제하시겠습니까?`))return;
   m.carId='';
   saveMembers();
   renderAdminTab('cars');
@@ -1176,6 +1177,7 @@ function resetData(){if(!confirm('모든 이용자 데이터를 초기화하시�
 
 // ── 회원관리 (운전자용) ──
 function renderMembers(){
+  cars=loadCars(); members=loadMembers(); courses=loadCourses();
   const query=document.getElementById('search-input').value.trim().toLowerCase();
   document.getElementById('filter-chips').innerHTML=`<button class="chip ${filterCourse===''?'on':''}" onclick="filterCourse='';renderMembers()">전체</button>`+
     courses.map(c=>`<button class="chip ${filterCourse===c.id?'on':''}" onclick="filterCourse='${c.id}';renderMembers()">${c.name}</button>`).join('')+
@@ -2829,7 +2831,7 @@ function loadAligoSettings(){
 
 var currentCarTab = 0;
 function setCarTab(idx){ currentCarTab=idx; renderAdminTab('cars'); }
-function saveCarsAndMembers(){ saveCars(cars); saveMembers(); alert('✅ 저장됐어요!'); }
+function saveCarsAndMembers(){ saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
 function renderCars(){
   var DAYS=['월','화','수','목','금','토'];
   var car=cars[currentCarTab]; var i=currentCarTab;
