@@ -67,7 +67,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .day-tab.active{background:var(--primary);border-color:var(--primary);color:white;}
 
 /* 차량 탭 */
-.car-tabs{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;padding:10px 16px 0;}
+.car-tabs{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;padding:6px 16px 8px;background:white;}
 .car-tabs::-webkit-scrollbar{display:none;}
 .car-tab{flex-shrink:0;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray-200);background:white;color:var(--gray-600);}
 .car-tab.active{background:var(--primary);border-color:var(--primary);color:white;}
@@ -120,6 +120,10 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 /* 관리자 화면 */
 .admin-screen{display:none;flex-direction:column;}
 .admin-screen.show{display:flex;position:fixed;top:70px;left:0;right:0;bottom:0;z-index:50;background:var(--gray-100);}
+#drive-screen{display:none;flex-direction:column;overflow:visible;}
+#drive-tabs{flex-shrink:0;}
+#drive-screen.active{display:flex;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:0;background:var(--gray-100);}
+#app-content{flex:1;overflow-y:auto;padding-bottom:80px;}
 .admin-nav{display:flex;gap:0;background:white;border-bottom:1px solid var(--gray-200);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
 .admin-nav::-webkit-scrollbar{display:none;}
 .admin-nav-btn{flex-shrink:0;padding:11px 14px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--gray-600);border-bottom:2px solid transparent;}
@@ -138,8 +142,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .progress-fill.admin{background:var(--admin);}
 
 /* 회원관리 */
-.member-screen{display:none;padding:0 0 16px;}
-.member-screen.show{display:block;}
+.member-screen{display:none;}
+.member-screen.show{display:flex;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:0;background:var(--gray-100);overflow-y:auto;z-index:50;}
 .search-bar{display:flex;gap:8px;padding:12px 16px 8px;}
 .search-input{flex:1;padding:9px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;outline:none;background:white;}
 .search-input:focus{border-color:var(--primary);}
@@ -296,15 +300,17 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div class="day-tabs" id="day-tabs"></div>
   </div>
 
-  <div id="drive-screen"><div id="app-content"></div></div>
+  <div id="drive-screen"><div id="drive-tabs"></div><div id="app-content"></div></div>
 
   <div class="member-screen" id="member-screen">
-    <div style="display:flex;gap:5px;padding:10px 16px 6px;align-items:center;">
-      <input class="search-input" type="text" id="search-input" placeholder="🔍 검색" oninput="filterDriverMembers(this.value)" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>
-      <button id="sort-asc-btn" onclick="setMemberSort(false)" style="padding:7px 8px;border-radius:8px;border:1.5px solid #EA580C;background:#FFEDD5;color:#EA580C;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>
-      <button id="sort-desc-btn" onclick="setMemberSort(true)" style="padding:7px 8px;border-radius:8px;border:1.5px solid #EAECF0;background:white;color:#475467;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">↓가나다</button>
+    <div style="position:sticky;top:0;z-index:97;background:var(--gray-100);">
+      <div style="display:flex;gap:5px;padding:10px 16px 6px;align-items:center;">
+        <input class="search-input" type="text" id="search-input" placeholder="🔍 검색" oninput="filterDriverMembers(this.value)" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>
+        <button id="sort-asc-btn" onclick="setMemberSort(false)" style="padding:7px 8px;border-radius:8px;border:1.5px solid #EA580C;background:#FFEDD5;color:#EA580C;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>
+        <button id="sort-desc-btn" onclick="setMemberSort(true)" style="padding:7px 8px;border-radius:8px;border:1.5px solid #EAECF0;background:white;color:#475467;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">↓가나다</button>
+      </div>
+      <div class="filter-chips" id="filter-chips"></div>
     </div>
-    <div class="filter-chips" id="filter-chips"></div>
     <div id="member-list"></div>
     <div id="member-add-area"></div>
   </div>
@@ -525,20 +531,20 @@ function updateTabs(){document.querySelectorAll('.day-tab').forEach((b,i)=>{if(b
 
 function switchTab(tab){
   currentTab=tab;
-  document.getElementById('drive-screen').style.display='none';
+  document.getElementById('drive-screen').classList.remove('active');
   document.getElementById('member-screen').classList.remove('show');
   document.getElementById('admin-screen').classList.remove('show');
   document.getElementById('bottom-action').style.display='none';
   document.getElementById('day-tabs').style.display='none';
   document.querySelectorAll('.hbtn').forEach(b=>b.classList.remove('active','admin-active'));
   if(tab==='drive'){
-    document.getElementById('drive-screen').style.display='block';
+    document.getElementById('drive-screen').classList.add('active');requestAnimationFrame(function(){var hdr=document.getElementById('main-header');var hh=hdr?hdr.offsetHeight:110;document.getElementById('drive-screen').style.top=hh+'px';});
     document.getElementById('bottom-action').style.display='flex';
     document.getElementById('day-tabs').style.display='flex';
     document.getElementById('tab-drive')?.classList.add(currentMode==='admin'?'admin-active':'active');
     renderDrive();
   } else if(tab==='member'){
-    document.getElementById('member-screen').classList.add('show');
+    var ms=document.getElementById('member-screen');ms.classList.add('show');requestAnimationFrame(function(){var hdr=document.getElementById('main-header');if(hdr)ms.style.top=hdr.offsetHeight+'px';});
     document.getElementById('tab-member')?.classList.add('active');
     document.getElementById('member-add-area').innerHTML=currentMode==='admin'?`<button class="add-member-btn" onclick="openAddModal()">＋ 이용자 등록</button>`:'';
     renderMembers();
@@ -562,27 +568,23 @@ function renderDrive(){
   let html='';
   const todayM=members.filter(m=>m.days.includes(currentDay));
 
-  // 코스 탭
-  html+=`<div style="display:flex;gap:6px;padding:10px 16px 0;overflow-x:auto;">`;
+  // 코스 탭 + 차량 탭 → drive-tabs에 별도 렌더링
+  var tabHtml = '<div style="background:white;border-bottom:1px solid var(--gray-200);">';
+  tabHtml += '<div style="display:flex;gap:6px;padding:10px 16px 6px;overflow-x:auto;scrollbar-width:none;">';
   courses.forEach(c=>{
     const cnt=todayM.filter(m=>m.courseId===c.id&&m.on).length;
-    html+=`<button onclick="currentCourseId='${c.id}';optimizedOrder=null;etaMap={};renderDrive()" style="flex-shrink:0;padding:8px 14px;border-radius:10px;
-      border:${c.id===currentCourseId?'2px solid var(--primary)':'1.5px solid var(--gray-200)'};
-      background:${c.id===currentCourseId?'var(--primary-light)':'white'};
-      color:${c.id===currentCourseId?'var(--primary)':'var(--gray-600)'};
-      font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
-      ${c.name}<br><span style="font-size:10px;font-weight:400;">${c.depart} · ${cnt}명</span></button>`;
+    const isActive=c.id===currentCourseId;
+    tabHtml+=`<button onclick="currentCourseId='${c.id}';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:10px;border-radius:10px;border:none;background:${isActive?'var(--primary)':'var(--gray-100)'};color:${isActive?'white':'var(--gray-600)'};font-size:13px;font-weight:700;cursor:pointer;">${c.name}</button>`;
   });
-  html+=`</div>`;
-
-  // 차량 탭
-  html+=`<div class="car-tabs">`;
+  tabHtml += '</div>';
+  tabHtml += '<div style="display:flex;gap:6px;padding:6px 16px 10px;overflow-x:auto;scrollbar-width:none;">';
   cars.forEach(car=>{
     const cnt=todayM.filter(m=>m.courseId===currentCourseId&&m.carId===car.id&&m.on).length;
-    html+=`<button class="car-tab${car.id===currentCarId?' active':''}" onclick="currentCarId='${car.id}';optimizedOrder=null;etaMap={};renderDrive()">
-      ${car.name} <span style="font-size:10px;font-weight:400;">(${cnt}명)</span></button>`;
+    const isActive=car.id===currentCarId;
+    tabHtml+=`<button onclick="currentCarId='${car.id}';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:10px;border-radius:10px;border:none;background:${isActive?'#ABEFC6':'var(--gray-100)'};color:${isActive?'#067647':'var(--gray-600)'};font-size:12px;font-weight:700;cursor:pointer;">${car.name}<br><span style="font-size:10px;font-weight:400;">${cnt}명</span></button>`;
   });
-  html+=`</div>`;
+  tabHtml += '</div></div>';
+  document.getElementById('drive-tabs').innerHTML = tabHtml;
 
   const clsSt=todayM.filter(m=>m.courseId===currentCourseId&&m.carId===currentCarId);
   const activeSt=getActiveStudents();
@@ -1024,47 +1026,6 @@ function handleExcelFile(file){
 }
 
 // ── 차량 관리 ──
-function renderCars(){
-  const DAYS=['월','화','수','목','금','토'];
-  return`<div style="padding:12px 16px 0;">
-    ${cars.map((car,i)=>{
-      const carMembers=members.filter(m=>m.carId===car.id);
-      const unassigned=members.filter(m=>m.carId!==car.id);
-      return`
-    <div class="status-card" style="margin-bottom:14px;">
-      <div class="status-card-title" style="margin-bottom:10px;">🚐 ${car.name} <span style="font-size:11px;color:var(--gray-400);">배정 ${carMembers.length}명</span></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-        <input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="${car.driver}" oninput="cars[${i}].driver=this.value"/>
-        <input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="${car.phone}" oninput="cars[${i}].phone=this.value" type="tel"/>
-        <input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="${car.plate}" oninput="cars[${i}].plate=this.value"/>
-      </div>
-
-      <div style="font-size:11px;font-weight:700;color:var(--gray-600);margin-bottom:6px;">배정된 회원 (요일별 탑승 조정)</div>
-      ${carMembers.length===0?`<div style="font-size:12px;color:var(--gray-400);padding:8px 0;">배정된 회원이 없습니다.</div>`:''}
-      ${carMembers.map(m=>`
-        <div style="background:var(--gray-100);border-radius:8px;padding:9px 11px;margin-bottom:6px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:13px;font-weight:700;color:var(--gray-900);">${m.name}</span>
-            <div style="display:flex;gap:4px;align-items:center;">
-              <span style="font-size:10px;color:var(--gray-400);">${courses.find(c=>c.id===m.courseId)?.name||''}</span>
-              <button onclick="removeMemberFromCar(${m.id})" style="padding:2px 8px;border:1px solid var(--danger);border-radius:5px;font-size:10px;color:var(--danger);background:white;cursor:pointer;">해제</button>
-            </div>
-          </div>
-          <div style="font-size:10px;color:var(--gray-400);margin-bottom:5px;">${m.location}</div>
-          <div style="display:flex;gap:4px;">
-      html+='<button onclick="toggleMemberDay('+m.id+',&quot;'+d+'&quot;)" style="width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;font-size:11px;font-weight:700;background:'+(on?'#EA580C':'#EAECF0')+';color:'+(on?'white':'#98A2B3')+';">'+d+'</button>';
-          </div>
-        </div>`).join('')}
-
-      <div style="font-size:11px;font-weight:700;color:var(--gray-600);margin:10px 0 6px;">회원 추가</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${unassigned.map(m=>`<button onclick="assignMemberToCar(${m.id},'${car.id}')" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">${m.name} +</button>`).join('')||'<span style="font-size:11px;color:var(--gray-400);">미배정 회원 없음</span>'}
-      </div>
-    </div>`;
-    }).join('')}
-    <button onclick="saveCars(cars);saveMembers();renderAdminTab('cars');alert('✅ 저장되었습니다.')" style="width:100%;padding:12px;background:var(--admin);color:white;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;">전체 저장</button>
-  </div>`;
-}
 
 function toggleMemberDay(memberId, day){
   day = day.replace(/&quot;/g, ''); // HTML entity 처리
@@ -2670,7 +2631,6 @@ var ALIGO_TEMPLATE_CODE = ''; // 템플릿 코드
 
 function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
-loadAligoSettings();
   if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_TEMPLATE_CODE){
     sendCheckinSMSText(member, timeStr);
     return;
@@ -2775,22 +2735,24 @@ function renderShop(){
   var categories = Object.keys(shopPartners);
   var h = '<div>';
 
-  // 배너
+  // 배너 + 카테고리 탭 함께 sticky
+  h += '<div style="position:sticky;top:0;z-index:97;background:var(--gray-100);">';
   h += '<div style="padding:12px 16px 0;">';
-  h += '<div style="background:linear-gradient(135deg,#EA580C,#C2410C);border-radius:14px;padding:16px;margin-bottom:12px;text-align:center;">';
+  h += '<div style="background:linear-gradient(135deg,#EA580C,#C2410C);border-radius:14px;padding:16px;margin-bottom:8px;text-align:center;">';
   h += '<div style="font-size:20px;margin-bottom:4px;">🤝</div>';
   h += '<div style="font-size:15px;font-weight:800;color:white;">코스로드 파트너</div>';
   h += '<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:4px;">클릭하면 바로 이동합니다</div>';
   h += '</div></div>';
 
-  // 카테고리 탭 (sticky)
-  h += '<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 16px;position:sticky;top:0;z-index:97;background:var(--gray-100);border-bottom:1px solid #EAECF0;">';
+  // 카테고리 탭
+  h += '<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 16px;background:var(--gray-100);border-bottom:1px solid #EAECF0;">';
   h += '<button onclick="setShopCategory(\'all\')" style="flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid '+(shopCategory==="all"?'#EA580C':'#EAECF0')+';background:'+(shopCategory==="all"?'#FFEDD5':'white')+';color:'+(shopCategory==="all"?'#EA580C':'#475467')+';font-size:12px;font-weight:700;cursor:pointer;">전체</button>';
   categories.forEach(function(key){
     var cat = shopPartners[key];
     var isActive = shopCategory === key;
     h += '<button onclick="setShopCategory(\''+key+'\')" style="flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid '+(isActive?'#EA580C':'#EAECF0')+';background:'+(isActive?'#FFEDD5':'white')+';color:'+(isActive?'#EA580C':'#475467')+';font-size:12px;font-weight:700;cursor:pointer;">'+cat.label+'</button>';
   });
+  h += '</div>';
   h += '</div>';
 
   // 업체 목록
@@ -2873,13 +2835,22 @@ function renderCars(){
   var carMembers=members.filter(function(m){return m.carId===car.id;});
   var unassigned=members.filter(function(m){return m.carId!==car.id;});
   var html='<div style="padding:0;">';
-  html+='<div style="display:flex;overflow-x:auto;background:white;padding:4px 8px;border-bottom:1px solid #EAECF0;scrollbar-width:none;gap:4px;position:sticky;top:0;z-index:97;">';
+  // 추가/삭제 버튼 + 호차탭 sticky
+  html+='<div style="position:sticky;top:0;z-index:97;background:white;">';
+  html+='<div style="display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid #EAECF0;">';
+  html+='<button onclick="addCar()" style="flex:1;padding:10px;background:#1A6BFF;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ 차량 추가</button>';
+  html+='<button onclick="deleteCurrentCar()" style="flex:1;padding:10px;background:white;color:#F04438;border:1px solid #F04438;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">🗑 현재 차량 삭제</button>';
+  html+='</div>';
+  html+='<div style="display:flex;overflow-x:auto;padding:4px 8px;border-bottom:1px solid #EAECF0;scrollbar-width:none;gap:4px;">';
   cars.forEach(function(c,idx){
     var cnt=members.filter(function(m){return m.carId===c.id;}).length;
     var isActive=idx===currentCarTab;
     html+='<button onclick="setCarTab('+idx+')" style="flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;border-radius:20px;margin:6px 4px;background:'+(isActive?'#ABEFC6':'#F2F4F7')+';color:'+(isActive?'#067647':'#475467')+';">'+c.name+' <span style="font-size:10px;">('+cnt+')</span></button>';
   });
-  html+='</div><div style="padding:12px 16px 0;">';
+  html+='</div>';
+  html+='</div>';
+  // 차량 정보 카드
+  html+='<div style="padding:12px 16px 0;">';
   html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">🚐 '+car.name+' 정보</div>';
   html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
   html+='<input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="'+car.driver+'" oninput="cars['+i+'].driver=this.value"/>';
@@ -3078,6 +3049,50 @@ function showDashDetail(type){
   h+='</div>';
   panel.innerHTML=h;
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+
+function addCar(){
+  var num = cars.length + 1;
+  var newCar = {id:'car'+Date.now(), name:num+'호차', driver:'', phone:'', plate:''};
+  cars.push(newCar);
+  saveCars(cars);
+  currentCarTab = cars.length - 1;
+  renderAdminTab('cars');
+}
+
+function deleteCar(carId){
+  carId = carId.replace(/&quot;/g, '');
+  var car = cars.find(function(c){return c.id===carId;});
+  if(!car) return;
+  var assigned = members.filter(function(m){return m.carId===carId;});
+  if(assigned.length > 0){
+    if(!confirm(car.name+'에 배정된 원생 '+assigned.length+'명이 미배정 처리됩니다.\n삭제하시겠습니까?')) return;
+    members.forEach(function(m){ if(m.carId===carId) m.carId=''; });
+    saveMembers();
+  } else {
+    if(!confirm(car.name+'을 삭제하시겠습니까?')) return;
+  }
+  var newCars = cars.filter(function(c){return c.id!==carId;}); cars.length=0; newCars.forEach(function(c){cars.push(c);});
+  saveCars(cars);
+  currentCarTab = 0;
+  renderAdminTab('cars');
+}
+
+
+function deleteCurrentCar(){
+  var car = cars[currentCarTab];
+  if(!car) return;
+  var assigned = members.filter(function(m){return m.carId===car.id;});
+  if(assigned.length > 0){
+    members.forEach(function(m){ if(m.carId===car.id) m.carId=''; });
+    saveMembers();
+  }
+  cars.splice(currentCarTab, 1);
+  saveCars(cars);
+  currentCarTab = 0;
+  renderAdminTab('cars');
+
 }
 
 </script>
