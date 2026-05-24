@@ -1549,6 +1549,7 @@ function checkPin(){
 
   // 0.5초 후 이미지 캡처 → 문자 공유시트 열기
   setTimeout(function(){
+    loadAligoSettings();
     sendKakaoAlimtalk(member, timeStr);
     setTimeout(function(){
       if(popupEl){
