@@ -318,7 +318,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   <div class="admin-screen" id="admin-screen">
     <div class="admin-nav" id="admin-nav">
       <button class="admin-nav-btn active" onclick="switchAdminTab('dashboard')">📊 현황</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('members')">👥 원생관리</button>
+      <button class="admin-nav-btn" onclick="switchAdminTab('members')">👥 회원관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('attendance')">📋 출결관리</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('shop')">🛒 파트너</button>
       <button class="admin-nav-btn" onclick="switchAdminTab('cars')">🚐 차량관리</button>
@@ -837,6 +837,11 @@ function renderAdminMembers(){
     +'<div id="upload-result"></div>'
     +'</div>'
     +'</div>'
+    +'</div>'
+    +'<div id="admin-course-tabs" style="display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto;scrollbar-width:none;position:sticky;top:52px;z-index:96;background:var(--gray-100);">'
+    +'<button onclick="adminFilterCourse=\'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(adminFilterCourse===''?'var(--admin)':'#EAECF0')+';background:'+(adminFilterCourse===''?'var(--admin-light)':'white')+';color:'+(adminFilterCourse===''?'var(--admin)':'#475467')+';">전체 ('+members.length+')</button>'
+    +courses.map(function(cs){ var cnt=members.filter(function(m){return m.courseId===cs.id;}).length; var isActive=adminFilterCourse===cs.id; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+cs.name+' ('+cnt+')</button>'; }).join('')
+    +'</div>'
     +'<div id="admin-member-list" style="padding:0 16px 10px;">';
   for(var i=0;i<filtered.length;i++){
     var m=filtered[i];
@@ -890,7 +895,7 @@ function filterAdminMembers(q){
   if(ml) ml.style.display='block';
   var listEl = document.getElementById('admin-member-list');
   if(!listEl){ renderAdminTab('members'); return; }
-  var filtered = members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;})
+  var filtered = members.filter(function(m){return (!q||m.name.toLowerCase().indexOf(q)>=0)&&(!adminFilterCourse||m.courseId===adminFilterCourse);})
     .slice().sort(function(a,b){ return adminSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
   var html = '';
   filtered.forEach(function(m){
@@ -1233,7 +1238,7 @@ function openAddModal(){
   document.getElementById('m-car').value=cars[0]?.id||'';
   Object.values(dayIdMap).forEach(d=>document.getElementById('d-'+d).checked=false);
   document.getElementById('modal-del-btn').style.display='none';
-  document.getElementById('member-modal').classList.add('show');
+  var m2=document.getElementById('member-modal');m2.style.display='';m2.classList.add('show');
 }
 function openEditModal(id){
   populateSelects();
@@ -1252,14 +1257,15 @@ function openEditModal(id){
   if(document.getElementById('m-monthly'))document.getElementById('m-monthly').value=m.monthly||'';
   DAYS.forEach(d=>document.getElementById('d-'+dayIdMap[d]).checked=m.days.includes(d));
   document.getElementById('modal-del-btn').style.display='block';
-  document.getElementById('member-modal').classList.add('show');
+  var m3=document.getElementById('member-modal');m3.style.display='';m3.classList.add('show');
 }
 function saveMember(){
   const name=document.getElementById('m-name').value.trim();
   const location=document.getElementById('m-location').value.trim();
-  if(!name||!location){alert('이름과 픽업 장소는 필수입니다.');return;}
+  if(!name){showToast('⚠ 이름을 입력해주세요');return;}
+  if(!location){showToast('⚠ 픽업장소를 입력해주세요');return;}
   const days=DAYS.filter(d=>document.getElementById('d-'+dayIdMap[d]).checked);
-  if(days.length===0){alert('등원 요일을 하나 이상 선택해주세요.');return;}
+  if(days.length===0){showToast('⚠ 등원 요일을 선택해주세요');return;}
   const editId=document.getElementById('edit-id').value;
   const pinEl=document.getElementById('m-pin');
   const regEl=document.getElementById('m-regfee');
@@ -1270,17 +1276,17 @@ function saveMember(){
   const obj={name,courseId:document.getElementById('m-class').value,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,lat:orgSettings.destLat,lon:orgSettings.destLon};
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
-  saveMembers();closeModal('member-modal');
+  saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
   if(currentTab==='member')renderMembers();else renderAdminTab('members');
 }
 function deleteMember(){
   const editId=parseInt(document.getElementById('edit-id').value);
-  if(!confirm('정말 삭제하시겠습니까?'))return;
+
   members=members.filter(m=>m.id!==editId);saveMembers();closeModal('member-modal');
   if(currentTab==='member')renderMembers();else renderAdminTab('members');
 }
 
-function closeModal(id){document.getElementById(id).classList.remove('show');}
+function closeModal(id){var el=document.getElementById(id);if(el){el.classList.remove('show');el.style.display='';}}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');}));
 
 // ══════════════════════
@@ -1367,7 +1373,7 @@ function renderAttendance(){
   h+='<button onclick="attFilterCourse=\'\';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+allBorder+';background:'+allBg+';color:'+allColor+';">전체</button>';
   for(var ci=0;ci<courses.length;ci++){
     var cs2=courses[ci];var ia=attFilterCourse===cs2.id;
-    h+='<button onclick=\"attFilterCourse=\''+cs2.id+'\';\3\" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+(ia?'var(--admin)':'#EAECF0')+';background:'+(ia?'var(--admin-light)':'white')+';color:'+(ia?'var(--admin)':'#475467')+';">'+cs2.name+'</button>';
+    h+='<button onclick="attFilterCourse=\''+cs2.id+'\';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+(ia?'var(--admin)':'#EAECF0')+';background:'+(ia?'var(--admin-light)':'white')+';color:'+(ia?'var(--admin)':'#475467')+';">'+cs2.name+'</button>';
   }
   h+='</div>';
 
@@ -1704,15 +1710,14 @@ function renderPayment(){
   for(var mo=1; mo<=12; mo++){
     h += '<option value="'+mo+'"'+(mo===payViewMonth?' selected':'')+'>'+mo+'월</option>';
   }
-  h += '</select></div></div>';
-  h += '<div style="padding:0 16px;">';
-
-  // 통계 카드
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h += '</select></div>';
+  // 통계 카드 (연월선택과 함께 sticky)
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:6px 0 8px;">';
   h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+totalExpected.toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">예상수납(원)</div></div>';
   h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+totalPaid.toLocaleString()+'</div><div style="font-size:10px;color:#12B76A;">납부완료(원)</div></div>';
   h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+totalUnpaid.toLocaleString()+'</div><div style="font-size:10px;color:#F04438;">미납(원)</div></div>';
-  h += '</div>';
+  h += '</div></div>';
+  h += '<div style="padding:0 16px;">';
 
   // 수강료 일괄/개별 설정
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
@@ -2552,6 +2557,7 @@ function setMemberSort(desc){
 
 
 var adminSortDesc = false;
+var adminFilterCourse = '';
 
 function setAdminSort(desc){
   adminSortDesc = desc;
@@ -2891,7 +2897,7 @@ function toggleAttSummary(){
   var panel=document.getElementById('att-summary-panel');
   var btn=document.getElementById('att-summary-btn');
   if(!panel) return;
-  if(attSummaryOpen){ if(btn) btn.textContent='📊 출결 현황 닫기'; panel.style.display='block'; panel.innerHTML=renderAttSummary(); }
+  if(attSummaryOpen){ if(btn) btn.textContent='📊 출결 현황 닫기'; panel.style.display='block'; var summaryHtml=renderAttSummary(); panel.innerHTML=summaryHtml; }
   else { if(btn) btn.textContent='📊 출결 현황 보기'; panel.style.display='none'; }
 }
 function renderAttSummary(){
@@ -3097,6 +3103,15 @@ function deleteCurrentCar(){
   currentCarTab = 0;
   renderAdminTab('cars');
 
+}
+
+
+function showToast(msg){
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){t.remove();},2000);
 }
 
 </script>
