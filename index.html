@@ -227,7 +227,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBTpvJtKQvfpmyyJS6rteCJDgsphvMyCgI",
@@ -241,7 +241,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   window._db = db;
-  window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc };
+  window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot };
   window._fbReady = true;
   console.log('✅ Firebase 연결 완료');
 </script>
@@ -833,36 +833,39 @@ function renderAdminMembers(){
   var q='',el=document.getElementById('admin-search');
   if(el) q=el.value.toLowerCase();
   var filtered=members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;}).slice().sort(function(a,b){ return memberSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
-  var html='<div style="display:flex;gap:6px;padding:10px 16px 6px;position:sticky;top:0;background:var(--gray-100);z-index:98;">'
-    +'<button onclick="openAddModal()" style="flex:1;padding:10px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ 이용자 등록</button>'
-    +'<button onclick="toggleExcelPanel()" id="excel-toggle-btn" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📊 엑셀 업로드</button>'
-    +'<button onclick="downloadMembersExcel()" style="flex:1;padding:10px;background:#1A6BFF;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">⬇ 데이터 다운</button>'
-    +'</div>';
-  html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;position:sticky;top:52px;z-index:97;background:var(--gray-100);">'
-    +'<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색"'
-    +' oninput="filterAdminMembers(this.value)" value="'+q+'" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>'
-    +'<button onclick="setAdminSort(false)" id="admin-sort-asc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#EAECF0':'#EA580C')+';background:'+(adminSortDesc?'white':'#FFEDD5')+';color:'+(adminSortDesc?'#475467':'#EA580C')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>'
-    +'<button onclick="setAdminSort(true)" id="admin-sort-desc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#12B76A':'#EAECF0')+';background:'+(adminSortDesc?'#ECFDF3':'white')+';color:'+(adminSortDesc?'#12B76A':'#475467')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↓가나다</button>'
-    +'</div>'
-    +'<div id="excel-panel" style="display:none;padding:0 16px 10px;">'
-    +'<div class="status-card">'
-    +'<div class="status-card-title">📥 샘플 양식 다운로드</div>'
-    +'<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;">샘플 엑셀을 다운로드 후 작성하여 업로드하세요.</div>'
-    +'<button onclick="downloadSampleExcel()" style="padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;width:100%;margin-bottom:10px;">📥 샘플 양식 다운로드</button>'
-    +'</div>'
-    +'<div class="status-card">'
-    +'<div class="status-card-title">📤 엑셀 파일 업로드</div>'
-    +'<div class="upload-area" onclick="document.getElementById(\'excel-upload\').click()"><div class="upload-icon">📊</div><div class="upload-title">엑셀 파일을 여기에 올려주세요</div><div class="upload-sub">.xlsx / .xls 지원</div></div>'
-    +'<input type="file" id="excel-upload" class="upload-input" accept=".xlsx,.xls" onchange="handleExcelFile(this.files[0])"/>'
-    +'<div id="upload-result"></div>'
-    +'</div>'
-    +'</div>'
-    +'</div>'
-    +'<div id="admin-course-tabs" style="display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto;scrollbar-width:none;position:sticky;top:52px;z-index:96;background:var(--gray-100);">'
-    +'<button onclick="adminFilterCourse=\'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(adminFilterCourse===''?'var(--admin)':'#EAECF0')+';background:'+(adminFilterCourse===''?'var(--admin-light)':'white')+';color:'+(adminFilterCourse===''?'var(--admin)':'#475467')+';">전체 ('+members.length+')</button>'
-    +courses.map(function(cs){ var cnt=members.filter(function(m){return m.courseId===cs.id;}).length; var isActive=adminFilterCourse===cs.id; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+cs.name+' ('+cnt+')</button>'; }).join('')
-    +'</div>'
-    +'<div id="admin-member-list" style="padding:0 16px 10px;">';
+  var html='<div style="position:sticky;top:0;z-index:98;background:var(--gray-100);">';
+  // 버튼 줄
+  html+='<div style="display:flex;gap:6px;padding:10px 16px 6px;">';
+  html+='<button onclick="openAddModal()" style="flex:1;padding:10px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ 이용자 등록</button>';
+  html+='<button onclick="toggleExcelPanel()" id="excel-toggle-btn" style="flex:1;padding:10px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📊 엑셀 업로드</button>';
+  html+='<button onclick="downloadMembersExcel()" style="flex:1;padding:10px;background:#1A6BFF;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">⬇ 데이터 다운</button>';
+  html+='</div>';
+  // 검색 줄
+  html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;">';
+  html+='<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색" oninput="filterAdminMembers(this.value)" value="'+q+'" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>';
+  html+='<button onclick="setAdminSort(false)" id="admin-sort-asc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#EAECF0':'#EA580C')+';background:'+(adminSortDesc?'white':'#FFEDD5')+';color:'+(adminSortDesc?'#475467':'#EA580C')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>';
+  html+='<button onclick="setAdminSort(true)" id="admin-sort-desc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#12B76A':'#EAECF0')+';background:'+(adminSortDesc?'#ECFDF3':'white')+';color:'+(adminSortDesc?'#12B76A':'#475467')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↓가나다</button>';
+  html+='</div>';
+  // 코스 탭
+  html+='<div id="admin-course-tabs" style="display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto;scrollbar-width:none;">';
+  html+='<button onclick="adminFilterCourse=\'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(adminFilterCourse===''?'var(--admin)':'#EAECF0')+';background:'+(adminFilterCourse===''?'var(--admin-light)':'white')+';color:'+(adminFilterCourse===''?'var(--admin)':'#475467')+';">전체 ('+members.length+')</button>';
+  html+=courses.map(function(cs){ var cnt=members.filter(function(m){return m.courseId===cs.id;}).length; var isActive=adminFilterCourse===cs.id; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+cs.name+' ('+cnt+')</button>'; }).join('');
+  html+='</div>';
+  html+='</div>';
+  // 엑셀 패널 (sticky 밖)
+  html+='<div id="excel-panel" style="display:none;padding:0 16px 10px;">';
+  html+='<div class="status-card">';
+  html+='<div class="status-card-title">📥 샘플 양식 다운로드</div>';
+  html+='<div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;">샘플 엑셀을 다운로드 후 작성하여 업로드하세요.</div>';
+  html+='<button onclick="downloadSampleExcel()" style="padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;width:100%;margin-bottom:10px;">📥 샘플 양식 다운로드</button>';
+  html+='</div>';
+  html+='<div class="status-card">';
+  html+='<div class="status-card-title">📤 엑셀 파일 업로드</div>';
+  html+='<div class="upload-area" onclick="document.getElementById(\'excel-upload\').click()"><div class="upload-icon">📊</div><div class="upload-title">엑셀 파일을 여기에 올려주세요</div><div class="upload-sub">.xlsx / .xls 지원</div></div>';
+  html+='<input type="file" id="excel-upload" class="upload-input" accept=".xlsx,.xls" onchange="handleExcelFile(this.files[0])"/>';
+  html+='<div id="upload-result"></div>';
+  html+='</div></div>';
+  html+='<div id="admin-member-list" style="padding:0 16px 10px;">';
   for(var i=0;i<filtered.length;i++){
     var m=filtered[i];
     var course=null,car=null;
@@ -3186,6 +3189,31 @@ async function syncFromFirebase(){
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
   console.log('✅ Firebase 동기화 완료');
+
+  // 실시간 리스너 등록
+  startFirebaseListeners();
+}
+
+function startFirebaseListeners(){
+  if(!window._db || !window._firestore) return;
+  var { doc, onSnapshot } = window._firestore;
+  var orgId = getFbOrgId();
+  var keys = ['members','cars','courses','org','payments','tax','attendance'];
+  keys.forEach(function(key){
+    onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
+      if(!snap.exists()) return;
+      var data = JSON.parse(snap.data().value);
+      if(key==='members'){ members=data; localStorage.setItem('tkd_members',JSON.stringify(data)); }
+      else if(key==='cars'){ cars=data; localStorage.setItem('tkd_cars',JSON.stringify(data)); }
+      else if(key==='courses'){ courses=data; localStorage.setItem('tkd_courses',JSON.stringify(data)); }
+      else if(key==='org'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
+      else if(key==='payments'){ localStorage.setItem('tkd_payments',JSON.stringify(data)); }
+      else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
+      else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }
+      renderByTab();
+    });
+  });
+  console.log('✅ 실시간 동기화 활성화!');
 }
 
 </script>
