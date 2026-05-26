@@ -225,6 +225,26 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .empty-state{text-align:center;padding:36px 20px;color:var(--gray-400);font-size:13px;}
 .info-box{background:var(--warning-light);border:1px solid #FDE68A;border-radius:var(--radius-sm);padding:9px 13px;margin:0 16px 10px;font-size:11px;color:#92400E;}
 </style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBTpvJtKQvfpmyyJS6rteCJDgsphvMyCgI",
+    authDomain: "cosroad-9a49c.firebaseapp.com",
+    projectId: "cosroad-9a49c",
+    storageBucket: "cosroad-9a49c.firebasestorage.app",
+    messagingSenderId: "491198626337",
+    appId: "1:491198626337:web:48b1e2cbd833abfd590160"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window._db = db;
+  window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc };
+  window._fbReady = true;
+  console.log('✅ Firebase 연결 완료');
+</script>
 </head>
 <body>
 
@@ -414,7 +434,7 @@ function loadOrgSettings(){
     destName:'학원',destLat:37.4467,destLon:126.6516
   };
 }
-function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));}
+function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);}
 let orgSettings=loadOrgSettings();
 
 // ── 코스 설정 ──
@@ -424,7 +444,7 @@ function loadCourses(){
     {id:'c2',name:'5~6시반',depart:'16:50',arrive:'17:00'}
   ];
 }
-function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));}
+function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));saveToFirebase('courses',c);}
 let courses=loadCourses();
 
 // ── 차량 설정 ──
@@ -437,7 +457,7 @@ function loadCars(){
     {id:'car5',name:'5호차',driver:'',phone:'',plate:''},
   ];
 }
-function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));}
+function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveToFirebase('cars',c);}
 let cars=loadCars();
 
 // ── 원생 데이터 ──
@@ -467,7 +487,7 @@ function loadMembers(){
     {id:20,name:'허민찬',courseId:'c2',carId:'car5',location:'해솔어린이집',lat:37.4445,lon:126.6505,phone:'010-0011-2233',phone2:'010-1234-0000',days:['월','화','수','목','금'],note:'가끔 세종유치원 앞',on:true},
   ];
 }
-function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));}
+function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);}
 let members=loadMembers();
 let nextId=Math.max(...members.map(m=>m.id),0)+1;
 
@@ -494,9 +514,9 @@ function loginAdmin(){
 function logout(){currentMode='';document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';}
 
 function initApp(){
-  // 헤더 높이 동적 설정
-
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
+  // Firebase 동기화 (비동기)
+  setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
   document.getElementById('org-name-display').textContent=orgSettings.name;
   document.getElementById('org-icon').textContent=orgSettings.icon;
@@ -1316,6 +1336,7 @@ function loadAttendance(){
   return JSON.parse(localStorage.getItem('tkd_attendance')||'{}');
 }
 function saveAttendanceData(data){
+  saveToFirebase('attendance',data);
   var cutoff=new Date();
   cutoff.setMonth(cutoff.getMonth()-3);
   var cs=cutoff.toISOString().slice(0,10);
@@ -1671,6 +1692,7 @@ function loadPayments(){
 }
 function savePayments(data){
   localStorage.setItem('tkd_payments',JSON.stringify(data));
+  saveToFirebase('payments',data);
 }
 function getPaymentKey(memberId, year, month){
   return memberId+'_'+year+'_'+String(month).padStart(2,'0');
@@ -1918,6 +1940,7 @@ function loadTaxData(){
 }
 function saveTaxData(data){
   localStorage.setItem('tkd_tax',JSON.stringify(data));
+  saveToFirebase('tax',data);
 }
 function addIncomeRecord(year, month, name, amount, category){
   var data = loadTaxData();
@@ -3112,6 +3135,57 @@ function showToast(msg){
   t.textContent=msg;
   document.body.appendChild(t);
   setTimeout(function(){t.remove();},2000);
+}
+
+
+// ══════════════════════════════════════════
+// Firebase Firestore 동기화
+// ══════════════════════════════════════════
+var fbOrgId = 'default'; // 나중에 로그인 기반으로 변경
+
+function getFbOrgId(){
+  return localStorage.getItem('tkd_orgId') || 'cosroad_default';
+}
+
+async function saveToFirebase(key, data){
+  try{
+    if(!window._db || !window._firestore) return;
+    var { doc, setDoc } = window._firestore;
+    var orgId = getFbOrgId();
+    await setDoc(doc(window._db, 'orgs', orgId, 'data', key), { value: JSON.stringify(data), updatedAt: Date.now() });
+    console.log('Firebase 저장:', key);
+  } catch(e){ console.log('Firebase 저장 실패:', e.message); }
+}
+
+async function loadFromFirebase(key){
+  try{
+    if(!window._db || !window._firestore) return null;
+    var { doc, getDoc } = window._firestore;
+    var orgId = getFbOrgId();
+    var snap = await getDoc(doc(window._db, 'orgs', orgId, 'data', key));
+    if(snap.exists()) return JSON.parse(snap.data().value);
+    return null;
+  } catch(e){ console.log('Firebase 불러오기 실패:', e.message); return null; }
+}
+
+async function syncFromFirebase(){
+  console.log('🔄 Firebase 동기화 중...');
+  var fbMembers = await loadFromFirebase('members');
+  var fbCars = await loadFromFirebase('cars');
+  var fbCourses = await loadFromFirebase('courses');
+  var fbOrg = await loadFromFirebase('org');
+  var fbPayments = await loadFromFirebase('payments');
+  var fbTax = await loadFromFirebase('tax');
+  var fbAtt = await loadFromFirebase('attendance');
+
+  if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
+  if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
+  if(fbCourses){ localStorage.setItem('tkd_courses', JSON.stringify(fbCourses)); courses = fbCourses; }
+  if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
+  if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
+  if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
+  if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
+  console.log('✅ Firebase 동기화 완료');
 }
 
 </script>
