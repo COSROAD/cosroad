@@ -3337,23 +3337,21 @@ function searchDestAddr(){
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
   var tmapKey = TMAP_KEY || orgSettings.tmapKey;
   if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
-  fetch('https://apis.openapi.sk.com/tmap/geo/fullAddrGeo?version=1&addressFlag=F00&coordType=WGS84GEO&fullAddr='+encodeURIComponent(addr), {
-    headers:{ 'appKey': tmapKey, 'Accept': 'application/json' }
-  }).then(function(r){ return r.json(); })
+  fetch('https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword='+encodeURIComponent(addr)+'&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey='+tmapKey)
+  .then(function(r){ return r.json(); })
   .then(function(data){
-    var coords = data && data.coordinateInfo && data.coordinateInfo.coordinate;
-    if(coords && coords.length > 0){
-      var lat = coords[0].lat || coords[0].newLat;
-      var lon = coords[0].lon || coords[0].newLon;
-      document.getElementById('dest-lat').value = lat;
-      document.getElementById('dest-lon').value = lon;
+    var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
+    if(pois && pois.length > 0){
+      var poi = pois[0];
+      document.getElementById('dest-lat').value = poi.noorLat;
+      document.getElementById('dest-lon').value = poi.noorLon;
       var el = document.getElementById('dest-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+addr; }
+      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name; }
       showToast('✅ 주소 검색 완료!');
     } else {
-      showToast('⚠ 주소를 찾을 수 없어요. 더 상세히 입력해주세요');
+      showToast('⚠ 주소를 찾을 수 없어요');
     }
-  }).catch(function(e){ showToast('⚠ 주소 검색 실패: '+e.message); });
+  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
 
 </script>
