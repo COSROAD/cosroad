@@ -3337,16 +3337,18 @@ function searchDestAddr(){
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
   var tmapKey = TMAP_KEY || orgSettings.tmapKey;
   if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
-  fetch('https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword='+encodeURIComponent(addr)+'&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey='+tmapKey)
+  fetch('https://cosroad.vercel.app/api/search-addr?keyword='+encodeURIComponent(addr)+'&appKey='+tmapKey)
   .then(function(r){ return r.json(); })
   .then(function(data){
     var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
     if(pois && pois.length > 0){
       var poi = pois[0];
-      document.getElementById('dest-lat').value = poi.noorLat;
-      document.getElementById('dest-lon').value = poi.noorLon;
+      var lat = poi.noorLat;
+      var lon = poi.noorLon;
+      document.getElementById('dest-lat').value = lat;
+      document.getElementById('dest-lon').value = lon;
       var el = document.getElementById('dest-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name; }
+      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name+' '+( poi.newAddressList&&poi.newAddressList.newAddress[0]?poi.newAddressList.newAddress[0].fullAddressRoad:''); }
       showToast('✅ 주소 검색 완료!');
     } else {
       showToast('⚠ 주소를 찾을 수 없어요');
