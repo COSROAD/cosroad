@@ -1146,10 +1146,14 @@ function renderSettings(){
         <input class="form-input" id="org-icon" value="${orgSettings.icon}" placeholder="예) 🥋 🏫 🏥" style="margin-bottom:0;"/>
         <label class="form-label">도착지 이름</label>
         <input class="form-input" id="dest-name" value="${orgSettings.destName}" placeholder="예) 태권도장" style="margin-bottom:0;"/>
-        <label class="form-label">도착지 위도</label>
-        <input class="form-input" id="dest-lat" value="${orgSettings.destLat}" type="number" step="0.0001" style="margin-bottom:0;"/>
-        <label class="form-label">도착지 경도</label>
-        <input class="form-input" id="dest-lon" value="${orgSettings.destLon}" type="number" step="0.0001" style="margin-bottom:0;"/>
+        <label class="form-label">도착지 주소</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input class="form-input" id="dest-addr" value="${orgSettings.destAddr||''}" placeholder="예) 인천시 남동구 ..." style="margin-bottom:0;flex:1;"/>
+          <button onclick="searchDestAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📍 검색</button>
+        </div>
+        <div id="dest-addr-result" style="font-size:11px;color:#12B76A;margin-bottom:6px;display:${orgSettings.destLat?'block':'none'};">✅ 위도: ${orgSettings.destLat} / 경도: ${orgSettings.destLon}</div>
+        <input type="hidden" id="dest-lat" value="${orgSettings.destLat}"/>
+        <input type="hidden" id="dest-lon" value="${orgSettings.destLon}"/>
         <button class="setting-save-btn" style="width:100%;padding:11px;" onclick="saveOrgInfo()">기관 정보 저장</button>
       </div>
     </div>
@@ -2648,7 +2652,7 @@ function sendKakaoAlimtalk(member, timeStr){
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
-  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n\n📍 패밀리링크로 자녀 위치 확인하기\n\n📍 구글 패밀리링크란?\n자녀 스마트폰의 실시간 위치와\n이동 동선을 부모님 폰에서\n언제든지 확인할 수 있는\n구글의 무료 자녀 보호 서비스예요.\n📲 설치 후 자녀 계정과 연동하면\n집 출발부터 학원 도착까지\n동선을 실시간으로 파악할 수 있어요!';
+  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n📍 패밀리링크로 자녀 위치 확인하기\n📍 구글 패밀리링크란?\n자녀 스마트폰의 실시간 위치와\n이동 동선을 부모님 폰에서\n언제든지 확인할 수 있는\n구글의 무료 자녀 보호 서비스예요.\n📲 설치 후 자녀 계정과 연동하면\n집 출발부터 학원 도착까지\n동선을 실시간으로 파악할 수 있어요!';
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
@@ -3325,6 +3329,31 @@ function syncTaxPaymentMethods(){
   } else {
     showToast('이미 모두 업데이트됐어요!');
   }
+}
+
+
+function searchDestAddr(){
+  var addr = document.getElementById('dest-addr').value.trim();
+  if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
+  var tmapKey = TMAP_KEY || orgSettings.tmapKey;
+  if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
+  fetch('https://apis.openapi.sk.com/tmap/geo/fullAddrGeo?version=1&addressFlag=F00&coordType=WGS84GEO&fullAddr='+encodeURIComponent(addr), {
+    headers:{ 'appKey': tmapKey, 'Accept': 'application/json' }
+  }).then(function(r){ return r.json(); })
+  .then(function(data){
+    var coords = data && data.coordinateInfo && data.coordinateInfo.coordinate;
+    if(coords && coords.length > 0){
+      var lat = coords[0].lat || coords[0].newLat;
+      var lon = coords[0].lon || coords[0].newLon;
+      document.getElementById('dest-lat').value = lat;
+      document.getElementById('dest-lon').value = lon;
+      var el = document.getElementById('dest-addr-result');
+      if(el){ el.style.display='block'; el.textContent='✅ '+addr; }
+      showToast('✅ 주소 검색 완료!');
+    } else {
+      showToast('⚠ 주소를 찾을 수 없어요. 더 상세히 입력해주세요');
+    }
+  }).catch(function(e){ showToast('⚠ 주소 검색 실패: '+e.message); });
 }
 
 </script>
