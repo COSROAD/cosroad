@@ -376,7 +376,11 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       </div>
     </div>
     <label class="form-label">픽업 장소 *</label>
-    <input class="form-input" type="text" id="m-location" placeholder="예) 용현초 정문"/>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input class="form-input" type="text" id="m-location" placeholder="예) 용현초 정문" style="margin-bottom:0;flex:1;"/>
+      <button type="button" onclick="searchMemberAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">📍 검색</button>
+    </div>
+    <div id="member-addr-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
     <div class="form-row">
       <div><label class="form-label">보호자 연락처1</label>
         <input class="form-input" type="tel" id="m-phone" placeholder="010-0000-0000"/>
@@ -1297,6 +1301,8 @@ function openEditModal(id){
 function saveMember(){
   const name=document.getElementById('m-name').value.trim();
   const location=document.getElementById('m-location').value.trim();
+  const locLat=parseFloat(document.getElementById('m-location').getAttribute('data-lat'))||0;
+  const locLon=parseFloat(document.getElementById('m-location').getAttribute('data-lon'))||0;
   if(!name){showToast('⚠ 이름을 입력해주세요');return;}
   if(!location){showToast('⚠ 픽업장소를 입력해주세요');return;}
   const days=DAYS.filter(d=>document.getElementById('d-'+dayIdMap[d]).checked);
@@ -1820,6 +1826,21 @@ function togglePayment(memberId){
     showConfirmModal(function(){
       data[key].paid = false;
       savePayments(data);
+      // 세무 기록도 삭제
+      var parts = key.split('_');
+      if(parts.length >= 3){
+        var m2 = members.find(function(x){return x.id===parseInt(parts[0]);});
+        if(m2){
+          var taxData2 = loadTaxData();
+          var taxKey2 = parts[1]+'_'+parts[2];
+          if(taxData2[taxKey2] && taxData2[taxKey2].income){
+            taxData2[taxKey2].income = taxData2[taxKey2].income.filter(function(r){
+              return r.name.indexOf(m2.name+' 수강료') < 0;
+            });
+            saveTaxData(taxData2);
+          }
+        }
+      }
       renderPayment();
     }, '납부를 취소하시겠습니까?', '확인');
     return;
@@ -3337,21 +3358,43 @@ function searchDestAddr(){
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
   var tmapKey = TMAP_KEY || orgSettings.tmapKey;
   if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
-  fetch('https://cosroad.vercel.app/api/search-addr?keyword='+encodeURIComponent(addr)+'&appKey='+tmapKey)
+  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&accept-language=ko', {
+    headers:{ 'Accept': 'application/json' }
+  })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
-    if(pois && pois.length > 0){
-      var poi = pois[0];
-      var lat = poi.noorLat;
-      var lon = poi.noorLon;
+    if(data && data.length > 0){
+      var lat = data[0].lat;
+      var lon = data[0].lon;
       document.getElementById('dest-lat').value = lat;
       document.getElementById('dest-lon').value = lon;
       var el = document.getElementById('dest-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name+' '+( poi.newAddressList&&poi.newAddressList.newAddress[0]?poi.newAddressList.newAddress[0].fullAddressRoad:''); }
+      if(el){ el.style.display='block'; el.textContent='✅ '+addr; }
       showToast('✅ 주소 검색 완료!');
     } else {
-      showToast('⚠ 주소를 찾을 수 없어요');
+      showToast('⚠ 주소를 찾을 수 없어요. 더 상세히 입력해주세요');
+    }
+  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+}
+
+
+function searchMemberAddr(){
+  var addr = document.getElementById('m-location').value.trim();
+  if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
+  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&accept-language=ko', {
+    headers:{ 'Accept': 'application/json' }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data && data.length > 0){
+      var el = document.getElementById('member-addr-result');
+      if(el){ el.style.display='block'; el.textContent='✅ 위치 확인됨: '+addr; }
+      // lat/lon을 hidden input에 저장
+      document.getElementById('m-location').setAttribute('data-lat', data[0].lat);
+      document.getElementById('m-location').setAttribute('data-lon', data[0].lon);
+      showToast('✅ 위치 확인 완료!');
+    } else {
+      showToast('⚠ 주소를 찾을 수 없어요. 더 상세히 입력해주세요');
     }
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
