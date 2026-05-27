@@ -994,10 +994,10 @@ function downloadSampleExcel(){
   const XLSX=window.XLSX;
   const wb=XLSX.utils.book_new();
   const data=[
-    ['이름','코스(수업반)','픽업장소','보호자연락처1','보호자연락처2','등원요일','차량번호','특이사항'],
-    ['홍길동','3시30분반','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금','1호차','정문 우측 대기'],
-    ['김영희','5~6시반','행복유치원','010-2222-3333','','월,수,금','2호차',''],
-    ['이철수','3시30분반','행복아파트 101동','010-4444-5555','','월,화,수,목,금','1호차','경비실 앞'],
+    ['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항'],
+    ['홍길동','3시30분반','1호차','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기'],
+    ['김영희','5~6시반','2호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678',''],
+    ['이철수','3시30분반','1호차','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞'],
   ];
   const ws=XLSX.utils.aoa_to_sheet(data);
   ws['!cols']=[{wch:12},{wch:14},{wch:20},{wch:16},{wch:16},{wch:18},{wch:10},{wch:20}];
@@ -1033,18 +1033,21 @@ function handleExcelFile(file){
       dataRows.forEach(r=>{
         const name=String(r[0]||'').trim();
         const courseName=String(r[1]||'').trim();
-        const location=String(r[2]||'').trim();
-        const phone=String(r[3]||'').trim();
-        const phone2=String(r[4]||'').trim();
-        const daysRaw=String(r[5]||'월,화,수,목,금').trim();
-        const carName=String(r[6]||'1호차').trim();
-        const note=String(r[7]||'').trim();
+        const carName=String(r[2]||'1호차').trim();
+        const location=String(r[3]||'').trim();
+        const phone=String(r[4]||'').trim();
+        const phone2=String(r[5]||'').trim();
+        const daysRaw=String(r[6]||'월,화,수,목,금').trim();
+        const regfee=parseInt(r[7])||0;
+        const monthly=parseInt(r[8])||0;
+        const pin=String(r[9]||'').trim();
+        const note=String(r[10]||'').trim();
         if(!name||!location){skipped++;return;}
         const course=courses.find(c=>c.name===courseName)||courses[0];
         const car=cars.find(c=>c.name===carName)||cars[0];
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name)){skipped++;return;}
-        members.push({id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,note,on:true});
+        members.push({id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true});
         added++;
       });
       saveMembers();
@@ -1778,7 +1781,7 @@ function renderPayment(){
       if(m.regfee) h += '<div style="font-size:10px;color:#7C3AED;">등록비: '+m.regfee.toLocaleString()+'원</div>';
       h += '</div>';
       h += '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">';
-      h += '<button onclick="togglePayment('+m.id+')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(isPaid?'#12B76A':'#F2F4F7')+';color:'+(isPaid?'white':'#475467')+';white-space:nowrap;">'+(isPaid?'✅ 납부':'미납')+'</button>';
+      h += '<button onclick="togglePayment('+m.id+')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(isPaid?'#12B76A':'#F2F4F7')+';color:'+(isPaid?'white':'#475467')+';white-space:nowrap;">'+(isPaid?'✅ '+(payData.method||'현금'):'미납')+'</button>';
       h += '</div></div>';
 
       if(isPaid){
@@ -1789,7 +1792,7 @@ function renderPayment(){
       }
 
       // 납부 처리 폼 (미납 시)
-      if(!isPaid && m.monthly){
+      if(!isPaid){
         h += '<div style="margin-top:8px;display:flex;gap:6px;">';
         h += '<select id="pay-method-'+m.id+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;">';
         h += '<option value="현금">현금</option><option value="카드">카드</option><option value="계좌이체">계좌이체</option>';
@@ -1897,8 +1900,10 @@ function loadTaxData(){
   return JSON.parse(localStorage.getItem('tkd_tax')||'{}');
 }
 function saveTaxData(data){
+  _localSaving = true;
   localStorage.setItem('tkd_tax',JSON.stringify(data));
   saveToFirebase('tax',data);
+  setTimeout(function(){ _localSaving = false; }, 2000);
 }
 function addIncomeRecord(year, month, name, amount, category){
   var data = loadTaxData();
@@ -1910,7 +1915,8 @@ function addIncomeRecord(year, month, name, amount, category){
 
 var taxViewYear2 = new Date().getFullYear();
 var taxViewMonth2 = new Date().getMonth()+1;
-var taxTab = 'monthly'; // monthly | records | tax
+var taxTab = 'monthly';
+var taxFilter = 'all'; // monthly | records | tax
 
 function renderTax(){
   var cont = document.getElementById('admin-content');
@@ -1920,13 +1926,13 @@ function renderTax(){
 
   var h = '<div style="padding:0;">';
 
-  // 탭
-  h += '<div style="display:flex;border-bottom:1px solid #EAECF0;background:white;margin-bottom:0;position:sticky;top:0;z-index:97;">';
+  // 탭 + 입력 영역 sticky 시작
+  h += '<div style="position:sticky;top:0;z-index:97;background:var(--gray-100);">';
+  h += '<div style="display:flex;border-bottom:1px solid #EAECF0;background:white;">';
   h += '<button onclick=\"taxTab=\'monthly\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='monthly'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='monthly'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='monthly'?'var(--admin)':'transparent')+';">📅 월별현황</button>';
   h += '<button onclick=\"taxTab=\'records\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='records'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='records'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='records'?'var(--admin)':'transparent')+';">📋 수입/지출</button>';
   h += '<button onclick=\"taxTab=\'tax\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='tax'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='tax'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='tax'?'var(--admin)':'transparent')+';">🧾 세금계산</button>';
   h += '</div>';
-
   h += '<div style="padding:12px 16px 0;">';
 
   if(taxTab==='monthly'){
@@ -2000,12 +2006,11 @@ function renderTax(){
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
     h += '<div style="font-size:12px;font-weight:700;color:#12B76A;margin-bottom:10px;">➕ 수입 추가</div>';
     h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
-    h += '<input type="text" id="inc-name" placeholder="항목명 (예: 수강료)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input list="inc-category-list" id="inc-name" placeholder="항목명 (수강료, 등록비...)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;">' + '<datalist id="inc-category-list"><option>수강료</option><option>등록비</option><option>기타수입</option></datalist>';
     h += '<input type="number" id="inc-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '</div>';
     h += '<div style="display:flex;gap:6px;">';
-    h += '<select id="inc-category" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>수강료</option><option>등록비</option><option>기타수입</option></select>';
-    h += '<select id="inc-tax" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>과세</option><option>면세</option></select>';
+    h += '<select id="inc-method" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
     h += '<button onclick="addTaxRecord(\'income\')" style="padding:8px 14px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
     h += '</div></div>';
 
@@ -2013,23 +2018,27 @@ function renderTax(){
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
     h += '<div style="font-size:12px;font-weight:700;color:#F04438;margin-bottom:10px;">➖ 지출 추가</div>';
     h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
-    h += '<input type="text" id="exp-name" placeholder="항목명 (예: 임대료)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input list="exp-category-list" id="exp-name" placeholder="항목명 (임대료, 인건비...)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;">' + '<datalist id="exp-category-list"><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
     h += '<input type="number" id="exp-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '</div>';
     h += '<div style="display:flex;gap:6px;">';
-    h += '<select id="exp-category" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></select>';
+    h += '<select id="exp-method" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
     h += '<button onclick="addTaxRecord(\'expense\')" style="padding:8px 14px;background:#F04438;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
-    h += '</div></div>';
+    h += '</div></div></div></div>';
 
     // 내역 목록
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
     h += '<div style="font-size:12px;font-weight:700;color:#344054;">📋 내역</div>';
+    h += '<div style="display:flex;gap:6px;">';
+    h += '<button onclick="syncTaxPaymentMethods()" style="padding:5px 10px;background:#F79009;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">💳 결제수단 동기화</button>';
     h += '<button onclick="exportTaxExcel();" style="padding:5px 12px;background:var(--success);color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">엑셀 출력</button>';
-    h += '</div>';
+    h += '</div></div>';
+    // 필터 탭 제거됨
     var allRecords = [];
     md2.income.forEach(function(r,i){allRecords.push({type:'income',idx:i,data:r});});
     md2.expense.forEach(function(r,i){allRecords.push({type:'expense',idx:i,data:r});});
+
     if(allRecords.length===0){
       h += '<div style="text-align:center;padding:20px;color:#98A2B3;font-size:13px;">내역이 없습니다.</div>';
     } else {
@@ -2127,16 +2136,23 @@ function addTaxRecord(type){
   if(type==='income'){
     var name=document.getElementById('inc-name').value.trim();
     var amount=parseInt(document.getElementById('inc-amount').value)||0;
-    var category=document.getElementById('inc-category').value;
-    var taxType=document.getElementById('inc-tax').value;
-    if(!name||!amount){alert('항목명과 금액을 입력해주세요.');return;}
-    data[key].income.push({name:name,amount:amount,category:category,date:new Date().toISOString().slice(0,10),taxType:taxType});
+    var category=document.getElementById('inc-name').value;
+    var method=document.getElementById('inc-method')?document.getElementById('inc-method').value:'';
+    if(!name||!amount){showToast('⚠ 항목명과 금액을 입력해주세요');return;}
+    var incName = category+(method?'('+method+')':'');
+    data[key].income.push({name:incName,amount:amount,category:category,date:new Date().toISOString().slice(0,10),taxType:'과세'});
+    document.getElementById('inc-name').value='';
+    document.getElementById('inc-amount').value='';
   } else {
     var name2=document.getElementById('exp-name').value.trim();
     var amount2=parseInt(document.getElementById('exp-amount').value)||0;
-    var category2=document.getElementById('exp-category').value;
-    if(!name2||!amount2){alert('항목명과 금액을 입력해주세요.');return;}
-    data[key].expense.push({name:name2,amount:amount2,category:category2,date:new Date().toISOString().slice(0,10)});
+    var category2=document.getElementById('exp-name').value;
+    var method2=document.getElementById('exp-method')?document.getElementById('exp-method').value:'';
+    if(!name2||!amount2){showToast('⚠ 항목명과 금액을 입력해주세요');return;}
+    var expName = category2+(method2?'('+method2+')':'');
+    data[key].expense.push({name:expName,amount:amount2,category:category2,date:new Date().toISOString().slice(0,10)});
+    document.getElementById('exp-name').value='';
+    document.getElementById('exp-amount').value='';
   }
   saveTaxData(data);
   renderTax();
@@ -2632,7 +2648,7 @@ function sendKakaoAlimtalk(member, timeStr){
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
-  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n\n📍 패밀리링크로 자녀 위치 확인하기';
+  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━━━━━━\n✅ 학원에 안전하게 도착했습니다.\n\n📍 패밀리링크로 자녀 위치 확인하기\n\n📍 구글 패밀리링크란?\n자녀 스마트폰의 실시간 위치와\n이동 동선을 부모님 폰에서\n언제든지 확인할 수 있는\n구글의 무료 자녀 보호 서비스예요.\n📲 설치 후 자녀 계정과 연동하면\n집 출발부터 학원 도착까지\n동선을 실시간으로 파악할 수 있어요!';
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
@@ -3177,6 +3193,7 @@ function startFirebaseListeners(){
 
 
 var _confirmCallback = null;
+var _localSaving = false;
 function showConfirmModal(callback, title, okLabel){
   var titleEl = document.querySelector('#confirm-modal div div:nth-child(2)');
   if(titleEl) titleEl.textContent = title || '정말 삭제하시겠습니까?';
@@ -3240,13 +3257,72 @@ function selectPayMethod(method){
   data[key] = {paid:true, method:method, date:new Date().toISOString().slice(0,10), memo:''};
   savePayments(data);
   // 세무 데이터에도 자동 기록
-  var m = members.find(function(x){return x.id===memberId;});
+  var m = members.find(function(x){return x.id===parseInt(memberId);});
   if(m){
     var amount = m.monthly || 0;
-    addIncomeRecord(payViewYear, payViewMonth, m.name+' 수강료('+method+')', amount, '수강료');
+    // 기존 중복 기록 제거 후 새로 저장
+    var taxData = loadTaxData();
+    var taxKey = payViewYear+'_'+String(payViewMonth).padStart(2,'0');
+    if(taxData[taxKey] && taxData[taxKey].income){
+      taxData[taxKey].income = taxData[taxKey].income.filter(function(r){
+        return r.name.indexOf(m.name+' 수강료') < 0;
+      });
+    }
+    if(!taxData[taxKey]) taxData[taxKey] = {income:[],expense:[]};
+    taxData[taxKey].income.push({name:m.name+' 수강료('+method+')',amount:amount,category:'수강료',date:new Date().toISOString().slice(0,10),taxType:'과세'});
+    saveTaxData(taxData);
   }
   showToast('✅ '+method+' 납부 처리됐어요!');
   renderPayment();
+}
+
+
+function setTaxFilter(val){
+  taxFilter = val;
+  renderTax();
+}
+
+
+function syncTaxPaymentMethods(){
+  var payData = loadPayments();
+  var taxData = loadTaxData();
+  var updated = 0;
+
+  members.forEach(function(m){
+    Object.keys(payData).forEach(function(key){
+      if(key.indexOf(m.id+'_') !== 0 && key.indexOf('_'+m.id) < 0) {
+        // key 형식: memberId_year_month
+        var parts = key.split('_');
+        if(parseInt(parts[0]) !== m.id) return;
+      }
+      var pd = payData[key];
+      if(!pd || !pd.paid || !pd.method) return;
+
+      var parts = key.split('_');
+      if(parts.length < 3) return;
+      var year = parseInt(parts[1]);
+      var month = parseInt(parts[2]);
+      var taxKey = year+'_'+String(month).padStart(2,'0');
+
+      if(!taxData[taxKey] || !taxData[taxKey].income) return;
+
+      taxData[taxKey].income.forEach(function(r, i){
+        // 결제수단 없는 수강료 내역 업데이트
+        if(r.name === m.name+' 수강료'){
+          taxData[taxKey].income[i].name = m.name+' 수강료('+pd.method+')';
+          updated++;
+        }
+      });
+    });
+  });
+
+  if(updated > 0){
+    saveTaxData(taxData);
+    showToast('✅ '+updated+'건 결제수단 업데이트됐어요!');
+    renderTax();
+  } else {
+    showToast('이미 모두 업데이트됐어요!');
+  }
 }
 
 </script>
