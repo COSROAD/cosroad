@@ -3148,6 +3148,7 @@ async function loadFromFirebase(key){
 
 async function syncFromFirebase(){
   console.log('🔄 Firebase 동기화 중...');
+  var fl=document.getElementById('fb-loading'); if(fl) fl.style.display='block';
   var fbMembers = await loadFromFirebase('members');
   var fbCars = await loadFromFirebase('cars');
   var fbCourses = await loadFromFirebase('courses');
@@ -3164,6 +3165,7 @@ async function syncFromFirebase(){
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
   console.log('✅ Firebase 동기화 완료');
+  var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
   // 실시간 리스너 등록
   startFirebaseListeners();
@@ -3494,6 +3496,12 @@ function syncTaxPaymentMethods(){
     </div>
     <button onclick="document.getElementById('pay-method-modal').style.display='none'" style="width:100%;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
   </div>
+</div>
+
+
+<!-- Firebase 동기화 로딩 -->
+<div id="fb-loading" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1A6BFF;color:white;padding:6px;text-align:center;font-size:12px;font-weight:700;">
+  🔄 데이터 동기화 중...
 </div>
 
 </body>
