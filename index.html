@@ -405,7 +405,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <label class="form-label">특이사항</label>
     <input class="form-input" type="text" id="m-note" placeholder="예) 정문 우측 대기"/>
     <button class="modal-save" onclick="saveMember()">저장</button>
-    <button class="modal-del" id="modal-del-btn" onclick="deleteMember()" style="display:none;">삭제</button>
+
   </div>
 </div>
 
@@ -892,6 +892,7 @@ function renderAdminMembers(){
       +'<div class="member-class">'+(course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span></div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
+      +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
       +'<label style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;">📷 사진'
       +'<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/>'
       +'</label></div></div>'
@@ -946,6 +947,7 @@ function filterAdminMembers(q){
       +'<div class="member-class">'+(course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span></div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
+      +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
       +'<label style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;">📷 사진'
       +'<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/>'
       +'</label></div></div>'
@@ -1079,9 +1081,11 @@ function assignMemberToCar(memberId, carId){
 function removeMemberFromCar(memberId){
   const m=members.find(m=>m.id===memberId);
   if(!m)return;
-  m.carId='';
-  saveMembers();
-  renderAdminTab('cars');
+  showConfirmModal(function(){
+    m.carId='';
+    saveMembers();
+    renderAdminTab('cars');
+  });
 }
 
 // ── 스케줄 ──
@@ -1122,8 +1126,9 @@ function addCourse(){
   renderAdminTab('schedule');
 }
 function deleteCourse(i){
-  if(!confirm(`'${courses[i].name}' 코스를 삭제하시겠습니까?`))return;
-  courses.splice(i,1);renderAdminTab('schedule');
+  showConfirmModal(function(){
+    courses.splice(i,1);renderAdminTab('schedule');
+  });
 }
 
 // ── 설정 ──
@@ -1201,7 +1206,7 @@ function saveOrgInfo(){
 }
 function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
 function saveApiKeyFromSettings(){TMAP_KEY=document.getElementById('tmap-key-input').value.trim();localStorage.setItem('tmapKey',TMAP_KEY);alert('✅ 저장되었습니다.');}
-function resetData(){if(!confirm('모든 이용자 데이터를 초기화하시겠습니까?'))return;localStorage.removeItem('tkd_members');members=loadMembers();alert('초기화되었습니다.');renderAdminTab('settings');}
+function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_members');members=loadMembers();showToast('초기화됐어요!');renderAdminTab('settings');});}
 
 // ── 회원관리 (운전자용) ──
 function renderMembers(){
@@ -1260,7 +1265,7 @@ function openAddModal(){
   document.getElementById('m-class').value=courses[0]?.id||'';
   document.getElementById('m-car').value=cars[0]?.id||'';
   Object.values(dayIdMap).forEach(d=>document.getElementById('d-'+d).checked=false);
-  document.getElementById('modal-del-btn').style.display='none';
+  // 삭제 버튼 제거됨
   var m2=document.getElementById('member-modal');m2.style.display='';m2.classList.add('show');
 }
 function openEditModal(id){
@@ -1279,7 +1284,7 @@ function openEditModal(id){
   if(document.getElementById('m-regfee'))document.getElementById('m-regfee').value=m.regfee||'';
   if(document.getElementById('m-monthly'))document.getElementById('m-monthly').value=m.monthly||'';
   DAYS.forEach(d=>document.getElementById('d-'+dayIdMap[d]).checked=m.days.includes(d));
-  document.getElementById('modal-del-btn').style.display='block';
+  // 삭제 버튼 제거됨
   var m3=document.getElementById('member-modal');m3.style.display='';m3.classList.add('show');
 }
 function saveMember(){
@@ -1713,12 +1718,14 @@ function renderPayment(){
 
   // 이번달 수납 통계
   var totalExpected = 0, totalPaid = 0, totalUnpaid = 0;
+  var cntTotal = 0, cntPaid = 0, cntUnpaid = 0;
   members.forEach(function(m){
-    if(!m.monthly) return;
-    totalExpected += m.monthly;
+    cntTotal++;
     var key = getPaymentKey(m.id, payViewYear, payViewMonth);
-    if(data[key] && data[key].paid) totalPaid += m.monthly;
-    else totalUnpaid += m.monthly;
+    var isPaidM = data[key] && data[key].paid;
+    if(m.monthly) totalExpected += m.monthly;
+    if(isPaidM){ totalPaid += (m.monthly||0); cntPaid++; }
+    else{ totalUnpaid += (m.monthly||0); cntUnpaid++; }
   });
 
   var h = '<div>';
@@ -1738,84 +1745,13 @@ function renderPayment(){
   h += '</select></div>';
   // 통계 카드 (연월선택과 함께 sticky)
   h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:6px 0 8px;">';
-  h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+totalExpected.toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">예상수납(원)</div></div>';
-  h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+totalPaid.toLocaleString()+'</div><div style="font-size:10px;color:#12B76A;">납부완료(원)</div></div>';
-  h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+totalUnpaid.toLocaleString()+'</div><div style="font-size:10px;color:#F04438;">미납(원)</div></div>';
+  h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+cntTotal+'명</div><div style="font-size:10px;color:#7C3AED;">전체</div></div>';
+  h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+cntPaid+'명</div><div style="font-size:10px;color:#12B76A;">납부완료</div></div>';
+  h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+cntUnpaid+'명</div><div style="font-size:10px;color:#F04438;">미납</div></div>';
+  h += '<button onclick="exportPaymentExcel();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📊 수납 내역 엑셀 출력</button>';
+  h += '<input type="text" id="pay-member-search" placeholder="🔍 회원 검색" oninput="filterPayMember(this.value)" style="width:100%;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
   h += '</div></div>';
   h += '<div style="padding:0 16px;">';
-
-  // 수강료 일괄/개별 설정
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">💳 수강료 설정</div>';
-
-  // 탭 (일괄/개별)
-  h += '<div style="display:flex;gap:6px;margin-bottom:12px;">';
-  h += '<button onclick="payFeeTab=String.fromCharCode(98,117,108,107);renderPayment();" style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(payFeeTab==='bulk'?'var(--admin)':'#EAECF0')+';background:'+(payFeeTab==='bulk'?'var(--admin-light)':'white')+';color:'+(payFeeTab==='bulk'?'var(--admin)':'#475467')+';">일괄 설정</button>';
-  h += '<button onclick="payFeeTab=String.fromCharCode(105,110,100,105,118,105,100,117,97,108);renderPayment();" style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(payFeeTab==='individual'?'var(--admin)':'#EAECF0')+';background:'+(payFeeTab==='individual'?'var(--admin-light)':'white')+';color:'+(payFeeTab==='individual'?'var(--admin)':'#475467')+';">개별 설정</button>';
-  h += '</div>';
-
-  if(payFeeTab==='bulk'){
-    // 일괄 설정
-    h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">코스별로 동일한 금액을 일괄 적용합니다.</div>';
-    courses.forEach(function(cs){
-      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;background:#F2F4F7;border-radius:8px;">';
-      h += '<span style="font-size:13px;font-weight:600;flex:1;">'+cs.name+'</span>';
-      h += '<div style="display:flex;flex-direction:column;gap:4px;">';
-      h += '<div style="display:flex;align-items:center;gap:4px;">';
-      h += '<span style="font-size:11px;color:#475467;width:42px;">등록비</span>';
-      h += '<input type="number" id="bulk-reg-'+cs.id+'" placeholder="0" style="width:90px;padding:5px 8px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;text-align:right;"/>';
-      h += '<span style="font-size:11px;color:#475467;">원</span></div>';
-      h += '<div style="display:flex;align-items:center;gap:4px;">';
-      h += '<span style="font-size:11px;color:#475467;width:42px;">월정액</span>';
-      h += '<input type="number" id="bulk-mon-'+cs.id+'" placeholder="0" style="width:90px;padding:5px 8px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;text-align:right;"/>';
-      h += '<span style="font-size:11px;color:#475467;">원</span></div>';
-      h += '</div>';
-      h += '<button onclick="applyBulkFee(cs.id)" style="padding:6px 12px;background:var(--admin);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">적용</button>';
-      h += '</div>';
-    });
-    // 전체 일괄
-    h += '<div style="border-top:1px solid #EAECF0;padding-top:10px;margin-top:4px;">';
-    h += '<div style="font-size:11px;font-weight:700;color:#344054;margin-bottom:8px;">전체 회원 일괄 적용</div>';
-    h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
-    h += '<div style="flex:1;"><div style="font-size:10px;color:#475467;margin-bottom:3px;">등록비(원)</div>';
-    h += '<input type="number" id="bulk-all-reg" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/></div>';
-    h += '<div style="flex:1;"><div style="font-size:10px;color:#475467;margin-bottom:3px;">월정액(원)</div>';
-    h += '<input type="number" id="bulk-all-mon" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/></div>';
-    h += '</div>';
-    h += '<button onclick="applyBulkFee(String.fromCharCode(97,108,108))" style="width:100%;padding:10px;background:#EA580C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">🔄 전체 회원 일괄 적용</button>';
-    h += '</div>';
-  } else {
-    // 개별 설정
-    h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">회원별로 개별 금액을 설정합니다.</div>';
-    members.forEach(function(m){
-      var cs = courses.find(function(c){return c.id===m.courseId;});
-      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;background:#F2F4F7;border-radius:8px;">';
-      var photo = m.photo
-        ?('<img src="'+m.photo+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
-        :('<div style="width:32px;height:32px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
-      h += photo;
-      h += '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+m.name+'</div>';
-      h += '<div style="font-size:10px;color:#98A2B3;">'+(cs?cs.name:'')+'</div></div>';
-      h += '<div style="display:flex;flex-direction:column;gap:3px;">';
-      h += '<div style="display:flex;align-items:center;gap:3px;">';
-      h += '<span style="font-size:10px;color:#475467;width:38px;">등록비</span>';
-      h += '<input type="number" id="ind-reg-'+m.id+'" value="'+(m.regfee||'')+'" placeholder="0" style="width:80px;padding:4px 6px;border:1px solid #EAECF0;border-radius:6px;font-size:11px;text-align:right;" onchange="saveIndFee('+m.id+')"/>';
-      h += '<span style="font-size:10px;color:#475467;">원</span></div>';
-      h += '<div style="display:flex;align-items:center;gap:3px;">';
-      h += '<span style="font-size:10px;color:#475467;width:38px;">월정액</span>';
-      h += '<input type="number" id="ind-mon-'+m.id+'" value="'+(m.monthly||'')+'" placeholder="0" style="width:80px;padding:4px 6px;border:1px solid #EAECF0;border-radius:6px;font-size:11px;text-align:right;" onchange="saveIndFee('+m.id+')"/>';
-      h += '<span style="font-size:10px;color:#475467;">원</span></div>';
-      h += '</div></div>';
-    });
-    h += '<button onclick="alert(\'✅ 변경사항이 자동 저장됩니다.\')" style="width:100%;padding:10px;background:var(--success);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">✅ 개별 설정 완료</button>';
-  }
-  h += '</div>';
-
-  // 미납 알림 버튼
-  h += '<button onclick="sendUnpaidNotice();" style="width:100%;padding:11px;background:#F04438;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📱 미납 회원 알림 발송</button>';
-
-  // 엑셀 출력 버튼
-  h += '<button onclick="exportPaymentExcel();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">📊 수납 내역 엑셀 출력</button>';
 
   // 회원별 수납 목록
   h += '<div style="display:flex;flex-direction:column;gap:8px;">';
@@ -1834,7 +1770,7 @@ function renderPayment(){
         ?('<img src="'+m.photo+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
         :('<div style="width:40px;height:40px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
 
-      h += '<div style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+(isPaid?'#12B76A':'#EAECF0')+';">';
+      h += '<div class="pay-member-item" data-name="'+m.name+'" style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+(isPaid?'#12B76A':'#EAECF0')+';">';
       h += '<div style="display:flex;align-items:center;gap:10px;">'+photo;
       h += '<div style="flex:1;">';
       h += '<div style="font-size:14px;font-weight:700;">'+m.name+'</div>';
@@ -1874,13 +1810,17 @@ function togglePayment(memberId){
   var data = loadPayments();
   var key = getPaymentKey(memberId, payViewYear, payViewMonth);
   if(data[key] && data[key].paid){
-    if(!confirm('납부 취소하시겠습니까?')) return;
-    data[key].paid = false;
+    showConfirmModal(function(){
+      data[key].paid = false;
+      savePayments(data);
+      renderPayment();
+    }, '납부를 취소하시겠습니까?', '확인');
+    return;
   } else {
-    data[key] = {paid:true, method:'현금', date:new Date().toISOString().slice(0,10), memo:''};
+    window._payMemberId = memberId;
+    document.getElementById('pay-method-modal').style.display = 'flex';
+    return;
   }
-  savePayments(data);
-  renderPayment();
 }
 
 function confirmPayment(memberId){
@@ -1910,11 +1850,26 @@ function sendUnpaidNotice(){
     var key = getPaymentKey(m.id, payViewYear, payViewMonth);
     return !(data[key]&&data[key].paid);
   });
-  if(unpaid.length===0){ alert('미납 회원이 없습니다! ✅'); return; }
+  if(unpaid.length===0){ showToast('✅ 미납 회원이 없습니다!'); return; }
   var msg = '['+orgSettings.name+'] '+payViewYear+'년 '+payViewMonth+'월 수강료 안내\n미납 회원: '+unpaid.map(function(m){return m.name;}).join(', ')+'\n빠른 납부 부탁드립니다.\n문의: cosroad.com';
-  navigator.clipboard.writeText(msg).then(function(){alert('✅ 미납 알림 복사됐어요!\n카카오톡에 붙여넣기 하세요.');}).catch(function(){});
-  var phones = unpaid.map(function(m){return m.phone;}).filter(Boolean);
-  if(phones.length>0) window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
+
+  // 미리보기 모달
+  var modal = document.getElementById('unpaid-notice-modal');
+  document.getElementById('unpaid-msg-preview').textContent = msg;
+  modal.style.display = 'flex';
+  window._unpaidMsg = msg;
+  window._unpaidPhones = unpaid.map(function(m){return m.phone;}).filter(Boolean);
+}
+
+function sendUnpaidSMS(){
+  document.getElementById('unpaid-notice-modal').style.display = 'none';
+  var msg = window._unpaidMsg || '';
+  var phones = window._unpaidPhones || [];
+  navigator.clipboard.writeText(msg).catch(function(){});
+  if(phones.length>0){
+    window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
+  }
+  showToast('✅ 미납 알림 발송됐어요!');
 }
 
 function exportPaymentExcel(){
@@ -2188,14 +2143,15 @@ function addTaxRecord(type){
 }
 
 function deleteTaxRecord(type, idx){
-  if(!confirm('삭제하시겠습니까?')) return;
-  var data = loadTaxData();
-  var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
-  if(data[key] && data[key][type]){
-    data[key][type].splice(idx,1);
-    saveTaxData(data);
-    renderTax();
-  }
+  showConfirmModal(function(){
+    var data = loadTaxData();
+    var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
+    if(data[key] && data[key][type]){
+      data[key][type].splice(idx,1);
+      saveTaxData(data);
+      renderTax();
+    }
+  });
 }
 
 function exportTaxExcel(){
@@ -2237,6 +2193,7 @@ function exportTaxSummary(){
 var payFeeTab = 'bulk';
 
 function applyBulkFee(courseId){
+  courseId = courseId.replace(/&quot;/g, '');
   var regfee, monthly;
   if(courseId === 'all'){
     regfee = parseInt(document.getElementById('bulk-all-reg').value)||0;
@@ -2271,6 +2228,7 @@ function saveIndFee(memberId){
   if(reg) m.regfee = parseInt(reg.value)||0;
   if(mon) m.monthly = parseInt(mon.value)||0;
   saveMembers();
+  showToast('✅ '+m.name+' 저장됐어요!');
 }
 
 
@@ -2544,7 +2502,7 @@ function filterDriverMembers(q){
     html+='<div class="member-card">'
       +'<div class="member-header">'+photoEl
       +'<div><div class="member-name">'+m.name+'</div><div class="member-class">'+(course?course.name:'–')+'</div></div>'
-      +(currentMode==='admin'?'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>':'')
+      +(currentMode==='admin'?'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button><button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>':'')
       +'</div>'
       +'<div class="member-info">'
       +'<div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">'+m.location+'</span></div>'
@@ -3119,6 +3077,7 @@ function deleteCar(carId){
 function deleteCurrentCar(){
   var car = cars[currentCarTab];
   if(!car) return;
+  showConfirmModal(function(){
   var assigned = members.filter(function(m){return m.carId===car.id;});
   if(assigned.length > 0){
     members.forEach(function(m){ if(m.carId===car.id) m.carId=''; });
@@ -3128,7 +3087,7 @@ function deleteCurrentCar(){
   saveCars(cars);
   currentCarTab = 0;
   renderAdminTab('cars');
-
+  });
 }
 
 
@@ -3214,6 +3173,80 @@ function startFirebaseListeners(){
     });
   });
   console.log('✅ 실시간 동기화 활성화!');
+}
+
+
+var _confirmCallback = null;
+function showConfirmModal(callback, title, okLabel){
+  var titleEl = document.querySelector('#confirm-modal div div:nth-child(2)');
+  if(titleEl) titleEl.textContent = title || '정말 삭제하시겠습니까?';
+  var okBtn = document.getElementById('confirm-ok-btn');
+  if(okBtn) okBtn.textContent = okLabel || '삭제';
+  if(okBtn) okBtn.style.background = okLabel ? '#344054' : '#F04438';
+  _confirmCallback = callback;
+  var modal = document.getElementById('confirm-modal');
+  modal.style.display = 'flex';
+}
+function closeConfirmModal(){
+  var modal = document.getElementById('confirm-modal');
+  modal.style.display = 'none';
+  _confirmCallback = null;
+}
+function confirmOk(){
+  var cb = _confirmCallback;
+  closeConfirmModal();
+  if(cb) cb();
+}
+
+
+function deleteMemberById(id){
+  showConfirmModal(function(){
+    members = members.filter(function(m){ return m.id !== parseInt(id); });
+    saveMembers();
+    if(currentTab==='member') renderMembers();
+    else renderAdminTab('members');
+  });
+}
+
+
+function filterPayFee(q){
+  q = q.toLowerCase();
+  var list = document.getElementById('pay-fee-list');
+  if(!list) return;
+  var items = list.querySelectorAll('.pay-fee-item');
+  items.forEach(function(item){
+    var name = item.getAttribute('data-name') || '';
+    item.style.display = name.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+  });
+}
+
+
+function filterPayMember(q){
+  q = q.toLowerCase();
+  var items = document.querySelectorAll('.pay-member-item');
+  items.forEach(function(item){
+    var name = item.getAttribute('data-name') || '';
+    item.style.display = name.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+  });
+}
+
+
+function selectPayMethod(method){
+  document.getElementById('pay-method-modal').style.display = 'none';
+  var memberId = window._payMemberId;
+  if(!memberId) return;
+  var data = loadPayments();
+  var key = getPaymentKey(memberId, payViewYear, payViewMonth);
+  data[key] = {paid:true, method:method, date:new Date().toISOString().slice(0,10), memo:''};
+  savePayments(data);
+  // 세무 데이터에도 자동 기록
+  var m = members.find(function(x){return x.id===memberId;});
+  if(m){
+    var amount = m.monthly || 0;
+    addIncomeRecord(payViewYear, payViewMonth, m.name+' 수강료('+method+')', amount, '수강료');
+  }
+  showToast('✅ '+method+' 납부 처리됐어요!');
+  renderPayment();
 }
 
 </script>
@@ -3344,6 +3377,46 @@ function startFirebaseListeners(){
       </div>
     </div>
 
+  </div>
+</div>
+
+
+<!-- 커스텀 확인 모달 -->
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:300px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="font-size:32px;margin-bottom:12px;">🗑</div>
+    <div style="font-size:16px;font-weight:700;color:#344054;margin-bottom:20px;">정말 삭제하시겠습니까?</div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeConfirmModal()" style="flex:1;padding:12px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">취소</button>
+      <button id="confirm-ok-btn" onclick="confirmOk()" style="flex:1;padding:12px;background:#F04438;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">삭제</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 미납 알림 미리보기 모달 -->
+<div id="unpaid-notice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:340px;">
+    <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:12px;">📱 미납 알림 발송</div>
+    <div id="unpaid-msg-preview" style="background:#F2F4F7;border-radius:10px;padding:12px;font-size:12px;color:#344054;white-space:pre-line;margin-bottom:16px;line-height:1.6;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="document.getElementById('unpaid-notice-modal').style.display='none'" style="flex:1;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+      <button onclick="sendUnpaidSMS()" style="flex:1;padding:11px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📱 발송</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 납부 결제수단 선택 모달 -->
+<div id="pay-method-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:300px;">
+    <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:16px;">💳 납부 방법 선택</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <button onclick="selectPayMethod('현금')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💵 현금</button>
+      <button onclick="selectPayMethod('카드')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💳 카드</button>
+      <button onclick="selectPayMethod('계좌이체')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">🏦 계좌이체</button>
+    </div>
+    <button onclick="document.getElementById('pay-method-modal').style.display='none'" style="width:100%;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
   </div>
 </div>
 
