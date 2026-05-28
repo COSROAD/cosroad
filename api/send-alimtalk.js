@@ -7,6 +7,14 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  if (req.method === 'GET') {
+  const { keyword, appKey } = req.query;
+  const r = await fetch(
+    `https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword=${encodeURIComponent(keyword)}&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=${appKey}`
+  );
+  const data = await r.json();
+  return res.status(200).json(data);
+}
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
