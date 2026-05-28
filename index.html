@@ -3358,21 +3358,19 @@ function searchDestAddr(){
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
   var tmapKey = TMAP_KEY || orgSettings.tmapKey;
   if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
-  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&accept-language=ko', {
-    headers:{ 'Accept': 'application/json' }
-  })
+  fetch('https://cosroad.vercel.app/api/search-addr?keyword='+encodeURIComponent(addr)+'&appKey='+tmapKey)
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if(data && data.length > 0){
-      var lat = data[0].lat;
-      var lon = data[0].lon;
-      document.getElementById('dest-lat').value = lat;
-      document.getElementById('dest-lon').value = lon;
+    var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
+    if(pois && pois.length > 0){
+      var poi = pois[0];
+      document.getElementById('dest-lat').value = poi.noorLat;
+      document.getElementById('dest-lon').value = poi.noorLon;
       var el = document.getElementById('dest-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+addr; }
+      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name+' ('+poi.noorLat+', '+poi.noorLon+')'; }
       showToast('✅ 주소 검색 완료!');
     } else {
-      showToast('⚠ 주소를 찾을 수 없어요. 더 상세히 입력해주세요');
+      showToast('⚠ 주소를 찾을 수 없어요');
     }
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
@@ -3381,20 +3379,20 @@ function searchDestAddr(){
 function searchMemberAddr(){
   var addr = document.getElementById('m-location').value.trim();
   if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
-  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&accept-language=ko', {
-    headers:{ 'Accept': 'application/json' }
-  })
+  var tmapKey2 = TMAP_KEY || orgSettings.tmapKey;
+  fetch('https://cosroad.vercel.app/api/search-addr?keyword='+encodeURIComponent(addr)+'&appKey='+tmapKey2)
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if(data && data.length > 0){
+    var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
+    if(pois && pois.length > 0){
+      var poi = pois[0];
       var el = document.getElementById('member-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ 위치 확인됨: '+addr; }
-      // lat/lon을 hidden input에 저장
-      document.getElementById('m-location').setAttribute('data-lat', data[0].lat);
-      document.getElementById('m-location').setAttribute('data-lon', data[0].lon);
+      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name; }
+      document.getElementById('m-location').setAttribute('data-lat', poi.noorLat);
+      document.getElementById('m-location').setAttribute('data-lon', poi.noorLon);
       showToast('✅ 위치 확인 완료!');
     } else {
-      showToast('⚠ 주소를 찾을 수 없어요. 더 상세히 입력해주세요');
+      showToast('⚠ 주소를 찾을 수 없어요');
     }
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
