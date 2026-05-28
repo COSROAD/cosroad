@@ -3349,9 +3349,7 @@ function syncTaxPaymentMethods(){
 function searchDestAddr(){
   var addr = document.getElementById('dest-addr').value.trim();
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
-  fetch('https://dapi.kakao.com/v2/local/search/keyword.json?query='+encodeURIComponent(addr)+'&size=1', {
-    headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
-  })
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
   .then(function(r){ return r.json(); })
   .then(function(data){
     if(data.documents && data.documents.length > 0){
@@ -3362,9 +3360,8 @@ function searchDestAddr(){
       if(el){ el.style.display='block'; el.textContent='✅ '+place.place_name+' ('+place.address_name+')'; }
       showToast('✅ 주소 검색 완료!');
     } else {
-      fetch('https://dapi.kakao.com/v2/local/search/address.json?query='+encodeURIComponent(addr)+'&size=1', {
-        headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
-      })
+      // 키워드 실패 시 주소 검색 재시도
+      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
       .then(function(r){ return r.json(); })
       .then(function(data2){
         if(data2.documents && data2.documents.length > 0){
@@ -3375,7 +3372,7 @@ function searchDestAddr(){
           if(el){ el.style.display='block'; el.textContent='✅ '+p.address_name; }
           showToast('✅ 주소 검색 완료!');
         } else {
-          showToast('⚠ 주소를 찾을 수 없어요. 더 자세한 주소를 입력해보세요.');
+          showToast('⚠ 주소를 찾을 수 없어요. 더 자세히 입력해보세요.');
         }
       });
     }
@@ -3386,9 +3383,7 @@ function searchDestAddr(){
 function searchMemberAddr(){
   var addr = document.getElementById('m-location').value.trim();
   if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
-  fetch('https://dapi.kakao.com/v2/local/search/keyword.json?query='+encodeURIComponent(addr)+'&size=1', {
-    headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
-  })
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
   .then(function(r){ return r.json(); })
   .then(function(data){
     if(data.documents && data.documents.length > 0){
@@ -3399,9 +3394,7 @@ function searchMemberAddr(){
       document.getElementById('m-location').setAttribute('data-lon', place.x);
       showToast('✅ 위치 확인 완료!');
     } else {
-      fetch('https://dapi.kakao.com/v2/local/search/address.json?query='+encodeURIComponent(addr)+'&size=1', {
-        headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
-      })
+      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
       .then(function(r){ return r.json(); })
       .then(function(data2){
         if(data2.documents && data2.documents.length > 0){
@@ -3412,7 +3405,7 @@ function searchMemberAddr(){
           document.getElementById('m-location').setAttribute('data-lon', p.x);
           showToast('✅ 위치 확인 완료!');
         } else {
-          showToast('⚠ 주소를 찾을 수 없어요. 더 자세한 주소를 입력해보세요.');
+          showToast('⚠ 주소를 찾을 수 없어요. 더 자세히 입력해보세요.');
         }
       });
     }
