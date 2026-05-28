@@ -1314,7 +1314,7 @@ function saveMember(){
   const pin=pinEl?pinEl.value.trim():'';
   const regfee=regEl?parseInt(regEl.value)||0:0;
   const monthly=monEl?parseInt(monEl.value)||0:0;
-  const obj={name,courseId:document.getElementById('m-class').value,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,lat:orgSettings.destLat,lon:orgSettings.destLon};
+  const obj={name,courseId:document.getElementById('m-class').value,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon};
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -3349,69 +3349,75 @@ function syncTaxPaymentMethods(){
 function searchDestAddr(){
   var addr = document.getElementById('dest-addr').value.trim();
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
-  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&size=5')
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if(data.documents && data.documents.length > 0){
-      var place = data.documents[0];
-      document.getElementById('dest-lat').value = place.y;
-      document.getElementById('dest-lon').value = place.x;
-      var el = document.getElementById('dest-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+place.place_name+' ('+place.address_name+')'; }
+    var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
+    if(docs.length === 0){
+      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address&size=5')
+      .then(function(r){ return r.json(); })
+      .then(function(data2){
+        var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
+        if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
+        showDestResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }));
+      });
+      return;
+    }
+    showDestResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }));
+  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+}
+
+function showDestResults(results){
+  var el = document.getElementById('dest-addr-result');
+  if(!el) return;
+  el.style.display = 'block';
+  var html = '<div style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;">';
+  results.forEach(function(r, i){
+    var bb = i===results.length-1 ? 'border-bottom:none;' : '';
+    html += '<div class="addr-ri" data-n="'+encodeURIComponent(r.name)+'" data-a="'+encodeURIComponent(r.address)+'" data-x="'+r.x+'" data-y="'+r.y+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
+      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
+      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('.addr-ri').forEach(function(item){
+    item.onmouseover = function(){ this.style.background='#F2F4F7'; };
+    item.onmouseout = function(){ this.style.background='white'; };
+    item.onclick = function(){
+      var n=decodeURIComponent(this.dataset.n), a=decodeURIComponent(this.dataset.a);
+      document.getElementById('dest-lat').value = this.dataset.y;
+      document.getElementById('dest-lon').value = this.dataset.x;
+      el.innerHTML = '<span style="color:#12B76A;">✅ '+n+' ('+a+')</span>';
       showToast('✅ 주소 검색 완료!');
-    } else {
-      // 키워드 실패 시 주소 검색 재시도
-      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
-      .then(function(r){ return r.json(); })
-      .then(function(data2){
-        if(data2.documents && data2.documents.length > 0){
-          var p = data2.documents[0];
-          document.getElementById('dest-lat').value = p.y;
-          document.getElementById('dest-lon').value = p.x;
-          var el = document.getElementById('dest-addr-result');
-          if(el){ el.style.display='block'; el.textContent='✅ '+p.address_name; }
-          showToast('✅ 주소 검색 완료!');
-        } else {
-          showToast('⚠ 주소를 찾을 수 없어요. 더 자세히 입력해보세요.');
-        }
-      });
-    }
-  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+    };
+  });
 }
 
-
-function searchMemberAddr(){
-  var addr = document.getElementById('m-location').value.trim();
-  if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
-  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    if(data.documents && data.documents.length > 0){
-      var place = data.documents[0];
-      var el = document.getElementById('member-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+place.place_name+' ('+place.address_name+')'; }
-      document.getElementById('m-location').setAttribute('data-lat', place.y);
-      document.getElementById('m-location').setAttribute('data-lon', place.x);
+function showAddrResults(results){
+  var el = document.getElementById('member-addr-result');
+  if(!el) return;
+  el.style.display = 'block';
+  var html = '<div style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;">';
+  results.forEach(function(r, i){
+    var bb = i===results.length-1 ? 'border-bottom:none;' : '';
+    html += '<div class="addr-ri" data-n="'+encodeURIComponent(r.name)+'" data-a="'+encodeURIComponent(r.address)+'" data-x="'+r.x+'" data-y="'+r.y+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
+      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
+      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('.addr-ri').forEach(function(item){
+    item.onmouseover = function(){ this.style.background='#F2F4F7'; };
+    item.onmouseout = function(){ this.style.background='white'; };
+    item.onclick = function(){
+      var n=decodeURIComponent(this.dataset.n), a=decodeURIComponent(this.dataset.a);
+      var loc=document.getElementById('m-location');
+      if(loc){ loc.value=n; loc.setAttribute('data-lat',this.dataset.y); loc.setAttribute('data-lon',this.dataset.x); }
+      el.innerHTML = '<span style="color:#12B76A;">✅ '+n+' ('+a+')</span>';
       showToast('✅ 위치 확인 완료!');
-    } else {
-      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
-      .then(function(r){ return r.json(); })
-      .then(function(data2){
-        if(data2.documents && data2.documents.length > 0){
-          var p = data2.documents[0];
-          var el = document.getElementById('member-addr-result');
-          if(el){ el.style.display='block'; el.textContent='✅ '+p.address_name; }
-          document.getElementById('m-location').setAttribute('data-lat', p.y);
-          document.getElementById('m-location').setAttribute('data-lon', p.x);
-          showToast('✅ 위치 확인 완료!');
-        } else {
-          showToast('⚠ 주소를 찾을 수 없어요. 더 자세히 입력해보세요.');
-        }
-      });
-    }
-  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+    };
+  });
 }
-
 
 </script>
 
