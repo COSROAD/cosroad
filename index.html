@@ -2027,28 +2027,21 @@ function renderTax(){
     h += '<div style="background:#F3EEFF;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#7C3AED;">'+(inc2-exp2).toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">순이익</div></div>';
     h += '</div>';
 
-    // 수입 입력
+    // 수입/지출 통합 입력
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-    h += '<div style="font-size:12px;font-weight:700;color:#12B76A;margin-bottom:10px;">➕ 수입 추가</div>';
+    h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">➕ 내역 추가</div>';
     h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
-    h += '<input list="inc-category-list" id="inc-name" placeholder="항목명 (수강료, 등록비...)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;">' + '<datalist id="inc-category-list"><option>수강료</option><option>등록비</option><option>기타수입</option></datalist>';
-    h += '<input type="number" id="inc-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<select id="tax-type-select" onchange="updateTaxInputStyle()" style="flex:0 0 72px;padding:8px 4px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:700;text-align:center;">';
+    h += '<option value="income" style="color:#12B76A;">수입</option>';
+    h += '<option value="expense" style="color:#F04438;">지출</option>';
+    h += '</select>';
+    h += '<input list="tax-category-list" id="tax-name" placeholder="항목명" style="flex:2;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<datalist id="tax-category-list"><option>수강료</option><option>등록비</option><option>기타수입</option><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
+    h += '<input type="number" id="tax-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '</div>';
     h += '<div style="display:flex;gap:6px;">';
-    h += '<select id="inc-method" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
-    h += '<button onclick="addTaxRecord(\'income\')" style="padding:8px 14px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
-    h += '</div></div>';
-
-    // 지출 입력
-    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-    h += '<div style="font-size:12px;font-weight:700;color:#F04438;margin-bottom:10px;">➖ 지출 추가</div>';
-    h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
-    h += '<input list="exp-category-list" id="exp-name" placeholder="항목명 (임대료, 인건비...)" style="flex:2;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;">' + '<datalist id="exp-category-list"><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
-    h += '<input type="number" id="exp-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
-    h += '</div>';
-    h += '<div style="display:flex;gap:6px;">';
-    h += '<select id="exp-method" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
-    h += '<button onclick="addTaxRecord(\'expense\')" style="padding:8px 14px;background:#F04438;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
+    h += '<select id="tax-method" style="flex:1;padding:8px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
+    h += '<button id="tax-add-btn" onclick="addTaxRecordUnified()" style="padding:8px 18px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
     h += '</div></div></div></div>';
 
     // 내역 목록
@@ -2154,6 +2147,44 @@ function renderTax(){
   cont.innerHTML = h;
 }
 
+function updateTaxInputStyle(){
+  var sel = document.getElementById('tax-type-select');
+  var btn = document.getElementById('tax-add-btn');
+  var nameEl = document.getElementById('tax-name');
+  if(!sel || !btn) return;
+  var isIncome = sel.value === 'income';
+  btn.style.background = isIncome ? '#12B76A' : '#F04438';
+  sel.style.color = isIncome ? '#12B76A' : '#F04438';
+  sel.style.borderColor = isIncome ? '#12B76A' : '#F04438';
+  nameEl.placeholder = isIncome ? '항목명 (수강료, 등록비...)' : '항목명 (임대료, 인건비...)';
+}
+
+function addTaxRecordUnified(){
+  var typeEl = document.getElementById('tax-type-select');
+  var nameEl = document.getElementById('tax-name');
+  var amountEl = document.getElementById('tax-amount');
+  var methodEl = document.getElementById('tax-method');
+  if(!typeEl || !nameEl || !amountEl) return;
+  var type = typeEl.value;
+  var name = nameEl.value.trim();
+  var amount = parseInt(amountEl.value) || 0;
+  var method = methodEl ? methodEl.value : '';
+  if(!name || !amount){ showToast('⚠ 항목명과 금액을 입력해주세요'); return; }
+  var data = loadTaxData();
+  var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
+  if(!data[key]) data[key]={income:[],expense:[]};
+  var recordName = name + (method ? '('+method+')' : '');
+  if(type === 'income'){
+    data[key].income.push({name:recordName, amount:amount, category:name, date:new Date().toISOString().slice(0,10), taxType:'과세'});
+  } else {
+    data[key].expense.push({name:recordName, amount:amount, category:name, date:new Date().toISOString().slice(0,10)});
+  }
+  saveTaxData(data);
+  nameEl.value = '';
+  amountEl.value = '';
+  renderTax();
+}
+
 function addTaxRecord(type){
   var data = loadTaxData();
   var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
@@ -2231,46 +2262,8 @@ function exportTaxSummary(){
 }
 
 
-var payFeeTab = 'bulk';
 
-function applyBulkFee(courseId){
-  courseId = courseId.replace(/&quot;/g, '');
-  var regfee, monthly;
-  if(courseId === 'all'){
-    regfee = parseInt(document.getElementById('bulk-all-reg').value)||0;
-    monthly = parseInt(document.getElementById('bulk-all-mon').value)||0;
-    if(!monthly && !regfee){ alert('금액을 입력해주세요.'); return; }
-    if(!confirm('전체 '+members.length+'명에게 적용하시겠습니까?')) return;
-    members.forEach(function(m){
-      if(regfee) m.regfee = regfee;
-      if(monthly) m.monthly = monthly;
-    });
-  } else {
-    regfee = parseInt(document.getElementById('bulk-reg-'+courseId).value)||0;
-    monthly = parseInt(document.getElementById('bulk-mon-'+courseId).value)||0;
-    if(!monthly && !regfee){ alert('금액을 입력해주세요.'); return; }
-    var courseMembers = members.filter(function(m){ return m.courseId===courseId; });
-    if(!confirm(courseMembers.length+'명에게 적용하시겠습니까?')) return;
-    courseMembers.forEach(function(m){
-      if(regfee) m.regfee = regfee;
-      if(monthly) m.monthly = monthly;
-    });
-  }
-  saveMembers();
-  alert('✅ 적용 완료!');
-  renderPayment();
-}
 
-function saveIndFee(memberId){
-  var m = members.find(function(x){ return x.id===memberId; });
-  if(!m) return;
-  var reg = document.getElementById('ind-reg-'+memberId);
-  var mon = document.getElementById('ind-mon-'+memberId);
-  if(reg) m.regfee = parseInt(reg.value)||0;
-  if(mon) m.monthly = parseInt(mon.value)||0;
-  saveMembers();
-  showToast('✅ '+m.name+' 저장됐어요!');
-}
 
 
 function renderGuide(){
@@ -3356,21 +3349,35 @@ function syncTaxPaymentMethods(){
 function searchDestAddr(){
   var addr = document.getElementById('dest-addr').value.trim();
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
-  var tmapKey = TMAP_KEY || orgSettings.tmapKey;
-  if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
-  fetch('https://cosroad.vercel.app/api/search-addr?keyword='+encodeURIComponent(addr)+'&appKey='+tmapKey)
+  fetch('https://dapi.kakao.com/v2/local/search/keyword.json?query='+encodeURIComponent(addr)+'&size=1', {
+    headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
+  })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
-    if(pois && pois.length > 0){
-      var poi = pois[0];
-      document.getElementById('dest-lat').value = poi.noorLat;
-      document.getElementById('dest-lon').value = poi.noorLon;
+    if(data.documents && data.documents.length > 0){
+      var place = data.documents[0];
+      document.getElementById('dest-lat').value = place.y;
+      document.getElementById('dest-lon').value = place.x;
       var el = document.getElementById('dest-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name+' ('+poi.noorLat+', '+poi.noorLon+')'; }
+      if(el){ el.style.display='block'; el.textContent='✅ '+place.place_name+' ('+place.address_name+')'; }
       showToast('✅ 주소 검색 완료!');
     } else {
-      showToast('⚠ 주소를 찾을 수 없어요');
+      fetch('https://dapi.kakao.com/v2/local/search/address.json?query='+encodeURIComponent(addr)+'&size=1', {
+        headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data2){
+        if(data2.documents && data2.documents.length > 0){
+          var p = data2.documents[0];
+          document.getElementById('dest-lat').value = p.y;
+          document.getElementById('dest-lon').value = p.x;
+          var el = document.getElementById('dest-addr-result');
+          if(el){ el.style.display='block'; el.textContent='✅ '+p.address_name; }
+          showToast('✅ 주소 검색 완료!');
+        } else {
+          showToast('⚠ 주소를 찾을 수 없어요. 더 자세한 주소를 입력해보세요.');
+        }
+      });
     }
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
@@ -3379,23 +3386,39 @@ function searchDestAddr(){
 function searchMemberAddr(){
   var addr = document.getElementById('m-location').value.trim();
   if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
-  var tmapKey2 = TMAP_KEY || orgSettings.tmapKey;
-  fetch('https://cosroad.vercel.app/api/search-addr?keyword='+encodeURIComponent(addr)+'&appKey='+tmapKey2)
+  fetch('https://dapi.kakao.com/v2/local/search/keyword.json?query='+encodeURIComponent(addr)+'&size=1', {
+    headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
+  })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    var pois = data && data.searchPoiInfo && data.searchPoiInfo.pois && data.searchPoiInfo.pois.poi;
-    if(pois && pois.length > 0){
-      var poi = pois[0];
+    if(data.documents && data.documents.length > 0){
+      var place = data.documents[0];
       var el = document.getElementById('member-addr-result');
-      if(el){ el.style.display='block'; el.textContent='✅ '+poi.name; }
-      document.getElementById('m-location').setAttribute('data-lat', poi.noorLat);
-      document.getElementById('m-location').setAttribute('data-lon', poi.noorLon);
+      if(el){ el.style.display='block'; el.textContent='✅ '+place.place_name+' ('+place.address_name+')'; }
+      document.getElementById('m-location').setAttribute('data-lat', place.y);
+      document.getElementById('m-location').setAttribute('data-lon', place.x);
       showToast('✅ 위치 확인 완료!');
     } else {
-      showToast('⚠ 주소를 찾을 수 없어요');
+      fetch('https://dapi.kakao.com/v2/local/search/address.json?query='+encodeURIComponent(addr)+'&size=1', {
+        headers:{ 'Authorization': 'KakaoAK cc336e7f9819aabe81555c8f7bac53de' }
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data2){
+        if(data2.documents && data2.documents.length > 0){
+          var p = data2.documents[0];
+          var el = document.getElementById('member-addr-result');
+          if(el){ el.style.display='block'; el.textContent='✅ '+p.address_name; }
+          document.getElementById('m-location').setAttribute('data-lat', p.y);
+          document.getElementById('m-location').setAttribute('data-lon', p.x);
+          showToast('✅ 위치 확인 완료!');
+        } else {
+          showToast('⚠ 주소를 찾을 수 없어요. 더 자세한 주소를 입력해보세요.');
+        }
+      });
     }
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
+
 
 </script>
 
