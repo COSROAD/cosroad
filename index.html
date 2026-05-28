@@ -3371,51 +3371,74 @@ function showDestResults(results){
   var el = document.getElementById('dest-addr-result');
   if(!el) return;
   el.style.display = 'block';
-  var html = '<div style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;">';
+  window._destResults = results;
+  var html = '<div id="dest-result-box" style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;">';
   results.forEach(function(r, i){
     var bb = i===results.length-1 ? 'border-bottom:none;' : '';
-    html += '<div class="addr-ri" data-n="'+encodeURIComponent(r.name)+'" data-a="'+encodeURIComponent(r.address)+'" data-x="'+r.x+'" data-y="'+r.y+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
+    html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
       + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
       + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
   });
   html += '</div>';
   el.innerHTML = html;
-  el.querySelectorAll('.addr-ri').forEach(function(item){
-    item.onmouseover = function(){ this.style.background='#F2F4F7'; };
-    item.onmouseout = function(){ this.style.background='white'; };
-    item.onclick = function(){
-      var n=decodeURIComponent(this.dataset.n), a=decodeURIComponent(this.dataset.a);
-      document.getElementById('dest-lat').value = this.dataset.y;
-      document.getElementById('dest-lon').value = this.dataset.x;
-      el.innerHTML = '<span style="color:#12B76A;">✅ '+n+' ('+a+')</span>';
-      showToast('✅ 주소 검색 완료!');
-    };
+  document.getElementById('dest-result-box').addEventListener('click', function(e){
+    var item = e.target.closest('.addr-ri');
+    if(!item) return;
+    var idx = parseInt(item.getAttribute('data-idx'));
+    var r = window._destResults[idx];
+    if(!r) return;
+    document.getElementById('dest-lat').value = r.y;
+    document.getElementById('dest-lon').value = r.x;
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
+    showToast('✅ 주소 검색 완료!');
   });
+}
+
+function searchMemberAddr(){
+  var addr = document.getElementById('m-location').value.trim();
+  if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
+    if(docs.length === 0){
+      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
+      .then(function(r){ return r.json(); })
+      .then(function(data2){
+        var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
+        if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
+        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }));
+      });
+      return;
+    }
+    showAddrResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }));
+  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
 
 function showAddrResults(results){
   var el = document.getElementById('member-addr-result');
   if(!el) return;
   el.style.display = 'block';
-  var html = '<div style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;">';
+  window._memberResults = results;
+  var html = '<div id="member-result-box" style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;max-height:180px;overflow-y:auto;">';
   results.forEach(function(r, i){
     var bb = i===results.length-1 ? 'border-bottom:none;' : '';
-    html += '<div class="addr-ri" data-n="'+encodeURIComponent(r.name)+'" data-a="'+encodeURIComponent(r.address)+'" data-x="'+r.x+'" data-y="'+r.y+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
+    html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
       + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
       + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
   });
   html += '</div>';
   el.innerHTML = html;
-  el.querySelectorAll('.addr-ri').forEach(function(item){
-    item.onmouseover = function(){ this.style.background='#F2F4F7'; };
-    item.onmouseout = function(){ this.style.background='white'; };
-    item.onclick = function(){
-      var n=decodeURIComponent(this.dataset.n), a=decodeURIComponent(this.dataset.a);
-      var loc=document.getElementById('m-location');
-      if(loc){ loc.value=n; loc.setAttribute('data-lat',this.dataset.y); loc.setAttribute('data-lon',this.dataset.x); }
-      el.innerHTML = '<span style="color:#12B76A;">✅ '+n+' ('+a+')</span>';
-      showToast('✅ 위치 확인 완료!');
-    };
+  document.getElementById('member-result-box').addEventListener('click', function(e){
+    var item = e.target.closest('.addr-ri');
+    if(!item) return;
+    var idx = parseInt(item.getAttribute('data-idx'));
+    var r = window._memberResults[idx];
+    if(!r) return;
+    var loc = document.getElementById('m-location');
+    if(loc){ loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x); }
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
+    showToast('✅ 위치 확인 완료!');
   });
 }
 
