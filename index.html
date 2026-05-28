@@ -1212,8 +1212,11 @@ function renderSettings(){
 }
 
 function saveOrgInfo(){
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon').value.trim(),destName:document.getElementById('dest-name').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value)};
-  saveOrgSettings(orgSettings);document.getElementById('org-name-display').textContent=orgSettings.name;document.getElementById('org-icon').textContent=orgSettings.icon;alert('✅ 저장되었습니다.');
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon').value.trim(),destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value)};
+  saveOrgSettings(orgSettings);
+  document.getElementById('org-name-display').textContent=orgSettings.name;
+  document.getElementById('org-icon').textContent=orgSettings.icon;
+  showToast('✅ 기관 정보 저장됐어요!');
 }
 function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
 function saveApiKeyFromSettings(){TMAP_KEY=document.getElementById('tmap-key-input').value.trim();localStorage.setItem('tmapKey',TMAP_KEY);alert('✅ 저장되었습니다.');}
