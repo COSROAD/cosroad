@@ -3358,7 +3358,7 @@ function searchDestAddr(){
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
   var tmapKey = TMAP_KEY || orgSettings.tmapKey;
   if(!tmapKey){ showToast('⚠ T맵 API 키를 먼저 설정해주세요'); return; }
-  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&accept-language=ko', {
+  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr+' South Korea')+'&format=json&limit=1&accept-language=ko', {
     headers:{ 'Accept': 'application/json' }
   })
   .then(function(r){ return r.json(); })
@@ -3379,7 +3379,7 @@ function searchDestAddr(){
 function searchMemberAddr(){
   var addr = document.getElementById('m-location').value.trim();
   if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
-  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&accept-language=ko', {
+  fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr+' South Korea')+'&format=json&limit=1&accept-language=ko', {
     headers:{ 'Accept': 'application/json' }
   })
   .then(function(r){ return r.json(); })
