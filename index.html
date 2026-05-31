@@ -128,6 +128,16 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .admin-nav::-webkit-scrollbar{display:none;}
 .admin-nav-btn{flex-shrink:0;padding:11px 14px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--gray-600);border-bottom:2px solid transparent;}
 .admin-nav-btn.active{color:var(--admin);border-bottom-color:var(--admin);font-weight:700;}
+.admin-nav-wrap{display:flex;align-items:stretch;background:white;border-bottom:1px solid var(--gray-200);flex-shrink:0;}
+.admin-nav-wrap .admin-nav{flex:1;border-bottom:none;}
+.admin-nav-mode-btn{flex-shrink:0;width:42px;border:none;border-left:1px solid var(--gray-200);background:var(--gray-100);color:var(--gray-600);font-size:16px;cursor:pointer;}
+/* 아이콘 그리드 모드 */
+.admin-nav-wrap.grid-mode{flex-direction:column;}
+.admin-nav-wrap.grid-mode .admin-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px;overflow-x:visible;}
+.admin-nav-wrap.grid-mode .admin-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 4px;border:1px solid var(--gray-200);border-radius:10px;text-align:center;line-height:1.25;border-bottom:1px solid var(--gray-200);}
+.admin-nav-wrap.grid-mode .admin-nav-btn.active{border-color:var(--admin);background:rgba(124,58,237,0.06);border-bottom-color:var(--admin);}
+.admin-nav-wrap.grid-mode .admin-nav-btn .nav-ico{font-size:18px;}
+.admin-nav-wrap.grid-mode .admin-nav-mode-btn{width:100%;border-left:none;border-top:1px solid var(--gray-200);padding:8px;}
 
 /* 통계 */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;}
@@ -336,17 +346,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   </div>
 
   <div class="admin-screen" id="admin-screen">
-    <div class="admin-nav" id="admin-nav">
-      <button class="admin-nav-btn active" onclick="switchAdminTab('dashboard')">📊 현황</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('members')">👥 회원관리</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('attendance')">📋 출결관리</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('shop')">🛒 파트너</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('cars')">🚐 차량관리</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('schedule')">📅 스케줄</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('payment')">💰 수납관리</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('tax')">📊 세무관리</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('guide')">📖 이용안내</button>
-      <button class="admin-nav-btn" onclick="switchAdminTab('settings')">⚙ 설정</button>
+    <div class="admin-nav-wrap" id="admin-nav-wrap">
+      <div class="admin-nav" id="admin-nav"></div>
+      <button class="admin-nav-mode-btn" id="admin-nav-mode-btn" onclick="toggleAdminNavMode()" title="보기 전환">⊞</button>
     </div>
     <div id="admin-content" style="flex:1;overflow-y:auto;padding-bottom:80px;"></div>
   </div>
@@ -576,6 +578,7 @@ function switchTab(tab){
   } else if(tab==='admin'){
     document.getElementById('admin-screen').classList.add('show');
     document.getElementById('tab-admin')?.classList.add('admin-active');
+    renderAdminNav();
     renderAdminTab(currentAdminTab);
   }
 }
@@ -780,11 +783,48 @@ function openNaverMap(){
 }
 
 // ── 관리자 탭 ──
+var ADMIN_TABS=[
+  {id:'dashboard',ico:'📊',label:'현황'},
+  {id:'members',ico:'👥',label:'회원관리'},
+  {id:'attendance',ico:'📋',label:'출결관리'},
+  {id:'shop',ico:'🛒',label:'파트너'},
+  {id:'cars',ico:'🚐',label:'차량관리'},
+  {id:'schedule',ico:'📅',label:'스케줄'},
+  {id:'payment',ico:'💰',label:'수납관리'},
+  {id:'tax',ico:'📊',label:'세무관리'},
+  {id:'guide',ico:'📖',label:'이용안내'},
+  {id:'settings',ico:'⚙',label:'설정'}
+];
+
+function getAdminNavMode(){ return localStorage.getItem('tkd_nav_mode')||'grid'; }
+
+function renderAdminNav(){
+  var nav=document.getElementById('admin-nav');
+  if(!nav) return;
+  var mode=getAdminNavMode();
+  var wrap=document.getElementById('admin-nav-wrap');
+  if(wrap) wrap.classList.toggle('grid-mode', mode==='grid');
+  var btn=document.getElementById('admin-nav-mode-btn');
+  if(btn) btn.textContent = mode==='grid' ? '⚏' : '⊞';
+  nav.innerHTML = ADMIN_TABS.map(function(t){
+    var active = t.id===currentAdminTab ? ' active' : '';
+    if(mode==='grid'){
+      return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'
+        +'<span class="nav-ico">'+t.ico+'</span><span>'+t.label+'</span></button>';
+    }
+    return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'+t.ico+' '+t.label+'</button>';
+  }).join('');
+}
+
+function toggleAdminNavMode(){
+  var next = getAdminNavMode()==='grid' ? 'scroll' : 'grid';
+  localStorage.setItem('tkd_nav_mode', next);
+  renderAdminNav();
+}
+
 function switchAdminTab(tab){
   currentAdminTab=tab;
-  document.querySelectorAll('.admin-nav-btn').forEach((b,i)=>{
-    var tabList=['dashboard','members','attendance','excel','cars','schedule','payment','tax','guide','shop','settings']; if(b) b.classList.toggle('active',tabList[i]===tab);
-  });
+  renderAdminNav();
   renderAdminTab(tab);
 }
 
