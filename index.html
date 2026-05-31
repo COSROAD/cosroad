@@ -2068,7 +2068,7 @@ function renderTax(){
     var exp2 = md2.expense.reduce(function(s,r){return s+r.amount;},0);
 
     // 요약
-    h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+    h += '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:8px;margin-bottom:12px;">';
     h += '<div style="background:#ECFDF3;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#12B76A;">'+inc2.toLocaleString()+'</div><div style="font-size:10px;color:#12B76A;">수입</div></div>';
     h += '<div style="background:#FEF3F2;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#F04438;">'+exp2.toLocaleString()+'</div><div style="font-size:10px;color:#F04438;">지출</div></div>';
     h += '<div style="background:#F3EEFF;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#7C3AED;">'+(inc2-exp2).toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">순이익</div></div>';
@@ -2077,14 +2077,14 @@ function renderTax(){
     // 수입/지출 통합 입력
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
     h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">➕ 내역 추가</div>';
-    h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">';
     h += '<select id="tax-type-select" onchange="updateTaxInputStyle()" style="flex:0 0 72px;padding:8px 4px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:700;text-align:center;">';
     h += '<option value="income" style="color:#12B76A;">수입</option>';
     h += '<option value="expense" style="color:#F04438;">지출</option>';
     h += '</select>';
-    h += '<input list="tax-category-list" id="tax-name" placeholder="항목명" style="flex:2;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input list="tax-category-list" id="tax-name" placeholder="항목명" style="flex:1 1 120px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '<datalist id="tax-category-list"><option>수강료</option><option>등록비</option><option>기타수입</option><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
-    h += '<input type="number" id="tax-amount" placeholder="금액" style="flex:1;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input type="number" id="tax-amount" placeholder="금액" style="flex:1 1 90px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '</div>';
     h += '<div style="display:flex;gap:6px;">';
     h += '<select id="tax-method" style="flex:1;padding:8px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
