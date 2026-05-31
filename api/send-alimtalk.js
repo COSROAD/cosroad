@@ -3,19 +3,19 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://cosroad.com');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apikey, userid, senderkey, tpl_code, receiver, name, message, button_url } = req.body;
+  // sender(발신번호) 추가 수신
+  const { apikey, userid, senderkey, tpl_code, sender, receiver, name, message, button_url } = req.body;
 
-  if (!apikey || !userid || !senderkey || !tpl_code || !receiver) {
-    return res.status(400).json({ error: '필수 파라미터 누락' });
+  // sender도 필수로 검증
+  if (!apikey || !userid || !senderkey || !tpl_code || !sender || !receiver) {
+    return res.status(400).json({ error: '필수 파라미터 누락 (sender 발신번호 포함 확인)' });
   }
 
   try {
@@ -24,20 +24,19 @@ export default async function handler(req, res) {
     formData.append('userid', userid);
     formData.append('senderkey', senderkey);
     formData.append('tpl_code', tpl_code);
-    formData.append('sender', receiver);
+    formData.append('sender', sender);          // ✅ 등록된 발신번호 (수신자 번호 아님)
     formData.append('receiver_1', receiver);
     formData.append('recvname_1', name || '');
     formData.append('subject_1', '출석 알림');
     formData.append('message_1', message || '');
-
     if (button_url) {
       formData.append('button_1', JSON.stringify({
         button: [{
-          name: '패밀리링크 열기',
-          linkType: 'WL',
-          linkTypeName: '웹링크',
-          linkMo: button_url,
-          linkPc: button_url
+          name: '패밀리링크 열기',          // 템플릿에 등록한 버튼명과 정확히 동일해야 함
+          linkType: 'AL',                    // 앱링크
+          linkTypeName: '앱링크',
+          linkAnd: button_url,               // 안드로이드 링크
+          linkIos: button_url                // 아이폰 링크 (동일 주소)
         }]
       }));
     }
@@ -47,10 +46,8 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString()
     });
-
     const data = await response.json();
     return res.status(200).json(data);
-
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
