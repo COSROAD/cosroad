@@ -2714,7 +2714,7 @@ function sendKakaoAlimtalk(member, timeStr){
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
-  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n━━━━━━━━━\n✅ 구글 패밀리링크 서비스 \n▼▼▼▼\n자녀 스마트폰의 실시간 위치를\n언제든지 확인할 수 있는\n구글의 무료 자녀 보호 서비스예요.\n📲 설치 후 자녀 계정과 연동하면\n집 출발부터 학원 도착까지\n동선을 실시간으로 파악할 수 있어요!';
+  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n✅ 학원에 안전하게 도착했습니다.\n━━━━━━━━━\n안전한 귀가까지 함께하겠습니다.';
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
@@ -2727,8 +2727,7 @@ function sendKakaoAlimtalk(member, timeStr){
         sender: ALIGO_SENDER,
         receiver: phone,
         name: member.name,
-        message: msg,
-        button_url: 'https://play.google.com/store/search?q=%ED%8C%A8%EB%B0%80%EB%A6%AC%EB%A7%81%ED%81%AC&c=apps'
+        message: msg
       })
     }).then(function(res){ return res.json(); })
     .then(function(data){
