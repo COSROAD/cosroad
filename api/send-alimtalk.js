@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   // sender(발신번호) 추가 수신
-  const { apikey, userid, senderkey, tpl_code, sender, receiver, name, message, button_url } = req.body;
+  const { apikey, userid, senderkey, tpl_code, sender, receiver, name, message } = req.body;
 
   // sender도 필수로 검증
   if (!apikey || !userid || !senderkey || !tpl_code || !sender || !receiver) {
@@ -29,17 +29,7 @@ export default async function handler(req, res) {
     formData.append('recvname_1', name || '');
     formData.append('subject_1', '출석 알림');
     formData.append('message_1', message || '');
-    if (button_url) {
-      formData.append('button_1', JSON.stringify({
-        button: [{
-          name: '패밀리링크 열기',          // 템플릿에 등록한 버튼명과 정확히 동일해야 함
-          linkType: 'AL',                    // 앱링크
-          linkTypeName: '앱링크',
-          linkAnd: button_url,               // 안드로이드 링크
-          linkIos: button_url                // 아이폰 링크 (동일 주소)
-        }]
-      }));
-    }
+    // 출석 알림 템플릿은 버튼 없음. (향후 버튼형 템플릿 승인 시 여기에 button_1 추가)
 
     const response = await fetch('https://kakaoapi.aligo.in/akv10/alimtalk/send/', {
       method: 'POST',
