@@ -495,6 +495,13 @@ function loadMembers(){
 }
 function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);}
 let members=loadMembers();
+
+// ── 알림장 ──
+function loadNotices(){
+  try{ var d=localStorage.getItem('tkd_notices'); return d?JSON.parse(d):[]; }catch(e){ return []; }
+}
+function saveNotices(){ localStorage.setItem('tkd_notices',JSON.stringify(notices)); saveToFirebase('notices',notices); }
+let notices=loadNotices();
 let nextId=Math.max(...members.map(m=>m.id),0)+1;
 
 let currentDay=DAYS[new Date().getDay()-1]||'월';
@@ -787,6 +794,7 @@ var ADMIN_TABS=[
   {id:'dashboard',ico:'📊',label:'현황'},
   {id:'members',ico:'👥',label:'회원관리'},
   {id:'attendance',ico:'📋',label:'출결관리'},
+  {id:'notice',ico:'📝',label:'알림장'},
   {id:'shop',ico:'🛒',label:'파트너'},
   {id:'cars',ico:'🚐',label:'차량관리'},
   {id:'schedule',ico:'📅',label:'스케줄'},
@@ -833,6 +841,7 @@ function renderAdminTab(tab){
   if(tab==='dashboard')c.innerHTML=renderDashboard();
   else if(tab==='members')c.innerHTML=renderAdminMembers();
   else if(tab==='attendance'){renderAttendance();return;}
+  else if(tab==='notice')c.innerHTML=renderNotice();
   else if(tab==='excel')c.innerHTML=renderExcel();
   else if(tab==='cars'){renderCars();return;}
   else if(tab==='schedule')c.innerHTML=renderSchedule();
@@ -842,6 +851,190 @@ function renderAdminTab(tab){
   else if(tab==='shop'){renderShop();return;}
   else if(tab==='settings'){c.innerHTML=renderSettings();fillAligoInputs();}
 }
+
+// ── 알림장 기능 ──
+var noticeTarget = 'all'; // 'all' 또는 회원 id
+var noticeEditId = null; // 수정 중인 알림장 id (null이면 새 작성)
+
+function renderNotice(){
+  var h = '';
+  var editing = noticeEditId !== null;
+  var editN = editing ? notices.find(function(x){ return x.id === noticeEditId; }) : null;
+  if(editing && !editN){ noticeEditId = null; editing = false; }
+
+  // 작성 영역
+  h += '<div style="padding:14px;">';
+  h += '<div style="background:white;border-radius:12px;border:1px solid '+(editing?'#FEC84B':'#EAECF0')+';padding:14px;margin-bottom:12px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">'+(editing?'✏️ 알림장 수정':'📝 알림장 작성')+'</div>';
+
+  // 대상 선택
+  h += '<div style="font-size:11px;color:#667085;margin-bottom:4px;">받는 대상</div>';
+  h += '<select id="notice-target" style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-bottom:8px;">';
+  h += '<option value="all"'+(editing && editN.target==='all'?' selected':'')+'>📢 전체 회원</option>';
+  var sorted = members.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
+  for(var i=0;i<sorted.length;i++){
+    var selAttr = (editing && String(editN.target)===String(sorted[i].id)) ? ' selected' : '';
+    h += '<option value="'+sorted[i].id+'"'+selAttr+'>'+sorted[i].name+'</option>';
+  }
+  h += '</select>';
+
+  // 내용 입력
+  var editVal = editing ? escapeNoticeHtml(editN.content) : '';
+  h += '<textarea id="notice-content" placeholder="알림장 내용을 입력하세요" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit;">'+editVal+'</textarea>';
+
+  // 버튼
+  h += '<div style="margin-top:8px;">';
+  if(editing){
+    h += '<div style="display:flex;gap:6px;">';
+    h += '<button onclick="cancelNoticeEdit()" style="flex:1;padding:11px;background:#F2F4F7;color:#344054;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>';
+    h += '<button onclick="saveNoticeOnly()" style="flex:2;padding:11px;background:#F79009;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✏️ 수정 저장</button>';
+    h += '</div>';
+  } else {
+    h += '<button onclick="saveNoticeOnly()" style="width:100%;padding:11px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">💾 알림장 기록 저장</button>';
+  }
+  h += '</div>';
+  if(!editing){
+    h += '<div style="font-size:11px;color:#98A2B3;margin-top:6px;text-align:center;">저장 후 아래 목록에서 언제든 문자로 보낼 수 있어요</div>';
+  }
+  h += '</div>';
+
+  // 기록 목록
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:8px;">📋 알림장 기록</div>';
+  if(notices.length === 0){
+    h += '<div style="text-align:center;color:#98A2B3;font-size:13px;padding:30px 0;">아직 작성된 알림장이 없습니다.</div>';
+  } else {
+    var sortedN = notices.slice().sort(function(a,b){ return b.ts - a.ts; });
+    for(var j=0;j<sortedN.length;j++){
+      var n = sortedN[j];
+      var d = new Date(n.ts);
+      var dateStr = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      var targetLabel = n.target==='all' ? '📢 전체' : '👤 '+(n.targetName||'회원');
+      var sentBadge = n.sent ? '<span style="font-size:10px;color:#12B76A;background:#ECFDF3;padding:2px 6px;border-radius:4px;">발송됨</span>' : '<span style="font-size:10px;color:#667085;background:#F2F4F7;padding:2px 6px;border-radius:4px;">기록</span>';
+      h += '<div style="background:white;border-radius:10px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+      h += '<div style="display:flex;gap:6px;align-items:center;"><span style="font-size:12px;font-weight:700;color:#344054;">'+targetLabel+'</span>'+sentBadge+'</div>';
+      h += '<div style="display:flex;gap:6px;">';
+      h += '<button onclick="sendNoticeSms('+n.id+')" style="font-size:11px;color:#12B76A;background:#ECFDF3;border:1px solid #A6F4C5;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;">📩 '+(n.sent?'다시 보내기':'문자 보내기')+'</button>';
+      h += '<button onclick="startNoticeEdit('+n.id+')" style="font-size:11px;color:#475467;background:none;border:1px solid #EAECF0;border-radius:6px;padding:3px 8px;cursor:pointer;">수정</button>';
+      h += '<button onclick="deleteNotice('+n.id+')" style="font-size:11px;color:#98A2B3;background:none;border:1px solid #EAECF0;border-radius:6px;padding:3px 8px;cursor:pointer;">삭제</button>';
+      h += '</div>';
+      h += '</div>';
+      h += '<div style="font-size:13px;color:#1D2939;white-space:pre-wrap;line-height:1.5;margin-bottom:6px;">'+escapeNoticeHtml(n.content)+'</div>';
+      h += '<div style="font-size:11px;color:#98A2B3;">'+dateStr+'</div>';
+      h += '</div>';
+    }
+  }
+  h += '</div>';
+  return h;
+}
+
+function escapeNoticeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function collectNoticeInput(){
+  var target = document.getElementById('notice-target').value;
+  var content = document.getElementById('notice-content').value.trim();
+  if(!content){ alert('알림장 내용을 입력해주세요.'); return null; }
+  var targetName = '';
+  if(target !== 'all'){
+    var m = members.find(function(x){ return String(x.id)===String(target); });
+    targetName = m ? m.name : '';
+  }
+  return { target: target, targetName: targetName, content: content };
+}
+
+function saveNoticeOnly(){
+  var input = collectNoticeInput();
+  if(!input) return;
+  if(noticeEditId !== null){
+    // 수정 저장
+    var n = notices.find(function(x){ return x.id === noticeEditId; });
+    if(n){
+      n.target = input.target;
+      n.targetName = input.targetName;
+      n.content = input.content;
+      n.editedTs = Date.now();
+    }
+    noticeEditId = null;
+  } else {
+    // 새 작성
+    notices.push({
+      id: Date.now(),
+      ts: Date.now(),
+      target: input.target,
+      targetName: input.targetName,
+      content: input.content,
+      sent: false
+    });
+  }
+  saveNotices();
+  document.getElementById('admin-content').innerHTML = renderNotice();
+}
+
+function startNoticeEdit(id){
+  noticeEditId = id;
+  document.getElementById('admin-content').innerHTML = renderNotice();
+  var ta = document.getElementById('notice-content');
+  if(ta){ ta.focus(); }
+  var sc = document.getElementById('admin-content');
+  if(sc && sc.scrollTo){ sc.scrollTo({top:0,behavior:'smooth'}); }
+}
+
+function cancelNoticeEdit(){
+  noticeEditId = null;
+  document.getElementById('admin-content').innerHTML = renderNotice();
+}
+
+function sendNoticeSms(id){
+  var n = notices.find(function(x){ return x.id === id; });
+  if(!n) return;
+
+  // 대상 회원 목록
+  var targets = [];
+  if(n.target === 'all'){
+    targets = members.slice();
+  } else {
+    var m = members.find(function(x){ return String(x.id)===String(n.target); });
+    if(m) targets = [m];
+  }
+
+  // 수신번호 수집
+  var phones = [];
+  targets.forEach(function(mm){
+    if(mm.phone) phones.push(mm.phone);
+    if(mm.phone2) phones.push(mm.phone2);
+  });
+
+  if(phones.length === 0){
+    alert('발송할 연락처가 없습니다.');
+    return;
+  }
+
+  // 문자 본문
+  var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
+  var smsBody = '['+orgName+'] 알림장\n'+n.content;
+
+  // 발송 상태 갱신
+  n.sent = true;
+  n.sentTs = Date.now();
+  saveNotices();
+
+  // 문자앱 열기 (다수 수신자는 콤마로 연결)
+  var recipients = phones.join(',');
+  window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
+
+  document.getElementById('admin-content').innerHTML = renderNotice();
+}
+
+function deleteNotice(id){
+  showConfirmModal(function(){
+    notices = notices.filter(function(n){ return n.id !== id; });
+    saveNotices();
+    document.getElementById('admin-content').innerHTML = renderNotice();
+  }, '이 알림장을 삭제할까요?', '삭제');
+}
+
 
 function renderDashboard(){
   const total=members.length;
@@ -3235,6 +3428,7 @@ async function syncFromFirebase(){
   var fbPayments = await loadFromFirebase('payments');
   var fbTax = await loadFromFirebase('tax');
   var fbAtt = await loadFromFirebase('attendance');
+  var fbNotices = await loadFromFirebase('notices');
 
   if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
@@ -3243,6 +3437,7 @@ async function syncFromFirebase(){
   if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
+  if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
   console.log('✅ Firebase 동기화 완료');
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
@@ -3254,7 +3449,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -3266,6 +3461,7 @@ function startFirebaseListeners(){
       else if(key==='payments'){ localStorage.setItem('tkd_payments',JSON.stringify(data)); }
       else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
       else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }
+      else if(key==='notices'){ notices=data; localStorage.setItem('tkd_notices',JSON.stringify(data)); }
       renderByTab();
     });
   });
