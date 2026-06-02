@@ -812,8 +812,8 @@ function openNaverMap(){
 // ── 관리자 탭 ──
 var ADMIN_TABS=[
   {id:'dashboard',ico:'📊',label:'현황'},
-  {id:'members',ico:'👥',label:'회원관리'},
-  {id:'attendance',ico:'📋',label:'출결관리'},
+  {id:'members',ico:'👥',label:'회원관리',term:'회원',suffix:'관리'},
+  {id:'attendance',ico:'📋',label:'출결관리',term:'출결',suffix:'관리'},
   {id:'notice',ico:'📝',label:'알림장'},
   {id:'shop',ico:'🛒',label:'파트너'},
   {id:'cars',ico:'🚐',label:'차량관리'},
@@ -823,6 +823,12 @@ var ADMIN_TABS=[
   {id:'guide',ico:'📖',label:'이용안내'},
   {id:'settings',ico:'⚙',label:'설정'}
 ];
+
+// 탭 라벨을 현재 업종 용어로 변환
+function adminTabLabel(t){
+  if(t.term) return T(t.term)+(t.suffix||'');
+  return t.label;
+}
 
 function getAdminNavMode(){ return localStorage.getItem('tkd_nav_mode')||'grid'; }
 var navGridCollapsed = false; // 아이콘 모드에서 탭 선택 후 그리드 접힘 상태(임시)
@@ -846,11 +852,12 @@ function renderAdminNav(){
   }
   nav.innerHTML = ADMIN_TABS.map(function(t){
     var active = t.id===currentAdminTab ? ' active' : '';
+    var lbl = adminTabLabel(t);
     if(showGrid){
       return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'
-        +'<span class="nav-ico">'+t.ico+'</span><span>'+t.label+'</span></button>';
+        +'<span class="nav-ico">'+t.ico+'</span><span>'+lbl+'</span></button>';
     }
-    return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'+t.ico+' '+t.label+'</button>';
+    return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'+t.ico+' '+lbl+'</button>';
   }).join('');
 }
 
@@ -1743,6 +1750,7 @@ function saveOrgInfo(){
   document.getElementById('org-name-display').textContent=orgSettings.name;
   document.getElementById('org-icon').textContent=orgSettings.icon;document.getElementById('org-icon-input')&&(document.getElementById('org-icon-input').value=orgSettings.icon);
   showToast('✅ 기관 정보 저장됐어요! (업종: '+(BIZ_LABELS[orgSettings.bizType]||'학원')+')');
+  if(typeof renderAdminNav==='function') renderAdminNav();
 }
 function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
 function saveApiKeyFromSettings(){TMAP_KEY=document.getElementById('tmap-key-input').value.trim();localStorage.setItem('tmapKey',TMAP_KEY);alert('✅ 저장되었습니다.');}
