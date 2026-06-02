@@ -585,6 +585,7 @@ function switchTab(tab){
   } else if(tab==='admin'){
     document.getElementById('admin-screen').classList.add('show');
     document.getElementById('tab-admin')?.classList.add('admin-active');
+    navGridCollapsed = false;
     renderAdminNav();
     renderAdminTab(currentAdminTab);
   }
@@ -805,18 +806,28 @@ var ADMIN_TABS=[
 ];
 
 function getAdminNavMode(){ return localStorage.getItem('tkd_nav_mode')||'grid'; }
+var navGridCollapsed = false; // 아이콘 모드에서 탭 선택 후 그리드 접힘 상태(임시)
 
 function renderAdminNav(){
   var nav=document.getElementById('admin-nav');
   if(!nav) return;
   var mode=getAdminNavMode();
+  // 아이콘 모드인데 접힌 상태면 시각적으로 가로 한 줄(scroll)처럼 표시
+  var showGrid = (mode==='grid') && !navGridCollapsed;
   var wrap=document.getElementById('admin-nav-wrap');
-  if(wrap) wrap.classList.toggle('grid-mode', mode==='grid');
+  if(wrap) wrap.classList.toggle('grid-mode', showGrid);
   var btn=document.getElementById('admin-nav-mode-btn');
-  if(btn) btn.textContent = mode==='grid' ? '⚏' : '⊞';
+  if(btn){
+    if(mode==='grid'){
+      // 아이콘 모드: 접혀있으면 펼치기(⊞), 펼쳐있으면 접기(⚏)
+      btn.textContent = showGrid ? '⚏' : '⊞';
+    } else {
+      btn.textContent = '⊞';
+    }
+  }
   nav.innerHTML = ADMIN_TABS.map(function(t){
     var active = t.id===currentAdminTab ? ' active' : '';
-    if(mode==='grid'){
+    if(showGrid){
       return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'
         +'<span class="nav-ico">'+t.ico+'</span><span>'+t.label+'</span></button>';
     }
@@ -825,15 +836,29 @@ function renderAdminNav(){
 }
 
 function toggleAdminNavMode(){
-  var next = getAdminNavMode()==='grid' ? 'scroll' : 'grid';
-  localStorage.setItem('tkd_nav_mode', next);
+  var mode = getAdminNavMode();
+  if(mode==='grid'){
+    // 아이콘 모드에서 토글 버튼 = 그리드 펼침/접힘
+    navGridCollapsed = !navGridCollapsed;
+  } else {
+    // 가로 스크롤 모드 → 아이콘 모드로 전환(펼친 상태)
+    localStorage.setItem('tkd_nav_mode','grid');
+    navGridCollapsed = false;
+  }
   renderAdminNav();
 }
 
 function switchAdminTab(tab){
   currentAdminTab=tab;
+  // 알림장 탭 진입 시 작성 임시 상태 초기화
+  if(tab==='notice'){ noticeEditId=null; noticeImages=[]; }
+  // 아이콘 모드면 탭 선택 시 그리드를 접어 내용이 가려지지 않게
+  if(getAdminNavMode()==='grid'){ navGridCollapsed = true; }
   renderAdminNav();
   renderAdminTab(tab);
+  // 진입 시 내용 맨 위부터 보이도록 스크롤 초기화
+  var sc=document.getElementById('admin-content');
+  if(sc) sc.scrollTop = 0;
 }
 
 function renderAdminTab(tab){
@@ -855,6 +880,8 @@ function renderAdminTab(tab){
 // ── 알림장 기능 ──
 var noticeTarget = 'all'; // 'all' 또는 회원 id
 var noticeEditId = null; // 수정 중인 알림장 id (null이면 새 작성)
+var noticeImages = []; // 작성/수정 중 첨부 이미지(압축된 dataURL) 임시 보관
+var NOTICE_IMAGE_MAX = 2; // 최대 첨부 장수
 
 function renderNotice(){
   var h = '';
@@ -867,20 +894,58 @@ function renderNotice(){
   h += '<div style="background:white;border-radius:12px;border:1px solid '+(editing?'#FEC84B':'#EAECF0')+';padding:14px;margin-bottom:12px;">';
   h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">'+(editing?'✏️ 알림장 수정':'📝 알림장 작성')+'</div>';
 
-  // 대상 선택
-  h += '<div style="font-size:11px;color:#667085;margin-bottom:4px;">받는 대상</div>';
-  h += '<select id="notice-target" style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-bottom:8px;">';
-  h += '<option value="all"'+(editing && editN.target==='all'?' selected':'')+'>📢 전체 회원</option>';
+  // 대상 선택 (체크박스 목록)
+  var selectedSet = {};
+  if(editing){
+    if(editN.targets && editN.targets.length){
+      editN.targets.forEach(function(id){ selectedSet[String(id)] = true; });
+    } else if(editN.target && editN.target !== 'all'){
+      selectedSet[String(editN.target)] = true;
+    } else if(editN.target === 'all'){
+      members.forEach(function(m){ selectedSet[String(m.id)] = true; });
+    }
+  }
+  var selCount = Object.keys(selectedSet).length;
+  var allChecked = members.length>0 && selCount===members.length;
+
+  h += '<div style="font-size:11px;color:#667085;margin-bottom:4px;">받는 대상 <span id="notice-sel-count" style="color:#12B76A;font-weight:700;">'+(selCount>0?'('+selCount+'명 선택)':'')+'</span></div>';
+  // 회원 선택 토글 버튼 (선택된 사람이 있으면 처음부터 펼침)
+  var listOpen = selCount>0;
+  h += '<button type="button" id="notice-list-toggle" onclick="toggleNoticeMemberList()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:white;border:1.5px solid #EAECF0;border-radius:8px;margin-bottom:6px;font-size:13px;font-weight:700;color:#344054;cursor:pointer;">';
+  h += '<span>👥 회원 선택</span><span id="notice-list-arrow">'+(listOpen?'▲':'▼')+'</span></button>';
+  // 펼쳐지는 패널 (검색창 + 전체선택 + 회원목록)
+  h += '<div id="notice-select-panel" style="display:'+(listOpen?'block':'none')+';margin-bottom:8px;">';
+  // 검색창
+  h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+  h += '<input type="text" id="notice-search" placeholder="🔍 이름 검색 (쉼표로 여러 명: 강하은,문소율)" oninput="onNoticeSearchInput()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();applyNoticeNameList();}" style="flex:1;min-width:0;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;"/>';
+  h += '<button onclick="applyNoticeNameList()" style="flex-shrink:0;padding:8px 14px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">적용</button>';
+  h += '</div>';
+  // 전체 선택
+  h += '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F9FAFB;border:1.5px solid #EAECF0;border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px;font-weight:700;color:#344054;">';
+  h += '<input type="checkbox" id="notice-check-all" onchange="toggleNoticeAll(this.checked)"'+(allChecked?' checked':'')+' style="width:16px;height:16px;"/>📢 전체 선택</label>';
+  // 회원 목록
+  h += '<div id="notice-member-list" style="max-height:180px;overflow-y:auto;border:1.5px solid #EAECF0;border-radius:8px;">';
   var sorted = members.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
   for(var i=0;i<sorted.length;i++){
-    var selAttr = (editing && String(editN.target)===String(sorted[i].id)) ? ' selected' : '';
-    h += '<option value="'+sorted[i].id+'"'+selAttr+'>'+sorted[i].name+'</option>';
+    var mm = sorted[i];
+    var ck = selectedSet[String(mm.id)] ? ' checked' : '';
+    h += '<label class="notice-member-row" data-name="'+escapeNoticeHtml(mm.name).toLowerCase()+'" style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid #F2F4F7;cursor:pointer;font-size:13px;color:#344054;">';
+    h += '<input type="checkbox" class="notice-member-check" value="'+mm.id+'" onchange="updateNoticeSelCount()"'+ck+' style="width:16px;height:16px;"/>'+escapeNoticeHtml(mm.name)+'</label>';
   }
-  h += '</select>';
+  h += '</div>';
+  h += '</div>';
+
 
   // 내용 입력
   var editVal = editing ? escapeNoticeHtml(editN.content) : '';
   h += '<textarea id="notice-content" placeholder="알림장 내용을 입력하세요" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit;">'+editVal+'</textarea>';
+
+  // 이미지 첨부
+  h += '<div style="margin-top:8px;">';
+  h += '<input type="file" id="notice-image-input" accept="image/*" multiple style="display:none;" onchange="handleNoticeImages(event)"/>';
+  h += '<button onclick="document.getElementById(\'notice-image-input\').click()" style="width:100%;padding:9px;background:#F2F4F7;color:#475467;border:1.5px dashed #D0D5DD;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📷 사진 첨부 (최대 2장)</button>';
+  h += '<div id="notice-image-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>';
+  h += '</div>';
 
   // 버튼
   h += '<div style="margin-top:8px;">';
@@ -908,7 +973,11 @@ function renderNotice(){
       var n = sortedN[j];
       var d = new Date(n.ts);
       var dateStr = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-      var targetLabel = n.target==='all' ? '📢 전체' : '👤 '+(n.targetName||'회원');
+      var targetLabel;
+      if(n.targetLabel){ targetLabel = (n.targetLabel==='전체') ? '📢 전체' : '👥 '+n.targetLabel; }
+      else if(n.target==='all'){ targetLabel = '📢 전체'; }
+      else { targetLabel = '👤 '+(n.targetName||'회원'); }
+      if(n.targetLabel && n.targets && n.targets.length===1){ targetLabel = '👤 '+n.targetLabel; }
       var sentBadge = n.sent ? '<span style="font-size:10px;color:#12B76A;background:#ECFDF3;padding:2px 6px;border-radius:4px;">발송됨</span>' : '<span style="font-size:10px;color:#667085;background:#F2F4F7;padding:2px 6px;border-radius:4px;">기록</span>';
       h += '<div style="background:white;border-radius:10px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
@@ -920,6 +989,13 @@ function renderNotice(){
       h += '</div>';
       h += '</div>';
       h += '<div style="font-size:13px;color:#1D2939;white-space:pre-wrap;line-height:1.5;margin-bottom:6px;">'+escapeNoticeHtml(n.content)+'</div>';
+      if(n.images && n.images.length){
+        h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+        for(var k=0;k<n.images.length;k++){
+          h += '<img src="'+n.images[k]+'" onclick="viewNoticeImage(\''+n.id+'\','+k+')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #EAECF0;cursor:pointer;"/>';
+        }
+        h += '</div>';
+      }
       h += '<div style="font-size:11px;color:#98A2B3;">'+dateStr+'</div>';
       h += '</div>';
     }
@@ -932,16 +1008,188 @@ function escapeNoticeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// 회원 선택 패널 접기/펼치기
+function toggleNoticeMemberList(){
+  var panel = document.getElementById('notice-select-panel');
+  var arrow = document.getElementById('notice-list-arrow');
+  if(!panel) return;
+  var open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if(arrow) arrow.textContent = open ? '▼' : '▲';
+}
+function openNoticeMemberList(){
+  var panel = document.getElementById('notice-select-panel');
+  var arrow = document.getElementById('notice-list-arrow');
+  if(panel) panel.style.display = 'block';
+  if(arrow) arrow.textContent = '▲';
+}
+
+// 회원 검색: 체크박스 행 필터링
+function filterNoticeTarget(){
+  var q = (document.getElementById('notice-search').value||'').trim().toLowerCase();
+  var rows = document.querySelectorAll('.notice-member-row');
+  rows.forEach(function(row){
+    var name = row.getAttribute('data-name')||'';
+    row.style.display = (!q || name.indexOf(q)>=0) ? 'flex' : 'none';
+  });
+}
+
+// 입력 중: 쉼표가 없으면 실시간 목록 거르기, 쉼표가 있으면 거르기 보류(적용 버튼/엔터로)
+function onNoticeSearchInput(){
+  var v = document.getElementById('notice-search').value||'';
+  if(v) openNoticeMemberList();
+  if(v.indexOf(',') >= 0){
+    // 여러 이름 입력 모드: 목록은 전체 표시 상태로 두고 적용 대기
+    var rows = document.querySelectorAll('.notice-member-row');
+    rows.forEach(function(row){ row.style.display = 'flex'; });
+    return;
+  }
+  filterNoticeTarget();
+}
+
+// 쉼표로 구분된 이름들을 일괄 체크
+function applyNoticeNameList(){
+  var raw = (document.getElementById('notice-search').value||'').trim();
+  if(!raw) return;
+  // 쉼표가 없으면 단일 검색어로 거르기만
+  if(raw.indexOf(',') < 0){ filterNoticeTarget(); return; }
+
+  var names = raw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+  var notFound = [];
+  var matchedCount = 0;
+  names.forEach(function(nm){
+    var checks = document.querySelectorAll('.notice-member-check');
+    var found = false;
+    checks.forEach(function(c){
+      var m = members.find(function(x){ return String(x.id)===String(c.value); });
+      if(m && m.name === nm){ c.checked = true; found = true; matchedCount++; }
+    });
+    if(!found) notFound.push(nm);
+  });
+  // 목록 다시 전체 표시 + 검색창 비우기
+  var rows = document.querySelectorAll('.notice-member-row');
+  rows.forEach(function(row){ row.style.display = 'flex'; });
+  document.getElementById('notice-search').value = '';
+  openNoticeMemberList();
+  updateNoticeSelCount();
+  if(notFound.length){
+    alert(matchedCount+'명 선택됨.\n명단에 없는 이름: '+notFound.join(', '));
+  }
+}
+
+// 전체 선택/해제 (검색으로 숨겨지지 않은 항목 대상)
+function toggleNoticeAll(checked){
+  var checks = document.querySelectorAll('.notice-member-check');
+  checks.forEach(function(c){
+    var row = c.closest('.notice-member-row');
+    if(row && row.style.display==='none') return; // 검색으로 숨겨진 건 제외
+    c.checked = checked;
+  });
+  updateNoticeSelCount();
+}
+
+// 선택 인원 수 갱신 + 전체선택 체크 상태 동기화
+function updateNoticeSelCount(){
+  var checks = document.querySelectorAll('.notice-member-check');
+  var total = checks.length, sel = 0;
+  checks.forEach(function(c){ if(c.checked) sel++; });
+  var label = document.getElementById('notice-sel-count');
+  if(label) label.textContent = sel>0 ? '('+sel+'명 선택)' : '';
+  var allBox = document.getElementById('notice-check-all');
+  if(allBox) allBox.checked = (total>0 && sel===total);
+}
+
+// 이미지 첨부: 압축 후 미리보기
+function handleNoticeImages(ev){
+  var files = ev.target.files;
+  if(!files || !files.length) return;
+  var remaining = NOTICE_IMAGE_MAX - noticeImages.length;
+  if(remaining <= 0){ alert('사진은 최대 '+NOTICE_IMAGE_MAX+'장까지 첨부할 수 있어요.'); ev.target.value=''; return; }
+  var toProcess = Math.min(files.length, remaining);
+  var done = 0;
+  for(var i=0;i<toProcess;i++){
+    compressNoticeImage(files[i], function(dataUrl){
+      if(dataUrl) noticeImages.push(dataUrl);
+      done++;
+      if(done===toProcess){ renderNoticeImagePreview(); }
+    });
+  }
+  ev.target.value = '';
+}
+
+// 이미지 리사이즈+압축 (최대 가로/세로 800px, JPEG 0.6)
+function compressNoticeImage(file, cb){
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var maxDim = 800;
+      var w = img.width, hgt = img.height;
+      if(w > hgt && w > maxDim){ hgt = Math.round(hgt*maxDim/w); w = maxDim; }
+      else if(hgt >= w && hgt > maxDim){ w = Math.round(w*maxDim/hgt); hgt = maxDim; }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = hgt;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, hgt);
+      try { cb(canvas.toDataURL('image/jpeg', 0.6)); }
+      catch(err){ cb(null); }
+    };
+    img.onerror = function(){ cb(null); };
+    img.src = e.target.result;
+  };
+  reader.onerror = function(){ cb(null); };
+  reader.readAsDataURL(file);
+}
+
+function renderNoticeImagePreview(){
+  var box = document.getElementById('notice-image-preview');
+  if(!box) return;
+  var h = '';
+  for(var i=0;i<noticeImages.length;i++){
+    h += '<div style="position:relative;">';
+    h += '<img src="'+noticeImages[i]+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #EAECF0;"/>';
+    h += '<button onclick="removeNoticeImage('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#F04438;color:white;border:none;font-size:12px;line-height:1;cursor:pointer;">×</button>';
+    h += '</div>';
+  }
+  box.innerHTML = h;
+}
+
+function removeNoticeImage(idx){
+  noticeImages.splice(idx,1);
+  renderNoticeImagePreview();
+}
+
+// 저장된 알림장 이미지 크게 보기
+function viewNoticeImage(noticeId, idx){
+  var n = notices.find(function(x){ return String(x.id)===String(noticeId); });
+  if(!n || !n.images || !n.images[idx]) return;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.onclick = function(){ document.body.removeChild(ov); };
+  var img = document.createElement('img');
+  img.src = n.images[idx];
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:8px;';
+  ov.appendChild(img);
+  document.body.appendChild(ov);
+}
+
 function collectNoticeInput(){
-  var target = document.getElementById('notice-target').value;
   var content = document.getElementById('notice-content').value.trim();
   if(!content){ alert('알림장 내용을 입력해주세요.'); return null; }
-  var targetName = '';
-  if(target !== 'all'){
-    var m = members.find(function(x){ return String(x.id)===String(target); });
-    targetName = m ? m.name : '';
+  var checks = document.querySelectorAll('.notice-member-check');
+  var ids = [];
+  checks.forEach(function(c){ if(c.checked) ids.push(parseInt(c.value,10)); });
+  if(ids.length === 0){ alert('받는 대상을 한 명 이상 선택해주세요.'); return null; }
+
+  // 표시용 라벨
+  var label;
+  if(ids.length === members.length){ label = '전체'; }
+  else if(ids.length === 1){
+    var m = members.find(function(x){ return x.id===ids[0]; });
+    label = m ? m.name : '회원';
+  } else {
+    label = ids.length+'명';
   }
-  return { target: target, targetName: targetName, content: content };
+  return { targets: ids, targetLabel: label, content: content, images: noticeImages.slice() };
 }
 
 function saveNoticeOnly(){
@@ -951,9 +1199,11 @@ function saveNoticeOnly(){
     // 수정 저장
     var n = notices.find(function(x){ return x.id === noticeEditId; });
     if(n){
-      n.target = input.target;
-      n.targetName = input.targetName;
+      n.targets = input.targets;
+      n.targetLabel = input.targetLabel;
+      n.target = undefined; n.targetName = undefined; // 구 필드 정리
       n.content = input.content;
+      n.images = input.images;
       n.editedTs = Date.now();
     }
     noticeEditId = null;
@@ -962,19 +1212,24 @@ function saveNoticeOnly(){
     notices.push({
       id: Date.now(),
       ts: Date.now(),
-      target: input.target,
-      targetName: input.targetName,
+      targets: input.targets,
+      targetLabel: input.targetLabel,
       content: input.content,
+      images: input.images,
       sent: false
     });
   }
+  noticeImages = [];
   saveNotices();
   document.getElementById('admin-content').innerHTML = renderNotice();
 }
 
 function startNoticeEdit(id){
   noticeEditId = id;
+  var en = notices.find(function(x){ return x.id === id; });
+  noticeImages = (en && en.images) ? en.images.slice() : [];
   document.getElementById('admin-content').innerHTML = renderNotice();
+  renderNoticeImagePreview();
   var ta = document.getElementById('notice-content');
   if(ta){ ta.focus(); }
   var sc = document.getElementById('admin-content');
@@ -983,6 +1238,7 @@ function startNoticeEdit(id){
 
 function cancelNoticeEdit(){
   noticeEditId = null;
+  noticeImages = [];
   document.getElementById('admin-content').innerHTML = renderNotice();
 }
 
@@ -990,13 +1246,18 @@ function sendNoticeSms(id){
   var n = notices.find(function(x){ return x.id === id; });
   if(!n) return;
 
-  // 대상 회원 목록
+  // 대상 회원 목록 (신규 targets 배열 우선, 구 데이터 호환)
   var targets = [];
-  if(n.target === 'all'){
+  if(n.targets && n.targets.length){
+    n.targets.forEach(function(tid){
+      var m = members.find(function(x){ return String(x.id)===String(tid); });
+      if(m) targets.push(m);
+    });
+  } else if(n.target === 'all'){
     targets = members.slice();
-  } else {
-    var m = members.find(function(x){ return String(x.id)===String(n.target); });
-    if(m) targets = [m];
+  } else if(n.target){
+    var m0 = members.find(function(x){ return String(x.id)===String(n.target); });
+    if(m0) targets = [m0];
   }
 
   // 수신번호 수집
