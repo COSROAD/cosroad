@@ -3337,14 +3337,16 @@ function saveAligoSettings(){
   ALIGO_SENDER_KEY = document.getElementById('aligo-senderkey').value.trim();
   ALIGO_TEMPLATE_CODE = document.getElementById('aligo-tplcode').value.trim();
   ALIGO_SENDER = document.getElementById('aligo-sender').value.trim().replace(/-/g,'');
-  localStorage.setItem('tkd_aligo', JSON.stringify({
+  var aligoObj = {
     apikey: ALIGO_API_KEY,
     userid: ALIGO_USER_ID,
     senderkey: ALIGO_SENDER_KEY,
     tplcode: ALIGO_TEMPLATE_CODE,
     sender: ALIGO_SENDER
-  }));
-  alert('✅ 알리고 설정이 저장됐어요!');
+  };
+  localStorage.setItem('tkd_aligo', JSON.stringify(aligoObj));
+  saveToFirebase('aligo', aligoObj);
+  alert('✅ 알리고 설정이 저장됐어요! (모든 기기에 적용됩니다)');
 }
 
 function loadAligoSettings(){
@@ -3692,6 +3694,7 @@ async function syncFromFirebase(){
   var fbTax = await loadFromFirebase('tax');
   var fbAtt = await loadFromFirebase('attendance');
   var fbNotices = await loadFromFirebase('notices');
+  var fbAligo = await loadFromFirebase('aligo');
 
   if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
@@ -3701,6 +3704,12 @@ async function syncFromFirebase(){
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
   if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
+  if(fbAligo){
+    localStorage.setItem('tkd_aligo', JSON.stringify(fbAligo));
+    ALIGO_API_KEY = fbAligo.apikey||''; ALIGO_USER_ID = fbAligo.userid||'';
+    ALIGO_SENDER_KEY = fbAligo.senderkey||''; ALIGO_TEMPLATE_CODE = fbAligo.tplcode||'';
+    ALIGO_SENDER = fbAligo.sender||'';
+  }
   console.log('✅ Firebase 동기화 완료');
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
@@ -3712,7 +3721,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','aligo'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -3725,6 +3734,12 @@ function startFirebaseListeners(){
       else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
       else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }
       else if(key==='notices'){ notices=data; localStorage.setItem('tkd_notices',JSON.stringify(data)); }
+      else if(key==='aligo'){
+        localStorage.setItem('tkd_aligo',JSON.stringify(data));
+        ALIGO_API_KEY=data.apikey||''; ALIGO_USER_ID=data.userid||'';
+        ALIGO_SENDER_KEY=data.senderkey||''; ALIGO_TEMPLATE_CODE=data.tplcode||'';
+        ALIGO_SENDER=data.sender||'';
+      }
       renderByTab();
     });
   });
