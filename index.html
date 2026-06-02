@@ -443,6 +443,25 @@ function loadOrgSettings(){
 function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);}
 let orgSettings=loadOrgSettings();
 
+// ── 업종별 용어 사전 ──
+// 업종 코드: academy(학원,기본) / logistics(물류) / public(공공) / delivery(택배)
+var BIZ_TERMS = {
+  academy:   { 회원:'회원', 출석:'출석', 출결:'출결', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림' },
+  logistics: { 회원:'거래처', 출석:'납품완료', 출결:'납품', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림' },
+  public:    { 회원:'이용자', 출석:'출석', 출결:'출결', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림' },
+  delivery:  { 회원:'배송지', 출석:'배송완료', 출결:'배송', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림' }
+};
+var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
+
+function getBizType(){
+  return (orgSettings && orgSettings.bizType) ? orgSettings.bizType : 'academy';
+}
+// 용어 변환 헬퍼: T('회원') → 현재 업종의 표현
+function T(key){
+  var t = BIZ_TERMS[getBizType()] || BIZ_TERMS.academy;
+  return t[key] || BIZ_TERMS.academy[key] || key;
+}
+
 // ── 코스 설정 ──
 function loadCourses(){
   return JSON.parse(localStorage.getItem('tkd_courses')||'null')||[
@@ -1638,6 +1657,14 @@ function renderSettings(){
     <div class="setting-title">기관 정보</div>
     <div class="setting-card">
       <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+        <label class="form-label">업종 선택</label>
+        <select class="form-input" id="org-biztype" style="margin-bottom:0;">
+          <option value="academy"${getBizType()==='academy'?' selected':''}>🏫 학원</option>
+          <option value="logistics"${getBizType()==='logistics'?' selected':''}>📦 물류</option>
+          <option value="public"${getBizType()==='public'?' selected':''}>🏛️ 공공</option>
+          <option value="delivery"${getBizType()==='delivery'?' selected':''}>🚚 택배</option>
+        </select>
+        <div style="font-size:11px;color:#98A2B3;">업종에 따라 화면 용어가 바뀝니다 (회원/출석/수강료 등)</div>
         <label class="form-label">기관명</label>
         <input class="form-input" id="org-name" value="${orgSettings.name}" placeholder="예) 우리 태권도장" style="margin-bottom:0;"/>
         <label class="form-label">아이콘 (이모지)</label>
@@ -1710,11 +1737,12 @@ function renderSettings(){
 }
 
 function saveOrgInfo(){
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value)};
+  var bizSel = document.getElementById('org-biztype');
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizSel?bizSel.value:getBizType(),destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value)};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
   document.getElementById('org-icon').textContent=orgSettings.icon;document.getElementById('org-icon-input')&&(document.getElementById('org-icon-input').value=orgSettings.icon);
-  showToast('✅ 기관 정보 저장됐어요!');
+  showToast('✅ 기관 정보 저장됐어요! (업종: '+(BIZ_LABELS[orgSettings.bizType]||'학원')+')');
 }
 function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
 function saveApiKeyFromSettings(){TMAP_KEY=document.getElementById('tmap-key-input').value.trim();localStorage.setItem('tmapKey',TMAP_KEY);alert('✅ 저장되었습니다.');}
