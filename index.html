@@ -3269,6 +3269,13 @@ function checkParentView(){
 
 // 페이지 로드 시 확인
 window.addEventListener('load', function(){
+  // 마스터(전체 관리자) 모드: ?org=admin 이면 로그인 화면 대신 업체 관리
+  if(getUrlOrg()==='admin'){
+    var ls=document.getElementById('login-screen'); if(ls) ls.classList.add('hide');
+    var ma=document.getElementById('main-app'); if(ma) ma.style.display='none';
+    showMasterGate();
+    return;
+  }
   checkParentView();
 });
 
