@@ -681,6 +681,7 @@ function renderDrive(){
             <span class="card-name">${s.name}</span>
             ${s.phone?`<a href="tel:${s.phone}" style="font-size:13px;color:var(--primary);text-decoration:none;" onclick="event.stopPropagation()">📞</a>`:''}
             ${s.phone2?`<a href="tel:${s.phone2}" style="font-size:13px;color:var(--success);text-decoration:none;" onclick="event.stopPropagation()">📞²</a>`:''}
+            ${s.phone?`<span onclick="event.stopPropagation();sendArrivalSoon(${s.id})" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:2px 7px;cursor:pointer;font-weight:700;">🚐 곧도착</span>`:''}
           </div>
           <div class="card-location">${s.location}</div>
         </div>
@@ -696,6 +697,20 @@ function renderDrive(){
 }
 
 function toggleStudent(mIdx){members[mIdx].on=!members[mIdx].on;optimizedOrder=null;etaMap={};saveMembers();renderDrive();}
+
+// 운행 중 '곧 도착' 문자 발송 (기사 수동)
+function sendArrivalSoon(memberId){
+  var m = members.find(function(x){ return x.id===memberId; });
+  if(!m){ return; }
+  var phones = [];
+  if(m.phone) phones.push(m.phone);
+  if(m.phone2) phones.push(m.phone2);
+  if(phones.length===0){ alert('등록된 연락처가 없습니다.'); return; }
+  var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
+  var smsBody = '['+orgName+'] '+m.name+'님, 약 5분 후 도착 예정입니다. 준비 부탁드려요!';
+  var recipients = phones.join(',');
+  window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
+}
 
 // ── T맵 최적화 ──
 async function optimizeRoute(){
@@ -1736,6 +1751,15 @@ function renderSettings(){
         <span style="font-size:14px;font-weight:700;color:var(--admin);">${members.length}명</span>
       </div>
       <div class="setting-row">
+        <div><div class="setting-row-label">데이터 백업</div><div class="setting-row-sub">전체 데이터를 파일로 저장</div></div>
+        <button onclick="backupData()" style="padding:6px 12px;border:1px solid #12B76A;border-radius:6px;font-size:11px;color:#12B76A;background:white;cursor:pointer;font-weight:700;">⬇ 백업</button>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-row-label">데이터 복원</div><div class="setting-row-sub">백업 파일로 되돌리기</div></div>
+        <input type="file" id="restore-file-input" accept="application/json,.json" style="display:none;" onchange="restoreData(event)"/>
+        <button onclick="document.getElementById('restore-file-input').click()" style="padding:6px 12px;border:1px solid #1A6BFF;border-radius:6px;font-size:11px;color:#1A6BFF;background:white;cursor:pointer;font-weight:700;">⬆ 복원</button>
+      </div>
+      <div class="setting-row">
         <div><div class="setting-row-label" style="color:var(--danger);">이용자 데이터 초기화</div><div class="setting-row-sub">모든 이용자를 삭제합니다</div></div>
         <button onclick="resetData()" style="padding:6px 12px;border:1px solid var(--danger);border-radius:6px;font-size:11px;color:var(--danger);background:white;cursor:pointer;">초기화</button>
       </div>
@@ -1755,6 +1779,61 @@ function saveOrgInfo(){
 function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
 function saveApiKeyFromSettings(){TMAP_KEY=document.getElementById('tmap-key-input').value.trim();localStorage.setItem('tmapKey',TMAP_KEY);alert('✅ 저장되었습니다.');}
 function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_members');members=loadMembers();showToast('초기화됐어요!');renderAdminTab('settings');});}
+
+// 데이터 백업: 전체를 JSON 파일로 내려받기
+function backupData(){
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_aligo','tkd_adminpw'];
+  var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
+  keys.forEach(function(k){
+    var v = localStorage.getItem(k);
+    if(v !== null) dump.data[k] = v;
+  });
+  var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : 'COSROAD';
+  var stamp = new Date().toISOString().slice(0,10);
+  var blob = new Blob([JSON.stringify(dump, null, 2)], {type:'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'COSROAD_백업_'+orgName+'_'+stamp+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('✅ 백업 파일이 저장됐어요!');
+}
+
+// 데이터 복원: 백업 파일에서 되돌리기
+function restoreData(ev){
+  var file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var dump;
+    try { dump = JSON.parse(e.target.result); }
+    catch(err){ alert('백업 파일을 읽을 수 없습니다. 올바른 파일인지 확인해주세요.'); ev.target.value=''; return; }
+    if(!dump || dump._app !== 'COSROAD' || !dump.data){
+      alert('COSROAD 백업 파일이 아닙니다.'); ev.target.value=''; return;
+    }
+    showConfirmModal(function(){
+      Object.keys(dump.data).forEach(function(k){
+        localStorage.setItem(k, dump.data[k]);
+      });
+      // 메모리 변수 갱신 + Firebase 반영
+      members = loadMembers(); saveToFirebase('members', members);
+      try { cars = JSON.parse(localStorage.getItem('tkd_cars')||'[]'); saveToFirebase('cars',cars); } catch(e2){}
+      try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); saveToFirebase('courses',courses); } catch(e3){}
+      orgSettings = loadOrgSettings(); saveToFirebase('org', orgSettings);
+      notices = loadNotices(); saveToFirebase('notices', notices);
+      var aligoRaw = localStorage.getItem('tkd_aligo');
+      if(aligoRaw){ try{ var a=JSON.parse(aligoRaw); ALIGO_API_KEY=a.apikey||''; ALIGO_USER_ID=a.userid||''; ALIGO_SENDER_KEY=a.senderkey||''; ALIGO_TEMPLATE_CODE=a.tplcode||''; ALIGO_SENDER=a.sender||''; saveToFirebase('aligo',a);}catch(e4){} }
+      var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
+      var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
+      var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
+      showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
+      renderAdminTab('settings');
+    }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
+    ev.target.value = '';
+  };
+  reader.readAsText(file);
+}
 
 // ── 회원관리 (운전자용) ──
 function renderMembers(){
