@@ -454,7 +454,9 @@ var BIZ_TERMS = {
 var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
 
 function getBizType(){
-  return (orgSettings && orgSettings.bizType) ? orgSettings.bizType : 'academy';
+  if(orgSettings && orgSettings.bizType) return orgSettings.bizType;
+  if(window.DEFAULT_BIZ_TYPE) return window.DEFAULT_BIZ_TYPE;
+  return 'academy';
 }
 // 용어 변환 헬퍼: T('회원') → 현재 업종의 표현
 function T(key){
@@ -3774,6 +3776,9 @@ function showToast(msg){
 var fbOrgId = 'default'; // 나중에 로그인 기반으로 변경
 
 function getFbOrgId(){
+  // 각 기관 배포 파일은 상단에서 window.FIXED_ORG_ID 를 지정한다.
+  // 미지정(기존 태권도학원 index.html)이면 cosroad_default 유지.
+  if(window.FIXED_ORG_ID) return window.FIXED_ORG_ID;
   return localStorage.getItem('tkd_orgId') || 'cosroad_default';
 }
 
