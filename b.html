@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<script>window.FIXED_ORG_ID='academy_b';window.DEFAULT_BIZ_TYPE='academy';</script>
 <meta charset="UTF-8">
 <meta name="theme-color" content="#EA580C">
 <meta name="mobile-web-app-capable" content="yes">
@@ -456,6 +455,8 @@ var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delive
 
 function getBizType(){
   if(orgSettings && orgSettings.bizType) return orgSettings.bizType;
+  var urlGroup = getUrlBizGroup();
+  if(urlGroup) return urlGroup;
   if(window.DEFAULT_BIZ_TYPE) return window.DEFAULT_BIZ_TYPE;
   return 'academy';
 }
@@ -548,7 +549,147 @@ function loginAdmin(){
 }
 function logout(){currentMode='';document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';}
 
+// ══════════ 마스터(전체 관리자) 업체 관리 ══════════
+var MASTER_PW = 'cosroad2026'; // 마스터 비밀번호 (전체 관리자 전용)
+var masterCompanies = []; // [{group, name, orgId, createdAt}]
+var BIZ_GROUP_LABELS = { academy:'🏫 학원', logistics:'📦 물류', public:'🏛️ 공공', delivery:'🚚 택배' };
+
+function showMasterGate(){
+  document.body.innerHTML = '<div id="master-root" style="max-width:680px;margin:0 auto;padding:20px;font-family:inherit;"></div>';
+  var root = document.getElementById('master-root');
+  root.innerHTML =
+    '<div style="text-align:center;margin:40px 0 24px;">'
+    + '<div style="font-size:32px;">🔐</div>'
+    + '<div style="font-size:20px;font-weight:800;color:#1D2939;margin-top:8px;">COSROAD 전체 관리자</div>'
+    + '<div style="font-size:13px;color:#667085;margin-top:4px;">업체 관리 화면</div>'
+    + '</div>'
+    + '<div style="max-width:320px;margin:0 auto;">'
+    + '<input type="password" id="master-pw" placeholder="마스터 비밀번호" onkeydown="if(event.key===\'Enter\')checkMasterPw()" style="width:100%;padding:12px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;box-sizing:border-box;margin-bottom:8px;"/>'
+    + '<button onclick="checkMasterPw()" style="width:100%;padding:12px;background:#7C3AED;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">입장</button>'
+    + '<div id="master-err" style="display:none;color:#F04438;font-size:12px;text-align:center;margin-top:8px;">비밀번호가 올바르지 않습니다.</div>'
+    + '</div>';
+}
+
+function checkMasterPw(){
+  var v = document.getElementById('master-pw').value;
+  if(v !== MASTER_PW){
+    document.getElementById('master-err').style.display = 'block';
+    return;
+  }
+  renderMasterPanel();
+}
+
+async function renderMasterPanel(){
+  var root = document.getElementById('master-root');
+  root.innerHTML = '<div style="text-align:center;padding:40px;color:#98A2B3;">불러오는 중...</div>';
+  // 업체 목록 로드
+  await loadMasterCompanies();
+  drawMasterPanel();
+}
+
+function drawMasterPanel(){
+  var root = document.getElementById('master-root');
+  var h = '';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0;">';
+  h += '<div style="font-size:20px;font-weight:800;color:#1D2939;">🏢 업체 관리</div>';
+  h += '<span style="font-size:13px;color:#667085;">총 '+masterCompanies.length+'개</span>';
+  h += '</div>';
+
+  // 추가 폼
+  h += '<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-bottom:16px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">➕ 새 업체 추가</div>';
+  h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+  h += '<select id="new-co-group" style="flex:0 0 110px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;">';
+  h += '<option value="academy">🏫 학원</option><option value="logistics">📦 물류</option><option value="public">🏛️ 공공</option><option value="delivery">🚚 택배</option>';
+  h += '</select>';
+  h += '<input type="text" id="new-co-name" placeholder="업체 이름 (예: 강남태권도)" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;"/>';
+  h += '</div>';
+  h += '<input type="text" id="new-co-id" placeholder="주소 ID (영문/숫자, 예: gangnam_tkd)" style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
+  h += '<button onclick="addMasterCompany()" style="width:100%;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">업체 추가</button>';
+  h += '</div>';
+
+  // 그룹별 목록
+  var groups = ['academy','logistics','public','delivery'];
+  groups.forEach(function(g){
+    var list = masterCompanies.filter(function(c){ return c.group===g; });
+    h += '<div style="margin-bottom:14px;">';
+    h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:6px;">'+BIZ_GROUP_LABELS[g]+' <span style="color:#98A2B3;font-weight:400;">('+list.length+')</span></div>';
+    if(list.length===0){
+      h += '<div style="font-size:12px;color:#C0C5CD;padding:8px 0;">등록된 업체 없음</div>';
+    } else {
+      list.forEach(function(c){
+        var url = 'https://cosroad.com/?org='+c.orgId;
+        h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px;margin-bottom:6px;">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+        h += '<span style="font-size:14px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(c.name)+'</span>';
+        h += '<button onclick="copyMasterUrl(\''+c.orgId+'\')" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">📋 주소복사</button>';
+        h += '</div>';
+        h += '<div style="font-size:11px;color:#98A2B3;margin-top:4px;word-break:break-all;">'+url+'</div>';
+        h += '</div>';
+      });
+    }
+    h += '</div>';
+  });
+
+  root.innerHTML = h;
+}
+
+function escapeMasterHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadMasterCompanies(){
+  try{
+    if(window._db && window._firestore){
+      var { doc, getDoc } = window._firestore;
+      var snap = await getDoc(doc(window._db, 'orgs', '_master', 'data', 'companies'));
+      if(snap.exists()){ masterCompanies = JSON.parse(snap.data().value)||[]; return; }
+    }
+  }catch(e){ console.log('업체 목록 로드 실패:', e.message); }
+  masterCompanies = [];
+}
+
+async function saveMasterCompanies(){
+  try{
+    if(window._db && window._firestore){
+      var { doc, setDoc } = window._firestore;
+      await setDoc(doc(window._db, 'orgs', '_master', 'data', 'companies'), { value: JSON.stringify(masterCompanies), updatedAt: Date.now() });
+    }
+  }catch(e){ console.log('업체 목록 저장 실패:', e.message); alert('저장 중 오류가 발생했습니다.'); }
+}
+
+async function addMasterCompany(){
+  var group = document.getElementById('new-co-group').value;
+  var name = document.getElementById('new-co-name').value.trim();
+  var rawId = document.getElementById('new-co-id').value.trim().toLowerCase();
+  if(!name){ alert('업체 이름을 입력해주세요.'); return; }
+  if(!rawId || !/^[a-z0-9_]+$/.test(rawId)){ alert('주소 ID는 영문 소문자/숫자/밑줄(_)만 사용하세요.'); return; }
+  var orgId = group + '_' + rawId;
+  if(masterCompanies.some(function(c){ return c.orgId===orgId; })){
+    alert('이미 같은 주소 ID의 업체가 있습니다.'); return;
+  }
+  masterCompanies.push({ group:group, name:name, orgId:orgId, createdAt:Date.now() });
+  await saveMasterCompanies();
+  drawMasterPanel();
+}
+
+function copyMasterUrl(orgId){
+  var url = 'https://cosroad.com/?org='+orgId;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){ alert('주소가 복사됐어요!\n'+url); },
+      function(){ window.prompt('아래 주소를 복사하세요:', url); });
+  } else {
+    window.prompt('아래 주소를 복사하세요:', url);
+  }
+}
+
+
 function initApp(){
+  // 마스터(전체 관리자) 모드: ?org=admin 이면 업체 관리 화면
+  if(getUrlOrg()==='admin'){
+    showMasterGate();
+    return;
+  }
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
   // Firebase 동기화 (비동기)
   setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
@@ -3777,10 +3918,36 @@ function showToast(msg){
 var fbOrgId = 'default'; // 나중에 로그인 기반으로 변경
 
 function getFbOrgId(){
-  // 각 기관 배포 파일은 상단에서 window.FIXED_ORG_ID 를 지정한다.
-  // 미지정(기존 태권도학원 index.html)이면 cosroad_default 유지.
+  // 우선순위: URL ?org=그룹_업체  >  파일 고정값(FIXED_ORG_ID)  >  기존 기본값
+  var urlOrg = getUrlOrg();
+  if(urlOrg){
+    // 기존 태권도학원 데이터 호환: academy_taekwondo 는 기존 cosroad_default 공간을 그대로 사용
+    if(urlOrg === 'academy_taekwondo') return 'cosroad_default';
+    return urlOrg;
+  }
   if(window.FIXED_ORG_ID) return window.FIXED_ORG_ID;
   return localStorage.getItem('tkd_orgId') || 'cosroad_default';
+}
+
+// URL의 ?org=그룹_업체 값을 읽음 (영문/숫자/밑줄만 허용)
+function getUrlOrg(){
+  try{
+    var p = new URLSearchParams(window.location.search);
+    var v = p.get('org');
+    if(v && /^[a-z0-9_]+$/i.test(v)) return v;
+  }catch(e){}
+  return null;
+}
+
+// URL org에서 그룹(업종) 추출: 'logistics_cvs' -> 'logistics'
+function getUrlBizGroup(){
+  var v = getUrlOrg();
+  if(!v) return null;
+  var g = v.split('_')[0];
+  if(['academy','logistics','public','delivery'].indexOf(g) >= 0) return g;
+  // 기존 태권도학원 호환
+  if(v === 'academy_taekwondo') return 'academy';
+  return null;
 }
 
 async function saveToFirebase(key, data){
@@ -4277,4 +4444,3 @@ function showAddrResults(results){
 
 </body>
 </html>
-
