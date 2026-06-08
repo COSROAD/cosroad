@@ -307,6 +307,10 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div style="border-top:1px solid var(--gray-200);margin:14px 0;"></div>
     <div class="login-section-title">👨‍💼 관리자</div>
     <input class="login-input" type="password" id="admin-pw" placeholder="관리자 비밀번호" onkeydown="if(event.key==='Enter')loginAdmin()"/>
+    <label style="display:flex;align-items:center;gap:7px;margin:2px 0 10px;cursor:pointer;justify-content:center;">
+      <input type="checkbox" id="keep-login" style="width:16px;height:16px;flex-shrink:0;"/>
+      <span style="color:#475467;font-size:13px;font-weight:600;">로그인 상태 유지</span>
+    </label>
     <button class="login-btn btn-admin" onclick="loginAdmin()">관리자로 시작</button>
     <div class="login-err" id="login-err">비밀번호가 올바르지 않습니다.</div>
   </div>
@@ -541,13 +545,33 @@ let currentMode='';
 const now=new Date();
 
 // ── 로그인 ──
+function keepLoginKey(){ return 'tkd_keeplogin_' + getFbOrgId(); }
+
 function loginDriver(){currentMode='driver';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();}
 function loginAdmin(){
   const pw=document.getElementById('admin-pw').value;
   if(pw!==ADMIN_PW){document.getElementById('login-err').style.display='block';return;}
+  // 로그인 상태 유지 체크 시 저장
+  var keep=document.getElementById('keep-login');
+  if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
+  else { localStorage.removeItem(keepLoginKey()); }
   currentMode='admin';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();
 }
-function logout(){currentMode='';document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';}
+function logout(){currentMode='';localStorage.removeItem(keepLoginKey());document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
+
+// 저장된 로그인 유지 상태가 있으면 자동 로그인
+function tryAutoLogin(){
+  try{
+    if(localStorage.getItem(keepLoginKey())==='admin'){
+      currentMode='admin';
+      document.getElementById('login-screen').classList.add('hide');
+      document.getElementById('main-app').style.display='block';
+      initApp();
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
 
 // ══════════ 마스터(전체 관리자) 업체 관리 ══════════
 var MASTER_PW = 'cosroad2026'; // 마스터 비밀번호 (전체 관리자 전용)
@@ -3276,6 +3300,7 @@ window.addEventListener('load', function(){
     showMasterGate();
     return;
   }
+  tryAutoLogin();
   checkParentView();
 });
 
