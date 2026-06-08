@@ -403,6 +403,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <div class="day-check"><input type="checkbox" id="d-thu"/><label for="d-thu">목</label></div>
       <div class="day-check"><input type="checkbox" id="d-fri"/><label for="d-fri">금</label></div>
       <div class="day-check"><input type="checkbox" id="d-sat"/><label for="d-sat">토</label></div>
+      <div class="day-check"><input type="checkbox" id="d-sun"/><label for="d-sun">일</label></div>
     </div>
     <div class="form-row">
       <div><label class="form-label">등록비 (원)</label>
@@ -431,9 +432,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const DAYS=['월','화','수','목','금','토'];
-const DAY_NAMES=['월요일','화요일','수요일','목요일','금요일','토요일'];
-const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri',토:'sat'};
+const DAYS=['월','화','수','목','금','토','일'];
+const DAY_NAMES=['월요일','화요일','수요일','목요일','금요일','토요일','일요일'];
+const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri',토:'sat',일:'sun'};
 let TMAP_KEY=localStorage.getItem('tmapKey')||'Ev7Wbwethh8ekp1gFRZEJ55f99mltQ24C5nNwpOg';
 let ADMIN_PW=localStorage.getItem('tkd_adminpw')||'1234';
 
@@ -531,7 +532,7 @@ function saveNotices(){ localStorage.setItem('tkd_notices',JSON.stringify(notice
 let notices=loadNotices();
 let nextId=Math.max(...members.map(m=>m.id),0)+1;
 
-let currentDay=DAYS[new Date().getDay()-1]||'월';
+let currentDay=DAYS[[6,0,1,2,3,4,5][new Date().getDay()]]||'월';
 let currentCourseId=courses[0]?.id||'c1';
 let currentCarId=cars[0]?.id||'car1';
 let currentTab='drive';
