@@ -2594,6 +2594,9 @@ function renderPayment(){
         h += '<input type="date" id="pay-date-'+m.id+'" value="'+new Date().toISOString().slice(0,10)+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;"/>';
         h += '<button onclick="confirmPayment('+m.id+')" style="padding:6px 12px;background:#7C3AED;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">납부처리</button>';
         h += '</div>';
+        if(m.phone){
+          h += '<button onclick="sendUnpaidOne('+m.id+')" style="width:100%;margin-top:6px;padding:7px;background:#FFF4ED;color:#C2410C;border:1px solid #FEC6A1;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">📩 미납 알림 문자 보내기</button>';
+        }
       }
       h += '</div>';
     });
@@ -2672,6 +2675,21 @@ function sendUnpaidNotice(){
   modal.style.display = 'flex';
   window._unpaidMsg = msg;
   window._unpaidPhones = unpaid.map(function(m){return m.phone;}).filter(Boolean);
+}
+
+// 미납 회원 1명에게 개별 미납 알림 문자
+function sendUnpaidOne(memberId){
+  var m = members.find(function(x){ return x.id===memberId; });
+  if(!m){ return; }
+  if(!m.phone){ alert('등록된 연락처가 없습니다.'); return; }
+  var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
+  var feeWord = T('수강료');
+  var amount = m.monthly ? (' ('+Number(m.monthly).toLocaleString()+'원)') : '';
+  var msg = '['+orgName+'] '+payViewYear+'년 '+payViewMonth+'월 '+feeWord+amount+' 미납 안내\n'
+    + m.name+'님, '+feeWord+'가 아직 납부되지 않았습니다.\n빠른 납부 부탁드립니다. 감사합니다.';
+  var phones = [m.phone];
+  if(m.phone2) phones.push(m.phone2);
+  window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
 }
 
 function sendUnpaidSMS(){
