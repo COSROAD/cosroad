@@ -2546,6 +2546,7 @@ function renderPayment(){
   h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+cntPaid+'명</div><div style="font-size:10px;color:#12B76A;">납부완료</div></div>';
   h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+cntUnpaid+'명</div><div style="font-size:10px;color:#F04438;">미납</div></div>';
   h += '<button onclick="exportPaymentExcel();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📊 수납 내역 엑셀 출력</button>';
+  h += '<button onclick="sendUnpaidAll();" style="width:100%;padding:11px;background:#F79009;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📩 전체 미납 알림 문자</button>';
   h += '<input type="text" id="pay-member-search" placeholder="🔍 회원 검색" oninput="filterPayMember(this.value)" style="width:100%;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
   h += '</div></div>';
   h += '<div style="padding:0 16px;">';
@@ -2689,6 +2690,29 @@ function sendUnpaidOne(memberId){
     + m.name+'님, '+feeWord+'가 아직 납부되지 않았습니다.\n빠른 납부 부탁드립니다. 감사합니다.';
   var phones = [m.phone];
   if(m.phone2) phones.push(m.phone2);
+  window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
+}
+
+// 전체 미납 회원에게 일괄 미납 알림 문자
+function sendUnpaidAll(){
+  var data = loadPayments();
+  var unpaid = members.filter(function(m){
+    if(!m.monthly) return false;
+    var key = getPaymentKey(m.id, payViewYear, payViewMonth);
+    return !(data[key] && data[key].paid);
+  });
+  if(unpaid.length === 0){ showToast('✅ 미납 회원이 없습니다!'); return; }
+  var phones = [];
+  unpaid.forEach(function(m){
+    if(m.phone) phones.push(m.phone);
+    if(m.phone2) phones.push(m.phone2);
+  });
+  if(phones.length === 0){ alert('미납 회원 중 연락처가 등록된 사람이 없습니다.'); return; }
+  var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
+  var feeWord = T('수강료');
+  var msg = '['+orgName+'] '+payViewYear+'년 '+payViewMonth+'월 '+feeWord+' 미납 안내\n'
+    + feeWord+'가 아직 납부되지 않았습니다.\n빠른 납부 부탁드립니다. 감사합니다.';
+  if(!confirm('미납 '+unpaid.length+'명에게 문자를 보낼까요?')) return;
   window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
 }
 
