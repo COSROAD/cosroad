@@ -29,7 +29,8 @@
 body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(--gray-100);min-height:100vh;color:var(--gray-900);padding-bottom:80px;}
 
 /* 로그인 */
-.login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;}
+.login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;overflow-y:auto;}
+@media (max-height:760px){.login-screen{justify-content:flex-start;}}
 .login-screen.hide{display:none;}
 .login-logo{font-size:52px;margin-bottom:10px;}
 .login-title{font-size:22px;font-weight:800;color:white;margin-bottom:4px;}
@@ -315,7 +316,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div class="login-err" id="login-err">비밀번호가 올바르지 않습니다.</div>
   </div>
   <div class="login-hint">초기 관리자 비밀번호: 1234</div>
-  <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.2);max-width:340px;text-align:center;font-size:10px;line-height:1.7;color:rgba(255,255,255,0.65);">
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.2);max-width:340px;text-align:center;font-size:10px;line-height:1.6;color:rgba(255,255,255,0.65);">
     상호: 주식회사 프리존 &nbsp;|&nbsp; 대표자: 문준식<br/>
     사업자등록번호: 635-88-02710<br/>
     인천광역시 연수구 용담로 111, 6537호<br/>
