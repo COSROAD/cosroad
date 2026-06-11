@@ -32,10 +32,11 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;overflow-y:auto;}
 @media (max-height:760px){.login-screen{justify-content:flex-start;}}
 .login-screen.hide{display:none;}
+@keyframes logoSpinPause{0%{transform:rotate(0deg);}76%{transform:rotate(360deg);}100%{transform:rotate(360deg);}}
 .login-logo{font-size:52px;margin-bottom:10px;}
 .login-title{font-size:22px;font-weight:800;color:white;margin-bottom:4px;}
-.login-sub{font-size:13px;color:rgba(255,255,255,0.75);margin-bottom:28px;}
-.login-card{background:white;border-radius:20px;padding:24px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
+.login-sub{font-size:13px;color:rgba(255,255,255,0.75);margin-bottom:16px;line-height:1.6;}
+.login-card{background:white;border-radius:20px;padding:20px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
 .login-section-title{font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:10px;margin-top:14px;}
 .login-section-title:first-child{margin-top:0;}
 .login-input{width:100%;padding:12px 14px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;outline:none;margin-bottom:8px;}
@@ -261,11 +262,19 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 
 <!-- 로그인 -->
 <div class="login-screen" id="login-screen">
-  <div style="margin-bottom:16px;">
-    <svg width="200" height="200" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg">
+  <div style="margin-bottom:8px;">
+    <svg width="150" height="150" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <path id="logoTextCircle" d="M 170,170 m -122,0 a 122,122 0 1,1 244,0 a 122,122 0 1,1 -244,0" fill="none"/>
+      </defs>
       <circle cx="170" cy="170" r="155" fill="#EA580C"/>
       <circle cx="170" cy="170" r="141" fill="none" stroke="#FB923C" stroke-width="2"/>
       <circle cx="170" cy="170" r="153" fill="none" stroke="#FB923C" stroke-width="0.8" stroke-dasharray="4,9" opacity="0.5"/>
+      <g style="transform-origin:170px 170px;animation:logoSpinPause 17s cubic-bezier(0.4,0,0.55,1) infinite;">
+        <text fill="#FFF7ED" font-size="18" font-weight="700" letter-spacing="0.3" opacity="0.93" text-anchor="middle">
+          <textPath href="#logoTextCircle" startOffset="25%">학원셔틀 · 물류 · 택배 · 배송코스 자동 최적화</textPath>
+        </text>
+      </g>
       <circle cx="170" cy="16" r="14" fill="#FFF7ED"/>
       <circle cx="170" cy="13" r="6" fill="#EA580C"/>
       <path d="M170 30 L166 39 L170 36 L174 39 Z" fill="#FFF7ED"/>
@@ -281,6 +290,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <circle cx="44" cy="100" r="12" fill="#FFF7ED"/>
       <circle cx="44" cy="97" r="5" fill="#EA580C"/>
       <path d="M44 112 L40 120 L44 117 L48 120 Z" fill="#FFF7ED"/>
+      <circle cx="170" cy="180" r="92" fill="#F97316" opacity="0.55"/>
       <rect x="95" y="155" width="150" height="68" rx="13" fill="#FFF7ED"/>
       <rect x="95" y="192" width="150" height="31" rx="6" fill="#FDBA74"/>
       <rect x="104" y="163" width="28" height="20" rx="5" fill="#EA580C" opacity="0.8"/>
@@ -301,7 +311,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     </svg>
   </div>
   <div class="login-title">COSROAD</div>
-  <div class="login-sub">코스로드 · 학원 셔틀.물류 운송.택배 픽업 차량 운행 코스 최적화 관리 앱</div>
+  <div class="login-sub">학원·셔틀 픽업, 택배 배송<br/>운행 코스 자동 최적화 앱</div>
   <div class="login-card">
     <div class="login-section-title">🚐 운전자</div>
     <button class="login-btn btn-driver" onclick="loginDriver()">운전자로 시작</button>
