@@ -3052,8 +3052,10 @@ function addTaxRecordUnified(){
   amountEl.value = '';
   var sc = document.getElementById('admin-content');
   var pos = sc ? sc.scrollTop : 0;
+  var navState = navGridCollapsed;
   renderTax();
-  if(sc) sc.scrollTop = pos;
+  navGridCollapsed = navState;
+  if(sc){ requestAnimationFrame(function(){ sc.scrollTop = pos; }); }
 }
 
 function addTaxRecord(type){
@@ -3092,10 +3094,12 @@ function deleteTaxRecord(type, idx){
     if(data[key] && data[key][type]){
       var sc = document.getElementById('admin-content');
       var pos = sc ? sc.scrollTop : 0;
+      var navState = navGridCollapsed;
       data[key][type].splice(idx,1);
       saveTaxData(data);
       renderTax();
-      if(sc) sc.scrollTop = pos;
+      navGridCollapsed = navState; // 네비 접힘 상태 유지(아이콘 모드 자동 복귀 방지)
+      if(sc){ requestAnimationFrame(function(){ sc.scrollTop = pos; }); }
     }
   });
 }
