@@ -3174,21 +3174,57 @@ function exportTaxSummary(){
 function renderGuide(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
+  var biz = getBizType();
   var h = '<div style="padding:12px 16px 0;">';
 
-  // 등원 흐름도
+  // ── 업종별 흐름도 데이터 ──
+  var flowTitle, steps;
+  if(biz==='logistics'){
+    flowTitle='📦 납품 전 과정 흐름';
+    steps = [
+      {icon:'📦', color:'#E6F1FB', textColor:'#0C447C', title:'상차', desc:'창고에서 물품을 차량에 싣습니다', badge:'코스로드 적재 관리'},
+      {icon:'🚚', color:'#EAF3DE', textColor:'#27500A', title:'배송 운행', desc:'기사님이 거래처별 납품 진행', badge:'납품 여부 체크'},
+      {icon:'🗺️', color:'#EAF3DE', textColor:'#27500A', title:'T맵 경로 최적화 운행', desc:'실시간 교통 반영 최적 경로로 운행', badge:'T맵 API 연동'},
+      {icon:'🏢', color:'#FAECE7', textColor:'#712B13', title:'거래처 도착', desc:'거래처에 도착해 물품을 전달합니다', badge:'PIN 체크인 → 납품 자동 처리'},
+      {icon:'📱', color:'#EEEDFE', textColor:'#3C3489', title:'담당자 알림 발송', desc:'납품 완료 즉시 문자 자동 발송', badge:'카카오 알림톡'},
+      {icon:'✅', color:'#E1F5EE', textColor:'#085041', title:'납품 완료!', desc:'납품 전 과정을 코스로드가 커버합니다', badge:''}
+    ];
+  } else if(biz==='delivery'){
+    flowTitle='🚚 배송 전 과정 흐름';
+    steps = [
+      {icon:'📦', color:'#E6F1FB', textColor:'#0C447C', title:'픽업', desc:'배송할 물품을 픽업합니다', badge:'코스로드 물량 관리'},
+      {icon:'🚚', color:'#EAF3DE', textColor:'#27500A', title:'배송 운행', desc:'기사님이 배송지별 배송 진행', badge:'배송 여부 체크'},
+      {icon:'🗺️', color:'#EAF3DE', textColor:'#27500A', title:'T맵 경로 최적화 운행', desc:'실시간 교통 반영 최적 경로로 운행', badge:'T맵 API 연동'},
+      {icon:'🏠', color:'#FAECE7', textColor:'#712B13', title:'배송지 도착', desc:'배송지에 도착해 물품을 전달합니다', badge:'PIN 체크인 → 배송 자동 처리'},
+      {icon:'📱', color:'#EEEDFE', textColor:'#3C3489', title:'받는분 알림 발송', desc:'배송 완료 즉시 문자 자동 발송', badge:'카카오 알림톡'},
+      {icon:'✅', color:'#E1F5EE', textColor:'#085041', title:'배송 완료!', desc:'배송 전 과정을 코스로드가 커버합니다', badge:''}
+    ];
+  } else if(biz==='public'){
+    flowTitle='🚐 이용 전 과정 흐름';
+    steps = [
+      {icon:'🏠', color:'#E6F1FB', textColor:'#0C447C', title:'자택 출발', desc:'이용자가 자택에서 출발합니다', badge:'위치 확인'},
+      {icon:'🚐', color:'#EAF3DE', textColor:'#27500A', title:'차량 탑승', desc:'기사님이 탑승 여부 O/X 체크', badge:'코스로드 탑승 관리'},
+      {icon:'🗺️', color:'#EAF3DE', textColor:'#27500A', title:'T맵 경로 최적화 운행', desc:'실시간 교통 반영 최적 경로로 운행', badge:'T맵 API 연동'},
+      {icon:'🏛️', color:'#FAECE7', textColor:'#712B13', title:'센터 도착', desc:'이용자가 센터에 도착합니다', badge:'PIN 체크인 → 출결 자동 처리'},
+      {icon:'📱', color:'#EEEDFE', textColor:'#3C3489', title:'보호자 알림 발송', desc:'PIN 체크인 즉시 문자 자동 발송', badge:'카카오 알림톡'},
+      {icon:'✅', color:'#E1F5EE', textColor:'#085041', title:'보호자 안심!', desc:'이용 전 과정을 코스로드가 커버합니다', badge:''}
+    ];
+  } else {
+    // academy(학원, 기본)
+    flowTitle='🚐 등원 전 과정 흐름';
+    steps = [
+      {icon:'🏠', color:'#E6F1FB', textColor:'#0C447C', title:'집 출발', desc:'자녀가 집에서 출발합니다', badge:'구글 패밀리링크로 동선 확인'},
+      {icon:'🚐', color:'#EAF3DE', textColor:'#27500A', title:'차량 탑승', desc:'기사님이 탑승 여부 O/X 체크', badge:'코스로드 탑승 관리'},
+      {icon:'🗺️', color:'#EAF3DE', textColor:'#27500A', title:'T맵 경로 최적화 운행', desc:'실시간 교통 반영 최적 경로로 운행', badge:'T맵 API 연동'},
+      {icon:'🥋', color:'#FAECE7', textColor:'#712B13', title:'학원 도착', desc:'자녀가 학원에 도착합니다', badge:'PIN 체크인 → 출결 자동 처리'},
+      {icon:'📱', color:'#EEEDFE', textColor:'#3C3489', title:'학부모 알림 발송', desc:'PIN 체크인 즉시 문자 자동 발송', badge:'카카오 알림톡'},
+      {icon:'✅', color:'#E1F5EE', textColor:'#085041', title:'부모님 안심!', desc:'등원 전 과정을 코스로드가 커버합니다', badge:''}
+    ];
+  }
+
+  // 흐름도 렌더
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:14px;">🚐 등원 전 과정 흐름</div>';
-
-  var steps = [
-    {icon:'🏠', color:'#E6F1FB', textColor:'#0C447C', title:'집 출발', desc:'자녀가 집에서 출발합니다', badge:'구글 패밀리링크로 동선 확인'},
-    {icon:'🚐', color:'#EAF3DE', textColor:'#27500A', title:'차량 탑승', desc:'기사님이 탑승 여부 O/X 체크', badge:'코스로드 탑승 관리'},
-    {icon:'🗺️', color:'#EAF3DE', textColor:'#27500A', title:'T맵 경로 최적화 운행', desc:'실시간 교통 반영 최적 경로로 운행', badge:'T맵 API 연동'},
-    {icon:'🥋', color:'#FAECE7', textColor:'#712B13', title:'학원 도착', desc:'자녀가 학원에 도착합니다', badge:'PIN 체크인 → 출결 자동 처리'},
-    {icon:'📱', color:'#EEEDFE', textColor:'#3C3489', title:'학부모 알림 발송', desc:'PIN 체크인 즉시 문자 자동 발송', badge:'카카오 알림톡'},
-    {icon:'✅', color:'#E1F5EE', textColor:'#085041', title:'부모님 안심!', desc:'등원 전 과정을 코스로드가 커버합니다', badge:''}
-  ];
-
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:14px;">'+flowTitle+'</div>';
   steps.forEach(function(s, i){
     h += '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:6px;">';
     h += '<div style="width:40px;height:40px;border-radius:50%;background:'+s.color+';display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">'+s.icon+'</div>';
@@ -3203,44 +3239,42 @@ function renderGuide(){
   });
   h += '</div>';
 
-  // 패밀리링크 섹션
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">📍 구글 패밀리링크 연동</div>';
-  h += '<div style="font-size:12px;color:#475467;margin-bottom:12px;line-height:1.6;">자녀 스마트폰 위치를 실시간으로 확인할 수 있어요.<br>패밀리링크 앱을 설치하면 집→학원 동선을 파악할 수 있습니다.</div>';
+  // 패밀리링크 섹션 (학원·공공만)
+  if(biz==='academy' || biz==='public'){
+    var who = (biz==='public') ? '이용자' : '자녀';
+    var dest = (biz==='public') ? '센터' : '학원';
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
+    h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">📍 구글 패밀리링크 연동</div>';
+    h += '<div style="font-size:12px;color:#475467;margin-bottom:12px;line-height:1.6;">'+who+' 스마트폰 위치를 실시간으로 확인할 수 있어요.<br>패밀리링크 앱을 설치하면 자택→'+dest+' 동선을 파악할 수 있습니다.</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+    h += '<a href="https://play.google.com/store/apps/details?id=com.google.android.apps.kids.familylink" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:#E6F1FB;border-radius:10px;padding:12px;text-decoration:none;">';
+    h += '<span style="font-size:24px;">🤖</span><span style="font-size:12px;font-weight:700;color:#0C447C;">안드로이드</span><span style="font-size:10px;color:#185FA5;">구글플레이 설치</span></a>';
+    h += '<a href="https://apps.apple.com/app/google-family-link/id1150085200" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:#F2F4F7;border-radius:10px;padding:12px;text-decoration:none;">';
+    h += '<span style="font-size:24px;">🍎</span><span style="font-size:12px;font-weight:700;color:#344054;">아이폰</span><span style="font-size:10px;color:#475467;">앱스토어 설치</span></a>';
+    h += '</div>';
+    h += '<button onclick="openFamilyLink();" style="width:100%;padding:12px;background:#4285F4;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;">📍 패밀리링크 앱 바로 열기</button>';
+    h += '<div style="padding:10px;background:#FFFAEB;border-radius:8px;font-size:11px;color:#92400E;">⚠ 패밀리링크는 구글의 서비스로 코스로드와 직접 연동되지 않습니다. 앱을 별도로 사용해 주세요.</div>';
+    h += '</div>';
+  }
 
-  // 설치 안내
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
-  h += '<a href="https://play.google.com/store/apps/details?id=com.google.android.apps.kids.familylink" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:#E6F1FB;border-radius:10px;padding:12px;text-decoration:none;">';
-  h += '<span style="font-size:24px;">🤖</span>';
-  h += '<span style="font-size:12px;font-weight:700;color:#0C447C;">안드로이드</span>';
-  h += '<span style="font-size:10px;color:#185FA5;">구글플레이 설치</span></a>';
-  h += '<a href="https://apps.apple.com/app/google-family-link/id1150085200" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:#F2F4F7;border-radius:10px;padding:12px;text-decoration:none;">';
-  h += '<span style="font-size:24px;">🍎</span>';
-  h += '<span style="font-size:12px;font-weight:700;color:#344054;">아이폰</span>';
-  h += '<span style="font-size:10px;color:#475467;">앱스토어 설치</span></a>';
-  h += '</div>';
+  // 주요 기능 안내 (용어 분기)
+  var rideWord, attWord;
+  if(biz==='logistics'){ rideWord='납품'; attWord='납품'; }
+  else if(biz==='delivery'){ rideWord='배송'; attWord='배송'; }
+  else { rideWord='탑승'; attWord='출결'; }
 
-  // 패밀리링크 앱 바로가기
-  h += '<button onclick="openFamilyLink();" style="width:100%;padding:12px;background:#4285F4;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;">📍 패밀리링크 앱 바로 열기</button>';
-
-  h += '<div style="padding:10px;background:#FFFAEB;border-radius:8px;font-size:11px;color:#92400E;">⚠ 패밀리링크는 구글의 서비스로 코스로드와 직접 연동되지 않습니다. 앱을 별도로 사용해 주세요.</div>';
-  h += '</div>';
-
-  // 코스로드 주요 기능 안내
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:16px;margin-bottom:12px;">';
   h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:12px;">⚡ 코스로드 주요 기능</div>';
-
   var features = [
-    {icon:'🚐', title:'차량 운행 관리', desc:'요일별·수업반별·차량별 탑승 관리'},
-    {icon:'🔀', title:'T맵 경로 최적화', desc:'실시간 교통 반영 최적 픽업 순서'},
-    {icon:'🔢', title:'PIN 체크인', desc:'4자리 PIN으로 출결 자동 처리'},
-    {icon:'📋', title:'출결 관리', desc:'달력으로 월별 출결 현황 확인'},
+    {icon:'🚐', title:'차량 운행 관리', desc:'요일별·코스별·차량별 '+rideWord+' 관리'},
+    {icon:'🔀', title:'T맵 경로 최적화', desc:'실시간 교통 반영 최적 '+(biz==='academy'||biz==='public'?'픽업':'방문')+' 순서'},
+    {icon:'🔢', title:'PIN 체크인', desc:'4자리 PIN으로 '+attWord+' 자동 처리'},
+    {icon:'📋', title:attWord+' 관리', desc:'달력으로 월별 '+attWord+' 현황 확인'},
     {icon:'💰', title:'수납 관리', desc:'월정액·등록비 납부 현황 관리'},
     {icon:'📊', title:'세무 관리', desc:'수입·지출 기록 및 부가세 계산'},
-    {icon:'📍', title:'GPS 위치 공유', desc:'운행 중 학부모에게 실시간 위치 공유'},
-    {icon:'🧾', title:'세무 대행 연결', desc:'이엘택스 세무대행 서비스 연결'}
+    {icon:'📍', title:'GPS 위치 공유', desc:'운행 중 실시간 위치 공유'},
+    {icon:'🧾', title:'세무 대행 연결', desc:'세무대행 서비스 연결'}
   ];
-
   features.forEach(function(f){
     h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F4F7;">';
     h += '<span style="font-size:18px;width:28px;text-align:center;">'+f.icon+'</span>';
@@ -3250,10 +3284,10 @@ function renderGuide(){
   });
   h += '</div>';
 
-  // 문의/버전 정보
+  // 문의/버전 (공통)
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:12px;text-align:center;">';
   h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:6px;">🚐 COSROAD 코스로드</div>';
-  h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">스마트 셔틀 운행 관리 서비스</div>';
+  h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">학원·셔틀·물류·택배 운행 코스 최적화 관리</div>';
   h += '<a href="https://cosroad.com" target="_blank" style="display:inline-block;padding:8px 20px;background:#EA580C;color:white;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;margin-bottom:6px;">cosroad.com</a>';
   h += '</div>';
 
