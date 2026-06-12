@@ -3050,7 +3050,10 @@ function addTaxRecordUnified(){
   saveTaxData(data);
   nameEl.value = '';
   amountEl.value = '';
+  var sc = document.getElementById('admin-content');
+  var pos = sc ? sc.scrollTop : 0;
   renderTax();
+  if(sc) sc.scrollTop = pos;
 }
 
 function addTaxRecord(type){
@@ -3087,9 +3090,12 @@ function deleteTaxRecord(type, idx){
     var data = loadTaxData();
     var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
     if(data[key] && data[key][type]){
+      var sc = document.getElementById('admin-content');
+      var pos = sc ? sc.scrollTop : 0;
       data[key][type].splice(idx,1);
       saveTaxData(data);
       renderTax();
+      if(sc) sc.scrollTop = pos;
     }
   });
 }
