@@ -29,23 +29,23 @@
 body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(--gray-100);min-height:100vh;color:var(--gray-900);padding-bottom:80px;}
 
 /* 로그인 */
-.login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;overflow-y:auto;}
-@media (max-height:760px){.login-screen{justify-content:flex-start;}}
+.login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 24px;overflow-y:auto;}
+@media (max-height:860px){.login-screen{justify-content:flex-start;}}
 .login-screen.hide{display:none;}
 @keyframes logoSpinPause{0%{transform:rotate(0deg);}76%{transform:rotate(360deg);}100%{transform:rotate(360deg);}}
 .login-logo{font-size:52px;margin-bottom:10px;}
 .login-title{font-size:22px;font-weight:800;color:white;margin-bottom:4px;}
 .login-sub{font-size:13px;color:rgba(255,255,255,0.75);margin-bottom:16px;line-height:1.6;}
-.login-card{background:white;border-radius:20px;padding:20px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
-.login-section-title{font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:10px;margin-top:14px;}
+.login-card{background:white;border-radius:18px;padding:16px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
+.login-section-title{font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:7px;margin-top:10px;}
 .login-section-title:first-child{margin-top:0;}
-.login-input{width:100%;padding:12px 14px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;outline:none;margin-bottom:8px;}
+.login-input{width:100%;padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;outline:none;margin-bottom:8px;}
 .login-input:focus{border-color:var(--primary);}
-.login-btn{width:100%;padding:13px;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px;}
+.login-btn{width:100%;padding:11px;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px;}
 .btn-driver{background:var(--primary);color:white;}
 .btn-admin{background:var(--admin);color:white;}
 .login-err{color:var(--danger);font-size:12px;text-align:center;margin-top:4px;display:none;}
-.login-hint{font-size:11px;color:rgba(255,255,255,0.6);margin-top:14px;}
+.login-hint{font-size:11px;color:rgba(255,255,255,0.6);margin-top:10px;}
 
 /* 헤더 */
 .header{background:white;padding:14px 16px 10px;border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:100;}
@@ -315,7 +315,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   <div class="login-card">
     <div class="login-section-title">🚐 운전자</div>
     <button class="login-btn btn-driver" onclick="loginDriver()">운전자로 시작</button>
-    <div style="border-top:1px solid var(--gray-200);margin:14px 0;"></div>
+    <div style="border-top:1px solid var(--gray-200);margin:10px 0;"></div>
     <div class="login-section-title">👨‍💼 관리자</div>
     <input class="login-input" type="password" id="admin-pw" placeholder="관리자 비밀번호" onkeydown="if(event.key==='Enter')loginAdmin()"/>
     <label style="display:flex;align-items:center;gap:7px;margin:2px 0 10px;cursor:pointer;justify-content:center;">
