@@ -480,6 +480,20 @@ var BIZ_TERMS = {
 };
 var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
 
+// 기관명 길이에 따라 헤더 글자 크기 자동 조절 (7자까지 한 줄에 들어가게)
+function applyOrgNameFit(){
+  var el=document.getElementById('org-name-display');
+  if(!el) return;
+  var n=(el.textContent||'').replace(/\s/g,'').length; // 공백 제외 글자 수
+  var size;
+  if(n<=5) size=16;
+  else if(n<=7) size=14.5;
+  else if(n<=9) size=13;
+  else if(n<=11) size=12;
+  else size=11;
+  el.style.fontSize=size+'px';
+}
+
 function getBizType(){
   if(orgSettings && orgSettings.bizType) return orgSettings.bizType;
   var urlGroup = getUrlBizGroup();
@@ -742,6 +756,7 @@ function initApp(){
   setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
   document.getElementById('org-name-display').textContent=orgSettings.name;
+  applyOrgNameFit();
   document.getElementById('org-icon').textContent=orgSettings.icon;document.getElementById('org-icon-input')&&(document.getElementById('org-icon-input').value=orgSettings.icon);
   const badge=document.getElementById('mode-badge');
   const header=document.getElementById('main-header');
@@ -1963,6 +1978,7 @@ function saveOrgInfo(){
   orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizSel?bizSel.value:getBizType(),destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value)};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
+  applyOrgNameFit();
   document.getElementById('org-icon').textContent=orgSettings.icon;document.getElementById('org-icon-input')&&(document.getElementById('org-icon-input').value=orgSettings.icon);
   showToast('✅ 기관 정보 저장됐어요! (업종: '+(BIZ_LABELS[orgSettings.bizType]||'학원')+')');
   if(typeof renderAdminNav==='function') renderAdminNav();
