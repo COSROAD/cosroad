@@ -15,6 +15,8 @@
 <title>COSROAD 코스로드</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
+html,body{max-width:100%;overflow-x:hidden;}
+img,svg,video,canvas{max-width:100%;}
 :root{
   --primary:#1A6BFF;--primary-light:#E8F0FF;
   --success:#12B76A;--success-light:#ECFDF3;
@@ -26,7 +28,7 @@
   --gray-700:#344054;--gray-900:#101828;
   --radius:12px;--radius-sm:8px;
 }
-body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(--gray-100);min-height:100vh;color:var(--gray-900);padding-bottom:80px;}
+body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(--gray-100);min-height:100vh;width:100%;color:var(--gray-900);padding-bottom:80px;}
 
 /* 로그인 */
 .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 24px;overflow-y:auto;}
