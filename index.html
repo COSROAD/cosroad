@@ -810,7 +810,6 @@ function switchTab(tab){
   } else if(tab==='admin'){
     document.getElementById('admin-screen').classList.add('show');
     document.getElementById('tab-admin')?.classList.add('admin-active');
-    navGridCollapsed = false;
     renderAdminNav();
     renderAdminTab(currentAdminTab);
   }
@@ -1052,14 +1051,16 @@ function adminTabLabel(t){
 }
 
 function getAdminNavMode(){ return localStorage.getItem('tkd_nav_mode')||'grid'; }
-var navGridCollapsed = false; // 아이콘 모드에서 탭 선택 후 그리드 접힘 상태(임시)
+// 네비 접힘 상태를 localStorage에 저장해 화면 재렌더에도 유지
+function getNavCollapsed(){ return localStorage.getItem('tkd_nav_collapsed')==='1'; }
+function setNavCollapsed(v){ localStorage.setItem('tkd_nav_collapsed', v?'1':'0'); }
 
 function renderAdminNav(){
   var nav=document.getElementById('admin-nav');
   if(!nav) return;
   var mode=getAdminNavMode();
   // 아이콘 모드인데 접힌 상태면 시각적으로 가로 한 줄(scroll)처럼 표시
-  var showGrid = (mode==='grid') && !navGridCollapsed;
+  var showGrid = (mode==='grid') && !getNavCollapsed();
   var wrap=document.getElementById('admin-nav-wrap');
   if(wrap) wrap.classList.toggle('grid-mode', showGrid);
   var btn=document.getElementById('admin-nav-mode-btn');
@@ -1086,11 +1087,11 @@ function toggleAdminNavMode(){
   var mode = getAdminNavMode();
   if(mode==='grid'){
     // 아이콘 모드에서 토글 버튼 = 그리드 펼침/접힘
-    navGridCollapsed = !navGridCollapsed;
+    setNavCollapsed(!getNavCollapsed());
   } else {
     // 가로 스크롤 모드 → 아이콘 모드로 전환(펼친 상태)
     localStorage.setItem('tkd_nav_mode','grid');
-    navGridCollapsed = false;
+    setNavCollapsed(false);
   }
   renderAdminNav();
 }
@@ -1100,7 +1101,7 @@ function switchAdminTab(tab){
   // 알림장 탭 진입 시 작성 임시 상태 초기화
   if(tab==='notice'){ noticeEditId=null; noticeImages=[]; }
   // 아이콘 모드면 탭 선택 시 그리드를 접어 내용이 가려지지 않게
-  if(getAdminNavMode()==='grid'){ navGridCollapsed = true; }
+  if(getAdminNavMode()==='grid'){ setNavCollapsed(true); }
   renderAdminNav();
   renderAdminTab(tab);
   // 진입 시 내용 맨 위부터 보이도록 스크롤 초기화
@@ -3052,9 +3053,7 @@ function addTaxRecordUnified(){
   amountEl.value = '';
   var sc = document.getElementById('admin-content');
   var pos = sc ? sc.scrollTop : 0;
-  var navState = navGridCollapsed;
   renderTax();
-  navGridCollapsed = navState;
   if(sc){ requestAnimationFrame(function(){ sc.scrollTop = pos; }); }
 }
 
@@ -3094,11 +3093,9 @@ function deleteTaxRecord(type, idx){
     if(data[key] && data[key][type]){
       var sc = document.getElementById('admin-content');
       var pos = sc ? sc.scrollTop : 0;
-      var navState = navGridCollapsed;
       data[key][type].splice(idx,1);
       saveTaxData(data);
       renderTax();
-      navGridCollapsed = navState; // 네비 접힘 상태 유지(아이콘 모드 자동 복귀 방지)
       if(sc){ requestAnimationFrame(function(){ sc.scrollTop = pos; }); }
     }
   });
