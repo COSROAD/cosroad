@@ -2696,7 +2696,7 @@ function confirmPayment(memberId){
   // 세무 데이터에도 자동 기록
   var m = members.find(function(x){return x.id===memberId;});
   if(m && m.monthly){
-    addIncomeRecord(payViewYear, payViewMonth, m.name+' '+T('수강료'), m.monthly, T('수강료'));
+    addIncomeRecord(payViewYear, payViewMonth, m.name+' '+T('수강료'), m.monthly, T('수강료'), {memberId:memberId, year:payViewYear, month:payViewMonth});
   }
   renderPayment();
 }
@@ -2798,11 +2798,13 @@ function saveTaxData(data){
   saveToFirebase('tax',data);
   setTimeout(function(){ _localSaving = false; }, 2000);
 }
-function addIncomeRecord(year, month, name, amount, category){
+function addIncomeRecord(year, month, name, amount, category, link){
   var data = loadTaxData();
   var key = year+'_'+String(month).padStart(2,'0');
   if(!data[key]) data[key]={income:[],expense:[]};
-  data[key].income.push({name:name, amount:amount, category:category, date:new Date().toISOString().slice(0,10), taxType:'과세'});
+  var rec = {name:name, amount:amount, category:category, date:new Date().toISOString().slice(0,10), taxType:'과세'};
+  if(link){ rec.source='payment'; rec.linkMemberId=link.memberId; rec.linkYear=link.year; rec.linkMonth=link.month; }
+  data[key].income.push(rec);
   saveTaxData(data);
 }
 
@@ -3093,12 +3095,40 @@ function deleteTaxRecord(type, idx){
     if(data[key] && data[key][type]){
       var sc = document.getElementById('admin-content');
       var pos = sc ? sc.scrollTop : 0;
+      var rec = data[key][type][idx];
+      // 수입내역이고 수강료(회원 납부) 연동이면, 수납도 미납으로 되돌림
+      if(type==='income' && rec){
+        revertPaymentFromTax(rec);
+      }
       data[key][type].splice(idx,1);
       saveTaxData(data);
       renderTax();
       if(sc){ requestAnimationFrame(function(){ sc.scrollTop = pos; }); }
     }
   });
+}
+
+// 세무 수입내역 삭제 시, 연동된 수납 기록을 미납으로 되돌림
+function revertPaymentFromTax(rec){
+  var feeWord = T('수강료');
+  var pays = loadPayments();
+  var changed = false;
+  // 방법 B: 연결 정보가 있으면 정확히 되돌림
+  if(rec.source==='payment' && rec.linkMemberId!=null && rec.linkYear && rec.linkMonth){
+    var k = getPaymentKey(rec.linkMemberId, rec.linkYear, rec.linkMonth);
+    if(pays[k] && pays[k].paid){ delete pays[k]; changed=true; }
+  } else {
+    // 과거 기록: 이름 기반으로 현재 보고 있는 달에서 같은 이름 회원을 찾아 되돌림
+    var nm = (rec.name||'').replace(' '+feeWord,'').replace(' 수강료','').trim();
+    if(nm){
+      var targets = members.filter(function(m){ return m.name===nm; });
+      targets.forEach(function(m){
+        var k2 = getPaymentKey(m.id, taxViewYear2, taxViewMonth2);
+        if(pays[k2] && pays[k2].paid){ delete pays[k2]; changed=true; }
+      });
+    }
+  }
+  if(changed){ savePayments(pays); }
 }
 
 function exportTaxExcel(){
