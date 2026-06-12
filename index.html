@@ -454,6 +454,28 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+// ── 앱 버전 자동 갱신 ──
+// 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
+const APP_VERSION = 1;
+(function checkAppVersion(){
+  try{
+    // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
+    fetch('version.json?t=' + Date.now(), {cache:'no-store'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(v){
+        if(v && typeof v.version==='number' && v.version > APP_VERSION){
+          // 새 버전 감지 → 한 번만 강제 새로고침 (무한루프 방지 플래그)
+          var flag = 'cosroad_reloaded_v' + v.version;
+          if(!sessionStorage.getItem(flag)){
+            sessionStorage.setItem(flag, '1');
+            location.reload(true);
+          }
+        }
+      })
+      .catch(function(){});
+  }catch(e){}
+})();
+
 const DAYS=['월','화','수','목','금','토','일'];
 const DAY_NAMES=['월요일','화요일','수요일','목요일','금요일','토요일','일요일'];
 const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri',토:'sat',일:'sun'};
