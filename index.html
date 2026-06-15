@@ -458,7 +458,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 3;
+const APP_VERSION = 4;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2103,7 +2103,6 @@ function renderMembers(){
     </div>`;
   }).join('');
 }
-function toggleRidingFilter(){filterRiding=!filterRiding;renderMembers();}
 
 // ── 원생 등록/수정 ──
 function populateSelects(){
@@ -2167,12 +2166,6 @@ function saveMember(){
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
-  if(currentTab==='member')renderMembers();else renderAdminTab('members');
-}
-function deleteMember(){
-  const editId=parseInt(document.getElementById('edit-id').value);
-
-  members=members.filter(m=>m.id!==editId);saveMembers();closeModal('member-modal');
   if(currentTab==='member')renderMembers();else renderAdminTab('members');
 }
 
@@ -2335,22 +2328,6 @@ function renderAttendance(){
   cont.innerHTML=h;
 }
 
-function sendAttendanceNotice(){
-  var data=loadAttendance();
-  var today=attViewDate||new Date().toISOString().slice(0,10);
-  var d=new Date(today);
-  var dayStr=['일','월','화','수','목','금','토'][d.getDay()];
-  var dm=members.filter(function(m){return m.days.indexOf(dayStr)>=0;});
-  var pl=dm.filter(function(m){return data[today]&&data[today][m.id]==='present';});
-  var al=dm.filter(function(m){return data[today]&&data[today][m.id]==='absent';});
-  var df=today.slice(0,4)+'년 '+parseInt(today.slice(5,7))+'월 '+parseInt(today.slice(8,10))+'일';
-  var pn=pl.map(function(m){return m.name;}).join(', ');
-  var an=al.map(function(m){return m.name;}).join(', ');
-  var msg='['+orgSettings.name+'] 출결 안내 ('+df+')\n✅ 출석 ('+pl.length+'명): '+pn+'\n❌ 결석 ('+al.length+'명): '+an+'\n📱 확인: https://cosroad.com';
-  var phones=dm.map(function(m){return m.phone;}).filter(Boolean);
-  navigator.clipboard.writeText(msg).then(function(){alert('✅ 출결 알림이 복사됐어요!\n카카오톡에 붙여넣기 하세요.');}).catch(function(){});
-  if(phones.length>0)window.open('sms:'+phones[0]+'?body='+encodeURIComponent(msg),'_blank');
-}
 
 // ══════════════════════
 // PIN 체크인 모드
@@ -2725,23 +2702,6 @@ function confirmPayment(memberId){
   renderPayment();
 }
 
-function sendUnpaidNotice(){
-  var data = loadPayments();
-  var unpaid = members.filter(function(m){
-    if(!m.monthly) return false;
-    var key = getPaymentKey(m.id, payViewYear, payViewMonth);
-    return !(data[key]&&data[key].paid);
-  });
-  if(unpaid.length===0){ showToast('✅ 미납 회원이 없습니다!'); return; }
-  var msg = '['+orgSettings.name+'] '+payViewYear+'년 '+payViewMonth+'월 '+T('수강료')+' 안내\n미납 '+T('회원')+': '+unpaid.map(function(m){return m.name;}).join(', ')+'\n빠른 납부 부탁드립니다.\n문의: cosroad.com';
-
-  // 미리보기 모달
-  var modal = document.getElementById('unpaid-notice-modal');
-  document.getElementById('unpaid-msg-preview').textContent = msg;
-  modal.style.display = 'flex';
-  window._unpaidMsg = msg;
-  window._unpaidPhones = unpaid.map(function(m){return m.phone;}).filter(Boolean);
-}
 
 // 미납 회원 1명에게 개별 미납 알림 문자
 function sendUnpaidOne(memberId){
@@ -3083,34 +3043,6 @@ function addTaxRecordUnified(){
   if(sc){ requestAnimationFrame(function(){ sc.scrollTop = pos; }); }
 }
 
-function addTaxRecord(type){
-  var data = loadTaxData();
-  var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
-  if(!data[key]) data[key]={income:[],expense:[]};
-  if(type==='income'){
-    var name=document.getElementById('inc-name').value.trim();
-    var amount=parseInt(document.getElementById('inc-amount').value)||0;
-    var category=document.getElementById('inc-name').value;
-    var method=document.getElementById('inc-method')?document.getElementById('inc-method').value:'';
-    if(!name||!amount){showToast('⚠ 항목명과 금액을 입력해주세요');return;}
-    var incName = category+(method?'('+method+')':'');
-    data[key].income.push({name:incName,amount:amount,category:category,date:new Date().toISOString().slice(0,10),taxType:'과세'});
-    document.getElementById('inc-name').value='';
-    document.getElementById('inc-amount').value='';
-  } else {
-    var name2=document.getElementById('exp-name').value.trim();
-    var amount2=parseInt(document.getElementById('exp-amount').value)||0;
-    var category2=document.getElementById('exp-name').value;
-    var method2=document.getElementById('exp-method')?document.getElementById('exp-method').value:'';
-    if(!name2||!amount2){showToast('⚠ 항목명과 금액을 입력해주세요');return;}
-    var expName = category2+(method2?'('+method2+')':'');
-    data[key].expense.push({name:expName,amount:amount2,category:category2,date:new Date().toISOString().slice(0,10)});
-    document.getElementById('exp-name').value='';
-    document.getElementById('exp-amount').value='';
-  }
-  saveTaxData(data);
-  renderTax();
-}
 
 function deleteTaxRecord(type, idx){
   showConfirmModal(function(){
@@ -3337,35 +3269,7 @@ function openFamilyLink(){
 var _popupMember = null;
 var _popupTime = '';
 
-function showCheckinNoticePopup(member, timeStr, photoHtml){
-  _popupMember = member;
-  _popupTime = timeStr;
 
-  // 팝업 내용 업데이트
-  document.getElementById('popup-member-name').textContent = member.name + ' 출석 완료!';
-  document.getElementById('popup-time').textContent = timeStr + ' 학원 도착';
-  var orgEl = document.getElementById('popup-org-name');
-  if(orgEl) orgEl.textContent = orgSettings.name;
-
-  // 팝업 표시
-  var modal = document.getElementById('checkin-notice-modal');
-  modal.style.display = 'flex';
-
-  // 카카오 알림톡 발송
-  loadAligoSettings();
-  sendKakaoAlimtalk(member, timeStr);
-  setTimeout(function(){
-    var statusEl = document.getElementById('popup-sms-status');
-    if(statusEl) statusEl.textContent = '✅ 발송완료';
-  }, 1500);
-}
-
-function sendCheckinSMSFromPopup(){
-  if(!_popupMember) return;
-  sendCheckinSMS(_popupMember, _popupTime);
-  var btn = document.getElementById('popup-sms-btn');
-  if(btn){ btn.textContent = '✅ 발송완료'; btn.disabled = true; }
-}
 
 function closeCheckinPopup(){
   var modal = document.getElementById('checkin-notice-modal');
@@ -4076,23 +3980,6 @@ function addCar(){
   renderAdminTab('cars');
 }
 
-function deleteCar(carId){
-  carId = carId.replace(/&quot;/g, '');
-  var car = cars.find(function(c){return c.id===carId;});
-  if(!car) return;
-  var assigned = members.filter(function(m){return m.carId===carId;});
-  if(assigned.length > 0){
-    if(!confirm(car.name+'에 배정된 원생 '+assigned.length+'명이 미배정 처리됩니다.\n삭제하시겠습니까?')) return;
-    members.forEach(function(m){ if(m.carId===carId) m.carId=''; });
-    saveMembers();
-  } else {
-    if(!confirm(car.name+'을 삭제하시겠습니까?')) return;
-  }
-  var newCars = cars.filter(function(c){return c.id!==carId;}); cars.length=0; newCars.forEach(function(c){cars.push(c);});
-  saveCars(cars);
-  currentCarTab = 0;
-  renderAdminTab('cars');
-}
 
 
 function deleteCurrentCar(){
@@ -4278,16 +4165,6 @@ function deleteMemberById(id){
 }
 
 
-function filterPayFee(q){
-  q = q.toLowerCase();
-  var list = document.getElementById('pay-fee-list');
-  if(!list) return;
-  var items = list.querySelectorAll('.pay-fee-item');
-  items.forEach(function(item){
-    var name = item.getAttribute('data-name') || '';
-    item.style.display = name.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
-  });
-}
 
 
 function filterPayMember(q){
@@ -4329,10 +4206,6 @@ function selectPayMethod(method){
 }
 
 
-function setTaxFilter(val){
-  taxFilter = val;
-  renderTax();
-}
 
 
 function syncTaxPaymentMethods(){
