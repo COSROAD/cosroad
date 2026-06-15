@@ -2409,33 +2409,10 @@ function checkPin(){
     +'<div style="font-size:13px;color:#98A2B3;margin-top:4px;">'+timeStr+' 도착</div>'
     +'</div>';
 
-  // 팝업 정보 업데이트 (화면 밖 백그라운드)
-  var popupEl = document.getElementById('checkin-notice-modal');
-  if(popupEl){
-    document.getElementById('popup-member-name').textContent = member.name + ' 출석 완료!';
-    document.getElementById('popup-time').textContent = timeStr + ' 학원 도착';
-    var orgEl = document.getElementById('popup-org-name');
-    if(orgEl) orgEl.textContent = orgSettings.name;
-    popupEl.style.position = 'fixed';
-    popupEl.style.left = '-9999px';
-    popupEl.style.top = '0';
-    popupEl.style.display = 'flex';
-    popupEl.style.visibility = 'hidden';
-  }
-
-  // 0.5초 후 이미지 캡처 → 문자 공유시트 열기
+  // 알림톡 발송
   setTimeout(function(){
     loadAligoSettings();
     sendKakaoAlimtalk(member, timeStr);
-    setTimeout(function(){
-      if(popupEl){
-        popupEl.style.display = 'none';
-        popupEl.style.visibility = '';
-        popupEl.style.position = '';
-        popupEl.style.left = '';
-        popupEl.style.top = '';
-      }
-    }, 1500);
   }, 500);
 
   // 3초 후 PIN 입력 화면으로 복귀
@@ -2445,62 +2422,6 @@ function checkPin(){
     if(r)r.innerHTML='';
     renderPinDisplay();
   }, 3000);
-}
-function sendCheckinSMS(member, timeStr){
-  if(!member.phone && !member.phone2) return;
-
-  // 팝업 이미지 캡처 후 MMS 전송
-  var popup = document.querySelector('#checkin-notice-modal > div');
-  if(popup && typeof html2canvas !== 'undefined'){
-    // 버튼 임시 숨기기
-    var btns = popup.querySelectorAll('button');
-    btns.forEach(function(b){ b.style.display='none'; });
-
-    html2canvas(popup, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false
-    }).then(function(canvas){
-      btns.forEach(function(b){ b.style.display=''; });
-
-      canvas.toBlob(function(blob){
-        var fileName = member.name+'_출석완료.png';
-        var file = new File([blob], fileName, {type:'image/png'});
-        var phones = [];
-        if(member.phone) phones.push(member.phone);
-        if(member.phone2) phones.push(member.phone2);
-
-        // Web Share API로 이미지 + 문자앱 연동
-        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-          navigator.share({
-            title: member.name+' 출석 완료!',
-            text: '['+orgSettings.name+'] '+member.name+' '+timeStr+' 학원 도착 ✅',
-            files: [file]
-          }).catch(function(e){ console.log('공유 취소:', e); });
-        } else {
-          // Web Share 미지원 시 이미지 다운로드 후 안내
-          var link = document.createElement('a');
-          link.download = fileName;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-          setTimeout(function(){
-            var msg = '['+orgSettings.name+'] '+member.name+' '+timeStr+' 학원 도착 ✅';
-            if(member.phone){
-              window.open('sms:'+member.phone+'?body='+encodeURIComponent(msg),'_blank');
-            }
-          }, 500);
-        }
-      }, 'image/png');
-    }).catch(function(e){
-      btns.forEach(function(b){ b.style.display=''; });
-      // html2canvas 실패 시 텍스트 문자 발송
-      sendCheckinSMSText(member, timeStr);
-    });
-  } else {
-    // html2canvas 없으면 텍스트 문자 발송
-    sendCheckinSMSText(member, timeStr);
-  }
 }
 
 function sendCheckinSMSText(member, timeStr){
@@ -3271,106 +3192,6 @@ var _popupTime = '';
 
 
 
-function closeCheckinPopup(){
-  var modal = document.getElementById('checkin-notice-modal');
-  if(modal) modal.style.display = 'none';
-  _popupMember = null;
-  _popupTime = '';
-  // PIN 입력 초기화
-  pinInput = '';
-  renderPinDisplay();
-}
-
-// 팝업 외부 클릭 시 닫기
-document.addEventListener('click', function(e){
-  var modal = document.getElementById('checkin-notice-modal');
-  if(modal && e.target === modal) closeCheckinPopup();
-});
-
-
-// ══════════════════════════════════════════
-// 팝업 이미지 저장 + 문자 공유
-// ══════════════════════════════════════════
-function saveAndSharePopupImage(){
-  var popup = document.querySelector('#checkin-notice-modal > div');
-  if(!popup){ alert('팝업을 찾을 수 없습니다.'); return; }
-
-  // 버튼 임시 숨기기
-  var btns = popup.querySelectorAll('button');
-  btns.forEach(function(b){ b.style.display='none'; });
-
-  if(typeof html2canvas === 'undefined'){
-    btns.forEach(function(b){ b.style.display=''; });
-    alert('라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.');
-    return;
-  }
-
-  html2canvas(popup, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    logging: false
-  }).then(function(canvas){
-    // 버튼 다시 보이기
-    btns.forEach(function(b){ b.style.display=''; });
-
-    // 이미지 저장
-    var imgData = canvas.toDataURL('image/png');
-    var link = document.createElement('a');
-    var memberName = document.getElementById('popup-member-name').textContent.replace(' 출석 완료!','');
-    var timeStr = document.getElementById('popup-time').textContent;
-    link.download = memberName+'_출석완료_'+timeStr.replace(':','')+'.png';
-    link.href = imgData;
-    link.click();
-
-    // Web Share API로 공유 (모바일에서 카카오톡/문자 선택 가능)
-    setTimeout(function(){
-      if(navigator.share){
-        // 이미지를 Blob으로 변환
-        canvas.toBlob(function(blob){
-          var file = new File([blob], memberName+'_출석완료.png', {type:'image/png'});
-          navigator.share({
-            title: memberName+' 출석 완료!',
-            text: '['+orgSettings.name+'] '+memberName+' 출석 완료!\n'+timeStr,
-            files: [file]
-          }).then(function(){
-            console.log('공유 완료');
-          }).catch(function(e){
-            console.log('공유 취소:', e);
-          });
-        }, 'image/png');
-      } else {
-        alert('이미지가 저장됐어요!\n저장된 이미지를 카카오톡이나 문자로 전송해 주세요.');
-      }
-    }, 500);
-
-  }).catch(function(e){
-    btns.forEach(function(b){ b.style.display=''; });
-    console.error('캡처 오류:', e);
-    alert('이미지 생성 중 오류가 발생했습니다.');
-  });
-}
-
-
-// ══════════════════════════════════════════
-// 학부모 확인 페이지 (URL 파라미터 감지)
-// ══════════════════════════════════════════
-function checkParentView(){
-  var params = new URLSearchParams(window.location.search);
-  var name = params.get('name');
-  var time = params.get('time');
-  var org  = params.get('org');
-  if(!name || !time) return;
-
-  // 학부모 전용 팝업 표시
-  var modal = document.getElementById('parent-check-modal');
-  if(!modal) return;
-
-  document.getElementById('pc-member-name').textContent = name + ' 출석 완료!';
-  document.getElementById('pc-time').textContent = time + ' 학원 도착';
-  document.getElementById('pc-org-name').textContent = org || 'COSROAD';
-  modal.style.display = 'flex';
-}
 
 // 페이지 로드 시 확인
 window.addEventListener('load', function(){
@@ -3382,7 +3203,6 @@ window.addEventListener('load', function(){
     return;
   }
   tryAutoLogin();
-  checkParentView();
 });
 
 
@@ -3474,52 +3294,6 @@ function setAdminSort(desc){
 // ══════════════════════════════════════════
 // 팝업 캡처 후 문자 자동 발송
 // ══════════════════════════════════════════
-function captureAndSendSMS(member, timeStr){
-  if(!member.phone && !member.phone2) return;
-
-  var popup = document.querySelector('#checkin-notice-modal > div');
-  if(!popup || typeof html2canvas === 'undefined'){
-    // html2canvas 없으면 텍스트 문자 발송
-    sendCheckinSMSText(member, timeStr);
-    return;
-  }
-
-  // 버튼 숨기기
-  var btns = popup.querySelectorAll('button');
-  btns.forEach(function(b){ b.style.display='none'; });
-
-  html2canvas(popup, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    logging: false
-  }).then(function(canvas){
-    btns.forEach(function(b){ b.style.display=''; });
-
-    canvas.toBlob(function(blob){
-      var file = new File([blob], member.name+'_출석완료.png', {type:'image/png'});
-      var phones = [];
-      if(member.phone) phones.push(member.phone);
-      if(member.phone2) phones.push(member.phone2);
-
-      // Web Share API로 이미지 + 문자앱 연동
-      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-        navigator.share({
-          files: [file],
-          title: member.name+' 출석 완료!',
-          text: '['+orgSettings.name+'] '+member.name+' '+timeStr+' 학원 도착 ✅'
-        }).catch(function(e){ console.log('공유 취소:', e); });
-      } else {
-        // 미지원 시 텍스트 문자 발송
-        sendCheckinSMSText(member, timeStr);
-      }
-    }, 'image/png');
-
-  }).catch(function(e){
-    btns.forEach(function(b){ b.style.display=''; });
-    sendCheckinSMSText(member, timeStr);
-  });
-}
 
 
 // ══════════════════════════════════════════
@@ -4382,101 +4156,9 @@ function showAddrResults(results){
 
 
 <!-- 체크인 학부모 알림 팝업 -->
-<div id="checkin-notice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:white;border-radius:20px;width:100%;max-width:320px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-
-    <!-- 헤더 -->
-    <div style="background:linear-gradient(135deg,#EA580C,#C2410C);padding:24px 20px;text-align:center;">
-      <div style="font-size:40px;margin-bottom:8px;">✅</div>
-      <div style="font-size:20px;font-weight:800;color:white;" id="popup-member-name">홍길동</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;" id="popup-time">14:30 도착</div>
-    </div>
-
-    <!-- 학원 도착 확인 -->
-    <div style="padding:18px 16px 12px;">
-      <div style="display:flex;align-items:center;gap:10px;background:#FFEDD5;border-radius:12px;padding:14px;">
-        <span style="font-size:28px;">🥋</span>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:800;color:#C2410C;">✅ 학원 도착 확인</div>
-          <div style="font-size:12px;color:#EA580C;margin-top:2px;" id="popup-org-name">태권도장</div>
-        </div>
-        <span style="font-size:11px;background:#EA580C;color:white;padding:4px 10px;border-radius:20px;font-weight:700;">📍 지금!</span>
-      </div>
-    </div>
-
-    <!-- 패밀리링크 바로 열기 -->
-    <div style="padding:0 16px 20px;">
-      <button onclick="openFamilyLink();" style="width:100%;padding:14px;background:#4285F4;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
-        <span style="font-size:20px;">📍</span> 패밀리링크 바로 열기
-      </button>
-      <button onclick="saveAndSharePopupImage();" style="width:100%;padding:14px;background:#12B76A;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span style="font-size:20px;">📸</span> 이미지로 저장 후 전송
-      </button>
-      <!-- 패밀리링크 설명 -->
-      <div style="margin-top:10px;background:#E6F1FB;border-radius:10px;padding:12px 14px;">
-        <div style="font-size:12px;font-weight:700;color:#0C447C;margin-bottom:6px;">📍 구글 패밀리링크란?</div>
-        <div style="font-size:11px;color:#185FA5;line-height:1.7;">
-          자녀 스마트폰의 <b>실시간 위치</b>와<br>
-          <b>이동 동선</b>을 부모님 폰에서<br>
-          언제든지 확인할 수 있는<br>
-          구글의 무료 자녀 보호 서비스예요.<br><br>
-          📲 설치 후 자녀 계정과 연동하면<br>
-          집 출발부터 학원 도착까지<br>
-          동선을 실시간으로 파악할 수 있어요!
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
 
 
 <!-- 학부모 확인 팝업 (링크 접속 시 표시) -->
-<div id="parent-check-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:white;border-radius:20px;width:100%;max-width:320px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
-
-    <!-- 헤더 -->
-    <div style="background:linear-gradient(135deg,#EA580C,#C2410C);padding:28px 20px;text-align:center;">
-      <div style="width:56px;height:56px;background:#12B76A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:28px;">✅</div>
-      <div style="font-size:22px;font-weight:800;color:white;" id="pc-member-name">홍길동 출석 완료!</div>
-      <div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:6px;" id="pc-time">14:30 학원 도착</div>
-    </div>
-
-    <!-- 학원 도착 확인 -->
-    <div style="padding:18px 16px 12px;">
-      <div style="display:flex;align-items:center;gap:10px;background:#FFEDD5;border-radius:12px;padding:14px;">
-        <span style="font-size:28px;">🥋</span>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:800;color:#C2410C;">✅ 학원 도착 확인</div>
-          <div style="font-size:12px;color:#EA580C;margin-top:2px;" id="pc-org-name">COSROAD</div>
-        </div>
-        <span style="font-size:11px;background:#EA580C;color:white;padding:4px 10px;border-radius:20px;font-weight:700;">📍 지금!</span>
-      </div>
-    </div>
-
-    <!-- 패밀리링크 바로 열기 -->
-    <div style="padding:0 16px 10px;">
-      <button onclick="openFamilyLink();" style="width:100%;padding:14px;background:#4285F4;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span style="font-size:20px;">📍</span> 패밀리링크 바로 열기
-      </button>
-    </div>
-
-    <!-- 패밀리링크 설명 -->
-    <div style="margin:0 16px 20px;background:#E6F1FB;border-radius:10px;padding:12px 14px;">
-      <div style="font-size:12px;font-weight:700;color:#0C447C;margin-bottom:6px;">📍 구글 패밀리링크란?</div>
-      <div style="font-size:11px;color:#185FA5;line-height:1.7;">
-        자녀 스마트폰의 <b>실시간 위치</b>와<br>
-        <b>이동 동선</b>을 부모님 폰에서<br>
-        언제든지 확인할 수 있는<br>
-        구글의 무료 자녀 보호 서비스예요.<br><br>
-        📲 설치 후 자녀 계정과 연동하면<br>
-        집 출발부터 학원 도착까지<br>
-        동선을 실시간으로 파악할 수 있어요!
-      </div>
-    </div>
-
-  </div>
-</div>
 
 
 <!-- 커스텀 확인 모달 -->
