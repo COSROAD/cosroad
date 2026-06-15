@@ -458,7 +458,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 2;
+const APP_VERSION = 3;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3638,7 +3638,7 @@ function sendKakaoAlimtalk(member, timeStr){
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
-  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n✅ 학원에 안전하게 도착했습니다.\n━━━━━━━━━\n안전한 귀가까지 함께하겠습니다.';
+  var msg = '['+orgSettings.name+'] 출석 알림\n━━━━━━━━━\n👤 이름: '+member.name+'\n⏰ 도착: '+timeStr+'\n✅ 학원에 안전하게 도착했습니다.\n━━━━━━━━━\n안전한 귀가까지 함께하겠습니다.\n\n🔻🔻🔻🔻🔻\n자녀 스마트폰의 실시간 위치를\n언제든지 확인할 수 있는\n구글의 무료 자녀 보호 서비스예요.';
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
