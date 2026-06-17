@@ -395,31 +395,31 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div class="modal-title" id="modal-title">원생 등록</div>
     <div class="modal-sub" id="modal-sub">이용자 정보를 입력해주세요.</div>
     <input type="hidden" id="edit-id"/>
-    <label class="form-label">이름 *</label>
+    <label class="form-label" id="lbl-name">이름 *</label>
     <input class="form-input" type="text" id="m-name" placeholder="예) 홍길동"/>
     <div class="form-row">
-      <div><label class="form-label">코스(수업반) *</label>
+      <div id="wrap-class"><label class="form-label">코스(수업반) *</label>
         <select class="form-input" id="m-class"></select>
       </div>
-      <div><label class="form-label">배정 차량</label>
+      <div><label class="form-label" id="lbl-car">배정 차량</label>
         <select class="form-input" id="m-car"></select>
       </div>
     </div>
-    <label class="form-label">픽업 장소 *</label>
+    <label class="form-label" id="lbl-location">픽업 장소 *</label>
     <div style="display:flex;gap:6px;align-items:center;">
       <input class="form-input" type="text" id="m-location" placeholder="예) 용현초 정문" style="margin-bottom:0;flex:1;"/>
       <button type="button" onclick="searchMemberAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">📍 검색</button>
     </div>
     <div id="member-addr-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
     <div class="form-row">
-      <div><label class="form-label">보호자 연락처1</label>
+      <div><label class="form-label" id="lbl-phone">보호자 연락처1</label>
         <input class="form-input" type="tel" id="m-phone" placeholder="010-0000-0000"/>
       </div>
-      <div><label class="form-label">보호자 연락처2</label>
+      <div id="wrap-phone2"><label class="form-label">보호자 연락처2</label>
         <input class="form-input" type="tel" id="m-phone2" placeholder="010-0000-0000"/>
       </div>
     </div>
-    <label class="form-label">등원 요일</label>
+    <label class="form-label" id="lbl-days">등원 요일</label>
     <div class="day-checks">
       <div class="day-check"><input type="checkbox" id="d-mon"/><label for="d-mon">월</label></div>
       <div class="day-check"><input type="checkbox" id="d-tue"/><label for="d-tue">화</label></div>
@@ -429,15 +429,17 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <div class="day-check"><input type="checkbox" id="d-sat"/><label for="d-sat">토</label></div>
       <div class="day-check"><input type="checkbox" id="d-sun"/><label for="d-sun">일</label></div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="wrap-fees">
       <div><label class="form-label">등록비 (원)</label>
       <input class="form-input" type="number" id="m-regfee" placeholder="예) 50000"/></div>
       <div><label class="form-label">월정액 (원)</label>
       <input class="form-input" type="number" id="m-monthly" placeholder="예) 100000"/></div>
     </div>
+    <div id="wrap-pin">
     <label class="form-label">출석 PIN 번호 (4자리) *</label>
     <input class="form-input" type="number" id="m-pin" placeholder="예) 1234" maxlength="4"/>
-    <label class="form-label">특이사항</label>
+    </div>
+    <label class="form-label" id="lbl-note">특이사항</label>
     <input class="form-input" type="text" id="m-note" placeholder="예) 정문 우측 대기"/>
     <button class="modal-save" onclick="saveMember()">저장</button>
 
@@ -458,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2236,6 +2238,62 @@ function populateSelects(){
   cs.innerHTML=courses.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
   cv.innerHTML=cars.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
 }
+// 물류 거래처용 모달 변환 (물류일 때만 라벨/칸 변경)
+function applyBizModalLayout(){
+  var biz = getBizType();
+  var lblName=document.getElementById('lbl-name');
+  var lblLoc=document.getElementById('lbl-location');
+  var lblPhone=document.getElementById('lbl-phone');
+  var lblDays=document.getElementById('lbl-days');
+  var lblNote=document.getElementById('lbl-note');
+  var wrapClass=document.getElementById('wrap-class');
+  var wrapPin=document.getElementById('wrap-pin');
+  var wrapPhone2=document.getElementById('wrap-phone2');
+  var wrapFees=document.getElementById('wrap-fees');
+  var mLoc=document.getElementById('m-location');
+  if(biz==='logistics'){
+    if(lblName)lblName.textContent='거래처명 *';
+    if(lblLoc)lblLoc.textContent='거래처 주소 *';
+    if(lblPhone)lblPhone.textContent='거래처 전화번호';
+    if(lblDays)lblDays.textContent='배송 요일';
+    if(lblNote)lblNote.textContent='특이사항';
+    if(mLoc)mLoc.placeholder='예) 인천 연수구 ...';
+    if(wrapClass)wrapClass.style.display='none';
+    if(wrapPin)wrapPin.style.display='none';
+    if(wrapPhone2)wrapPhone2.style.display='none';
+    if(wrapFees && !document.getElementById('m-driverinfo')){
+      wrapFees.innerHTML='<div style="flex:1;"><label class="form-label">기사 정보 (배정차량 자동)</label>'
+        +'<input class="form-input" type="text" id="m-driverinfo" placeholder="배정차량 선택 시 자동" readonly style="background:#F9FAFB;color:#475467;"/></div>';
+    }
+    var carSel=document.getElementById('m-car');
+    if(carSel) carSel.setAttribute('onchange','fillDriverInfoFromCar()');
+  } else {
+    if(lblName)lblName.textContent='이름 *';
+    if(lblLoc)lblLoc.textContent='픽업 장소 *';
+    if(lblPhone)lblPhone.textContent='보호자 연락처1';
+    if(lblDays)lblDays.textContent=(biz==='public'?'이용 요일':'등원 요일');
+    if(lblNote)lblNote.textContent='특이사항';
+    if(wrapClass)wrapClass.style.display='';
+    if(wrapPin)wrapPin.style.display='';
+    if(wrapPhone2)wrapPhone2.style.display='';
+  }
+}
+
+// 배정차량 선택 시 기사 정보 자동 채움 (물류)
+function fillDriverInfoFromCar(){
+  var sel=document.getElementById('m-car');
+  var info=document.getElementById('m-driverinfo');
+  if(!sel||!info) return;
+  var car=cars.find(function(c){ return c.id===sel.value; });
+  if(car){
+    var parts=[];
+    if(car.driver) parts.push(car.driver);
+    if(car.phone) parts.push(car.phone);
+    if(car.plate) parts.push(car.plate);
+    info.value=parts.join(' · ');
+  } else { info.value=''; }
+}
+
 function openAddModal(){
   // 엑셀 패널 닫기
   var ep = document.getElementById('excel-panel');
@@ -2252,6 +2310,7 @@ function openAddModal(){
   Object.values(dayIdMap).forEach(d=>document.getElementById('d-'+d).checked=false);
   // 삭제 버튼 제거됨
   var m2=document.getElementById('member-modal');m2.style.display='';m2.classList.add('show');
+  applyBizModalLayout();
 }
 function openEditModal(id){
   populateSelects();
@@ -2271,16 +2330,19 @@ function openEditModal(id){
   DAYS.forEach(d=>document.getElementById('d-'+dayIdMap[d]).checked=m.days.includes(d));
   // 삭제 버튼 제거됨
   var m3=document.getElementById('member-modal');m3.style.display='';m3.classList.add('show');
+  applyBizModalLayout();
+  if(getBizType()==='logistics') fillDriverInfoFromCar();
 }
 function saveMember(){
   const name=document.getElementById('m-name').value.trim();
   const location=document.getElementById('m-location').value.trim();
   const locLat=parseFloat(document.getElementById('m-location').getAttribute('data-lat'))||0;
   const locLon=parseFloat(document.getElementById('m-location').getAttribute('data-lon'))||0;
-  if(!name){showToast('⚠ 이름을 입력해주세요');return;}
-  if(!location){showToast('⚠ 픽업장소를 입력해주세요');return;}
+  var biz=getBizType();
+  if(!name){showToast('⚠ '+(biz==='logistics'?'거래처명':'이름')+'을 입력해주세요');return;}
+  if(!location){showToast('⚠ '+(biz==='logistics'?'거래처 주소':'픽업장소')+'를 입력해주세요');return;}
   const days=DAYS.filter(d=>document.getElementById('d-'+dayIdMap[d]).checked);
-  if(days.length===0){showToast('⚠ 등원 요일을 선택해주세요');return;}
+  if(days.length===0){showToast('⚠ '+(biz==='logistics'?'배송':'등원')+' 요일을 선택해주세요');return;}
   const editId=document.getElementById('edit-id').value;
   const pinEl=document.getElementById('m-pin');
   const regEl=document.getElementById('m-regfee');
@@ -2295,7 +2357,15 @@ function saveMember(){
   }
   const regfee=regEl?parseInt(regEl.value)||0:0;
   const monthly=monEl?parseInt(monEl.value)||0:0;
-  const obj={name,courseId:document.getElementById('m-class').value,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon};
+  var classEl=document.getElementById('m-class');
+  var courseIdVal=(classEl && classEl.style.display!=='none' && document.getElementById('wrap-class').style.display!=='none')?classEl.value:(courses[0]?courses[0].id:'');
+  // 물류: 배정차량의 기사번호를 기록용으로 저장
+  var driverPhoneRec='';
+  if(biz==='logistics'){
+    var selCar=cars.find(function(c){ return c.id===document.getElementById('m-car').value; });
+    if(selCar) driverPhoneRec=selCar.phone||'';
+  }
+  const obj={name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon};
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
