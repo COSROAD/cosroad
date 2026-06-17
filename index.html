@@ -460,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1742,10 +1742,13 @@ function renderAdminMembers(){
   html+='<button onclick="setAdminSort(false)" id="admin-sort-asc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#EAECF0':'#EA580C')+';background:'+(adminSortDesc?'white':'#FFEDD5')+';color:'+(adminSortDesc?'#475467':'#EA580C')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>';
   html+='<button onclick="setAdminSort(true)" id="admin-sort-desc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#12B76A':'#EAECF0')+';background:'+(adminSortDesc?'#ECFDF3':'white')+';color:'+(adminSortDesc?'#12B76A':'#475467')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↓가나다</button>';
   html+='</div>';
-  // 코스 탭
+  // 코스 탭 (물류는 차량별 탭)
+  var _bizM=getBizType();
+  var tabItems = (_bizM==='logistics') ? cars.filter(function(c){return c.driver&&c.driver.trim();}) : courses;
+  var tabField = (_bizM==='logistics') ? 'carId' : 'courseId';
   html+='<div id="admin-course-tabs" style="display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto;scrollbar-width:none;">';
   html+='<button onclick="adminFilterCourse=\'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(adminFilterCourse===''?'var(--admin)':'#EAECF0')+';background:'+(adminFilterCourse===''?'var(--admin-light)':'white')+';color:'+(adminFilterCourse===''?'var(--admin)':'#475467')+';">전체 ('+members.length+')</button>';
-  html+=courses.map(function(cs){ var cnt=members.filter(function(m){return m.courseId===cs.id;}).length; var isActive=adminFilterCourse===cs.id; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+cs.name+' ('+cnt+')</button>'; }).join('');
+  html+=tabItems.map(function(cs){ var cnt=members.filter(function(m){return m[tabField]===cs.id;}).length; var isActive=adminFilterCourse===cs.id; var nm=(_bizM==='logistics')?(cs.name+(cs.driver?' ('+cs.driver+')':'')):cs.name; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+nm+' ('+cnt+')</button>'; }).join('');
   html+='</div>';
   html+='</div>';
   // 엑셀 패널 (sticky 밖)
@@ -1815,7 +1818,8 @@ function filterAdminMembers(q){
   if(ml) ml.style.display='block';
   var listEl = document.getElementById('admin-member-list');
   if(!listEl){ renderAdminTab('members'); return; }
-  var filtered = members.filter(function(m){return (!q||m.name.toLowerCase().indexOf(q)>=0)&&(!adminFilterCourse||m.courseId===adminFilterCourse);})
+  var _ff=(getBizType()==='logistics')?'carId':'courseId';
+  var filtered = members.filter(function(m){return (!q||m.name.toLowerCase().indexOf(q)>=0)&&(!adminFilterCourse||m[_ff]===adminFilterCourse);})
     .slice().sort(function(a,b){ return adminSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
   var html = '';
   filtered.forEach(function(m){
@@ -3848,8 +3852,8 @@ function renderCars(){
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="'+car.plate+'" oninput="cars['+i+'].plate=this.value"/>';
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="기사 PIN 4자리" maxlength="4" inputmode="numeric" value="'+(car.driverPin||'')+'" oninput="cars['+i+'].driverPin=this.value.replace(/[^0-9]/g,\'\')"/>';
   html+='</div><button onclick="saveCarsAndMembers()" style="width:100%;padding:10px;background:#EA580C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:10px;">💾 저장</button></div>';
-  html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">👥 배정된 회원 <span style="font-size:12px;font-weight:400;color:#98A2B3;">'+carMembers.length+'명</span></div>';
-  if(carMembers.length===0) html+='<div style="font-size:12px;color:#98A2B3;padding:8px 0;">배정된 회원이 없습니다.</div>';
+  html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">👥 배정된 '+T('회원')+' <span style="font-size:12px;font-weight:400;color:#98A2B3;">'+carMembers.length+'명</span></div>';
+  if(carMembers.length===0) html+='<div style="font-size:12px;color:#98A2B3;padding:8px 0;">배정된 '+T('회원')+'이 없습니다.</div>';
   carMembers.forEach(function(m){
     html+='<div style="background:#F2F4F7;border-radius:8px;padding:9px 11px;margin-bottom:6px;">';
     html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
@@ -3863,8 +3867,8 @@ function renderCars(){
     });
     html+='</div></div>';
   });
-  html+='</div><div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">➕ 회원 추가</div>';
-  if(unassigned.length===0) html+='<div style="font-size:12px;color:#98A2B3;">미배정 회원이 없습니다.</div>';
+  html+='</div><div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">➕ '+T('회원')+' 추가</div>';
+  if(unassigned.length===0) html+='<div style="font-size:12px;color:#98A2B3;">미배정 '+T('회원')+'이 없습니다.</div>';
   else { html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
     unassigned.forEach(function(m){ html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+m.name+' +</button>'; });
     html+='</div>'; }
