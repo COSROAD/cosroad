@@ -458,7 +458,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1941,6 +1941,8 @@ function handleExcelFile(file){
         const car=cars.find(c=>c.name===carName)||cars[0];
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name)){skipped++;return;}
+        // PIN 중복(다른 회원/기사) 시 건너뜀
+        if(pin && (members.find(m=>m.pin===pin) || cars.find(c=>c.driverPin===pin))){skipped++;return;}
         members.push({id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true});
         added++;
       });
@@ -2284,6 +2286,13 @@ function saveMember(){
   const regEl=document.getElementById('m-regfee');
   const monEl=document.getElementById('m-monthly');
   const pin=pinEl?pinEl.value.trim():'';
+  // PIN 중복 검사 (다른 회원 + 기사 PIN과 겹치면 안 됨)
+  if(pin){
+    var dupMember = members.find(function(m){ return m.pin===pin && m.id!==parseInt(editId||0); });
+    if(dupMember){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupMember.name+' 님이 사용 중이에요'); return; }
+    var dupCar = cars.find(function(c){ return c.driverPin===pin; });
+    if(dupCar){ showToast('⚠ PIN '+pin+' 은(는) 이미 기사('+(dupCar.driver||dupCar.name)+')가 사용 중이에요'); return; }
+  }
   const regfee=regEl?parseInt(regEl.value)||0:0;
   const monthly=monEl?parseInt(monEl.value)||0:0;
   const obj={name,courseId:document.getElementById('m-class').value,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon};
@@ -3727,7 +3736,18 @@ function fillAligoInputs(){
 
 var currentCarTab = 0;
 function setCarTab(idx){ currentCarTab=idx; renderAdminTab('cars'); }
-function saveCarsAndMembers(){ saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
+function saveCarsAndMembers(){
+  // 기사 PIN 중복 검사 (기사끼리 + 회원 PIN과도)
+  for(var a=0;a<cars.length;a++){
+    var dp=cars[a].driverPin;
+    if(!dp) continue;
+    for(var b=a+1;b<cars.length;b++){
+      if(cars[b].driverPin===dp){ showToast('⚠ 기사 PIN '+dp+' 이(가) 중복돼요 ('+(cars[a].driver||cars[a].name)+' ↔ '+(cars[b].driver||cars[b].name)+')'); return; }
+    }
+    var dupM=members.find(function(m){ return m.pin===dp; });
+    if(dupM){ showToast('⚠ 기사 PIN '+dp+' 은(는) 회원('+dupM.name+')이 사용 중이에요'); return; }
+  }
+  saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
 function renderCars(){
   var DAYS=['월','화','수','목','금','토'];
   var car=cars[currentCarTab]; var i=currentCarTab;
