@@ -460,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1191,6 +1191,8 @@ function adminTabLabel(t){
     var bt=getBizType();
     if(bt==='logistics'||bt==='delivery') return '근태관리';
   }
+  // 물류는 스케줄 → 배송현황
+  if(t.id==='schedule' && getBizType()==='logistics') return '배송현황';
   if(t.term) return T(t.term)+(t.suffix||'');
   return t.label;
 }
@@ -1994,7 +1996,37 @@ function removeMemberFromCar(memberId){
 }
 
 // ── 스케줄 ──
+// 물류: 요일별 배송 거래처 현황
+function renderDeliverySchedule(){
+  var today=new Date();
+  var todayDay=['일','월','화','수','목','금','토'][today.getDay()];
+  var h='<div class="setting-section">';
+  h+='<div class="setting-title">📦 요일별 배송 거래처 현황</div>';
+  DAYS.forEach(function(day){
+    var list=members.filter(function(m){ return (m.days||[]).includes(day); });
+    var isToday=(day===todayDay);
+    h+='<div class="setting-card" style="margin-bottom:8px;border:1.5px solid '+(isToday?'var(--admin)':'#EAECF0')+';">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(list.length?'8px':'0')+';">';
+    h+='<div style="font-size:13px;font-weight:700;color:'+(isToday?'var(--admin)':'#344054')+';">'+day+'요일'+(isToday?' (오늘)':'')+'</div>';
+    h+='<div style="font-size:12px;color:#98A2B3;">'+list.length+'곳</div>';
+    h+='</div>';
+    if(list.length){
+      list.forEach(function(m){
+        var car=cars.find(function(c){return c.id===m.carId;});
+        h+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-top:1px solid #F2F4F7;">';
+        h+='<span style="color:#344054;">'+m.name+'</span>';
+        h+='<span style="color:#98A2B3;">'+(car?car.name+(car.driver?' · '+car.driver:''):'미배정')+'</span>';
+        h+='</div>';
+      });
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
 function renderSchedule(){
+  if(getBizType()==='logistics') return renderDeliverySchedule();
   return`<div class="setting-section">
     <div class="setting-title">코스 운행 시각</div>
     <div class="setting-card">
