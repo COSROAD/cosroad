@@ -9,9 +9,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  // sender(발신번호) 추가 수신
-  const { apikey, userid, senderkey, tpl_code, sender, receiver, name, message } = req.body;
-  // sender도 필수로 검증
+  // biz(업종) 추가 수신
+  const { apikey, userid, senderkey, tpl_code, sender, receiver, name, message, biz } = req.body;
   if (!apikey || !userid || !senderkey || !tpl_code || !sender || !receiver) {
     return res.status(400).json({ error: '필수 파라미터 누락 (sender 발신번호 포함 확인)' });
   }
@@ -21,25 +20,27 @@ export default async function handler(req, res) {
     formData.append('userid', userid);
     formData.append('senderkey', senderkey);
     formData.append('tpl_code', tpl_code);
-    formData.append('sender', sender);          // 등록된 발신번호 (수신자 번호 아님)
+    formData.append('sender', sender);
     formData.append('receiver_1', receiver);
     formData.append('recvname_1', name || '');
-    formData.append('subject_1', '출석 알림');
+    formData.append('subject_1', '알림');
     formData.append('message_1', message || '');
 
-    // 패밀리 링크 버튼 (승인된 템플릿에 등록된 버튼과 일치해야 함)
-    const button = {
-      button: [
-        {
-          name: '패밀리 링크 열기',
-          linkType: 'WL',
-          linkTypeName: '웹링크',
-          linkMo: 'https://families.google.com',
-          linkPc: 'https://families.google.com'
-        }
-      ]
-    };
-    formData.append('button_1', JSON.stringify(button));
+    // 학원(academy)만 패밀리링크 버튼 추가. 나머지 업종은 버튼 없음.
+    if (biz === 'academy' || !biz) {
+      const button = {
+        button: [
+          {
+            name: '패밀리 링크 열기',
+            linkType: 'WL',
+            linkTypeName: '웹링크',
+            linkMo: 'https://families.google.com',
+            linkPc: 'https://families.google.com'
+          }
+        ]
+      };
+      formData.append('button_1', JSON.stringify(button));
+    }
 
     const response = await fetch('https://kakaoapi.aligo.in/akv10/alimtalk/send/', {
       method: 'POST',
