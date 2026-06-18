@@ -1072,7 +1072,7 @@ function sendArrivalSoon(memberId){
 }
 
 // 납품/배송 완료 발송 기록 (오늘 보냈는지)
-function deliveryDoneKey(){ return 'tkd_delivery_done_'+(getOrgId?getOrgId():'org'); }
+function deliveryDoneKey(){ try{ return 'tkd_delivery_done_'+getFbOrgId(); }catch(e){ return 'tkd_delivery_done_org'; } }
 function loadDeliveryDone(){ try{ return JSON.parse(localStorage.getItem(deliveryDoneKey())||'{}'); }catch(e){ return {}; } }
 function isDeliveryDoneToday(memberId){
   var d=loadDeliveryDone();
