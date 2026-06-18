@@ -395,30 +395,35 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div class="modal-title" id="modal-title">원생 등록</div>
     <div class="modal-sub" id="modal-sub">이용자 정보를 입력해주세요.</div>
     <input type="hidden" id="edit-id"/>
+    <div id="wrap-name">
     <label class="form-label" id="lbl-name">이름 *</label>
     <input class="form-input" type="text" id="m-name" placeholder="예) 홍길동"/>
-    <div class="form-row">
+    </div>
+    <div class="form-row" id="wrap-classcar">
       <div id="wrap-class"><label class="form-label">코스(수업반) *</label>
         <select class="form-input" id="m-class"></select>
       </div>
-      <div><label class="form-label" id="lbl-car">배정 차량</label>
+      <div id="wrap-car"><label class="form-label" id="lbl-car">배정 차량</label>
         <select class="form-input" id="m-car"></select>
       </div>
     </div>
+    <div id="wrap-location">
     <label class="form-label" id="lbl-location">픽업 장소 *</label>
     <div style="display:flex;gap:6px;align-items:center;">
       <input class="form-input" type="text" id="m-location" placeholder="예) 용현초 정문" style="margin-bottom:0;flex:1;"/>
       <button type="button" onclick="searchMemberAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">📍 검색</button>
     </div>
     <div id="member-addr-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
-    <div class="form-row">
-      <div><label class="form-label" id="lbl-phone">보호자 연락처1</label>
+    </div>
+    <div class="form-row" id="wrap-phones">
+      <div id="wrap-phone1"><label class="form-label" id="lbl-phone">보호자 연락처1</label>
         <input class="form-input" type="tel" id="m-phone" placeholder="010-0000-0000"/>
       </div>
       <div id="wrap-phone2"><label class="form-label">보호자 연락처2</label>
         <input class="form-input" type="tel" id="m-phone2" placeholder="010-0000-0000"/>
       </div>
     </div>
+    <div id="wrap-days">
     <label class="form-label" id="lbl-days">등원 요일</label>
     <div class="day-checks">
       <div class="day-check"><input type="checkbox" id="d-mon"/><label for="d-mon">월</label></div>
@@ -428,6 +433,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <div class="day-check"><input type="checkbox" id="d-fri"/><label for="d-fri">금</label></div>
       <div class="day-check"><input type="checkbox" id="d-sat"/><label for="d-sat">토</label></div>
       <div class="day-check"><input type="checkbox" id="d-sun"/><label for="d-sun">일</label></div>
+    </div>
     </div>
     <div class="form-row" id="wrap-fees">
       <div><label class="form-label">등록비 (원)</label>
@@ -460,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 24;
+const APP_VERSION = 25;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -521,9 +527,10 @@ function applyOrgNameFit(){
 }
 
 function getBizType(){
-  if(orgSettings && orgSettings.bizType) return orgSettings.bizType;
+  // URL에 업종 그룹이 명시돼 있으면 그것을 최우선 (주소가 업종을 고정)
   var urlGroup = getUrlBizGroup();
   if(urlGroup) return urlGroup;
+  if(orgSettings && orgSettings.bizType) return orgSettings.bizType;
   if(window.DEFAULT_BIZ_TYPE) return window.DEFAULT_BIZ_TYPE;
   return 'academy';
 }
@@ -2138,13 +2145,13 @@ function renderSettings(){
     <div class="setting-card">
       <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
         <label class="form-label">업종 선택</label>
-        <select class="form-input" id="org-biztype" style="margin-bottom:0;">
+        <select class="form-input" id="org-biztype" style="margin-bottom:0;"${getUrlBizGroup()?' disabled':''}>
           <option value="academy"${getBizType()==='academy'?' selected':''}>🏫 학원</option>
           <option value="logistics"${getBizType()==='logistics'?' selected':''}>📦 물류</option>
           <option value="public"${getBizType()==='public'?' selected':''}>🏛️ 공공</option>
           <option value="delivery"${getBizType()==='delivery'?' selected':''}>🚚 택배</option>
         </select>
-        <div style="font-size:11px;color:#98A2B3;">업종에 따라 화면 용어가 바뀝니다 (회원/출석/수강료 등)</div>
+        <div style="font-size:11px;color:#98A2B3;">${getUrlBizGroup()?'🔒 이 주소는 '+(BIZ_LABELS[getBizType()]||'')+' 전용이라 업종이 고정됩니다.':'업종에 따라 화면 용어가 바뀝니다 (회원/출석/수강료 등)'}</div>
         <label class="form-label">상호 (기관명)</label>
         <input class="form-input" id="org-name" value="${orgSettings.name}" placeholder="예) 우리 태권도장" style="margin-bottom:0;" oninput="syncDestName(this.value)"/>
         <div style="display:flex;gap:8px;width:100%;">
@@ -2247,7 +2254,8 @@ function syncDestName(val){
 function saveOrgInfo(){
   var bizSel = document.getElementById('org-biztype');
   function gv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizSel?bizSel.value:getBizType(),destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem')};
+  var bizTypeVal = getUrlBizGroup() || (bizSel?bizSel.value:getBizType());
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem')};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
   applyOrgNameFit();
@@ -2391,7 +2399,8 @@ function applyBizModalLayout(){
     if(lblLoc)lblLoc.textContent='배송지 주소 *';
     if(lblPhone)lblPhone.textContent='받는분 연락처';
     if(lblDays)lblDays.textContent='배송 요일';
-    if(lblNote)lblNote.textContent='특이사항';
+    if(lblNote)lblNote.textContent='배송메세지';
+    var _mNoteEl=document.getElementById('m-note'); if(_mNoteEl)_mNoteEl.placeholder='예) 부재 시 문 앞';
     if(mLoc)mLoc.placeholder='예) 인천 연수구 ...';
     if(wrapClass)wrapClass.style.display='none';
     if(wrapPin)wrapPin.style.display='none';
@@ -2405,13 +2414,40 @@ function applyBizModalLayout(){
         +'<option value="">선택</option><option value="04">CJ대한통운</option><option value="05">한진택배</option><option value="08">롯데택배</option><option value="01">우체국택배</option><option value="06">로젠택배</option></select></div>'
         +'<div style="width:100%;"><label class="form-label">송장번호 (운송장번호)</label>'
         +'<input class="form-input" type="text" id="m-invoice" placeholder="예) 1234567890" style="margin-bottom:0;"/></div>'
-        +'<div style="width:100%;"><label class="form-label">주문번호</label>'
-        +'<input class="form-input" type="text" id="m-ordno" placeholder="예) ORD-001" style="margin-bottom:0;"/></div>'
         +'<div style="display:flex;gap:8px;width:100%;">'
         +'<div style="flex:1;"><label class="form-label">보내는사람</label>'
         +'<input class="form-input" type="text" id="m-sender" style="margin-bottom:0;"/></div>'
         +'<div style="flex:1;"><label class="form-label">보내는전화</label>'
         +'<input class="form-input" type="tel" id="m-senderphone" style="margin-bottom:0;"/></div></div>';
+    }
+    // 택배 칸 순서 재배치: 배정차량 → 주문번호 → 받는분 → 연락처 → 주소 → 요일 → 택배사/송장/보내는사람 → 배송메세지
+    var modalBody = document.querySelector('#member-modal .modal');
+    var saveBtn = modalBody ? modalBody.querySelector('.modal-save') : null;
+    if(modalBody && saveBtn){
+      // 주문번호 묶음 (없으면 생성)
+      var ordW=document.getElementById('wrap-ordno');
+      if(!ordW){
+        ordW=document.createElement('div'); ordW.id='wrap-ordno';
+        ordW.innerHTML='<label class="form-label">주문번호</label><input class="form-input" type="text" id="m-ordno" placeholder="예) ORD-001"/>';
+      }
+      // 배송메세지(특이사항) 묶음 (없으면 생성해서 기존 라벨/인풋을 담음)
+      var noteW=document.getElementById('wrap-note');
+      if(!noteW){
+        noteW=document.createElement('div'); noteW.id='wrap-note';
+        var ln=document.getElementById('lbl-note'); var ni=document.getElementById('m-note');
+        if(ln&&ni){ noteW.appendChild(ln); noteW.appendChild(ni); }
+      }
+      var order=[
+        document.getElementById('wrap-car'),
+        ordW,
+        document.getElementById('wrap-name'),
+        document.getElementById('wrap-phones'),
+        document.getElementById('wrap-location'),
+        document.getElementById('wrap-days'),
+        wrapFees,
+        noteW
+      ];
+      order.forEach(function(el){ if(el) modalBody.insertBefore(el, saveBtn); });
     }
   } else {
     if(lblName)lblName.textContent='이름 *';
