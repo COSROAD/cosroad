@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 27;
+const APP_VERSION = 28;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1970,17 +1970,17 @@ function downloadSampleExcel(){
     fname='거래처명단_샘플양식.xlsx';
   } else if(biz==='delivery'){
     data=[
-      ['받는분','배정차량','주문번호','배송지주소','받는분연락처','배송요일','택배사','송장번호','보내는사람','보내는전화','배송메세지'],
-      ['홍길동','1호차','ORD-001','인천 연수구 용담로 111','010-1234-5678','월,수,금','CJ대한통운','1234567890','프리존','010-1111-2222','부재시 문앞'],
-      ['김영희','2호차','ORD-002','인천 남동구 만수동','010-2222-3333','화,목','한진택배','9876543210','프리존','010-1111-2222',''],
+      ['배정차량','주문번호','받는분','받는분연락처','배송지주소','배송요일','택배사','송장번호','보내는사람','보내는전화','배송메세지'],
+      ['1호차','ORD-001','홍길동','010-1234-5678','인천 연수구 용담로 111','월,수,금','CJ대한통운','1234567890','프리존','010-1111-2222','부재시 문앞'],
+      ['2호차','ORD-002','김영희','010-2222-3333','인천 남동구 만수동','화,목','한진택배','9876543210','프리존','010-1111-2222',''],
     ];
     note=[
       ['항목','작성 방법','예시'],
-      ['받는분','수령인 이름','홍길동'],
       ['배정차량','1호차~5호차','1호차'],
       ['주문번호','주문 식별번호','ORD-001'],
-      ['배송지주소','상세 주소','인천 연수구 용담로 111'],
+      ['받는분','수령인 이름','홍길동'],
       ['받는분연락처','하이픈 포함','010-1234-5678'],
+      ['배송지주소','상세 주소','인천 연수구 용담로 111'],
       ['배송요일','쉼표로 구분','월,수,금'],
       ['택배사','택배사명','CJ대한통운, 한진택배, 롯데택배, 우체국택배, 로젠택배'],
       ['송장번호','운송장번호','1234567890'],
@@ -2041,10 +2041,10 @@ function handleExcelFile(file){
           daysRaw=String(r[4]||'월,화,수,목,금').trim(); note=String(r[5]||'').trim();
           courseName=''; phone2=''; regfee=0; monthly=0; pin='';
         } else if(biz==='delivery'){
-          // 받는분/배정차량/주문번호/배송지주소/받는분연락처/배송요일/택배사/송장번호/보내는사람/보내는전화/배송메세지
-          name=String(r[0]||'').trim(); carName=String(r[1]||'1호차').trim();
-          ordNo=String(r[2]||'').trim(); location=String(r[3]||'').trim();
-          phone=String(r[4]||'').trim(); daysRaw=String(r[5]||'월,화,수,목,금').trim();
+          // 배정차량/주문번호/받는분/받는분연락처/배송지주소/배송요일/택배사/송장번호/보내는사람/보내는전화/배송메세지
+          carName=String(r[0]||'1호차').trim(); ordNo=String(r[1]||'').trim();
+          name=String(r[2]||'').trim(); phone=String(r[3]||'').trim();
+          location=String(r[4]||'').trim(); daysRaw=String(r[5]||'월,화,수,목,금').trim();
           var courierName=String(r[6]||'').trim(); courier=courierMap[courierName]||'';
           invoice=String(r[7]||'').trim(); sender=String(r[8]||'').trim();
           senderPhone=String(r[9]||'').trim(); note=String(r[10]||'').trim();
