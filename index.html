@@ -460,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 21;
+const APP_VERSION = 22;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1027,18 +1027,22 @@ function renderDrive(){
   clsSt.forEach(s=>{
     const order=activeSt.findIndex(a=>a.id===s.id)+1;
     const mIdx=members.findIndex(m=>m.id===s.id);
-    html+=`<div class="student-card ${s.on?'son':'soff'}">
+    const _done=(_logiDrive||getBizType()==='delivery')&&isDeliveryDoneToday(s.id);
+    html+=`<div class="student-card ${s.on?'son':'soff'}" style="${_done?'opacity:0.5;background:#F2F4F7;':''}">
       <div class="card-row">
         <div class="card-order">${s.on?order:'–'}</div>
         <div style="flex:1">
           <div class="card-row" style="gap:5px;">
             <span class="card-name">${s.name}</span>
-            ${s.phone?`<a href="tel:${s.phone}" style="font-size:13px;color:var(--primary);text-decoration:none;" onclick="event.stopPropagation()">📞</a>`:''}
-            ${s.phone2?`<a href="tel:${s.phone2}" style="font-size:13px;color:var(--success);text-decoration:none;" onclick="event.stopPropagation()">📞²</a>`:''}
-            ${s.phone?`<span onclick="event.stopPropagation();sendArrivalSoon(${s.id})" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:2px 7px;cursor:pointer;font-weight:700;">🚐 곧도착</span>`:''}
+            ${s.phone?`<a href="tel:${s.phone}" style="font-size:14px;color:var(--primary);text-decoration:none;" onclick="event.stopPropagation()">📞</a>`:''}
+            ${s.phone2?`<a href="tel:${s.phone2}" style="font-size:14px;color:var(--success);text-decoration:none;" onclick="event.stopPropagation()">📞²</a>`:''}
+            ${s.phone&&!_done?`<span onclick="event.stopPropagation();sendArrivalSoon(${s.id})" style="font-size:12px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:8px;padding:5px 11px;cursor:pointer;font-weight:700;">🚐 곧도착</span>`:''}
           </div>
+          ${(_logiDrive||getBizType()==='delivery')&&s.phone?`<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:6px;">${_done
+            ?`<span style="font-size:12px;color:#98A2B3;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;padding:6px 13px;font-weight:700;">✔ ${getBizType()==='delivery'?'배송 완료됨':'납품 완료됨'}</span>`
+            :`<span onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="display:inline-flex;align-items:center;justify-content:center;font-size:16px;background:#FEE500;border:1px solid #F5DC00;border-radius:8px;padding:5px 10px;cursor:pointer;">💬</span><span onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="font-size:12px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:8px;padding:6px 13px;cursor:pointer;font-weight:700;">🚚 ${getBizType()==='delivery'?'배송완료':'납품완료'}</span>`
+          }</div>`:''}
           <div class="card-location">${s.location}</div>
-          ${(_logiDrive||getBizType()==='delivery')&&s.phone?`<button onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="margin-top:5px;font-size:11px;color:white;background:#12B76A;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">✅ ${getBizType()==='delivery'?'배송 완료':'납품 완료'}</button>`:''}
         </div>
         <button class="toggle-btn ${s.on?'on':'off'}" onclick="toggleStudent(${mIdx})"></button>
       </div>
@@ -1067,16 +1071,36 @@ function sendArrivalSoon(memberId){
   window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
 }
 
+// 납품/배송 완료 발송 기록 (오늘 보냈는지)
+function deliveryDoneKey(){ return 'tkd_delivery_done_'+(getOrgId?getOrgId():'org'); }
+function loadDeliveryDone(){ try{ return JSON.parse(localStorage.getItem(deliveryDoneKey())||'{}'); }catch(e){ return {}; } }
+function isDeliveryDoneToday(memberId){
+  var d=loadDeliveryDone();
+  return d[memberId]===todayStr();
+}
+function markDeliveryDone(memberId){
+  var d=loadDeliveryDone();
+  d[memberId]=todayStr();
+  localStorage.setItem(deliveryDoneKey(), JSON.stringify(d));
+  saveToFirebase('deliveryDone', d);
+}
+
 // 납품/배송 완료 → 알림톡 자동 발송 (물류·택배)
 function sendDeliveryDone(memberId){
   var m = members.find(function(x){ return x.id===memberId; });
   if(!m){ return; }
   if(!m.phone){ showToast('⚠ 등록된 연락처가 없습니다.'); return; }
+  if(isDeliveryDoneToday(memberId)){ showToast('이미 오늘 발송했습니다.'); return; }
   var now = new Date();
   var timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   loadAligoSettings();
   sendKakaoAlimtalk(m, timeStr);
+  markDeliveryDone(memberId);
+  m.on = false; // 납품 완료했으니 토글 off (그날 처리 끝)
+  saveMembers();
+  optimizedOrder=null; etaMap={};
   showToast('✅ '+m.name+' 알림톡 발송!');
+  renderDrive();
 }
 
 // ── T맵 최적화 ──
@@ -4262,6 +4286,9 @@ async function syncFromFirebase(){
   }
   if(fbDriverAtt){ localStorage.setItem('tkd_driver_att', JSON.stringify(fbDriverAtt)); }
   else { localStorage.setItem('tkd_driver_att', '{}'); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
+  var fbDelivDone = await loadFromFirebase('deliveryDone');
+  if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
+  else { localStorage.setItem(deliveryDoneKey(), '{}'); }
   console.log('✅ Firebase 동기화 완료');
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
