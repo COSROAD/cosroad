@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 24;
+const APP_VERSION = 27;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1927,7 +1927,7 @@ function renderExcel(){
   <div style="padding:12px 16px 0;">
     <div class="status-card">
       <div class="status-card-title">📥 샘플 양식 다운로드</div>
-      <div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;">샘플 엑셀을 다운로드해서 작성 후 업로드하세요.<br>열 순서: 이름 / 코스 / 픽업장소 / 연락처1 / 연락처2 / 등원요일 / 차량번호 / 특이사항</div>
+      <div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;">샘플 엑셀을 다운로드해서 작성 후 업로드하세요.<br>현재 업종에 맞는 양식이 다운로드됩니다. (열 순서는 샘플 첫 줄 참고)</div>
       <button onclick="downloadSampleExcel()" style="padding:10px 16px;background:var(--success);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;width:100%;">📥 샘플 양식 다운로드</button>
     </div>
 
@@ -1950,30 +1950,72 @@ function renderExcel(){
 function downloadSampleExcel(){
   const XLSX=window.XLSX;
   const wb=XLSX.utils.book_new();
-  const data=[
-    ['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항'],
-    ['홍길동','3시30분반','1호차','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기'],
-    ['김영희','5~6시반','2호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678',''],
-    ['이철수','3시30분반','1호차','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞'],
-  ];
+  var biz=getBizType();
+  var data, note, fname;
+  if(biz==='logistics'){
+    data=[
+      ['거래처명','배정차량','거래처주소','거래처전화','배송요일','특이사항'],
+      ['(주)한빛유통','1호차','인천 연수구 용담로 111','032-111-2222','월,수,금','정문 하차'],
+      ['대한상사','2호차','인천 남동구 만수동','032-333-4444','화,목','지하 주차장'],
+    ];
+    note=[
+      ['항목','작성 방법','예시'],
+      ['거래처명','거래처 상호','(주)한빛유통'],
+      ['배정차량','1호차~5호차','1호차'],
+      ['거래처주소','배송지 상세','인천 연수구 용담로 111'],
+      ['거래처전화','하이픈 포함','032-111-2222'],
+      ['배송요일','쉼표로 구분','월,수,금'],
+      ['특이사항','메모(없으면 빈칸)','정문 하차'],
+    ];
+    fname='거래처명단_샘플양식.xlsx';
+  } else if(biz==='delivery'){
+    data=[
+      ['받는분','배정차량','주문번호','배송지주소','받는분연락처','배송요일','택배사','송장번호','보내는사람','보내는전화','배송메세지'],
+      ['홍길동','1호차','ORD-001','인천 연수구 용담로 111','010-1234-5678','월,수,금','CJ대한통운','1234567890','프리존','010-1111-2222','부재시 문앞'],
+      ['김영희','2호차','ORD-002','인천 남동구 만수동','010-2222-3333','화,목','한진택배','9876543210','프리존','010-1111-2222',''],
+    ];
+    note=[
+      ['항목','작성 방법','예시'],
+      ['받는분','수령인 이름','홍길동'],
+      ['배정차량','1호차~5호차','1호차'],
+      ['주문번호','주문 식별번호','ORD-001'],
+      ['배송지주소','상세 주소','인천 연수구 용담로 111'],
+      ['받는분연락처','하이픈 포함','010-1234-5678'],
+      ['배송요일','쉼표로 구분','월,수,금'],
+      ['택배사','택배사명','CJ대한통운, 한진택배, 롯데택배, 우체국택배, 로젠택배'],
+      ['송장번호','운송장번호','1234567890'],
+      ['보내는사람','발송인','프리존'],
+      ['보내는전화','발송인 연락처','010-1111-2222'],
+      ['배송메세지','배송 메모','부재시 문앞'],
+    ];
+    fname='배송지명단_샘플양식.xlsx';
+  } else {
+    // 학원·공공 (기본)
+    data=[
+      ['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항'],
+      ['홍길동','3시30분반','1호차','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기'],
+      ['김영희','5~6시반','2호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678',''],
+      ['이철수','3시30분반','1호차','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞'],
+    ];
+    note=[
+      ['항목','작성 방법','예시'],
+      ['이름','이용자 이름','홍길동'],
+      ['코스(수업반)','설정된 코스 이름과 동일하게','3시30분반, 5~6시반'],
+      ['픽업장소','실제 탑승 위치','용현초 정문'],
+      ['보호자연락처','하이픈(-) 포함','010-1234-5678'],
+      ['등원요일','쉼표(,)로 구분','월,화,수,목,금'],
+      ['차량','1호차~5호차 중','1호차, 2호차'],
+      ['PIN','출석 4자리','1234'],
+      ['특이사항','메모 (없으면 빈칸)','정문 우측 대기'],
+    ];
+    fname='회원명단_샘플양식.xlsx';
+  }
   const ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:12},{wch:14},{wch:20},{wch:16},{wch:16},{wch:18},{wch:10},{wch:20}];
-  XLSX.utils.book_append_sheet(wb,ws,'회원명단');
-
-  const note=[
-    ['항목','작성 방법','예시'],
-    ['이름','이용자 이름 (여러 명이면 & 구분)','홍길동 또는 홍길동&김영희'],
-    ['코스(수업반)','설정된 코스 이름과 동일하게','3시30분반, 5~6시반, 오전반'],
-    ['픽업장소','실제 탑승 위치 상세히','용현초 정문, 행복아파트 101동'],
-    ['보호자연락처','하이픈(-) 포함','010-1234-5678'],
-    ['등원요일','쉼표(,)로 구분','월,화,수,목,금 또는 월,수,금'],
-    ['차량번호','1호차~5호차 중','1호차, 2호차'],
-    ['특이사항','기사님 전달 메모 (없으면 빈칸)','정문 우측 대기'],
-  ];
+  XLSX.utils.book_append_sheet(wb,ws,'명단');
   const ws2=XLSX.utils.aoa_to_sheet(note);
-  ws2['!cols']=[{wch:16},{wch:36},{wch:28}];
+  ws2['!cols']=[{wch:16},{wch:40},{wch:30}];
   XLSX.utils.book_append_sheet(wb,ws2,'작성안내');
-  XLSX.writeFile(wb,'셔틀회원명단_샘플양식.xlsx');
+  XLSX.writeFile(wb,fname);
 }
 
 function handleExcelFile(file){
@@ -1987,26 +2029,43 @@ function handleExcelFile(file){
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
       const dataRows=rows.slice(1).filter(r=>r[0]);
       let added=0,skipped=0;
+      var biz=getBizType();
+      var courierMap={'CJ대한통운':'04','한진택배':'05','롯데택배':'08','우체국택배':'01','로젠택배':'06'};
       dataRows.forEach(r=>{
-        const name=String(r[0]||'').trim();
-        const courseName=String(r[1]||'').trim();
-        const carName=String(r[2]||'1호차').trim();
-        const location=String(r[3]||'').trim();
-        const phone=String(r[4]||'').trim();
-        const phone2=String(r[5]||'').trim();
-        const daysRaw=String(r[6]||'월,화,수,목,금').trim();
-        const regfee=parseInt(r[7])||0;
-        const monthly=parseInt(r[8])||0;
-        const pin=String(r[9]||'').trim();
-        const note=String(r[10]||'').trim();
+        var name,courseName,carName,location,phone,phone2,daysRaw,regfee,monthly,pin,note;
+        var courier='',invoice='',ordNo='',sender='',senderPhone='';
+        if(biz==='logistics'){
+          // 거래처명/배정차량/거래처주소/거래처전화/배송요일/특이사항
+          name=String(r[0]||'').trim(); carName=String(r[1]||'1호차').trim();
+          location=String(r[2]||'').trim(); phone=String(r[3]||'').trim();
+          daysRaw=String(r[4]||'월,화,수,목,금').trim(); note=String(r[5]||'').trim();
+          courseName=''; phone2=''; regfee=0; monthly=0; pin='';
+        } else if(biz==='delivery'){
+          // 받는분/배정차량/주문번호/배송지주소/받는분연락처/배송요일/택배사/송장번호/보내는사람/보내는전화/배송메세지
+          name=String(r[0]||'').trim(); carName=String(r[1]||'1호차').trim();
+          ordNo=String(r[2]||'').trim(); location=String(r[3]||'').trim();
+          phone=String(r[4]||'').trim(); daysRaw=String(r[5]||'월,화,수,목,금').trim();
+          var courierName=String(r[6]||'').trim(); courier=courierMap[courierName]||'';
+          invoice=String(r[7]||'').trim(); sender=String(r[8]||'').trim();
+          senderPhone=String(r[9]||'').trim(); note=String(r[10]||'').trim();
+          courseName=''; phone2=''; regfee=0; monthly=0; pin='';
+        } else {
+          // 학원·공공: 이름/코스/차량/픽업장소/연락처1/연락처2/등원요일/등록비/월정액/PIN/특이사항
+          name=String(r[0]||'').trim(); courseName=String(r[1]||'').trim();
+          carName=String(r[2]||'1호차').trim(); location=String(r[3]||'').trim();
+          phone=String(r[4]||'').trim(); phone2=String(r[5]||'').trim();
+          daysRaw=String(r[6]||'월,화,수,목,금').trim(); regfee=parseInt(r[7])||0;
+          monthly=parseInt(r[8])||0; pin=String(r[9]||'').trim(); note=String(r[10]||'').trim();
+        }
         if(!name||!location){skipped++;return;}
         const course=courses.find(c=>c.name===courseName)||courses[0];
         const car=cars.find(c=>c.name===carName)||cars[0];
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name)){skipped++;return;}
-        // PIN 중복(다른 회원/기사) 시 건너뜀
         if(pin && (members.find(m=>m.pin===pin) || cars.find(c=>c.driverPin===pin))){skipped++;return;}
-        members.push({id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true});
+        var obj={id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true};
+        if(biz==='delivery'){ obj.courier=courier; obj.invoice=invoice; obj.ordNo=ordNo; obj.sender=sender; obj.senderPhone=senderPhone; }
+        members.push(obj);
         added++;
       });
       saveMembers();
