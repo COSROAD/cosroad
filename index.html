@@ -460,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 22;
+const APP_VERSION = 23;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1093,14 +1093,16 @@ function sendDeliveryDone(memberId){
   if(isDeliveryDoneToday(memberId)){ showToast('이미 오늘 발송했습니다.'); return; }
   var now = new Date();
   var timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  loadAligoSettings();
-  sendKakaoAlimtalk(m, timeStr);
+  // 1) 먼저 화면/상태 처리 (발송 응답을 기다리지 않음)
   markDeliveryDone(memberId);
-  m.on = false; // 납품 완료했으니 토글 off (그날 처리 끝)
-  saveMembers();
+  m.on = false; // 납품 완료 → 토글 off
   optimizedOrder=null; etaMap={};
+  saveMembers();
   showToast('✅ '+m.name+' 알림톡 발송!');
   renderDrive();
+  // 2) 알림톡 발송 (비동기, 화면 막지 않음)
+  loadAligoSettings();
+  sendKakaoAlimtalk(m, timeStr);
 }
 
 // ── T맵 최적화 ──
@@ -2384,6 +2386,33 @@ function applyBizModalLayout(){
     }
     var carSel=document.getElementById('m-car');
     if(carSel) carSel.setAttribute('onchange','fillDriverInfoFromCar()');
+  } else if(biz==='delivery'){
+    if(lblName)lblName.textContent='받는분 *';
+    if(lblLoc)lblLoc.textContent='배송지 주소 *';
+    if(lblPhone)lblPhone.textContent='받는분 연락처';
+    if(lblDays)lblDays.textContent='배송 요일';
+    if(lblNote)lblNote.textContent='특이사항';
+    if(mLoc)mLoc.placeholder='예) 인천 연수구 ...';
+    if(wrapClass)wrapClass.style.display='none';
+    if(wrapPin)wrapPin.style.display='none';
+    if(wrapPhone2)wrapPhone2.style.display='none';
+    if(wrapFees && !document.getElementById('m-courier')){
+      wrapFees.style.flexDirection='column';
+      wrapFees.style.gap='8px';
+      wrapFees.innerHTML=''
+        +'<div style="width:100%;"><label class="form-label">택배사</label>'
+        +'<select class="form-input" id="m-courier" style="margin-bottom:0;">'
+        +'<option value="">선택</option><option value="04">CJ대한통운</option><option value="05">한진택배</option><option value="08">롯데택배</option><option value="01">우체국택배</option><option value="06">로젠택배</option></select></div>'
+        +'<div style="width:100%;"><label class="form-label">송장번호 (운송장번호)</label>'
+        +'<input class="form-input" type="text" id="m-invoice" placeholder="예) 1234567890" style="margin-bottom:0;"/></div>'
+        +'<div style="width:100%;"><label class="form-label">주문번호</label>'
+        +'<input class="form-input" type="text" id="m-ordno" placeholder="예) ORD-001" style="margin-bottom:0;"/></div>'
+        +'<div style="display:flex;gap:8px;width:100%;">'
+        +'<div style="flex:1;"><label class="form-label">보내는사람</label>'
+        +'<input class="form-input" type="text" id="m-sender" style="margin-bottom:0;"/></div>'
+        +'<div style="flex:1;"><label class="form-label">보내는전화</label>'
+        +'<input class="form-input" type="tel" id="m-senderphone" style="margin-bottom:0;"/></div></div>';
+    }
   } else {
     if(lblName)lblName.textContent='이름 *';
     if(lblLoc)lblLoc.textContent='픽업 장소 *';
@@ -2393,6 +2422,12 @@ function applyBizModalLayout(){
     if(wrapClass)wrapClass.style.display='';
     if(wrapPin)wrapPin.style.display='';
     if(wrapPhone2)wrapPhone2.style.display='';
+  }
+  // 택배: 보내는사람/전화 자동 채움 (사용자 정보에서)
+  if(biz==='delivery'){
+    var sd=document.getElementById('m-sender'), sp=document.getElementById('m-senderphone');
+    if(sd && !sd.value) sd.value=(orgSettings.name||'');
+    if(sp && !sp.value) sp.value=(orgSettings.senderPhone||orgSettings.phone||'');
   }
 }
 
@@ -2449,6 +2484,11 @@ function openEditModal(id){
   var m3=document.getElementById('member-modal');m3.style.display='';m3.classList.add('show');
   applyBizModalLayout();
   if(getBizType()==='logistics') fillDriverInfoFromCar();
+  if(getBizType()==='delivery'){
+    function setv(id,val){ var e=document.getElementById(id); if(e)e.value=val||''; }
+    setv('m-courier',m.courier); setv('m-invoice',m.invoice); setv('m-ordno',m.ordNo);
+    setv('m-sender',m.sender||orgSettings.name); setv('m-senderphone',m.senderPhone||orgSettings.senderPhone||'');
+  }
 }
 function saveMember(){
   const name=document.getElementById('m-name').value.trim();
@@ -2482,7 +2522,10 @@ function saveMember(){
     var selCar=cars.find(function(c){ return c.id===document.getElementById('m-car').value; });
     if(selCar) driverPhoneRec=selCar.phone||'';
   }
-  const obj={name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon};
+  // 택배 전용 필드
+  function dv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
+  var deliveryFields = (biz==='delivery') ? {courier:dv('m-courier'),invoice:dv('m-invoice'),ordNo:dv('m-ordno'),sender:dv('m-sender'),senderPhone:dv('m-senderphone')} : {};
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon}, deliveryFields);
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -3695,11 +3738,13 @@ var BIZ_TEMPLATE_CODES = {
   delivery:  'UI_7257'
 };
 // 업종별 알림톡 본문 생성 (승인된 템플릿과 정확히 일치해야 함)
-function buildAlimtalkMessage(biz, orgName, name, timeStr){
+function buildAlimtalkMessage(biz, orgName, name, timeStr, invoice){
   if(biz==='logistics'){
     return '📦 물류\n['+orgName+'] 납품 완료 알림\n━━━━━━━━━\n🏢 거래처: '+name+'\n⏰ 완료: '+timeStr+'\n✅ 사장님! 주문 상품이 \n      정상적으로 납품완료.\n━━━━━━━━━\n☎  상품 주문 해주셔서 \n      감사 드립니다.';
   } else if(biz==='public'){
     return '['+orgName+'] 회원님 도착 알림\n━━━━━━━━━\n👤 이름: '+name+'\n⏰ 도착: '+timeStr+'\n✅ 보호자님! 회원님이 \n     센터에 안전하게  \n     도착했습니다.\n━━━━━━━━━ \n♥ 회원님의 안전한 \n    귀가까지 \n    함께하겠습니다.♥';
+  } else if(biz==='delivery'){
+    return '🚚 택배\n['+orgName+'] 배송 완료 알림\n━━━━━━━━━\n📦 받는분: '+name+'\n⏰ 완료: '+timeStr+'\n✅고객님! 주문하신 \n     상품이 정상적으로 \n     배송되었습니다.\n━━━━━━━━━\n등기번호(운송장번호)\n: '+(invoice||'')+'';
   }
   // academy(학원, 기본)
   return '['+orgName+'] 출석 알림\n━━━━━━━━━\n👤 이름: '+name+'\n⏰ 도착: '+timeStr+'\n✅ 학원에 안전하게 \n      도착했습니다.\n━━━━━━━━━\n♥.♥안전한 귀가까지 \n        함께하겠습니다.';
@@ -3718,7 +3763,7 @@ function sendKakaoAlimtalk(member, timeStr){
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
-  var msg = buildAlimtalkMessage(biz, orgSettings.name, member.name, timeStr);
+  var msg = buildAlimtalkMessage(biz, orgSettings.name, member.name, timeStr, member.invoice);
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
