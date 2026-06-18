@@ -460,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 20;
+const APP_VERSION = 21;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1038,6 +1038,7 @@ function renderDrive(){
             ${s.phone?`<span onclick="event.stopPropagation();sendArrivalSoon(${s.id})" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:2px 7px;cursor:pointer;font-weight:700;">🚐 곧도착</span>`:''}
           </div>
           <div class="card-location">${s.location}</div>
+          ${(_logiDrive||getBizType()==='delivery')&&s.phone?`<button onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="margin-top:5px;font-size:11px;color:white;background:#12B76A;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">✅ ${getBizType()==='delivery'?'배송 완료':'납품 완료'}</button>`:''}
         </div>
         <button class="toggle-btn ${s.on?'on':'off'}" onclick="toggleStudent(${mIdx})"></button>
       </div>
@@ -1064,6 +1065,18 @@ function sendArrivalSoon(memberId){
   var smsBody = '['+orgName+'] '+m.name+'님, 약 5분 후 도착 예정입니다. 준비 부탁드려요!';
   var recipients = phones.join(',');
   window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
+}
+
+// 납품/배송 완료 → 알림톡 자동 발송 (물류·택배)
+function sendDeliveryDone(memberId){
+  var m = members.find(function(x){ return x.id===memberId; });
+  if(!m){ return; }
+  if(!m.phone){ showToast('⚠ 등록된 연락처가 없습니다.'); return; }
+  var now = new Date();
+  var timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  loadAligoSettings();
+  sendKakaoAlimtalk(m, timeStr);
+  showToast('✅ '+m.name+' 알림톡 발송!');
 }
 
 // ── T맵 최적화 ──
