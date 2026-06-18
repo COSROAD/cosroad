@@ -460,7 +460,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2006,31 +2006,73 @@ function removeMemberFromCar(memberId){
 
 // ── 스케줄 ──
 // 물류: 요일별 배송 거래처 현황
+var deliveryCalYear=new Date().getFullYear();
+var deliveryCalMonth=new Date().getMonth()+1; // 1~12
+var deliverySelDate=todayStr(); // 선택된 날짜 YYYY-MM-DD
+function moveDeliveryMonth(delta){
+  deliveryCalMonth+=delta;
+  if(deliveryCalMonth<1){ deliveryCalMonth=12; deliveryCalYear--; }
+  else if(deliveryCalMonth>12){ deliveryCalMonth=1; deliveryCalYear++; }
+  renderAdminTab('schedule');
+}
+function selectDeliveryDate(dateStr){ deliverySelDate=dateStr; renderAdminTab('schedule'); }
+// 특정 요일에 배송하는 거래처 수
+function deliveryCountByDay(dayKor){
+  return members.filter(function(m){ return (m.days||[]).includes(dayKor); }).length;
+}
 function renderDeliverySchedule(){
-  var today=new Date();
-  var todayDay=['일','월','화','수','목','금','토'][today.getDay()];
+  var dayNames=['일','월','화','수','목','금','토'];
+  var todayS=todayStr();
   var h='<div class="setting-section">';
-  h+='<div class="setting-title">📦 요일별 배송 거래처 현황</div>';
-  DAYS.forEach(function(day){
-    var list=members.filter(function(m){ return (m.days||[]).includes(day); });
-    var isToday=(day===todayDay);
-    h+='<div class="setting-card" style="margin-bottom:8px;border:1.5px solid '+(isToday?'var(--admin)':'#EAECF0')+';">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(list.length?'8px':'0')+';">';
-    h+='<div style="font-size:13px;font-weight:700;color:'+(isToday?'var(--admin)':'#344054')+';">'+day+'요일'+(isToday?' (오늘)':'')+'</div>';
-    h+='<div style="font-size:12px;color:#98A2B3;">'+list.length+'곳</div>';
-    h+='</div>';
-    if(list.length){
-      list.forEach(function(m){
-        var car=cars.find(function(c){return c.id===m.carId;});
-        h+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-top:1px solid #F2F4F7;">';
-        h+='<span style="color:#344054;">'+m.name+'</span>';
-        h+='<span style="color:#98A2B3;">'+(car?car.name+(car.driver?' · '+car.driver:''):'미배정')+'</span>';
-        h+='</div>';
-      });
-    }
-    h+='</div>';
-  });
+  // 연월 이동 헤더
+  h+='<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;">';
+  h+='<button onclick="moveDeliveryMonth(-1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:15px;cursor:pointer;">◀</button>';
+  h+='<div style="font-size:15px;font-weight:800;color:#344054;">'+deliveryCalYear+'년 '+deliveryCalMonth+'월</div>';
+  h+='<button onclick="moveDeliveryMonth(1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:15px;cursor:pointer;">▶</button>';
   h+='</div>';
+  // 요일 헤더
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;">';
+  dayNames.forEach(function(d,i){ var col=i===0?'#F04438':(i===6?'#1A6BFF':'#98A2B3'); h+='<div style="text-align:center;font-size:11px;font-weight:700;color:'+col+';padding:4px 0;">'+d+'</div>'; });
+  h+='</div>';
+  // 달력 그리드
+  var firstDay=new Date(deliveryCalYear, deliveryCalMonth-1, 1).getDay(); // 0=일
+  var lastDate=new Date(deliveryCalYear, deliveryCalMonth, 0).getDate();
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">';
+  for(var b=0;b<firstDay;b++){ h+='<div></div>'; }
+  for(var d=1;d<=lastDate;d++){
+    var dateStr=deliveryCalYear+'-'+String(deliveryCalMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var dObj=new Date(deliveryCalYear, deliveryCalMonth-1, d);
+    var dayKor=['일','월','화','수','목','금','토'][dObj.getDay()];
+    var cnt=deliveryCountByDay(dayKor);
+    var isSel=(dateStr===deliverySelDate);
+    var isToday=(dateStr===todayS);
+    var bg=isSel?'var(--admin)':(isToday?'var(--admin-light)':'white');
+    var fg=isSel?'white':'#344054';
+    h+='<div onclick="selectDeliveryDate(\''+dateStr+'\')" style="aspect-ratio:1;border:1px solid '+(isSel?'var(--admin)':'#EAECF0')+';border-radius:8px;background:'+bg+';color:'+fg+';display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;">';
+    h+='<div style="font-size:12px;font-weight:'+(isSel||isToday?'800':'500')+';">'+d+'</div>';
+    if(cnt>0){ h+='<div style="font-size:9px;color:'+(isSel?'white':'#EA580C')+';font-weight:700;">'+cnt+'곳</div>'; }
+    h+='</div>';
+  }
+  h+='</div>';
+  // 선택 날짜의 거래처 목록
+  var selObj=new Date(deliverySelDate+'T00:00:00');
+  var selDayKor=['일','월','화','수','목','금','토'][selObj.getDay()];
+  var list=members.filter(function(m){ return (m.days||[]).includes(selDayKor); });
+  h+='<div style="margin-top:16px;">';
+  h+='<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:8px;">📦 '+deliverySelDate.replace(/-/g,'.')+' ('+selDayKor+') 배송 거래처 <span style="color:#98A2B3;font-weight:400;">'+list.length+'곳</span></div>';
+  if(list.length===0){
+    h+='<div style="text-align:center;padding:24px;color:#98A2B3;font-size:13px;">이 날짜에 배송할 거래처가 없습니다.</div>';
+  } else {
+    list.forEach(function(m){
+      var car=cars.find(function(c){return c.id===m.carId;});
+      h+='<div class="setting-card" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">';
+      h+='<div><div style="font-size:13px;font-weight:600;color:#344054;">'+m.name+'</div>';
+      h+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+m.location+'</div></div>';
+      h+='<div style="font-size:11px;color:#475467;text-align:right;flex-shrink:0;">'+(car?car.name+(car.driver?'<br>'+car.driver:''):'미배정')+'</div>';
+      h+='</div>';
+    });
+  }
+  h+='</div></div>';
   return h;
 }
 
