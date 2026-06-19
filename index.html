@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 28;
+const APP_VERSION = 29;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1049,6 +1049,7 @@ function renderDrive(){
             ?`<span style="font-size:12px;color:#98A2B3;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;padding:6px 13px;font-weight:700;">✔ ${getBizType()==='delivery'?'배송 완료됨':'납품 완료됨'}</span>`
             :`<span onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="display:inline-flex;align-items:center;justify-content:center;font-size:16px;background:#FEE500;border:1px solid #F5DC00;border-radius:8px;padding:5px 10px;cursor:pointer;">💬</span><span onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="font-size:12px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:8px;padding:6px 13px;cursor:pointer;font-weight:700;">🚚 ${getBizType()==='delivery'?'배송완료':'납품완료'}</span>`
           }</div>`:''}
+          <div style="font-size:10px;color:var(--gray-400);margin-top:3px;">${getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소'}</div>
           <div class="card-location">${s.location}</div>
         </div>
         <button class="toggle-btn ${s.on?'on':'off'}" onclick="toggleStudent(${mIdx})"></button>
@@ -1238,6 +1239,22 @@ var ADMIN_TABS=[
   {id:'guide',ico:'📖',label:'이용안내'},
   {id:'settings',ico:'⚙',label:'설정'}
 ];
+// 업종별 탭 순서
+function getOrderedAdminTabs(){
+  var biz=getBizType();
+  var order;
+  if(biz==='logistics'||biz==='delivery'){
+    order=['dashboard','members','cars','schedule','attendance','payment','tax','notice','shop','guide','settings'];
+  } else {
+    order=['dashboard','members','attendance','cars','schedule','payment','tax','notice','shop','guide','settings'];
+  }
+  var byId={}; ADMIN_TABS.forEach(function(t){ byId[t.id]=t; });
+  var result=[];
+  order.forEach(function(id){ if(byId[id]) result.push(byId[id]); });
+  // 혹시 order에 없는 탭이 있으면 뒤에 추가
+  ADMIN_TABS.forEach(function(t){ if(order.indexOf(t.id)<0) result.push(t); });
+  return result;
+}
 
 // 탭 라벨을 현재 업종 용어로 변환
 function adminTabLabel(t){
@@ -1246,8 +1263,8 @@ function adminTabLabel(t){
     var bt=getBizType();
     if(bt==='logistics'||bt==='delivery') return '근태관리';
   }
-  // 물류는 스케줄 → 배송현황
-  if(t.id==='schedule' && getBizType()==='logistics') return '배송현황';
+  // 물류·택배는 스케줄 → 배송현황
+  if(t.id==='schedule' && (getBizType()==='logistics'||getBizType()==='delivery')) return '배송현황';
   if(t.term) return T(t.term)+(t.suffix||'');
   return t.label;
 }
@@ -1274,7 +1291,7 @@ function renderAdminNav(){
       btn.textContent = '⊞';
     }
   }
-  nav.innerHTML = ADMIN_TABS.map(function(t){
+  nav.innerHTML = getOrderedAdminTabs().map(function(t){
     var active = t.id===currentAdminTab ? ' active' : '';
     var lbl = adminTabLabel(t);
     if(showGrid){
@@ -1909,7 +1926,7 @@ function filterAdminMembers(q){
       +'<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/>'
       +'</label></div></div>'
       +'<div class="member-info">'
-      +'<div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">'+m.location+'</span></div>'
+      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+m.location+'</span></div>'
       +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
       +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
       +'</div><div class="days-row">'+dayDots+'</div>'
@@ -2125,7 +2142,7 @@ function deliveryCountByDay(dayKor){
 }
 function renderDeliverySchedule(){
   var h='<div class="setting-section">';
-  h+='<div class="setting-title" style="margin-bottom:10px;">📦 요일별 배송 거래처</div>';
+  h+='<div class="setting-title" style="margin-bottom:10px;">📦 요일별 '+(getBizType()==='delivery'?'배송지':'배송 거래처')+'</div>';
   // 날짜 이동 (근태관리와 동일한 방식)
   h+='<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;">';
   h+='<button onclick="moveDeliveryDate(-1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">◀</button>';
@@ -2137,9 +2154,9 @@ function renderDeliverySchedule(){
   var selDayKor=['일','월','화','수','목','금','토'][selObj.getDay()];
   var todayMark=(deliverySelDate===todayStr())?' (오늘)':'';
   var list=members.filter(function(m){ return (m.days||[]).includes(selDayKor); });
-  h+='<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:8px;">'+selDayKor+'요일'+todayMark+' 배송 거래처 <span style="color:#98A2B3;font-weight:400;">'+list.length+'곳</span></div>';
+  h+='<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:8px;">'+selDayKor+'요일'+todayMark+' '+(getBizType()==='delivery'?'배송지':'배송 거래처')+' <span style="color:#98A2B3;font-weight:400;">'+list.length+'곳</span></div>';
   if(list.length===0){
-    h+='<div style="text-align:center;padding:30px;color:#98A2B3;font-size:13px;">이 날짜에 배송할 거래처가 없습니다.</div>';
+    h+='<div style="text-align:center;padding:30px;color:#98A2B3;font-size:13px;">이 날짜에 배송할 '+(getBizType()==='delivery'?'배송지':'거래처')+'가 없습니다.</div>';
   } else {
     list.forEach(function(m){
       var car=cars.find(function(c){return c.id===m.carId;});
@@ -2155,7 +2172,7 @@ function renderDeliverySchedule(){
 }
 
 function renderSchedule(){
-  if(getBizType()==='logistics') return renderDeliverySchedule();
+  if(getBizType()==='logistics'||getBizType()==='delivery') return renderDeliverySchedule();
   return`<div class="setting-section">
     <div class="setting-title">코스 운행 시각</div>
     <div class="setting-card">
@@ -2407,7 +2424,7 @@ function renderMembers(){
         ${currentMode==='admin'?`<button class="member-edit-btn" onclick="openEditModal(${m.id})">수정</button>`:''}
       </div>
       <div class="member-info">
-        <div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">${m.location}</span></div>
+        <div class="info-row"><span class="info-label">${getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소'}</span><span class="info-val">${m.location}</span></div>
         <div class="info-row"><span class="info-label">연락처</span><span class="info-val">${m.phone||'–'}</span></div>
         ${m.phone2?`<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">${m.phone2}</span></div>`:''}
       </div>
@@ -3752,7 +3769,7 @@ function filterDriverMembers(q){
       +(currentMode==='admin'?'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button><button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>':'')
       +'</div>'
       +'<div class="member-info">'
-      +'<div class="info-row"><span class="info-label">픽업 장소</span><span class="info-val">'+m.location+'</span></div>'
+      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+m.location+'</span></div>'
       +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
       +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
       +'</div>'
