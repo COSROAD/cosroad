@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
-  // CORS 설정
-  res.setHeader('Access-Control-Allow-Origin', 'https://cosroad.com');
+  // CORS 설정 (모든 출처 허용 - 카카오톡 인앱 브라우저 등 대응)
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
