@@ -3872,13 +3872,19 @@ function buildAlimtalkMessage(biz, orgName, name, timeStr, invoice){
 function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
   if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_SENDER){
+    var miss=[];
+    if(!ALIGO_API_KEY)miss.push('API키');
+    if(!ALIGO_USER_ID)miss.push('아이디');
+    if(!ALIGO_SENDER_KEY)miss.push('발신키');
+    if(!ALIGO_SENDER)miss.push('발신번호');
+    alert('[진단] 알리고 설정 없음: '+miss.join(', ')+' → 문자로 대체');
     sendCheckinSMSText(member, timeStr);
     return;
   }
   var biz = getBizType();
   // 업종별 템플릿코드 자동 선택 (없으면 설정값 폴백)
   var tplCode = BIZ_TEMPLATE_CODES[biz] || ALIGO_TEMPLATE_CODE;
-  if(!tplCode){ sendCheckinSMSText(member, timeStr); return; }
+  if(!tplCode){ alert('[진단] 템플릿코드 없음 (업종:'+biz+') → 문자로 대체'); sendCheckinSMSText(member, timeStr); return; }
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
@@ -3904,11 +3910,13 @@ function sendKakaoAlimtalk(member, timeStr){
     .then(function(data){
       if(data.code === 0){
         console.log('알림톡 발송 성공:', member.name);
+        showToast('✅ 알림톡 발송 성공');
       } else {
-        console.log('알림톡 발송 실패:', data.message);
+        alert('[진단] 알림톡 발송 실패\ncode: '+data.code+'\nmessage: '+(data.message||'(없음)')+'\n→ 문자로 대체');
         sendCheckinSMSText(member, timeStr);
       }
     }).catch(function(e){
+      alert('[진단] 네트워크/통신 오류: '+e.message+' → 문자로 대체');
       sendCheckinSMSText(member, timeStr);
     });
   });
