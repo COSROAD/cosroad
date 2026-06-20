@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 29;
+const APP_VERSION = 30;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1834,7 +1834,7 @@ function renderAdminMembers(){
   html+='</div>';
   html+='<div class="status-card">';
   html+='<div class="status-card-title">📤 엑셀 파일 업로드</div>';
-  html+='<div class="upload-area" onclick="document.getElementById(\'excel-upload\').click()"><div class="upload-icon">📊</div><div class="upload-title">엑셀 파일을 여기에 올려주세요</div><div class="upload-sub">.xlsx / .xls 지원</div></div>';
+  html+='<div class="upload-area" onclick="document.getElementById(\'excel-upload\').click()" ondragover="event.preventDefault();this.classList.add(\'drag\')" ondragleave="this.classList.remove(\'drag\')" ondrop="event.preventDefault();this.classList.remove(\'drag\');handleExcelFile(event.dataTransfer.files[0])"><div class="upload-icon">📊</div><div class="upload-title">엑셀 파일을 여기에 올려주세요</div><div class="upload-sub">.xlsx / .xls 지원 (클릭 또는 끌어다 놓기)</div></div>';
   html+='<input type="file" id="excel-upload" class="upload-input" accept=".xlsx,.xls" onchange="handleExcelFile(this.files[0])"/>';
   html+='<div id="upload-result"></div>';
   html+='</div></div>';
@@ -2102,7 +2102,7 @@ function toggleMemberDay(memberId, day){
   const m=members.find(m=>m.id===memberId);
   if(!m)return;
   if(m.days.includes(day)) m.days=m.days.filter(d=>d!==day);
-  else m.days=[...m.days,day].sort((a,b)=>['월','화','수','목','금'].indexOf(a)-['월','화','수','목','금'].indexOf(b));
+  else m.days=[...m.days,day].sort((a,b)=>DAYS.indexOf(a)-DAYS.indexOf(b));
   saveMembers();
   renderAdminTab('cars');
 }
@@ -4095,7 +4095,6 @@ function saveCarsAndMembers(){
   }
   saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
 function renderCars(){
-  var DAYS=['월','화','수','목','금','토'];
   var car=cars[currentCarTab]; var i=currentCarTab;
   if(!car) return;
   var carMembers=members.filter(function(m){return m.carId===car.id;});
