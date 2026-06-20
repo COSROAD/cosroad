@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 30;
+const APP_VERSION = 31;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2075,7 +2075,13 @@ function handleExcelFile(file){
           monthly=parseInt(r[8])||0; pin=String(r[9]||'').trim(); note=String(r[10]||'').trim();
         }
         if(!name||!location){skipped++;return;}
-        const course=courses.find(c=>c.name===courseName)||courses[0];
+        var course=courses.find(c=>c.name===courseName);
+        // 학원·공공: 코스명이 있는데 없는 코스면 자동 생성
+        if(!course && courseName && (biz==='academy'||biz==='public'||!biz)){
+          course={id:'c'+Date.now()+Math.floor(Math.random()*1000),name:courseName,depart:'15:00'};
+          courses.push(course);
+        }
+        if(!course) course=courses[0];
         const car=cars.find(c=>c.name===carName)||cars[0];
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name)){skipped++;return;}
@@ -2085,6 +2091,7 @@ function handleExcelFile(file){
         members.push(obj);
         added++;
       });
+      saveCourses(courses);
       saveMembers();
       const res=document.getElementById('upload-result');
       res.style.display='block';
