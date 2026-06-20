@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 32;
+const APP_VERSION = 33;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1005,6 +1005,10 @@ function renderDrive(){
 
   var _onLabel = _logiDrive ? '완료' : '탑승';
   var _offLabel = _logiDrive ? '미완료' : '미탑승';
+  // 운전자모드: 기사 PIN 출퇴근 버튼 (기사 등록 차량이 있을 때)
+  if(currentMode==='driver' && cars.some(function(c){return c.driver&&c.driver.trim();})){
+    html+=`<div style="padding:10px 16px 0;"><button onclick="openPinCheckin()" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔢 기사 PIN 출퇴근 체크</button></div>`;
+  }
   html+=`<div class="summary-bar">
     <div class="summary-item"><div class="summary-num">${activeSt.length}</div><div class="summary-label">${_onLabel}</div></div>
     <div class="summary-item"><div class="summary-num">${clsSt.length-activeSt.length}</div><div class="summary-label">${_offLabel}</div></div>
@@ -3872,19 +3876,13 @@ function buildAlimtalkMessage(biz, orgName, name, timeStr, invoice){
 function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
   if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_SENDER){
-    var miss=[];
-    if(!ALIGO_API_KEY)miss.push('API키');
-    if(!ALIGO_USER_ID)miss.push('아이디');
-    if(!ALIGO_SENDER_KEY)miss.push('발신키');
-    if(!ALIGO_SENDER)miss.push('발신번호');
-    alert('[진단] 알리고 설정 없음: '+miss.join(', ')+' → 문자로 대체');
     sendCheckinSMSText(member, timeStr);
     return;
   }
   var biz = getBizType();
   // 업종별 템플릿코드 자동 선택 (없으면 설정값 폴백)
   var tplCode = BIZ_TEMPLATE_CODES[biz] || ALIGO_TEMPLATE_CODE;
-  if(!tplCode){ alert('[진단] 템플릿코드 없음 (업종:'+biz+') → 문자로 대체'); sendCheckinSMSText(member, timeStr); return; }
+  if(!tplCode){ sendCheckinSMSText(member, timeStr); return; }
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
@@ -3910,13 +3908,11 @@ function sendKakaoAlimtalk(member, timeStr){
     .then(function(data){
       if(data.code === 0){
         console.log('알림톡 발송 성공:', member.name);
-        showToast('✅ 알림톡 발송 성공');
       } else {
-        alert('[진단] 알림톡 발송 실패\ncode: '+data.code+'\nmessage: '+(data.message||'(없음)')+'\n→ 문자로 대체');
+        console.log('알림톡 발송 실패:', data.message);
         sendCheckinSMSText(member, timeStr);
       }
     }).catch(function(e){
-      alert('[진단] 네트워크/통신 오류: '+e.message+' → 문자로 대체');
       sendCheckinSMSText(member, timeStr);
     });
   });
