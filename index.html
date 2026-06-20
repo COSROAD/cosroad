@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 34;
+const APP_VERSION = 35;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -962,7 +962,7 @@ function renderByTab(){switchTab(currentTab);}
 
 // ── 운행 화면 ──
 function getActiveStudents(){
-  var _logi=getBizType()==='logistics';
+  var _logi=getBizType()==='logistics'||getBizType()==='delivery';
   const today=members.filter(m=>m.days.includes(currentDay)&&(_logi||m.courseId===currentCourseId)&&m.carId===currentCarId);
   if(optimizedOrder)return optimizedOrder.filter(s=>s.on&&members.find(m=>m.id===s.id)?.on);
   return today.filter(m=>m.on);
@@ -975,7 +975,7 @@ function renderDrive(){
   const todayM=members.filter(m=>m.days.includes(currentDay));
 
   // 코스 탭 + 차량 탭 → drive-tabs에 별도 렌더링
-  var _logiDrive=getBizType()==='logistics';
+  var _logiDrive=getBizType()==='logistics'||getBizType()==='delivery';
   var tabHtml = '<div style="background:white;border-bottom:1px solid var(--gray-200);">';
   if(!_logiDrive){
     tabHtml += '<div style="display:flex;gap:6px;padding:10px 16px 6px;overflow-x:auto;scrollbar-width:none;">';
@@ -1863,7 +1863,7 @@ function renderAdminMembers(){
       +'<div class="member-header">'+photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
-      +'<div class="member-class">'+(getBizType()==='logistics'?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
+      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
       +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
@@ -1919,7 +1919,7 @@ function filterAdminMembers(q){
       +'<div class="member-header">'+photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
-      +'<div class="member-class">'+(course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span></div></div>'
+      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
       +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
