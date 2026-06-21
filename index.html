@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 36;
+const APP_VERSION = 37;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3866,13 +3866,15 @@ var BIZ_TEMPLATE_CODES = {
   delivery:  'UI_7257'
 };
 // 업종별 알림톡 본문 생성 (승인된 템플릿과 정확히 일치해야 함)
-function buildAlimtalkMessage(biz, orgName, name, timeStr, invoice){
+function buildAlimtalkMessage(biz, orgName, name, timeStr, invoice, courier){
   if(biz==='logistics'){
     return '📦 물류\n['+orgName+'] 납품 완료 알림\n━━━━━━━━━\n🏢 거래처: '+name+'\n⏰ 완료: '+timeStr+'\n✅ 사장님! 주문 상품이 \n      정상적으로 납품완료.\n━━━━━━━━━\n☎  상품 주문 해주셔서 \n      감사 드립니다.';
   } else if(biz==='public'){
     return '['+orgName+'] 회원님 도착 알림\n━━━━━━━━━\n👤 이름: '+name+'\n⏰ 도착: '+timeStr+'\n✅ 보호자님! 회원님이 \n     센터에 안전하게  \n     도착했습니다.\n━━━━━━━━━ \n♥ 회원님의 안전한 \n    귀가까지 \n    함께하겠습니다.♥';
   } else if(biz==='delivery'){
-    return '🚚 택배\n['+orgName+'] 배송 완료 알림\n━━━━━━━━━\n📦 받는분: '+name+'\n⏰ 완료: '+timeStr+'\n✅고객님! 주문하신 \n     상품이 정상적으로 \n     배송되었습니다.\n━━━━━━━━━\n등기번호(운송장번호)\n: '+(invoice||'')+'';
+    var courierNames={'04':'CJ대한통운','05':'한진택배','08':'롯데택배','01':'우체국택배','06':'로젠택배'};
+    var courierLabel=courierNames[courier]||'택배';
+    return '🚚 택배\n['+courierLabel+'] 배송 완료 알림\n━━━━━━━━━\n📦 받는분: '+name+'\n⏰ 완료: '+timeStr+'\n✅고객님! 주문하신 \n     상품이 정상적으로 \n     배송되었습니다.\n━━━━━━━━━\n등기번호(운송장번호)\n: '+(invoice||'')+'';
   }
   // academy(학원, 기본)
   return '['+orgName+'] 출석 알림\n━━━━━━━━━\n👤 이름: '+name+'\n⏰ 도착: '+timeStr+'\n✅ 학원에 안전하게 \n      도착했습니다.\n━━━━━━━━━\n♥.♥안전한 귀가까지 \n        함께하겠습니다.';
@@ -3891,7 +3893,7 @@ function sendKakaoAlimtalk(member, timeStr){
   var phones = [];
   if(member.phone) phones.push(member.phone);
   if(member.phone2) phones.push(member.phone2);
-  var msg = buildAlimtalkMessage(biz, orgSettings.name, member.name, timeStr, member.invoice);
+  var msg = buildAlimtalkMessage(biz, orgSettings.name, member.name, timeStr, member.invoice, member.courier);
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk', {
       method: 'POST',
