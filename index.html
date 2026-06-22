@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 39;
+const APP_VERSION = 40;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -975,7 +975,7 @@ function renderDrive(){
   const todayM=members.filter(m=>m.days.includes(currentDay));
 
   // 물류·택배: 어제 납품완료로 off됐지만 오늘 완료기록 없으면 다시 on(미완료)으로 복구
-  if(getBizType()==='logistics'||getBizType()==='delivery'){
+  if((getBizType()==='logistics'||getBizType()==='delivery') && (!window._fbReady || window._syncDone)){
     var _changed=false;
     members.forEach(function(m){
       if(!m.on && !isDeliveryDoneToday(m.id)){ m.on=true; _changed=true; }
@@ -2004,9 +2004,9 @@ function downloadSampleExcel(){
   var data, note, fname;
   if(biz==='logistics'){
     data=[
-      ['거래처명','배정차량','거래처주소','거래처전화','배송요일','특이사항'],
-      ['(주)한빛유통','1호차','인천 연수구 용담로 111','032-111-2222','월,수,금','정문 하차'],
-      ['대한상사','2호차','인천 남동구 만수동','032-333-4444','화,목','지하 주차장'],
+      ['거래처명','배정차량','거래처주소','거래처전화','배송요일','사업자등록번호','대표자','업태','종목','계산서이메일','특이사항'],
+      ['(주)한빛유통','1호차','인천 연수구 용담로 111','032-111-2222','월,수,금','123-45-67890','김한빛','도소매','식품','tax@hanbit.com','정문 하차'],
+      ['대한상사','2호차','인천 남동구 만수동','032-333-4444','화,목','222-33-44444','이대한','제조','부품','daehan@mail.com','지하 주차장'],
     ];
     note=[
       ['항목','작성 방법','예시'],
@@ -2015,6 +2015,11 @@ function downloadSampleExcel(){
       ['거래처주소','배송지 상세','인천 연수구 용담로 111'],
       ['거래처전화','하이픈 포함','032-111-2222'],
       ['배송요일','쉼표로 구분','월,수,금'],
+      ['사업자등록번호','세금계산서용(없으면 빈칸)','123-45-67890'],
+      ['대표자','대표자명(없으면 빈칸)','김한빛'],
+      ['업태','세금계산서용(없으면 빈칸)','도소매'],
+      ['종목','세금계산서용(없으면 빈칸)','식품'],
+      ['계산서이메일','계산서 받을 이메일(없으면 빈칸)','tax@hanbit.com'],
       ['특이사항','메모(없으면 빈칸)','정문 하차'],
     ];
     fname='거래처명단_샘플양식.xlsx';
@@ -2084,11 +2089,15 @@ function handleExcelFile(file){
       dataRows.forEach(r=>{
         var name,courseName,carName,location,phone,phone2,daysRaw,regfee,monthly,pin,note;
         var courier='',invoice='',ordNo='',sender='',senderPhone='';
+        var bizNo='',ceo='',bizCat='',bizItem='',bizEmail='';
         if(biz==='logistics'){
-          // 거래처명/배정차량/거래처주소/거래처전화/배송요일/특이사항
+          // 거래처명/배정차량/거래처주소/거래처전화/배송요일/사업자등록번호/대표자/업태/종목/계산서이메일/특이사항
           name=String(r[0]||'').trim(); carName=String(r[1]||'1호차').trim();
           location=String(r[2]||'').trim(); phone=String(r[3]||'').trim();
-          daysRaw=String(r[4]||'월,화,수,목,금').trim(); note=String(r[5]||'').trim();
+          daysRaw=String(r[4]||'월,화,수,목,금').trim();
+          bizNo=String(r[5]||'').trim(); ceo=String(r[6]||'').trim();
+          bizCat=String(r[7]||'').trim(); bizItem=String(r[8]||'').trim(); bizEmail=String(r[9]||'').trim();
+          note=String(r[10]||'').trim();
           courseName=''; phone2=''; regfee=0; monthly=0; pin='';
         } else if(biz==='delivery'){
           // 배정차량/주문번호/받는분/받는분연락처/배송지주소/배송요일/택배사/송장번호/보내는사람/보내는전화/배송메세지
@@ -2121,6 +2130,7 @@ function handleExcelFile(file){
         if(pin && (members.find(m=>m.pin===pin) || cars.find(c=>c.driverPin===pin))){skipped++;return;}
         var obj={id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true};
         if(biz==='delivery'){ obj.courier=courier; obj.invoice=invoice; obj.ordNo=ordNo; obj.sender=sender; obj.senderPhone=senderPhone; }
+        if(biz==='logistics'){ obj.bizNo=bizNo; obj.ceo=ceo; obj.bizCat=bizCat; obj.bizItem=bizItem; obj.bizEmail=bizEmail; }
         members.push(obj);
         added++;
       });
@@ -4551,6 +4561,8 @@ function getUrlBizGroup(){
 async function saveToFirebase(key, data){
   try{
     if(!window._db || !window._firestore) return;
+    // 동기화 완료 전에는 저장 금지 (이전 org의 localStorage 데이터가 현재 org를 덮어쓰는 사고 방지)
+    if(window._fbReady && !window._syncDone){ console.log('동기화 전 저장 차단:', key); return; }
     var { doc, setDoc } = window._firestore;
     var orgId = getFbOrgId();
     await setDoc(doc(window._db, 'orgs', orgId, 'data', key), { value: JSON.stringify(data), updatedAt: Date.now() });
@@ -4584,13 +4596,20 @@ async function syncFromFirebase(){
   var fbDriverAtt = await loadFromFirebase('driverAtt');
 
   if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
+  else { localStorage.setItem('tkd_members','[]'); members=[]; }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
+  else { localStorage.removeItem('tkd_cars'); cars = loadCars(); }
   if(fbCourses){ localStorage.setItem('tkd_courses', JSON.stringify(fbCourses)); courses = fbCourses; }
+  else { localStorage.removeItem('tkd_courses'); courses = loadCourses(); }
   if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
   if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
+  else { localStorage.setItem('tkd_payments','{}'); }
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
+  else { localStorage.setItem('tkd_tax','{}'); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
+  else { localStorage.setItem('tkd_attendance','{}'); }
   if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
+  else { localStorage.setItem('tkd_notices','[]'); notices=[]; }
   if(fbAligo){
     localStorage.setItem('tkd_aligo', JSON.stringify(fbAligo));
     ALIGO_API_KEY = fbAligo.apikey||''; ALIGO_USER_ID = fbAligo.userid||'';
@@ -4603,6 +4622,7 @@ async function syncFromFirebase(){
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
   console.log('✅ Firebase 동기화 완료');
+  window._syncDone = true;
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
   // 실시간 리스너 등록
