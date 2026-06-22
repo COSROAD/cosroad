@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 40;
+const APP_VERSION = 41;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -975,7 +975,7 @@ function renderDrive(){
   const todayM=members.filter(m=>m.days.includes(currentDay));
 
   // 물류·택배: 어제 납품완료로 off됐지만 오늘 완료기록 없으면 다시 on(미완료)으로 복구
-  if((getBizType()==='logistics'||getBizType()==='delivery') && (!window._fbReady || window._syncDone)){
+  if(getBizType()==='logistics'||getBizType()==='delivery'){
     var _changed=false;
     members.forEach(function(m){
       if(!m.on && !isDeliveryDoneToday(m.id)){ m.on=true; _changed=true; }
@@ -4561,8 +4561,6 @@ function getUrlBizGroup(){
 async function saveToFirebase(key, data){
   try{
     if(!window._db || !window._firestore) return;
-    // 동기화 완료 전에는 저장 금지 (이전 org의 localStorage 데이터가 현재 org를 덮어쓰는 사고 방지)
-    if(window._fbReady && !window._syncDone){ console.log('동기화 전 저장 차단:', key); return; }
     var { doc, setDoc } = window._firestore;
     var orgId = getFbOrgId();
     await setDoc(doc(window._db, 'orgs', orgId, 'data', key), { value: JSON.stringify(data), updatedAt: Date.now() });
@@ -4596,20 +4594,13 @@ async function syncFromFirebase(){
   var fbDriverAtt = await loadFromFirebase('driverAtt');
 
   if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
-  else { localStorage.setItem('tkd_members','[]'); members=[]; }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
-  else { localStorage.removeItem('tkd_cars'); cars = loadCars(); }
   if(fbCourses){ localStorage.setItem('tkd_courses', JSON.stringify(fbCourses)); courses = fbCourses; }
-  else { localStorage.removeItem('tkd_courses'); courses = loadCourses(); }
   if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
   if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
-  else { localStorage.setItem('tkd_payments','{}'); }
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
-  else { localStorage.setItem('tkd_tax','{}'); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
-  else { localStorage.setItem('tkd_attendance','{}'); }
   if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
-  else { localStorage.setItem('tkd_notices','[]'); notices=[]; }
   if(fbAligo){
     localStorage.setItem('tkd_aligo', JSON.stringify(fbAligo));
     ALIGO_API_KEY = fbAligo.apikey||''; ALIGO_USER_ID = fbAligo.userid||'';
@@ -4622,7 +4613,6 @@ async function syncFromFirebase(){
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
   console.log('✅ Firebase 동기화 완료');
-  window._syncDone = true;
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
   // 실시간 리스너 등록
