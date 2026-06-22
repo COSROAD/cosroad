@@ -495,7 +495,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 42;
+const APP_VERSION = 44;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -707,28 +707,7 @@ let cars=loadCars();
 function loadMembers(){
   const s=localStorage.getItem('tkd_members');
   if(s)return JSON.parse(s);
-  return [
-    {id:1,name:'김민준',courseId:'c1',carId:'car1',location:'용현초 정문',lat:37.4490,lon:126.6480,phone:'010-1234-5678',phone2:'',days:['월','화','수','목','금'],note:'정문 우측 대기',on:true},
-    {id:2,name:'이서연',courseId:'c1',carId:'car1',location:'아이비 음악학원',lat:37.4475,lon:126.6495,phone:'010-2345-6789',phone2:'010-9876-5432',days:['월','화','수','목','금'],note:'혼자 탑승',on:true},
-    {id:3,name:'박지호',courseId:'c1',carId:'car1',location:'인하대 3번출구',lat:37.4505,lon:126.6571,phone:'010-3456-7890',phone2:'',days:['월','수','금'],note:'화목 결석',on:true},
-    {id:4,name:'최수아',courseId:'c1',carId:'car2',location:'유원아파트 5동',lat:37.4462,lon:126.6530,phone:'010-4567-8901',phone2:'',days:['월','화','수','목','금'],note:'',on:true},
-    {id:5,name:'정도윤',courseId:'c1',carId:'car2',location:'쌍떼빌 103동 앞',lat:37.4455,lon:126.6510,phone:'010-5678-9012',phone2:'010-1111-2222',days:['월','화','수','목','금'],note:'경비실 앞 대기',on:true},
-    {id:6,name:'강하은',courseId:'c1',carId:'car2',location:'소명유치원 앞',lat:37.4480,lon:126.6460,phone:'010-6789-0123',phone2:'',days:['월','화','목','금'],note:'수요일 제외',on:true},
-    {id:7,name:'윤서준&윤지우',courseId:'c1',carId:'car3',location:'피카소어린이집',lat:37.4450,lon:126.6490,phone:'010-7890-1234',phone2:'',days:['월','화','수','목','금'],note:'형제 함께 탑승',on:true},
-    {id:8,name:'임채원',courseId:'c1',carId:'car3',location:'해솔어린이집 앞',lat:37.4445,lon:126.6505,phone:'010-8901-2345',phone2:'010-3333-4444',days:['월','수','금'],note:'',on:true},
-    {id:9,name:'한지민',courseId:'c1',carId:'car3',location:'뮤엠영어학원',lat:37.4465,lon:126.6515,phone:'010-9012-3456',phone2:'',days:['월','화','수','목','금'],note:'늘푸른공인중개사 옆',on:true},
-    {id:10,name:'오승현',courseId:'c1',carId:'car4',location:'세종어린이집',lat:37.4442,lon:126.6498,phone:'010-0123-4567',phone2:'',days:['화','목'],note:'화목만 등원',on:true},
-    {id:11,name:'신예린',courseId:'c2',carId:'car1',location:'용현초 돌봄교실',lat:37.4490,lon:126.6480,phone:'010-1122-3344',phone2:'',days:['월','화','수','목','금'],note:'정문 우측 1층',on:true},
-    {id:12,name:'권태양',courseId:'c2',carId:'car1',location:'유원아파트 공부방',lat:37.4462,lon:126.6530,phone:'010-2233-4455',phone2:'010-5555-6666',days:['월','화','수','목','금'],note:'월요일 콩피아노 먼저',on:true},
-    {id:13,name:'문소율',courseId:'c2',carId:'car2',location:'중국집 안쪽 골목',lat:37.4470,lon:126.6500,phone:'010-3344-5566',phone2:'',days:['월','화','수','목','금'],note:'시간 확인 필요',on:true},
-    {id:14,name:'배준혁',courseId:'c2',carId:'car2',location:'유원유치원 앞',lat:37.4458,lon:126.6525,phone:'010-4455-6677',phone2:'',days:['월','화','수','목','금'],note:'',on:true},
-    {id:15,name:'조아린',courseId:'c2',carId:'car2',location:'아이비 음악학원',lat:37.4475,lon:126.6495,phone:'010-5566-7788',phone2:'010-7777-8888',days:['월','수','금'],note:'화목 학원 자체 귀가',on:true},
-    {id:16,name:'류민성',courseId:'c2',carId:'car3',location:'SK뷰 게이트2',lat:37.4505,lon:126.6571,phone:'010-6677-8899',phone2:'',days:['월','화','수','목','금'],note:'',on:true},
-    {id:17,name:'나도현&나설하',courseId:'c2',carId:'car3',location:'피카소어린이집',lat:37.4450,lon:126.6490,phone:'010-7788-9900',phone2:'',days:['월','화','수','목','금'],note:'광주집 왼쪽 골목',on:true},
-    {id:18,name:'석은우',courseId:'c2',carId:'car4',location:'세종어린이집 앞',lat:37.4442,lon:126.6498,phone:'010-8899-0011',phone2:'010-9999-0000',days:['월','화','수','목','금'],note:'차량 안에 있기도 함',on:true},
-    {id:19,name:'표리우&표도하',courseId:'c2',carId:'car4',location:'소명유치원',lat:37.4480,lon:126.6460,phone:'010-9900-1122',phone2:'',days:['금'],note:'금요일만 픽업',on:false},
-    {id:20,name:'허민찬',courseId:'c2',carId:'car5',location:'해솔어린이집',lat:37.4445,lon:126.6505,phone:'010-0011-2233',phone2:'010-1234-0000',days:['월','화','수','목','금'],note:'가끔 세종유치원 앞',on:true},
-  ];
+  return [];
 }
 function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);}
 let members=loadMembers();
