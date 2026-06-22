@@ -464,6 +464,35 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+// ── localStorage 업종(org)별 분리 래퍼 ──
+// 모든 업종이 같은 키(tkd_members 등)를 쓰면 데이터가 섞이므로,
+// 데이터성 키에는 자동으로 _<orgId>를 붙여 업종별로 완전 분리한다.
+(function(){
+  // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_aligo','tkd_driver_att'];
+  function curOrgId(){
+    try{
+      var p = new URLSearchParams(window.location.search);
+      var o = p.get('org');
+      if(o){ o=o.replace(/[^a-zA-Z0-9_]/g,''); if(o){ return (o==='academy_taekwondo')?'cosroad_default':o; } }
+    }catch(e){}
+    return 'cosroad_default';
+  }
+  function mapKey(key){
+    if(typeof key!=='string') return key;
+    // tkd_delivery_done_ 류는 이미 자체적으로 orgId를 붙이므로 제외
+    for(var i=0;i<ORG_KEYS.length;i++){
+      if(key===ORG_KEYS[i]) return key+'__'+curOrgId();
+    }
+    return key;
+  }
+  var _get = Storage.prototype.getItem;
+  var _set = Storage.prototype.setItem;
+  var _rem = Storage.prototype.removeItem;
+  Storage.prototype.getItem = function(k){ return _get.call(this, mapKey(k)); };
+  Storage.prototype.setItem = function(k,v){ return _set.call(this, mapKey(k), v); };
+  Storage.prototype.removeItem = function(k){ return _rem.call(this, mapKey(k)); };
+})();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
 const APP_VERSION = 41;
