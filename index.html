@@ -466,7 +466,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script>
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 37;
+const APP_VERSION = 38;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1784,30 +1784,58 @@ function renderDashboard(){
   const todayAll=members.filter(m=>m.days.includes(currentDay));
   const todayOn=todayAll.filter(m=>m.on);
   const pct=todayAll.length?Math.round(todayOn.length/todayAll.length*100):0;
+  var _dbiz=getBizType();
+  var _logiD=(_dbiz==='logistics'||_dbiz==='delivery');
+  var _onWord=_logiD?(_dbiz==='delivery'?'배송완료':'납품완료'):'탑승';
+  var _offWord=_logiD?'미완료':'미탑승';
+  var _rateWord=_logiD?'완료율':'탑승률';
+  var _subInfo=_logiD
+    ? cars.filter(c=>c.driver&&c.driver.trim()).map(c=>c.name+' '+members.filter(m=>m.carId===c.id).length+'곳').join(' · ')
+    : courses.map(c=>c.name+' '+members.filter(m=>m.courseId===c.id).length+'명').join(' · ');
+  var _unit=_logiD?'곳':'명';
   return `
   <div class="stat-grid">
-    <div class="stat-card" onclick="showDashDetail('all')" style="cursor:pointer;"><div class="stat-num">${total}</div><div class="stat-label">전체 ${T('회원')}</div><div class="stat-sub">${courses.map(c=>c.name+' '+members.filter(m=>m.courseId===c.id).length+'명').join(' · ')}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>
-    <div class="stat-card" onclick="showDashDetail('today')" style="cursor:pointer;"><div class="stat-num">${todayOn.length}</div><div class="stat-label">오늘(${currentDay}) 탑승</div><div class="stat-sub">미탑승 ${todayAll.length-todayOn.length}명</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>
+    <div class="stat-card" onclick="showDashDetail('all')" style="cursor:pointer;"><div class="stat-num">${total}</div><div class="stat-label">전체 ${T('회원')}</div><div class="stat-sub">${_subInfo}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>
+    <div class="stat-card" onclick="showDashDetail('today')" style="cursor:pointer;"><div class="stat-num">${todayOn.length}</div><div class="stat-label">오늘(${currentDay}) ${_onWord}</div><div class="stat-sub">${_offWord} ${todayAll.length-todayOn.length}${_unit}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>
     ${cars.map(car=>{const cnt=todayAll.filter(m=>m.carId===car.id&&m.on).length;return`<div class="stat-card" onclick="showDashDetail('${car.id}')" style="cursor:pointer;"><div class="stat-num">${cnt}</div><div class="stat-label">${car.name} 오늘</div><div class="stat-sub">${car.driver?'기사: '+car.driver:'기사 미배정'}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>`;}).join('')}
   </div>
   <div id="dash-detail-panel" style="margin:0 16px 10px;display:none;"></div>
   <div style="padding:0 16px 10px;">
     <div class="status-card">
-      <div class="status-card-title">오늘(${currentDay}) 탑승률 <span style="color:var(--admin)">${pct}%</span></div>
+      <div class="status-card-title">오늘(${currentDay}) ${_rateWord} <span style="color:var(--admin)">${pct}%</span></div>
       <div class="progress-bar"><div class="progress-fill admin" style="width:${pct}%"></div></div>
-      <div style="font-size:10px;color:var(--gray-400);">${todayOn.length}명 탑승 / ${todayAll.length}명 등록</div>
+      <div style="font-size:10px;color:var(--gray-400);">${todayOn.length}${_unit} ${_onWord} / ${todayAll.length}${_unit} 등록</div>
     </div>
     <div class="status-card">
-      <div class="status-card-title">차량별 오늘 탑승 현황</div>
+      <div class="status-card-title">차량별 오늘 ${_onWord} 현황</div>
       ${cars.map(car=>{
         const total2=todayAll.filter(m=>m.carId===car.id).length;
         const on=todayAll.filter(m=>m.carId===car.id&&m.on).length;
         const p=total2?Math.round(on/total2*100):0;
-        return`<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-600);margin-bottom:3px;"><span>${car.name}${car.driver?' ('+car.driver+')':''}</span><span>${on}/${total2}명</span></div><div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div></div>`;
+        return`<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-600);margin-bottom:3px;"><span>${car.name}${car.driver?' ('+car.driver+')':''}</span><span>${on}/${total2}${_unit}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div></div>`;
       }).join('')}
     </div>
   </div>`;
 }
+
+function memberStatusBadge(m){
+  var biz=getBizType();
+  if(biz==='logistics'||biz==='delivery'){
+    var done=isDeliveryDoneToday(m.id);
+    var w=biz==='delivery'?'배송완료':'납품완료';
+    return done
+      ?'<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ '+w+'</span>'
+      :'<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미완료</span>';
+  }
+  var att=getAttendanceToday(m.id);
+  return att==='present'
+    ?'<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ 출석</span>'
+    :att==='absent'
+    ?'<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:10px;font-weight:700;">❌ 결석</span>'
+    :'<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미처리</span>';
+}
+
+function renderAdminMembersBadgeStub(){}
 
 function renderAdminMembers(){
   var q='',el=document.getElementById('admin-search');
@@ -1857,12 +1885,7 @@ function renderAdminMembers(){
     var photo=m.photo
       ?('<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
       :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>');
-    var att=getAttendanceToday(m.id);
-    var badge=att==='present'
-      ?'<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ '+(getBizType()==="logistics"?"납품완료":getBizType()==="delivery"?"배송완료":"출석")+'</span>'
-      :att==='absent'
-      ?'<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:10px;font-weight:700;">❌ '+(getBizType()==="logistics"?"미납품":getBizType()==="delivery"?"미배송":"결석")+'</span>'
-      :'<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미처리</span>';
+    var badge=memberStatusBadge(m);
     var dayDots='';
     for(var d=0;d<DAYS.length;d++){
       dayDots+='<div class="day-dot '+(m.days.indexOf(DAYS[d])>=0?'on':'')+'">'+ DAYS[d]+'</div>';
@@ -1913,12 +1936,7 @@ function filterAdminMembers(q){
     var photo=m.photo
       ?('<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
       :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>');
-    var att=getAttendanceToday(m.id);
-    var badge=att==='present'
-      ?'<span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:2px 7px;border-radius:10px;font-weight:700;">✅ '+(getBizType()==="logistics"?"납품완료":getBizType()==="delivery"?"배송완료":"출석")+'</span>'
-      :att==='absent'
-      ?'<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:10px;font-weight:700;">❌ '+(getBizType()==="logistics"?"미납품":getBizType()==="delivery"?"미배송":"결석")+'</span>'
-      :'<span style="font-size:10px;background:#F2F4F7;color:#98A2B3;padding:2px 7px;border-radius:10px;font-weight:700;">– 미처리</span>';
+    var badge=memberStatusBadge(m);
     var dayDots='';
     for(var d=0;d<DAYS.length;d++){
       dayDots+='<div class="day-dot '+(m.days.indexOf(DAYS[d])>=0?'on':'')+'">'+ DAYS[d]+'</div>';
@@ -2146,6 +2164,8 @@ function removeMemberFromCar(memberId){
 // ── 스케줄 ──
 // 물류: 요일별 배송 거래처 현황
 var deliverySelDate=todayStr(); // 선택된 날짜 YYYY-MM-DD
+var deliverySelCar=''; // 선택된 호차 ('' = 전체)
+function setDeliveryCarTab(id){ deliverySelCar=id; renderAdminTab('schedule'); }
 function setDeliveryDate(v){ deliverySelDate=v; renderAdminTab('schedule'); }
 function moveDeliveryDate(delta){
   var d=new Date(deliverySelDate+'T00:00:00');
@@ -2175,14 +2195,44 @@ function renderDeliverySchedule(){
   if(list.length===0){
     h+='<div style="text-align:center;padding:30px;color:#98A2B3;font-size:13px;">이 날짜에 배송할 '+(getBizType()==='delivery'?'배송지':'거래처')+'가 없습니다.</div>';
   } else {
-    list.forEach(function(m){
-      var car=cars.find(function(c){return c.id===m.carId;});
-      h+='<div class="setting-card" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">';
-      h+='<div><div style="font-size:13px;font-weight:600;color:#344054;">'+m.name+'</div>';
-      h+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+m.location+'</div></div>';
-      h+='<div style="font-size:11px;color:#475467;text-align:right;flex-shrink:0;">'+(car?car.name+(car.driver?'<br>'+car.driver:''):'미배정')+'</div>';
-      h+='</div>';
-    });
+    // 호차별 그룹
+    var byCar={}, noCar=[];
+    list.forEach(function(m){ if(m.carId){ (byCar[m.carId]=byCar[m.carId]||[]).push(m); } else { noCar.push(m); } });
+    // 호차 탭 (그날 배송지가 있는 호차만)
+    h+='<div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;padding-bottom:2px;">';
+    var tabBtn=function(id,label,cnt){
+      var active=(deliverySelCar===id);
+      return '<button onclick="setDeliveryCarTab(\''+id+'\')" style="flex-shrink:0;padding:6px 13px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(active?'#EA580C':'#EAECF0')+';background:'+(active?'#FFF4ED':'white')+';color:'+(active?'#EA580C':'#475467')+';">'+label+' ('+cnt+')</button>';
+    };
+    h+=tabBtn('','전체',list.length);
+    cars.forEach(function(car){ var items=byCar[car.id]; if(items&&items.length) h+=tabBtn(car.id, car.name, items.length); });
+    if(noCar.length) h+=tabBtn('__none__','미배정',noCar.length);
+    h+='</div>';
+    var renderItem=function(m){
+      var done=isDeliveryDoneToday(m.id);
+      var s='<div class="setting-card" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;'+(done?'opacity:0.55;':'')+'">';
+      s+='<div><div style="font-size:13px;font-weight:600;color:#344054;">'+m.name+(done?' <span style="font-size:10px;color:#12B76A;">✔</span>':'')+'</div>';
+      s+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+m.location+'</div></div>';
+      s+='<div style="font-size:11px;color:#475467;text-align:right;flex-shrink:0;">'+(m.phone||'')+'</div>';
+      s+='</div>';
+      return s;
+    };
+    var renderGroup=function(car,items){
+      h+='<div style="margin:12px 0 6px;padding:6px 10px;background:#FFF4ED;border-radius:8px;font-size:12px;font-weight:700;color:#EA580C;">🚐 '+car.name+(car.driver?' · '+car.driver:'')+' <span style="color:#98A2B3;font-weight:400;">'+items.length+'곳</span></div>';
+      items.forEach(function(m){ h+=renderItem(m); });
+    };
+    if(deliverySelCar===''){
+      // 전체: 호차별 그룹 다 표시
+      cars.forEach(function(car){ var items=byCar[car.id]; if(items&&items.length) renderGroup(car,items); });
+      if(noCar.length){ h+='<div style="margin:12px 0 6px;padding:6px 10px;background:#F2F4F7;border-radius:8px;font-size:12px;font-weight:700;color:#98A2B3;">미배정 차량 <span style="font-weight:400;">'+noCar.length+'곳</span></div>'; noCar.forEach(function(m){ h+=renderItem(m); }); }
+    } else if(deliverySelCar==='__none__'){
+      noCar.forEach(function(m){ h+=renderItem(m); });
+    } else {
+      var car=cars.find(function(c){return c.id===deliverySelCar;});
+      var items=byCar[deliverySelCar]||[];
+      if(car && items.length) renderGroup(car,items);
+      else h+='<div style="text-align:center;padding:20px;color:#98A2B3;font-size:13px;">이 호차에 배정된 곳이 없습니다.</div>';
+    }
   }
   h+='</div>';
   return h;
@@ -2485,6 +2535,22 @@ function applyBizModalLayout(){
       wrapFees.innerHTML='<div style="flex:1;"><label class="form-label">기사 정보 (배정차량 자동)</label>'
         +'<input class="form-input" type="text" id="m-driverinfo" placeholder="배정차량 선택 시 자동" readonly style="background:#F9FAFB;color:#475467;"/></div>';
     }
+    // 거래처 사업자정보 (세금계산서 발행용)
+    if(!document.getElementById('wrap-bizinfo')){
+      var biw=document.createElement('div');
+      biw.id='wrap-bizinfo';
+      biw.style.marginTop='4px';
+      biw.innerHTML='<div style="border-top:1px dashed #E4E7EC;margin:8px 0;padding-top:8px;font-size:12px;font-weight:700;color:#EA580C;">📑 거래처 사업자정보 (세금계산서용)</div>'
+        +'<label class="form-label">사업자등록번호</label><input class="form-input" type="text" id="m-bizno" placeholder="000-00-00000"/>'
+        +'<div class="form-row"><div style="flex:1;"><label class="form-label">대표자</label><input class="form-input" type="text" id="m-ceo"/></div>'
+        +'<div style="flex:1;"><label class="form-label">계산서 이메일</label><input class="form-input" type="email" id="m-bizemail" placeholder="tax@..."/></div></div>'
+        +'<div class="form-row"><div style="flex:1;"><label class="form-label">업태</label><input class="form-input" type="text" id="m-bizcat"/></div>'
+        +'<div style="flex:1;"><label class="form-label">종목</label><input class="form-input" type="text" id="m-bizitem"/></div></div>';
+      var saveBtn=document.querySelector('#member-modal .modal .modal-save');
+      var modalBody=document.querySelector('#member-modal .modal');
+      if(modalBody && saveBtn) modalBody.insertBefore(biw, saveBtn);
+      else if(wrapFees && wrapFees.parentNode) wrapFees.parentNode.insertBefore(biw, wrapFees.nextSibling);
+    }
     var carSel=document.getElementById('m-car');
     if(carSel) carSel.setAttribute('onchange','fillDriverInfoFromCar()');
   } else if(biz==='delivery'){
@@ -2612,7 +2678,12 @@ function openEditModal(id){
   // 삭제 버튼 제거됨
   var m3=document.getElementById('member-modal');m3.style.display='';m3.classList.add('show');
   applyBizModalLayout();
-  if(getBizType()==='logistics') fillDriverInfoFromCar();
+  if(getBizType()==='logistics'){
+    fillDriverInfoFromCar();
+    var setb=function(id,val){ var e=document.getElementById(id); if(e)e.value=val||''; };
+    setb('m-bizno',m.bizNo); setb('m-ceo',m.ceo); setb('m-bizemail',m.bizEmail);
+    setb('m-bizcat',m.bizCat); setb('m-bizitem',m.bizItem);
+  }
   if(getBizType()==='delivery'){
     function setv(id,val){ var e=document.getElementById(id); if(e)e.value=val||''; }
     setv('m-courier',m.courier); setv('m-invoice',m.invoice); setv('m-ordno',m.ordNo);
@@ -2654,7 +2725,8 @@ function saveMember(){
   // 택배 전용 필드
   function dv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
   var deliveryFields = (biz==='delivery') ? {courier:dv('m-courier'),invoice:dv('m-invoice'),ordNo:dv('m-ordno'),sender:dv('m-sender'),senderPhone:dv('m-senderphone')} : {};
-  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon}, deliveryFields);
+  var bizInfoFields = (biz==='logistics') ? {bizNo:dv('m-bizno'),ceo:dv('m-ceo'),bizEmail:dv('m-bizemail'),bizCat:dv('m-bizcat'),bizItem:dv('m-bizitem')} : {};
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon}, deliveryFields, bizInfoFields);
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
