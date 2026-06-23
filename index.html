@@ -244,6 +244,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBTpvJtKQvfpmyyJS6rteCJDgsphvMyCgI",
@@ -256,8 +257,11 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
   window._db = db;
   window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot };
+  window._auth = auth;
+  window._authFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };
   window._fbReady = true;
   console.log('✅ Firebase 연결 완료');
 </script>
@@ -321,13 +325,16 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <button class="login-btn btn-driver" onclick="loginDriver()">운전자로 시작</button>
     <div style="border-top:1px solid var(--gray-200);margin:10px 0;"></div>
     <div class="login-section-title">👨‍💼 관리자</div>
-    <input class="login-input" type="password" id="admin-pw" placeholder="관리자 비밀번호" onkeydown="if(event.key==='Enter')loginAdmin()"/>
+    <input class="login-input" type="email" id="admin-email" placeholder="이메일" onkeydown="if(event.key==='Enter')loginAdmin()"/>
+    <input class="login-input" type="password" id="admin-pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')loginAdmin()"/>
     <label style="display:flex;align-items:center;gap:7px;margin:2px 0 10px;cursor:pointer;justify-content:center;">
       <input type="checkbox" id="keep-login" style="width:16px;height:16px;flex-shrink:0;"/>
       <span style="color:#475467;font-size:13px;font-weight:600;">로그인 상태 유지</span>
     </label>
     <button class="login-btn btn-admin" onclick="loginAdmin()">관리자로 시작</button>
-    <div class="login-err" id="login-err">비밀번호가 올바르지 않습니다.</div>
+    <button class="login-btn" onclick="openSignupModal()" style="background:white;color:var(--admin);border:1.5px solid var(--admin);margin-top:8px;">회원가입</button>
+    <div style="text-align:center;margin-top:8px;"><span onclick="sendPwReset()" style="font-size:12px;color:#98A2B3;cursor:pointer;text-decoration:underline;">비밀번호를 잊으셨나요?</span></div>
+    <div class="login-err" id="login-err">로그인 정보가 올바르지 않습니다.</div>
   </div>
   <div class="login-hint">초기 관리자 비밀번호: 1234</div>
   <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.2);max-width:320px;text-align:center;font-size:10px;line-height:1.55;color:rgba(255,255,255,0.65);">
@@ -495,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 47;
+const APP_VERSION = 48;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -569,6 +576,7 @@ function getBizType(){
   // URL에 업종 그룹이 명시돼 있으면 그것을 최우선 (주소가 업종을 고정)
   var urlGroup = getUrlBizGroup();
   if(urlGroup) return urlGroup;
+  if(window._userBizType) return window._userBizType;
   if(orgSettings && orgSettings.bizType) return orgSettings.bizType;
   if(window.DEFAULT_BIZ_TYPE) return window.DEFAULT_BIZ_TYPE;
   return 'academy';
@@ -753,15 +761,117 @@ function keepLoginKey(){ return 'tkd_keeplogin_' + getFbOrgId(); }
 
 function loginDriver(){currentMode='driver';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();}
 function loginAdmin(){
+  var emailEl=document.getElementById('admin-email');
+  var email=emailEl?emailEl.value.trim():'';
   const pw=document.getElementById('admin-pw').value;
+  if(email){
+    if(!window._auth || !window._authFns){ alert('로그인 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+    window._authFns.signInWithEmailAndPassword(window._auth, email, pw)
+      .then(function(cred){
+        var keep=document.getElementById('keep-login');
+        if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
+        return loadUserProfile(cred.user.uid);
+      })
+      .then(function(){
+        onAdminLoggedIn();
+      })
+      .catch(function(e){
+        var el=document.getElementById('login-err');
+        if(el){ el.textContent = (e.code==='auth/invalid-credential'||e.code==='auth/wrong-password'||e.code==='auth/user-not-found')?'이메일 또는 비밀번호가 올바르지 않습니다.':'로그인 실패: '+e.message; el.style.display='block'; }
+      });
+    return;
+  }
   if(pw!==ADMIN_PW){document.getElementById('login-err').style.display='block';return;}
-  // 로그인 상태 유지 체크 시 저장
   var keep=document.getElementById('keep-login');
   if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
   else { localStorage.removeItem(keepLoginKey()); }
-  currentMode='admin';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();
+  onAdminLoggedIn();
 }
-function logout(){currentMode='';localStorage.removeItem(keepLoginKey());document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
+function onAdminLoggedIn(){
+  currentMode='admin';
+  document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('main-app').style.display='block';
+  initApp();
+}
+
+// 회원가입 모달
+function openSignupModal(){
+  var m=document.getElementById('signup-modal');
+  if(m){ m.remove(); }
+  var html='<div id="signup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    +'<div style="background:white;border-radius:16px;padding:22px;max-width:360px;width:100%;box-sizing:border-box;">'
+    +'<div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:4px;">회원가입</div>'
+    +'<div style="font-size:12px;color:#98A2B3;margin-bottom:16px;">업체 계정을 만듭니다.</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">업종 선택</label>'
+    +'<select id="su-biz" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;">'
+    +'<option value="academy">학원 (셔틀)</option><option value="logistics">물류 (배송)</option><option value="public">공공 (복지)</option><option value="delivery">택배</option></select>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">업체명</label>'
+    +'<input id="su-name" type="text" placeholder="예) 코스로드학원" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">이메일</label>'
+    +'<input id="su-email" type="email" placeholder="이메일 주소" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">비밀번호 (6자 이상)</label>'
+    +'<input id="su-pw" type="password" placeholder="비밀번호" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 4px;box-sizing:border-box;"/>'
+    +'<div id="su-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
+    +'<button onclick="doSignup()" style="width:100%;padding:13px;background:var(--admin);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:10px;">가입하기</button>'
+    +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">취소</button>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function doSignup(){
+  var biz=document.getElementById('su-biz').value;
+  var name=document.getElementById('su-name').value.trim();
+  var email=document.getElementById('su-email').value.trim();
+  var pw=document.getElementById('su-pw').value;
+  var err=document.getElementById('su-err');
+  function showErr(msg){ if(err){err.textContent=msg;err.style.display='block';} }
+  if(!name){ showErr('업체명을 입력해주세요.'); return; }
+  if(!email){ showErr('이메일을 입력해주세요.'); return; }
+  if(pw.length<6){ showErr('비밀번호는 6자 이상이어야 합니다.'); return; }
+  if(!window._auth || !window._authFns){ showErr('가입 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  window._authFns.createUserWithEmailAndPassword(window._auth, email, pw)
+    .then(function(cred){
+      var uid=cred.user.uid;
+      var d=window._firestore.doc, sd=window._firestore.setDoc;
+      var orgId = biz + '_' + uid.slice(0,12);
+      return sd(d(window._db, 'users', uid), { email: email, bizType: biz, orgName: name, orgId: orgId, createdAt: Date.now() });
+    })
+    .then(function(){
+      var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
+      alert('✅ 가입 완료! 가입한 이메일과 비밀번호로 로그인해주세요.');
+      var ae=document.getElementById('admin-email'); if(ae) ae.value=email;
+    })
+    .catch(function(e){
+      showErr(e.code==='auth/email-already-in-use'?'이미 가입된 이메일입니다.':e.code==='auth/invalid-email'?'이메일 형식이 올바르지 않습니다.':'가입 실패: '+e.message);
+    });
+}
+
+// 로그인 사용자 정보(orgId, 업종) 불러오기
+function loadUserProfile(uid){
+  window._userUid = uid;
+  if(!window._db || !window._firestore) return Promise.resolve();
+  var d=window._firestore.doc, gd=window._firestore.getDoc;
+  return gd(d(window._db, 'users', uid)).then(function(snap){
+    if(snap.exists()){
+      var u=snap.data();
+      window._userOrgId = u.orgId || null;
+      window._userBizType = u.bizType || null;
+      window._userApproved = u.approved===true; // 승인 여부 (다음 단계에서 사용)
+      window._userOrgName = u.orgName || '';
+    }
+  }).catch(function(e){ console.log('사용자 정보 로드 실패:', e.message); });
+}
+
+function sendPwReset(){
+  var emailEl=document.getElementById('admin-email');
+  var email=emailEl?emailEl.value.trim():'';
+  if(!email){ alert('비밀번호를 재설정할 이메일을 위 칸에 입력한 뒤 다시 눌러주세요.'); return; }
+  if(!window._auth || !window._authFns){ alert('잠시 후 다시 시도해주세요.'); return; }
+  window._authFns.sendPasswordResetEmail(window._auth, email)
+    .then(function(){ alert('📧 비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요.'); })
+    .catch(function(e){ alert(e.code==='auth/user-not-found'?'가입되지 않은 이메일입니다.':'전송 실패: '+e.message); });
+}
+function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
 // 저장된 로그인 유지 상태가 있으면 자동 로그인
 function tryAutoLogin(){
@@ -4567,6 +4677,7 @@ function getFbOrgId(){
     if(urlOrg === 'academy_taekwondo') return 'cosroad_default';
     return urlOrg;
   }
+  if(window._userOrgId) return window._userOrgId;
   if(window.FIXED_ORG_ID) return window.FIXED_ORG_ID;
   return localStorage.getItem('tkd_orgId') || 'cosroad_default';
 }
