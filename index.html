@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 48;
+const APP_VERSION = 49;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -773,6 +773,13 @@ function loginAdmin(){
         return loadUserProfile(cred.user.uid);
       })
       .then(function(){
+        if(window._userApproved===false){
+          if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}
+          window._userOrgId=null;window._userBizType=null;
+          var el=document.getElementById('login-err');
+          if(el){ el.textContent='아직 승인 대기 중입니다. 구독료 입금 후 승인되면 이용 가능합니다.'; el.style.display='block'; }
+          return;
+        }
         onAdminLoggedIn();
       })
       .catch(function(e){
@@ -834,11 +841,11 @@ function doSignup(){
       var uid=cred.user.uid;
       var d=window._firestore.doc, sd=window._firestore.setDoc;
       var orgId = biz + '_' + uid.slice(0,12);
-      return sd(d(window._db, 'users', uid), { email: email, bizType: biz, orgName: name, orgId: orgId, createdAt: Date.now() });
+      return sd(d(window._db, 'users', uid), { email: email, bizType: biz, orgName: name, orgId: orgId, approved: false, createdAt: Date.now() });
     })
     .then(function(){
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
-      alert('✅ 가입 완료! 가입한 이메일과 비밀번호로 로그인해주세요.');
+      alert('✅ 가입 신청 완료!\n\n구독료 입금 후 관리자 승인이 완료되면 이용하실 수 있습니다.\n문의: cosroad@cosroad.com');
       var ae=document.getElementById('admin-email'); if(ae) ae.value=email;
     })
     .catch(function(e){
@@ -922,7 +929,38 @@ async function renderMasterPanel(){
   root.innerHTML = '<div style="text-align:center;padding:40px;color:#98A2B3;">불러오는 중...</div>';
   // 업체 목록 로드
   await loadMasterCompanies();
+  await loadSignupUsers();
   drawMasterPanel();
+}
+
+var signupUsers = [];
+async function loadSignupUsers(){
+  signupUsers = [];
+  try{
+    if(window._db && window._firestore){
+      var col=window._firestore.collection, gds=window._firestore.getDocs;
+      var snap = await gds(col(window._db, 'users'));
+      snap.forEach(function(docSnap){
+        var u = docSnap.data(); u._uid = docSnap.id;
+        signupUsers.push(u);
+      });
+      signupUsers.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    }
+  }catch(e){ console.log('가입자 목록 로드 실패:', e.message); }
+}
+
+async function setUserApproval(uid, approved){
+  try{
+    var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
+    var ref=d(window._db, 'users', uid);
+    var snap=await gd(ref);
+    if(snap.exists()){
+      var u=snap.data(); u.approved=approved;
+      await sd(ref, u);
+      alert(approved?'✅ 승인 완료':'승인이 취소되었습니다.');
+      renderMasterPanel();
+    }
+  }catch(e){ alert('처리 실패: '+e.message); }
 }
 
 function drawMasterPanel(){
@@ -931,6 +969,36 @@ function drawMasterPanel(){
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0;">';
   h += '<div style="font-size:20px;font-weight:800;color:#1D2939;">🏢 업체 관리</div>';
   h += '<span style="font-size:13px;color:#667085;">총 '+masterCompanies.length+'개</span>';
+  h += '</div>';
+
+  var pending = signupUsers.filter(function(u){ return u.approved!==true; });
+  var approvedList = signupUsers.filter(function(u){ return u.approved===true; });
+  var bizLabel={academy:'🏫 학원',logistics:'📦 물류',public:'🏛️ 공공',delivery:'🚚 택배'};
+  h += '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:14px;margin-bottom:16px;">';
+  h += '<div style="font-size:14px;font-weight:800;color:#EA580C;margin-bottom:10px;">🔔 승인 대기 ('+pending.length+')</div>';
+  if(pending.length===0){
+    h += '<div style="font-size:12px;color:#98A2B3;">대기 중인 가입 신청이 없습니다.</div>';
+  } else {
+    pending.forEach(function(u){
+      var dt = u.createdAt ? new Date(u.createdAt).toLocaleDateString('ko-KR') : '';
+      h += '<div style="background:white;border:1px solid #FED7AA;border-radius:10px;padding:11px;margin-bottom:6px;">';
+      h += '<div style="font-size:14px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(u.orgName||'(이름없음)')+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+(bizLabel[u.bizType]||u.bizType||'')+'</span></div>';
+      h += '<div style="font-size:11px;color:#667085;margin-top:3px;">'+escapeMasterHtml(u.email||'')+' · '+dt+'</div>';
+      h += '<button onclick="setUserApproval(\''+u._uid+'\',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 승인하기</button>';
+      h += '</div>';
+    });
+  }
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin:14px 0 8px;">✅ 승인된 업체 ('+approvedList.length+')</div>';
+  if(approvedList.length===0){
+    h += '<div style="font-size:12px;color:#98A2B3;">없음</div>';
+  } else {
+    approvedList.forEach(function(u){
+      h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;">';
+      h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span><div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
+      h += '<button onclick="setUserApproval(\''+u._uid+'\',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;">승인취소</button>';
+      h += '</div>';
+    });
+  }
   h += '</div>';
 
   // 추가 폼
