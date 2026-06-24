@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 50;
+const APP_VERSION = 51;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4311,28 +4311,47 @@ var shopPartners = {
     ]
   },
   sports: {
-    label: '🥋 도복/용품',
+    label: '🥋 태권도/학원용품',
     items: [
-      {name:'태권도용품', icon:'🥋', desc:'업체 준비 중', url:'', color:'#EA580C'},
-      {name:'도복전문점', icon:'👘', desc:'업체 준비 중', url:'', color:'#C2410C'}
+      {name:'태권도용품', icon:'🥋', desc:'도복·용품 전문', url:'', color:'#EA580C'}
     ]
   },
   supply: {
-    label: '🛒 소모품',
+    label: '🛒 소모품/교육자재',
     items: [
-      {name:'FREEZON', icon:'🛒', desc:'소모품 전문 스토어', url:'https://smartstore.naver.com/freezon', color:'#12B76A'}
-    ]
-  },
-  edu: {
-    label: '🏫 교육/자재',
-    items: [
-      {name:'교육자재', icon:'📚', desc:'업체 준비 중', url:'', color:'#F59E0B'}
+      {name:'FREEZON', icon:'🛒', desc:'소모품·교육자재 스토어', url:'https://smartstore.naver.com/freezon', color:'#12B76A'}
     ]
   },
   it: {
-    label: '📱 IT/앱',
+    label: '🧑‍✈️ 기사 구인',
     items: [
-      {name:'COSROAD', icon:'🚐', desc:'스마트 셔틀 운행 관리', url:'https://cosroad.com', color:'#EA580C'}
+      {name:'기사구인', icon:'🧑‍✈️', desc:'운전기사 채용', url:'', color:'#1A6BFF'}
+    ]
+  },
+  packing: {
+    label: '📦 포장/운송용품',
+    items: [
+      {name:'포장재', icon:'📦', desc:'박스·완충재·테이프', url:'', color:'#EA580C'},
+      {name:'운송용품', icon:'🛻', desc:'적재·운반 용품', url:'', color:'#C2410C'}
+    ]
+  },
+  cargo: {
+    label: '🛡️ 화물보험',
+    items: [
+      {name:'화물보험', icon:'🛡️', desc:'운송 화물 보험', url:'', color:'#1A6BFF'}
+    ]
+  },
+  welfare: {
+    label: '🏛️ 복지용품/자재',
+    items: [
+      {name:'복지용품', icon:'🏛️', desc:'복지·돌봄 용품', url:'', color:'#0E9384'}
+    ]
+  },
+  delivbox: {
+    label: '📮 택배박스/장비',
+    items: [
+      {name:'택배박스', icon:'📮', desc:'택배 박스·포장재', url:'', color:'#EA580C'},
+      {name:'운송장비', icon:'🛒', desc:'핸드카·운반장비', url:'', color:'#475467'}
     ]
   }
 };
@@ -4341,7 +4360,14 @@ function renderShop(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
 
-  var categories = Object.keys(shopPartners);
+  var allKeys = Object.keys(shopPartners);
+  var bizPartnerMap = {
+    academy:   ['tax','car','sports','supply','it'],
+    logistics: ['tax','car','packing','cargo','it'],
+    public:    ['tax','car','welfare','supply','it'],
+    delivery:  ['tax','car','delivbox','cargo','it']
+  };
+  var categories = (bizPartnerMap[getBizType()] || allKeys).filter(function(k){ return shopPartners[k]; });
   var h = '<div>';
 
   // 배너 + 카테고리 탭 함께 sticky
