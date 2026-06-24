@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 57;
+const APP_VERSION = 58;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4854,8 +4854,8 @@ function printInvoice(id){
       rowsHtml += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
     }
   }
-  function sheet(title){
-    return '<div class="inv-sheet">'
+  function sheet(title, cls){
+    return '<div class="inv-sheet '+(cls||'')+'">'
       +'<div class="inv-head"><div class="inv-title">거 래 명 세 서</div><div class="inv-sub">('+title+')</div></div>'
       +'<div class="inv-date">거래일자 : '+esc(inv.date)+'</div>'
       +'<table class="inv-party"><tr>'
@@ -4913,13 +4913,27 @@ function printInvoice(id){
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:6mm;}'
     +'.inv-wrap{page-break-inside:avoid;margin-bottom:8mm;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;}}'
+    +'.blue.inv-sheet{border-color:#0046C0;}'
+    +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
+    +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
+    +'.blue .ph{color:#0046C0;}'
+    +'.blue .pin td{border-color:#9DB8E8;}'
+    +'.blue .pin .k{background:#EFF4FF;color:#0046C0;}'
+    +'.blue .inv-items th{border-color:#0046C0;background:#EFF4FF;color:#0046C0;}'
+    +'.blue .inv-items td{border-color:#9DB8E8;}'
+    +'.blue .inv-items tfoot td{border-color:#0046C0;background:#F5F8FF;}'
+    +'.blue .inv-foot{border-color:#0046C0;}'
+    +'.blue .inv-grand{color:#0046C0;}'
+    +'.blue .inv-bal{border-color:#0046C0;}'
+    +'.blue .inv-bal td{border-color:#9DB8E8;}'
+    +'.blue .inv-bal .bk{background:#EFF4FF;color:#0046C0;}'
     +'</style>';
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
   w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
     + '<div class="inv-page">'
     + '<div class="inv-wrap">' + sheet('공급자 보관용') + '</div>'
-    + '<div class="inv-wrap">' + sheet('공급받는자 보관용') + '</div>'
+    + '<div class="inv-wrap">' + sheet('공급받는자 보관용','blue') + '</div>'
     + '</div>'
     + '<div class="no-print" style="text-align:center;margin:10px;"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;font-weight:700;background:#7C3AED;color:white;border:none;border-radius:8px;cursor:pointer;">🖨 인쇄하기</button></div>'
     + '</body></html>');
