@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 55;
+const APP_VERSION = 56;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4813,7 +4813,7 @@ function printInvoice(id){
   // 품목 행 (최소 6줄 채움)
   var rowsHtml = '';
   var n = inv.items.length;
-  for(var i=0;i<Math.max(n,6);i++){
+  for(var i=0;i<Math.max(n,10);i++){
     var it = inv.items[i];
     if(it){
       var amt=(Number(it.qty)||0)*(Number(it.price)||0);
@@ -4864,30 +4864,32 @@ function printInvoice(id){
     +'.inv-party{width:100%;border-collapse:collapse;}'
     +'.inv-party>tbody>tr>td{border:1px solid #C00;vertical-align:middle;}'
     +'.ph{width:18px;text-align:center;font-size:11px;color:#C00;font-weight:700;writing-mode:vertical-rl;}'
-    +'.pin{width:100%;border-collapse:collapse;font-size:11px;}'
+    +'.pin{width:100%;border-collapse:collapse;font-size:14px;}'
     +'.pin td{border:1px solid #E59;padding:3px 5px;}'
     +'.pin .k{background:#FFF0F0;color:#C00;font-weight:700;width:48px;white-space:nowrap;}'
     +'.pin .ctr{text-align:center;font-weight:700;font-size:13px;}'
-    +'.inv-items{width:100%;border-collapse:collapse;font-size:11px;margin-top:-1px;}'
+    +'.inv-items{width:100%;border-collapse:collapse;font-size:14px;margin-top:-1px;}'
     +'.inv-items th{border:1px solid #C00;background:#FFF0F0;color:#C00;padding:4px;}'
     +'.inv-items td{border:1px solid #E59;padding:3px 5px;height:18px;}'
     +'.inv-items .lft{text-align:left;} .inv-items .rgt{text-align:right;}'
     +'.inv-items td:not(.lft):not(.rgt){text-align:center;}'
     +'.inv-items tfoot td{border:1px solid #C00;font-weight:700;background:#FFF8F8;}'
-    +'.inv-foot{display:flex;justify-content:space-between;padding:6px 8px;border:1px solid #C00;border-top:none;font-size:12px;}'
+    +'.inv-foot{display:flex;justify-content:space-between;padding:6px 8px;border:1px solid #C00;border-top:none;font-size:14px;}'
     +'.inv-grand{font-weight:800;color:#C00;}.ceo-cell{position:relative;}.inv-stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:34px;height:34px;object-fit:contain;opacity:0.85;}'
-    +'.inv-bal{width:100%;border-collapse:collapse;font-size:11px;border:1px solid #C00;border-top:none;}'
+    +'.inv-bal{width:100%;border-collapse:collapse;font-size:14px;border:1px solid #C00;border-top:none;}'
     +'.inv-bal td{border:1px solid #E59;padding:4px 6px;}'
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:6mm;}'
-    +'.inv-wrap{page-break-inside:avoid;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;}}'
+    +'.inv-wrap{page-break-inside:avoid;margin-bottom:8mm;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;}}'
     +'</style>';
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
   w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
+    + '<div class="inv-page">'
     + '<div class="inv-wrap">' + sheet('공급자 보관용') + '</div>'
     + '<div class="inv-wrap">' + sheet('공급받는자 보관용') + '</div>'
+    + '</div>'
     + '<div class="no-print" style="text-align:center;margin:10px;"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;font-weight:700;background:#7C3AED;color:white;border:none;border-radius:8px;cursor:pointer;">🖨 인쇄하기</button></div>'
     + '</body></html>');
   w.document.close();
