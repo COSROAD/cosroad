@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 49;
+const APP_VERSION = 50;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2538,14 +2538,6 @@ function renderSettings(){
         <input type="hidden" id="dest-lat" value="${orgSettings.destLat}"/>
         <input type="hidden" id="dest-lon" value="${orgSettings.destLon}"/>
         <button class="setting-save-btn" style="width:100%;padding:11px;" onclick="saveOrgInfo()">사용자 정보 저장</button>
-      </div>
-    </div>
-    <div class="setting-title" style="margin-top:16px;">관리자 비밀번호</div>
-    <div class="setting-card">
-      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-        <input class="form-input" type="password" id="new-pw" placeholder="새 비밀번호" style="margin-bottom:0;"/>
-        <input class="form-input" type="password" id="new-pw2" placeholder="비밀번호 확인" style="margin-bottom:0;"/>
-        <button class="setting-save-btn" onclick="changePassword()">변경</button>
       </div>
     </div>
     ${isKeyManager() ? `
