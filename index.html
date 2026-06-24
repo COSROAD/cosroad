@@ -4462,12 +4462,23 @@ function removeStamp(){
   showToast('도장이 삭제되었어요.');
   renderAdminTab('settings');
 }
-var invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0}];
+var invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
 var invoiceSelMember = '';
 var invoiceDate = new Date().toISOString().slice(0,10);
 
+// 품목 한 줄의 공급가액·세액 계산 (과세별도 add / 과세포함 inc / 면세 free)
+function itemAmounts(it){
+  var gross = (Number(it.qty)||0)*(Number(it.price)||0);
+  var tt = it.taxType||'add';
+  if(tt==='free'){ return {supply:gross, vat:0}; }
+  if(tt==='inc'){ var sup=Math.round(gross/1.1); return {supply:sup, vat:gross-sup}; }
+  return {supply:gross, vat:Math.round(gross*0.1)};
+}
 function invoiceTotal(){
-  var t=0; invoiceItems.forEach(function(it){ t+=(Number(it.qty)||0)*(Number(it.price)||0); }); return t;
+  var t=0; invoiceItems.forEach(function(it){ t+=itemAmounts(it).supply; }); return t;
+}
+function invoiceVat(){
+  var v=0; invoiceItems.forEach(function(it){ v+=itemAmounts(it).vat; }); return v;
 }
 
 function renderInvoice(){
@@ -4502,14 +4513,16 @@ function renderInvoice(){
   h += '<button onclick="openProductManager()" style="font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;">⚙ 품목 관리</button>';
   h += '</div>';
   var prods = loadProducts();
+  if(prods.length>0){
+    h += '<select id="inv-pick" onchange="if(this.value!==\'\'){addInvoiceItemFromProduct(Number(this.value));this.value=\'\';}" style="width:100%;padding:9px;border:1px solid #7C3AED;border-radius:8px;font-size:13px;margin-bottom:10px;color:#7C3AED;font-weight:700;">';
+    h += '<option value="">＋ 품목 선택해서 추가…</option>';
+    prods.forEach(function(p, pi){ h += '<option value="'+pi+'">'+escapeMasterHtml(p.name)+(p.spec?' ('+escapeMasterHtml(p.spec)+')':'')+' · '+(Number(p.price)||0).toLocaleString()+'원</option>'; });
+    h += '</select>';
+  } else {
+    h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">품목 관리에서 품목을 먼저 등록하면 골라서 추가할 수 있어요.</div>';
+  }
   invoiceItems.forEach(function(it, idx){
     var amt = (Number(it.qty)||0)*(Number(it.price)||0);
-    if(prods.length>0){
-      h += '<select onchange="if(this.value!==\'\')pickProduct('+idx+',Number(this.value))" style="width:100%;padding:7px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;margin-bottom:4px;color:#7C3AED;">';
-      h += '<option value="">📋 등록 품목에서 선택…</option>';
-      prods.forEach(function(p, pi){ h += '<option value="'+pi+'">'+escapeMasterHtml(p.name)+' ('+(Number(p.price)||0).toLocaleString()+'원)</option>'; });
-      h += '</select>';
-    }
     h += '<div style="border:1px solid #EAECF0;border-radius:9px;padding:8px;margin-bottom:8px;">';
     h += '<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">';
     h += '<input type="text" placeholder="품명" value="'+escapeMasterHtml(it.name||'')+'" oninput="invoiceItems['+idx+'].name=this.value" style="flex:2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
@@ -4517,21 +4530,27 @@ function renderInvoice(){
     h += '<button onclick="removeInvoiceItem('+idx+')" style="width:24px;height:24px;border:none;background:#FEF3F2;color:#F04438;border-radius:6px;cursor:pointer;font-size:14px;flex-shrink:0;">×</button>';
     h += '</div>';
     h += '<div style="display:flex;gap:5px;align-items:center;">';
-    h += '<input type="text" placeholder="단위" value="'+escapeMasterHtml(it.unit||'')+'" oninput="invoiceItems['+idx+'].unit=this.value" style="width:48px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="width:50px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;"/>';
+    h += '<input type="text" placeholder="단위" value="'+escapeMasterHtml(it.unit||'')+'" oninput="invoiceItems['+idx+'].unit=this.value" style="width:42px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="width:46px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;"/>';
     h += '<input type="number" placeholder="단가" value="'+(it.price||'')+'" oninput="invoiceItems['+idx+'].price=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<div class="inv-amt" data-idx="'+idx+'" style="width:70px;text-align:right;font-size:12px;font-weight:700;color:#1D2939;">'+amt.toLocaleString()+'</div>';
+    var _ia = itemAmounts(it);
+    h += '<select onchange="invoiceItems['+idx+'].taxType=this.value;renderInvoice()" style="width:90px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;">';
+    h += '<option value="add"'+((it.taxType||'add')==='add'?' selected':'')+'>과세(별도)</option>';
+    h += '<option value="inc"'+(it.taxType==='inc'?' selected':'')+'>과세(포함)</option>';
+    h += '<option value="free"'+(it.taxType==='free'?' selected':'')+'>면세</option>';
+    h += '</select>';
+    h += '<div class="inv-amt" data-idx="'+idx+'" style="width:64px;text-align:right;font-size:12px;font-weight:700;color:#1D2939;">'+_ia.supply.toLocaleString()+'</div>';
     h += '</div>';
     h += '</div>';
   });
-  h += '<button onclick="addInvoiceItem()" style="width:100%;padding:9px;background:#F3EEFF;color:#7C3AED;border:1px dashed #7C3AED;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:4px;">+ 품목 추가</button>';
+  h += '<button onclick="addInvoiceItem()" style="width:100%;padding:9px;background:#F9FAFB;color:#667085;border:1px dashed #D0D5DD;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:4px;">+ 빈 품목 직접 추가</button>';
   h += '</div>';
 
   var supply = invoiceTotal();
-  var vat = Math.round(supply*0.1);
+  var vat = invoiceVat();
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:12px;margin-bottom:12px;">';
   h += '<div style="display:flex;justify-content:space-between;font-size:13px;color:#475467;margin-bottom:5px;"><span>공급가액</span><span id="inv-supply" style="font-weight:700;">'+supply.toLocaleString()+'원</span></div>';
-  h += '<div style="display:flex;justify-content:space-between;font-size:13px;color:#475467;margin-bottom:8px;"><span>세액 (10%)</span><span id="inv-vat" style="font-weight:700;">'+vat.toLocaleString()+'원</span></div>';
+  h += '<div style="display:flex;justify-content:space-between;font-size:13px;color:#475467;margin-bottom:8px;"><span>세액</span><span id="inv-vat" style="font-weight:700;">'+vat.toLocaleString()+'원</span></div>';
   h += '<div style="display:flex;justify-content:space-between;font-size:15px;color:#7C3AED;border-top:1px solid #EAECF0;padding-top:8px;"><span style="font-weight:800;">합계</span><span id="inv-total" style="font-weight:800;">'+(supply+vat).toLocaleString()+'원</span></div>';
   h += '</div>';
   h += '<button onclick="saveInvoice()" style="width:100%;padding:13px;background:#12B76A;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;">💾 거래명세서 저장</button>';
@@ -4566,17 +4585,28 @@ function refreshInvoiceCalc(){
   document.querySelectorAll('.inv-amt').forEach(function(el){
     var idx=Number(el.getAttribute('data-idx'));
     var it=invoiceItems[idx];
-    if(it){ el.textContent=((Number(it.qty)||0)*(Number(it.price)||0)).toLocaleString(); }
+    if(it){ el.textContent=itemAmounts(it).supply.toLocaleString(); }
   });
   var supply=invoiceTotal();
-  var vat=Math.round(supply*0.1);
+  var vat=invoiceVat();
   var sEl=document.getElementById('inv-supply'); if(sEl) sEl.textContent=supply.toLocaleString()+'원';
   var vEl=document.getElementById('inv-vat'); if(vEl) vEl.textContent=vat.toLocaleString()+'원';
   var t=document.getElementById('inv-total'); if(t) t.textContent=(supply+vat).toLocaleString()+'원';
 }
 function selectInvoiceMember(id){ invoiceSelMember = id; renderInvoice(); }
-function addInvoiceItem(){ invoiceItems.push({name:'',spec:'',unit:'',qty:1,price:0}); renderInvoice(); }
-function removeInvoiceItem(idx){ invoiceItems.splice(idx,1); if(invoiceItems.length===0) invoiceItems=[{name:'',spec:'',unit:'',qty:1,price:0}]; renderInvoice(); }
+function addInvoiceItem(){ invoiceItems.push({name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}); renderInvoice(); }
+function addInvoiceItemFromProduct(prodIdx){
+  var p = loadProducts()[prodIdx];
+  if(!p) return;
+  var empty = invoiceItems.find(function(it){ return !(it.name||'').trim(); });
+  if(empty){
+    empty.name=p.name; empty.spec=p.spec||''; empty.unit=p.unit||''; empty.price=Number(p.price)||0; if(!empty.qty) empty.qty=1;
+  } else {
+    invoiceItems.push({name:p.name, spec:p.spec||'', unit:p.unit||'', qty:1, price:Number(p.price)||0, taxType:'add'});
+  }
+  renderInvoice();
+}
+function removeInvoiceItem(idx){ invoiceItems.splice(idx,1); if(invoiceItems.length===0) invoiceItems=[{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}]; renderInvoice(); }
 
 // ── 품목 리스트 ──
 function loadProducts(){
@@ -4710,7 +4740,7 @@ function saveInvoice(){
   if(items.length===0){ alert('품목을 하나 이상 입력해주세요.'); return; }
   var sel = members.find(function(m){return String(m.id)===String(invoiceSelMember);});
   var supply = invoiceTotal();
-  var vat = Math.round(supply*0.1);
+  var vat = invoiceVat();
   var inv = {
     id: 'inv_'+Date.now(),
     memberId: invoiceSelMember,
@@ -4736,7 +4766,7 @@ function saveInvoice(){
     savePayments(pdata);
   }catch(e){}
 
-  invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0}];
+  invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
   invoiceSelMember = '';
   alert('✅ 거래명세서가 저장되었습니다.\n수납관리에 청구액이 반영되었어요.');
   renderInvoice();
@@ -4813,11 +4843,12 @@ function printInvoice(id){
   // 품목 행 (최소 6줄 채움)
   var rowsHtml = '';
   var n = inv.items.length;
-  for(var i=0;i<Math.max(n,10);i++){
+  for(var i=0;i<Math.max(n,8);i++){
     var it = inv.items[i];
     if(it){
-      var amt=(Number(it.qty)||0)*(Number(it.price)||0);
-      var iv=Math.round(amt*0.1);
+      var _p=itemAmounts(it);
+      var amt=_p.supply;
+      var iv=_p.vat;
       rowsHtml += '<tr><td>'+(i+1)+'</td><td class="lft">'+esc(it.name)+(it.spec?' '+esc(it.spec):'')+'</td><td>'+esc(it.unit||'')+'</td><td class="rgt">'+(Number(it.qty)||0).toLocaleString()+'</td><td class="rgt">'+(Number(it.price)||0).toLocaleString()+'</td><td class="rgt">'+amt.toLocaleString()+'</td><td class="rgt">'+iv.toLocaleString()+'</td></tr>';
     } else {
       rowsHtml += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
@@ -4864,19 +4895,19 @@ function printInvoice(id){
     +'.inv-party{width:100%;border-collapse:collapse;}'
     +'.inv-party>tbody>tr>td{border:1px solid #C00;vertical-align:middle;}'
     +'.ph{width:18px;text-align:center;font-size:11px;color:#C00;font-weight:700;writing-mode:vertical-rl;}'
-    +'.pin{width:100%;border-collapse:collapse;font-size:14px;}'
+    +'.pin{width:100%;border-collapse:collapse;font-size:13px;}'
     +'.pin td{border:1px solid #E59;padding:3px 5px;}'
     +'.pin .k{background:#FFF0F0;color:#C00;font-weight:700;width:48px;white-space:nowrap;}'
     +'.pin .ctr{text-align:center;font-weight:700;font-size:13px;}'
-    +'.inv-items{width:100%;border-collapse:collapse;font-size:14px;margin-top:-1px;}'
+    +'.inv-items{width:100%;border-collapse:collapse;font-size:13px;margin-top:-1px;}'
     +'.inv-items th{border:1px solid #C00;background:#FFF0F0;color:#C00;padding:4px;}'
-    +'.inv-items td{border:1px solid #E59;padding:3px 5px;height:18px;}'
+    +'.inv-items td{border:1px solid #E59;padding:2px 5px;height:15px;}'
     +'.inv-items .lft{text-align:left;} .inv-items .rgt{text-align:right;}'
     +'.inv-items td:not(.lft):not(.rgt){text-align:center;}'
     +'.inv-items tfoot td{border:1px solid #C00;font-weight:700;background:#FFF8F8;}'
-    +'.inv-foot{display:flex;justify-content:space-between;padding:6px 8px;border:1px solid #C00;border-top:none;font-size:14px;}'
+    +'.inv-foot{display:flex;justify-content:space-between;padding:5px 8px;border:1px solid #C00;border-top:none;font-size:13px;}'
     +'.inv-grand{font-weight:800;color:#C00;}.ceo-cell{position:relative;}.inv-stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:34px;height:34px;object-fit:contain;opacity:0.85;}'
-    +'.inv-bal{width:100%;border-collapse:collapse;font-size:14px;border:1px solid #C00;border-top:none;}'
+    +'.inv-bal{width:100%;border-collapse:collapse;font-size:13px;border:1px solid #C00;border-top:none;}'
     +'.inv-bal td{border:1px solid #E59;padding:4px 6px;}'
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
@@ -4901,8 +4932,8 @@ function exportInvoiceExcel(id){
   if(!inv) return;
   var rows = [['No','품명','규격','단위','수량','단가','공급가액','세액']];
   inv.items.forEach(function(it, i){
-    var amt=(Number(it.qty)||0)*(Number(it.price)||0);
-    rows.push([i+1, it.name, it.spec||'', it.unit||'', Number(it.qty)||0, Number(it.price)||0, amt, Math.round(amt*0.1)]);
+    var _p=itemAmounts(it);
+    rows.push([i+1, it.name, it.spec||'', it.unit||'', Number(it.qty)||0, Number(it.price)||0, _p.supply, _p.vat]);
   });
   var supply = inv.supply!=null?inv.supply:(inv.total||0);
   var vat = inv.vat!=null?inv.vat:Math.round(supply*0.1);
