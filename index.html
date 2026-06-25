@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 59;
+const APP_VERSION = 60;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3365,9 +3365,171 @@ function getPrevUnpaid(memberId){
 }
 var payFilterCourse2 = '';
 
+// ===== 물류 달력 기반 수납 =====
+var logiPayYear = new Date().getFullYear();
+var logiPayMonth = new Date().getMonth()+1;
+var logiPaySelDate = null;
+
+function invCollected(inv){
+  if(!inv.payments) return 0;
+  return inv.payments.reduce(function(s,p){ return s+(Number(p.amount)||0); }, 0);
+}
+function invUnpaid(inv){
+  return (Number(inv.total)||0) - invCollected(inv);
+}
+
+function logiPayPrevMonth(){ logiPayMonth--; if(logiPayMonth<1){logiPayMonth=12;logiPayYear--;} logiPaySelDate=null; renderPayment(); }
+function logiPayNextMonth(){ logiPayMonth++; if(logiPayMonth>12){logiPayMonth=1;logiPayYear++;} logiPaySelDate=null; renderPayment(); }
+function logiPaySelectDate(d){ logiPaySelDate = (logiPaySelDate===d)?null:d; renderPayment(); }
+
+// 거래명세서 한 건 카드 (수금처리)
+function renderLogiInvoiceCard(iv){
+  var total = Number(iv.total)||0;
+  var coll = invCollected(iv);
+  var unpaid = total - coll;
+  var isPaid = unpaid<=0;
+  var isPartial = coll>0 && unpaid>0;
+  var statusBg = isPaid?'#ECFDF3':(isPartial?'#FFFAEB':'#FEF3F2');
+  var statusColor = isPaid?'#027A48':(isPartial?'#B54708':'#F04438');
+  var statusTxt = isPaid?'수금완료':(isPartial?'부분수금':'미수금');
+  var c = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
+  c += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+  c += '<div style="font-size:13px;font-weight:800;color:#1D2939;">'+escapeMasterHtml(iv.memberName||'')+'</div>';
+  c += '<div style="font-size:10px;font-weight:700;color:'+statusColor+';background:'+statusBg+';padding:3px 8px;border-radius:6px;">'+statusTxt+'</div>';
+  c += '</div>';
+  c += '<div style="display:flex;gap:10px;font-size:11px;color:#475467;margin-bottom:8px;">';
+  c += '<span>합계 <b style="color:#1D2939;">'+total.toLocaleString()+'</b></span>';
+  c += '<span>수금 <b style="color:#027A48;">'+coll.toLocaleString()+'</b></span>';
+  c += '<span>미수 <b style="color:#F04438;">'+unpaid.toLocaleString()+'</b></span>';
+  c += '</div>';
+  if(iv.payments && iv.payments.length){
+    c += '<div style="background:#F9FAFB;border-radius:8px;padding:6px 8px;margin-bottom:8px;">';
+    iv.payments.forEach(function(p,pi){
+      c += '<div style="display:flex;justify-content:space-between;font-size:10px;color:#475467;padding:2px 0;"><span>'+(p.date||'')+' · '+(p.method||'')+'</span><span><b>'+(Number(p.amount)||0).toLocaleString()+'</b> <span onclick="logiDelPayment(\''+iv.id+'\','+pi+')" style="color:#F04438;cursor:pointer;margin-left:4px;">✕</span></span></div>';
+    });
+    c += '</div>';
+  }
+  if(unpaid>0){
+    c += '<div style="display:flex;gap:5px;align-items:center;">';
+    c += '<input type="number" id="lcoll-'+iv.id+'" value="'+unpaid+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    c += '<select id="lmeth-'+iv.id+'" style="width:70px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;"><option>현금</option><option>계좌이체</option><option>카드</option><option>기타</option></select>';
+    c += '<button onclick="logiCollect(\''+iv.id+'\')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">수금</button>';
+    c += '</div>';
+    c += '<div style="font-size:10px;color:#98A2B3;margin-top:4px;">전액=완납, 적게 입력하면 부분수금이에요.</div>';
+  }
+  c += '</div>';
+  return c;
+}
+
+function logiCollect(invId){
+  var el = document.getElementById('lcoll-'+invId);
+  var meth = document.getElementById('lmeth-'+invId);
+  var amt = el ? (parseInt(el.value)||0) : 0;
+  if(amt<=0){ alert('수금액을 입력해주세요.'); return; }
+  var list = loadInvoices();
+  var iv = list.find(function(x){return x.id===invId;});
+  if(!iv) return;
+  var unpaid = invUnpaid(iv);
+  if(amt>unpaid){ if(!confirm('미수액('+unpaid.toLocaleString()+'원)보다 큰 금액이에요. 그대로 수금할까요?')) return; }
+  if(!iv.payments) iv.payments=[];
+  var pdate = new Date().toISOString().slice(0,10);
+  iv.payments.push({date:pdate, method:meth?meth.value:'현금', amount:amt});
+  saveInvoicesList(list);
+  var pi = iv.payments.length-1;
+  addIncomeRecord(logiPayYear, logiPayMonth, (iv.memberName||'')+' ('+(meth?meth.value:'현금')+')', amt, '결제 대금', {invId:invId, payIdx:pi});
+  showToast('수금 처리됐어요.');
+  renderPayment();
+}
+
+function logiDelPayment(invId, payIdx){
+  if(!confirm('이 수금 내역을 삭제할까요? 다시 미수로 잡혀요.')) return;
+  var list = loadInvoices();
+  var iv = list.find(function(x){return x.id===invId;});
+  if(!iv || !iv.payments || !iv.payments[payIdx]) return;
+  iv.payments.splice(payIdx,1);
+  saveInvoicesList(list);
+  removeIncomeByRef(invId, payIdx);
+  showToast('수금 내역을 삭제했어요.');
+  renderPayment();
+}
+
+function renderLogiCalendar(y, mo, byDate){
+  var first = new Date(y, mo-1, 1);
+  var startDow = first.getDay();
+  var daysInMonth = new Date(y, mo, 0).getDate();
+  var dows = ['일','월','화','수','목','금','토'];
+  var c = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:8px;">';
+  c += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">';
+  dows.forEach(function(d,i){ c += '<div style="text-align:center;font-size:10px;font-weight:700;color:'+(i===0?'#F04438':(i===6?'#1570EF':'#98A2B3'))+';padding:3px 0;">'+d+'</div>'; });
+  c += '</div>';
+  c += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">';
+  for(var i=0;i<startDow;i++){ c += '<div></div>'; }
+  for(var d=1; d<=daysInMonth; d++){
+    var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var invs = byDate[ds]||[];
+    var dayTotal=0, dayUnpaid=0;
+    invs.forEach(function(iv){ dayTotal+=(Number(iv.total)||0); dayUnpaid+=invUnpaid(iv); });
+    var hasInv = invs.length>0;
+    var isSel = logiPaySelDate===ds;
+    var bg = isSel?'#7C3AED':(hasInv?(dayUnpaid>0?'#FEF3F2':'#ECFDF3'):'white');
+    var fg = isSel?'white':'#344054';
+    c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:46px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    if(hasInv){
+      var amtColor = isSel?'white':(dayUnpaid>0?'#F04438':'#027A48');
+      c += '<div style="font-size:9px;font-weight:700;color:'+amtColor+';line-height:1.2;margin-top:1px;">'+(dayTotal>=10000?Math.round(dayTotal/1000)+'k':dayTotal.toLocaleString())+'</div>';
+    }
+    c += '</div>';
+  }
+  c += '</div></div>';
+  return c;
+}
+
+function renderLogiPayment(cont){
+  var invoices = loadInvoices();
+  var y = logiPayYear, mo = logiPayMonth;
+  var monthInvs = invoices.filter(function(iv){
+    if(!iv.date) return false;
+    var p = iv.date.split('-');
+    return parseInt(p[0])===y && parseInt(p[1])===mo;
+  });
+  var byDate = {};
+  monthInvs.forEach(function(iv){ (byDate[iv.date]=byDate[iv.date]||[]).push(iv); });
+  var sumTotal=0, sumPaid=0;
+  monthInvs.forEach(function(iv){ sumTotal+=(Number(iv.total)||0); sumPaid+=invCollected(iv); });
+  var sumUnpaid = sumTotal - sumPaid;
+
+  var h = '<div>';
+  h += '<div style="position:sticky;top:0;z-index:97;background:var(--gray-100);padding:12px 16px 6px;">';
+  h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">';
+  h += '<button onclick="logiPayPrevMonth()" style="padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;font-size:14px;">‹</button>';
+  h += '<div style="flex:1;text-align:center;font-size:15px;font-weight:800;color:#1D2939;">'+y+'년 '+mo+'월</div>';
+  h += '<button onclick="logiPayNextMonth()" style="padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;font-size:14px;">›</button>';
+  h += '</div>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:8px;">';
+  h += '<div style="flex:1;background:#EFF8FF;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#1570EF;">'+sumTotal.toLocaleString()+'</div><div style="font-size:10px;color:#1570EF;">거래액</div></div>';
+  h += '<div style="flex:1;background:#ECFDF3;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#027A48;">'+sumPaid.toLocaleString()+'</div><div style="font-size:10px;color:#027A48;">수금액</div></div>';
+  h += '<div style="flex:1;background:#FEF3F2;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#F04438;">'+sumUnpaid.toLocaleString()+'</div><div style="font-size:10px;color:#F04438;">미수금</div></div>';
+  h += '</div>';
+  h += '</div>';
+  h += '<div style="padding:0 16px 16px;">';
+  h += renderLogiCalendar(y, mo, byDate);
+  if(logiPaySelDate && byDate[logiPaySelDate]){
+    h += '<div style="margin-top:14px;">';
+    h += '<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:8px;">'+logiPaySelDate+' 거래</div>';
+    byDate[logiPaySelDate].forEach(function(iv){ h += renderLogiInvoiceCard(iv); });
+    h += '</div>';
+  } else {
+    h += '<div style="margin-top:14px;text-align:center;color:#98A2B3;font-size:12px;padding:20px;">날짜를 선택하면 그날 거래가 표시됩니다.</div>';
+  }
+  h += '</div></div>';
+  cont.innerHTML = h;
+}
+
 function renderPayment(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
+  if(getBizType()==='logistics'){ renderLogiPayment(cont); return; }
   var data = loadPayments();
   var now = new Date();
   // 물류는 '수금' 용어 사용
@@ -3643,9 +3805,23 @@ function addIncomeRecord(year, month, name, amount, category, link, method){
   if(!data[key]) data[key]={income:[],expense:[]};
   var rec = {name:name, amount:amount, category:category, date:new Date().toISOString().slice(0,10), taxType:'과세'};
   if(method) rec.method=method;
-  if(link){ rec.source='payment'; rec.linkMemberId=link.memberId; rec.linkYear=link.year; rec.linkMonth=link.month; }
+  if(link){ rec.source='payment'; rec.linkMemberId=link.memberId; rec.linkYear=link.year; rec.linkMonth=link.month; if(link.invId!=null){ rec.linkInvId=link.invId; rec.linkPayIdx=link.payIdx; } }
   data[key].income.push(rec);
   saveTaxData(data);
+}
+
+// 거래명세서 수금(invId/payIdx)에 연결된 세무 수입 기록 제거
+function removeIncomeByRef(invId, payIdx){
+  var data = loadTaxData();
+  var changed = false;
+  Object.keys(data).forEach(function(key){
+    if(!data[key].income) return;
+    data[key].income = data[key].income.filter(function(rec){
+      if(rec.linkInvId===invId && rec.linkPayIdx===payIdx){ changed=true; return false; }
+      return true;
+    });
+  });
+  if(changed) saveTaxData(data);
 }
 
 var taxViewYear2 = new Date().getFullYear();
@@ -3945,6 +4121,16 @@ function deleteTaxRecord(type, idx){
 
 // 세무 수입내역 삭제 시, 연동된 수납 기록을 미납으로 되돌림
 function revertPaymentFromTax(rec){
+  // 거래명세서 건별 수금(invId/payIdx) 연동이면 거기서 수금 내역 제거 → 다시 미수
+  if(rec.source==='payment' && rec.linkInvId!=null){
+    var ilist = loadInvoices();
+    var iv = ilist.find(function(x){return x.id===rec.linkInvId;});
+    if(iv && iv.payments && iv.payments[rec.linkPayIdx]){
+      iv.payments.splice(rec.linkPayIdx,1);
+      saveInvoicesList(ilist);
+    }
+    return;
+  }
   var feeWord = T('수강료');
   var pays = loadPayments();
   var changed = false;
@@ -4958,7 +5144,7 @@ function printInvoice(id){
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:12mm;}'
-    +'.inv-wrap{page-break-inside:avoid;margin-bottom:8mm;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;}}'
+    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:0 auto;width:200mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;margin-left:auto;margin-right:auto;}.inv-cut{width:100%;}.inv-page{display:flex;flex-direction:column;justify-content:space-between;min-height:271mm;}.inv-wrap{margin:0;}}'
     +'.blue.inv-sheet{border-color:#0046C0;}'
     +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
     +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
@@ -4978,8 +5164,11 @@ function printInvoice(id){
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
   w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
     + '<div class="inv-page">'
+    + '<div class="inv-page">'
     + '<div class="inv-wrap">' + sheet('공급자 보관용') + '</div>'
+    + '<div class="inv-cut"></div>'
     + '<div class="inv-wrap">' + sheet('공급받는자 보관용','blue') + '</div>'
+    + '</div>'
     + '</div>'
     + '<div class="no-print" style="text-align:center;margin:10px;"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;font-weight:700;background:#7C3AED;color:white;border:none;border-radius:8px;cursor:pointer;">🖨 인쇄하기</button></div>'
     + '</body></html>');
@@ -4988,8 +5177,9 @@ function printInvoice(id){
 
 // 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
 function savePdfInvoice(id){
-  showToast('인쇄 창이 열리면 대상을 "PDF로 저장"으로 선택하세요.');
-  printInvoice(id);
+  if(confirm('PDF로 저장하시겠어요?\n\n다음 화면(인쇄 창)에서 대상(프린터)을 "PDF로 저장"으로 선택하면 PDF 파일로 저장됩니다.\n프린터를 선택하면 바로 출력됩니다.\n\n계속하시려면 확인을 누르세요.')){
+    printInvoice(id);
+  }
 }
 
 // 거래명세서 엑셀 출력
