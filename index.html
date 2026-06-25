@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 63;
+const APP_VERSION = 64;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5159,7 +5159,7 @@ function printInvoice(id){
   // 품목 행 (최소 6줄 채움)
   var rowsHtml = '';
   var n = inv.items.length;
-  for(var i=0;i<Math.max(n,14);i++){
+  for(var i=0;i<Math.max(n,10);i++){
     var it = inv.items[i];
     if(it){
       var _p=itemAmounts(it);
@@ -5244,16 +5244,16 @@ function printInvoice(id){
     +'.blue .inv-bal td{border-color:#9DB8E8;}'
     +'.blue .inv-bal .bk{background:#EFF4FF;color:#0046C0;}'
     +'</style>';
-  var w = window.open('', '_blank');
-  if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
-  w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
-    + '<div class="inv-page">'
-    + '<div class="inv-page">'
+  var bodyHtml = '<div class="inv-page">'
     + '<div class="inv-wrap">' + sheet('공급자 보관용') + '</div>'
     + '<div class="inv-cut"></div>'
     + '<div class="inv-wrap">' + sheet('공급받는자 보관용','blue') + '</div>'
-    + '</div>'
-    + '</div>'
+    + '</div>';
+  window._invPrintCache = { css: css, body: bodyHtml, date: inv.date, name: (sel&&sel.name)||inv.memberName||'' };
+  var w = window.open('', '_blank');
+  if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
+  w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
+    + bodyHtml
     + '<div class="no-print" style="text-align:center;margin:10px;"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;font-weight:700;background:#7C3AED;color:white;border:none;border-radius:8px;cursor:pointer;">🖨 인쇄하기</button></div>'
     + '</body></html>');
   w.document.close();
@@ -5261,9 +5261,50 @@ function printInvoice(id){
 
 // 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
 function savePdfInvoice(id){
-  showConfirmModal(function(){
-    printInvoice(id);
-  }, '인쇄 창이 열리면 대상을 "PDF로 저장"으로 선택하면 PDF로 저장돼요. 프린터를 고르면 출력됩니다.', '계속');
+  var inv = loadInvoices().find(function(x){return x.id===id;});
+  if(!inv) return;
+  var prevOpen = window.open;
+  window.open = function(){ return { document:{ write:function(){}, close:function(){} } }; };
+  try { printInvoice(id); } catch(e){}
+  window.open = prevOpen;
+  var cache = window._invPrintCache;
+  if(!cache){ alert('PDF 생성에 실패했어요. 인쇄로 시도해주세요.'); return; }
+  var fname = '거래명세서_'+(cache.name||'')+'_'+(cache.date||'')+'.pdf';
+  var w = window.open('', '_blank');
+  if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
+  var doc = '<html><head><meta charset="utf-8"><title>PDF 저장</title>'+cache.css
+    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></scr'+'ipt>'
+    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></scr'+'ipt>'
+    + '</head><body>'
+    + '<div id="pdf-status" style="text-align:center;padding:20px;font-family:sans-serif;color:#667085;">PDF를 만드는 중이에요…</div>'
+    + '<div id="pdf-target">'+cache.body+'</div>'
+    + '<scr'+'ipt>'
+    + 'window.onload=function(){'
+    + ' var el=document.getElementById("pdf-target");'
+    + ' html2canvas(el,{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
+    + '   var img=canvas.toDataURL("image/jpeg",0.95);'
+    + '   var pdf=new jspdf.jsPDF("p","mm","a4");'
+    + '   var pw=210, ph=297, iw=pw, ih=canvas.height*iw/canvas.width;'
+    + '   if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
+    + '   else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
+    + '   var fn='+JSON.stringify(fname)+';'
+    + '   var st=document.getElementById("pdf-status");'
+    + '   if(window.showSaveFilePicker){'
+    + '     var blob=pdf.output("blob");'
+    + '     window.showSaveFilePicker({suggestedName:fn,types:[{description:"PDF",accept:{"application/pdf":[".pdf"]}}]}).then(function(handle){'
+    + '       return handle.createWritable().then(function(ws){ return ws.write(blob).then(function(){ return ws.close(); }); });'
+    + '     }).then(function(){ st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다."; setTimeout(function(){try{window.close();}catch(e){}},1000); })'
+    + '     .catch(function(e){ if(e&&e.name==="AbortError"){ st.textContent="저장이 취소됐어요. 이 창은 닫으셔도 됩니다."; } else { pdf.save(fn); st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다."; setTimeout(function(){try{window.close();}catch(x){}},1000);} });'
+    + '   } else {'
+    + '     pdf.save(fn);'
+    + '     st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다.";'
+    + '     setTimeout(function(){ try{window.close();}catch(e){} }, 1200);'
+    + '   }'
+    + ' }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF 생성 실패: "+err; });'
+    + '};'
+    + '</scr'+'ipt></body></html>';
+  w.document.write(doc);
+  w.document.close();
 }
 
 // 거래명세서 엑셀 출력
