@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 65;
+const APP_VERSION = 66;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3379,6 +3379,22 @@ function invCollected(inv){
 function invUnpaid(inv){
   return (Number(inv.total)||0) - invCollected(inv);
 }
+// 거래처의 누적 미수금 (매출 명세서 전체 미수 합계)
+function memberTotalUnpaid(memberId){
+  return loadInvoices().reduce(function(s,iv){
+    if(String(iv.memberId)!==String(memberId)) return s;
+    if((iv.kind||'sale')!=='sale') return s;
+    return s + invUnpaid(iv);
+  }, 0);
+}
+// 거래처의 누적 미지급금 (매입 명세서 전체 미지급 합계)
+function memberTotalUnpaidPurchase(memberId){
+  return loadInvoices().reduce(function(s,iv){
+    if(String(iv.memberId)!==String(memberId)) return s;
+    if((iv.kind||'sale')!=='purchase') return s;
+    return s + invUnpaid(iv);
+  }, 0);
+}
 
 function logiPayPrevMonth(){ logiPayMonth--; if(logiPayMonth<1){logiPayMonth=12;logiPayYear--;} logiPaySelDate=null; renderPayment(); }
 function logiPayNextMonth(){ logiPayMonth++; if(logiPayMonth>12){logiPayMonth=1;logiPayYear++;} logiPaySelDate=null; renderPayment(); }
@@ -3405,10 +3421,16 @@ function renderLogiInvoiceCard(iv){
   c += '<div style="font-size:13px;font-weight:800;color:#1D2939;">'+escapeMasterHtml(iv.memberName||'')+'</div>';
   c += '<div style="font-size:10px;font-weight:700;color:'+statusColor+';background:'+statusBg+';padding:3px 8px;border-radius:6px;">'+statusTxt+'</div>';
   c += '</div>';
+  var memUnpaid = isPur?memberTotalUnpaidPurchase(iv.memberId):memberTotalUnpaid(iv.memberId);
+  if(memUnpaid>0){
+    c += '<div style="font-size:11px;color:#B42318;background:#FEF3F2;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 누적 '+(isPur?'미지급':'미수')+' '+memUnpaid.toLocaleString()+'원</div>';
+  }
+  var prevUnpaid = memUnpaid - unpaid; // 이번 건 제외, 이전 모든 거래 미수
+  if(prevUnpaid<0) prevUnpaid=0;
   c += '<div style="display:flex;gap:10px;font-size:11px;color:#475467;margin-bottom:8px;">';
   c += '<span>합계 <b style="color:#1D2939;">'+total.toLocaleString()+'</b></span>';
   c += '<span>'+wColl+' <b style="color:#027A48;">'+coll.toLocaleString()+'</b></span>';
-  c += '<span>'+wUnpaidShort+' <b style="color:#F04438;">'+unpaid.toLocaleString()+'</b></span>';
+  c += '<span>'+(isPur?'전미지급':'전미수')+' <b style="color:#F04438;">'+prevUnpaid.toLocaleString()+'</b></span>';
   c += '</div>';
   if(iv.payments && iv.payments.length){
     c += '<div style="background:#F9FAFB;border-radius:8px;padding:6px 8px;margin-bottom:8px;">';
