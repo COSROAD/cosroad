@@ -631,7 +631,7 @@ function calcWorkMinutes(inT, outT){
 }
 function fmtWorkMinutes(mins){
   if(mins==null) return '';
-  var h=Math.floor(mins/60), m=mins%60;
+  var h=Math.floor(mins/61), m=mins%60;
   return h+'시간'+(m>0?' '+m+'분':'');
 }
 
@@ -3829,6 +3829,39 @@ var taxViewMonth2 = new Date().getMonth()+1;
 var taxTab = 'monthly';
 var taxFilter = 'all'; // monthly | records | tax
 
+var taxSelDate = null; // 세무 수입/지출 달력에서 선택한 날짜
+function taxSelectDate(d){ taxSelDate = (taxSelDate===d)?null:d; renderTax(); }
+// 세무 달력: 날짜별 수입·지출 합계 표시
+function renderTaxCalendar(y, mo, md){
+  var byDate = {};
+  (md.income||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).inc+=(Number(r.amount)||0); } });
+  (md.expense||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).exp+=(Number(r.amount)||0); } });
+  var startDow = new Date(y, mo-1, 1).getDay();
+  var daysInMonth = new Date(y, mo, 0).getDate();
+  var dows = ['일','월','화','수','목','금','토'];
+  var c = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:8px;margin-bottom:10px;">';
+  c += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">';
+  dows.forEach(function(d,i){ c += '<div style="text-align:center;font-size:10px;font-weight:700;color:'+(i===0?'#F04438':(i===6?'#1570EF':'#98A2B3'))+';padding:3px 0;">'+d+'</div>'; });
+  c += '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">';
+  for(var i=0;i<startDow;i++){ c += '<div></div>'; }
+  for(var d=1; d<=daysInMonth; d++){
+    var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var rec = byDate[ds];
+    var isSel = taxSelDate===ds;
+    var bg = isSel?'#7C3AED':(rec?'#F9FAFB':'white');
+    var fg = isSel?'white':'#344054';
+    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:44px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    if(rec){
+      if(rec.inc) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.1;">+'+(rec.inc>=10000?Math.round(rec.inc/1000)+'k':rec.inc)+'</div>';
+      if(rec.exp) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.1;">-'+(rec.exp>=10000?Math.round(rec.exp/1000)+'k':rec.exp)+'</div>';
+    }
+    c += '</div>';
+  }
+  c += '</div></div>';
+  return c;
+}
+
 function renderTax(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
@@ -3928,19 +3961,24 @@ function renderTax(){
     h += '<div style="display:flex;gap:6px;">';
     h += '<select id="tax-method" style="flex:1;padding:8px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
     h += '<button id="tax-add-btn" onclick="addTaxRecordUnified()" style="padding:8px 18px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
-    h += '</div></div></div></div>';
+    h += '</div>';
+    h += '<div style="font-size:10px;color:#7C3AED;margin-top:6px;">'+(taxSelDate?('📅 '+taxSelDate+'로 기록돼요'):'📅 달력에서 날짜를 고르면 그날로 기록돼요 (안 고르면 오늘)')+'</div>';
+    h += '</div></div></div>';
+
+    // 달력
+    h += renderTaxCalendar(taxViewYear2, taxViewMonth2, md2);
 
     // 내역 목록
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
-    h += '<div style="font-size:12px;font-weight:700;color:#344054;">📋 내역</div>';
+    h += '<div style="font-size:12px;font-weight:700;color:#344054;">📋 내역'+(taxSelDate?' · '+taxSelDate:' · 이번 달 전체')+'</div>';
     h += '<div style="display:flex;gap:6px;">';
     h += '<button onclick="exportTaxExcel();" style="padding:5px 12px;background:var(--success);color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">엑셀 출력</button>';
     h += '</div></div>';
     // 필터 탭 제거됨
     var allRecords = [];
-    md2.income.forEach(function(r,i){allRecords.push({type:'income',idx:i,data:r});});
-    md2.expense.forEach(function(r,i){allRecords.push({type:'expense',idx:i,data:r});});
+    md2.income.forEach(function(r,i){ if(!taxSelDate || r.date===taxSelDate) allRecords.push({type:'income',idx:i,data:r}); });
+    md2.expense.forEach(function(r,i){ if(!taxSelDate || r.date===taxSelDate) allRecords.push({type:'expense',idx:i,data:r}); });
 
     if(allRecords.length===0){
       h += '<div style="text-align:center;padding:20px;color:#98A2B3;font-size:13px;">내역이 없습니다.</div>';
@@ -3950,7 +3988,7 @@ function renderTax(){
         h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F2F4F7;">';
         h += '<span style="font-size:11px;background:'+(rec.type==='income'?'#ECFDF3':'#FEF3F2')+';color:'+(rec.type==='income'?'#12B76A':'#F04438')+';padding:2px 7px;border-radius:10px;font-weight:700;white-space:nowrap;">'+(rec.type==='income'?'수입':'지출')+'</span>';
         h += '<div style="flex:1;"><div style="font-size:13px;font-weight:600;">'+r.name+'</div>';
-        h += '<div style="font-size:10px;color:#98A2B3;">'+r.category+(r.taxType?' · '+r.taxType:'')+'</div></div>';
+        h += '<div style="font-size:10px;color:#98A2B3;">'+(r.date?r.date+' · ':'')+r.category+(r.taxType?' · '+r.taxType:'')+'</div></div>';
         h += '<div style="font-size:13px;font-weight:700;color:'+(rec.type==='income'?'#12B76A':'#F04438')+';">'+(rec.type==='income'?'+':'-')+r.amount.toLocaleString()+'원</div>';
         h += '<button onclick="deleteTaxRecord(\''+rec.type+'\','+rec.idx+')" style="padding:3px 7px;border:1px solid #EAECF0;border-radius:5px;font-size:10px;color:#98A2B3;background:white;cursor:pointer;">삭제</button>';
         h += '</div>';
@@ -4084,10 +4122,11 @@ function addTaxRecordUnified(){
   var key = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
   if(!data[key]) data[key]={income:[],expense:[]};
   var recordName = name + (method ? '('+method+')' : '');
+  var recDate = taxSelDate || new Date().toISOString().slice(0,10);
   if(type === 'income'){
-    data[key].income.push({name:recordName, amount:amount, category:name, date:new Date().toISOString().slice(0,10), taxType:'과세'});
+    data[key].income.push({name:recordName, amount:amount, category:name, date:recDate, taxType:'과세'});
   } else {
-    data[key].expense.push({name:recordName, amount:amount, category:name, date:new Date().toISOString().slice(0,10)});
+    data[key].expense.push({name:recordName, amount:amount, category:name, date:recDate});
   }
   saveTaxData(data);
   nameEl.value = '';
@@ -5144,7 +5183,7 @@ function printInvoice(id){
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:12mm;}'
-    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:0 auto;width:200mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;margin-left:auto;margin-right:auto;}.inv-cut{width:100%;}.inv-page{display:flex;flex-direction:column;justify-content:space-between;min-height:271mm;}.inv-wrap{margin:0;}}'
+    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:0 auto;width:200mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:100%;margin-left:auto;margin-right:auto;}.inv-cut{width:100%;margin-bottom:10mm;}.inv-page{display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:271mm;}.inv-wrap{margin:0;width:100%;}}'
     +'.blue.inv-sheet{border-color:#0046C0;}'
     +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
     +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
@@ -5177,9 +5216,9 @@ function printInvoice(id){
 
 // 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
 function savePdfInvoice(id){
-  if(confirm('PDF로 저장하시겠어요?\n\n다음 화면(인쇄 창)에서 대상(프린터)을 "PDF로 저장"으로 선택하면 PDF 파일로 저장됩니다.\n프린터를 선택하면 바로 출력됩니다.\n\n계속하시려면 확인을 누르세요.')){
+  showConfirmModal(function(){
     printInvoice(id);
-  }
+  }, '인쇄 창이 열리면 대상을 "PDF로 저장"으로 선택하면 PDF로 저장돼요. 프린터를 고르면 출력됩니다.', '계속');
 }
 
 // 거래명세서 엑셀 출력
