@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 64;
+const APP_VERSION = 65;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5108,36 +5108,27 @@ function deleteInvoice(id){
   }, '이 거래명세서를 삭제할까요?\n수납 청구액에서도 차감됩니다.', '삭제');
 }
 
-// 거래처 잔액 계산: 기준 연월 '이전'까지의 전잔액, 그 달 입금액
-function calcInvoiceBalance(memberId, baseYear, baseMonth){
-  var invs = loadInvoices().filter(function(x){ return String(x.memberId)===String(memberId); });
-  var pdata = loadPayments();
-  var monthCharge = {};
-  invs.forEach(function(iv){
-    var d=new Date(iv.date); var k=d.getFullYear()+'-'+(d.getMonth()+1);
-    monthCharge[k]=(monthCharge[k]||0)+(iv.total||0);
+// 거래처 전잔액 계산: 이번 명세서 '이전'의 매출 명세서 미수금 합계 (명세서별 payments 기반)
+function calcInvoiceBalance(baseInv){
+  var memberId = baseInv.memberId;
+  var invs = loadInvoices().filter(function(x){
+    if(String(x.memberId)!==String(memberId)) return false;
+    if((x.kind||'sale')!=='sale') return false; // 매출만
+    return true;
   });
+  // 이번 명세서 이전 = 날짜가 빠르거나, 같은 날이면 createdAt이 더 이른 것
+  var baseDate = baseInv.date||'';
+  var baseCreated = baseInv.createdAt||0;
   var prevBalance = 0;
-  var baseIdx = baseYear*12 + (baseMonth-1);
-  var monthsSet = {};
-  Object.keys(monthCharge).forEach(function(k){ monthsSet[k]=true; });
-  for(var key in pdata){
-    var parts = key.split('_');
-    var mm = parts.pop(), yy = parts.pop();
-    var mid = parts.join('_');
-    if(String(mid)===String(memberId)){ monthsSet[parseInt(yy)+'-'+parseInt(mm)]=true; }
-  }
-  Object.keys(monthsSet).forEach(function(k){
-    var p=k.split('-'); var idx=parseInt(p[0])*12+(parseInt(p[1])-1);
-    if(idx < baseIdx){
-      var charge = monthCharge[k]||0;
-      var pkey = getPaymentKey(memberId, parseInt(p[0]), parseInt(p[1]));
-      var paid = (pdata[pkey] && pdata[pkey].paid) ? (Number(pdata[pkey].amount)||0) : 0;
-      prevBalance += (charge - paid);
-    }
+  invs.forEach(function(iv){
+    if(iv.id===baseInv.id) return; // 자기 자신 제외
+    var earlier = false;
+    if((iv.date||'') < baseDate) earlier = true;
+    else if((iv.date||'')===baseDate && (iv.createdAt||0) < baseCreated) earlier = true;
+    if(earlier){ prevBalance += invUnpaid(iv); }
   });
-  var basePkey = getPaymentKey(memberId, baseYear, baseMonth);
-  var basePaid = (pdata[basePkey] && pdata[basePkey].paid) ? (Number(pdata[basePkey].amount)||0) : 0;
+  // 이번 명세서에 대한 수금액 (부분수금 포함)
+  var basePaid = invCollected(baseInv);
   return { prevBalance: prevBalance, basePaid: basePaid };
 }
 
@@ -5150,8 +5141,7 @@ function printInvoice(id){
   var supply = inv.supply!=null ? inv.supply : (inv.total||0);
   var vat = inv.vat!=null ? inv.vat : Math.round(supply*0.1);
   var grand = inv.total!=null ? inv.total : (supply+vat);
-  var _bd = new Date(inv.date);
-  var _bal = calcInvoiceBalance(inv.memberId, _bd.getFullYear(), _bd.getMonth()+1);
+  var _bal = calcInvoiceBalance(inv);
   var prevBal = _bal.prevBalance||0;
   var paidAmt = _bal.basePaid||0;
   var curBal = prevBal + grand - paidAmt;
@@ -5159,7 +5149,7 @@ function printInvoice(id){
   // 품목 행 (최소 6줄 채움)
   var rowsHtml = '';
   var n = inv.items.length;
-  for(var i=0;i<Math.max(n,10);i++){
+  for(var i=0;i<Math.max(n,8);i++){
     var it = inv.items[i];
     if(it){
       var _p=itemAmounts(it);
@@ -5196,7 +5186,7 @@ function printInvoice(id){
       +'<td class="bk">합계액</td><td class="bv rgt">'+grand.toLocaleString()+'</td>'
       +'</tr><tr>'
       +'<td class="bk">전잔액</td><td class="bv rgt">'+prevBal.toLocaleString()+'</td>'
-      +'<td class="bk">인수자</td><td class="bv">(인)</td>'
+      +'<td class="bk">인수자</td><td class="bv rgt" style="padding-right:14px;">(인)</td>'
       +'<td class="bk">현잔액</td><td class="bv rgt">'+curBal.toLocaleString()+'</td>'
       +'</tr></table>'
       +'</div>';
@@ -5215,9 +5205,9 @@ function printInvoice(id){
     +'.pin td{border:1px solid #E59;padding:3px 5px;}'
     +'.pin .k{background:#FFF0F0;color:#C00;font-weight:700;width:48px;white-space:nowrap;}'
     +'.pin .ctr{text-align:center;font-weight:700;font-size:13px;}'
-    +'.inv-items{width:100%;border-collapse:collapse;font-size:13px;margin-top:-1px;}'
+    +'.inv-items{width:100%;border-collapse:collapse;font-size:12px;margin-top:-1px;}'
     +'.inv-items th{border:1px solid #C00;background:#FFF0F0;color:#C00;padding:4px;}'
-    +'.inv-items td{border:1px solid #E59;padding:2px 5px;height:15px;}'
+    +'.inv-items td{border:1px solid #E59;padding:1px 5px;height:11px;}'
     +'.inv-items .lft{text-align:left;} .inv-items .rgt{text-align:right;}'
     +'.inv-items td:not(.lft):not(.rgt){text-align:center;}'
     +'.inv-items tfoot td{border:1px solid #C00;font-weight:700;background:#FFF8F8;}'
