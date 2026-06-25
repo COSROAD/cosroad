@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 66;
+const APP_VERSION = 67;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3379,6 +3379,21 @@ function invCollected(inv){
 function invUnpaid(inv){
   return (Number(inv.total)||0) - invCollected(inv);
 }
+// 특정 명세서(기준) 시점까지의 거래처 누적 미수/미지급 (kind별, 이번 건 포함)
+function memberUnpaidAsOf(memberId, kind, baseDate, baseCreated, baseId){
+  return loadInvoices().reduce(function(s,iv){
+    if(String(iv.memberId)!==String(memberId)) return s;
+    if((iv.kind||'sale')!==kind) return s;
+    var inRange = false;
+    if((iv.date||'') < baseDate) inRange = true;
+    else if((iv.date||'')===baseDate){
+      if(iv.id===baseId) inRange = true;
+      else if((iv.createdAt||0) < baseCreated) inRange = true;
+    }
+    if(inRange) return s + invUnpaid(iv);
+    return s;
+  }, 0);
+}
 // 거래처의 누적 미수금 (매출 명세서 전체 미수 합계)
 function memberTotalUnpaid(memberId){
   return loadInvoices().reduce(function(s,iv){
@@ -3419,14 +3434,22 @@ function renderLogiInvoiceCard(iv){
   var c = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
   c += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
   c += '<div style="font-size:13px;font-weight:800;color:#1D2939;">'+escapeMasterHtml(iv.memberName||'')+'</div>';
-  c += '<div style="font-size:10px;font-weight:700;color:'+statusColor+';background:'+statusBg+';padding:3px 8px;border-radius:6px;">'+statusTxt+'</div>';
   c += '</div>';
-  var memUnpaid = isPur?memberTotalUnpaidPurchase(iv.memberId):memberTotalUnpaid(iv.memberId);
-  if(memUnpaid>0){
-    c += '<div style="font-size:11px;color:#B42318;background:#FEF3F2;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 누적 '+(isPur?'미지급':'미수')+' '+memUnpaid.toLocaleString()+'원</div>';
-  }
-  var prevUnpaid = memUnpaid - unpaid; // 이번 건 제외, 이전 모든 거래 미수
+  // 전미수 = 이번 명세서 '이전' 거래들의 미수 (이후 거래는 제외)
+  var prevUnpaid = calcInvoiceBalance(iv).prevBalance||0;
   if(prevUnpaid<0) prevUnpaid=0;
+  // 이번 명세서 시점까지의 매출 누적 미수 / 매입 누적 미지급 → 상계 순액
+  var _bd = iv.date||'', _bc = iv.createdAt||0, _bi = iv.id;
+  var saleU = memberUnpaidAsOf(iv.memberId, 'sale', _bd, _bc, _bi);
+  var purU = memberUnpaidAsOf(iv.memberId, 'purchase', _bd, _bc, _bi);
+  var net = saleU - purU; // +면 받을 돈, -면 줄 돈
+  if(net>0){
+    c += '<div style="font-size:11px;color:#B42318;background:#FEF3F2;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 순액 · 받을돈 '+net.toLocaleString()+'원</div>';
+  } else if(net<0){
+    c += '<div style="font-size:11px;color:#1849A9;background:#EFF8FF;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 순액 · 줄돈 '+Math.abs(net).toLocaleString()+'원</div>';
+  } else if(saleU>0 || purU>0){
+    c += '<div style="font-size:11px;color:#027A48;background:#ECFDF3;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 완료 (받을돈=줄돈)</div>';
+  }
   c += '<div style="display:flex;gap:10px;font-size:11px;color:#475467;margin-bottom:8px;">';
   c += '<span>합계 <b style="color:#1D2939;">'+total.toLocaleString()+'</b></span>';
   c += '<span>'+wColl+' <b style="color:#027A48;">'+coll.toLocaleString()+'</b></span>';
@@ -5133,9 +5156,10 @@ function deleteInvoice(id){
 // 거래처 전잔액 계산: 이번 명세서 '이전'의 매출 명세서 미수금 합계 (명세서별 payments 기반)
 function calcInvoiceBalance(baseInv){
   var memberId = baseInv.memberId;
+  var baseKind = baseInv.kind||'sale';
   var invs = loadInvoices().filter(function(x){
     if(String(x.memberId)!==String(memberId)) return false;
-    if((x.kind||'sale')!=='sale') return false; // 매출만
+    if((x.kind||'sale')!==baseKind) return false; // 같은 종류(매출/매입)끼리
     return true;
   });
   // 이번 명세서 이전 = 날짜가 빠르거나, 같은 날이면 createdAt이 더 이른 것
