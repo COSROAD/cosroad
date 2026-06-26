@@ -502,7 +502,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 68;
+const APP_VERSION = 69;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5242,7 +5242,7 @@ function printInvoice(id){
   }
   var css = '<style>'
     +'body{font-family:"Malgun Gothic",sans-serif;margin:0;padding:6px;}'
-    +'.inv-sheet{width:186mm;max-width:100%;margin:0 auto 5mm;border:2px solid #C00;padding:0;box-sizing:border-box;}'
+    +'.inv-sheet{width:180mm;max-width:100%;margin:0 auto 5mm;border:2px solid #C00;padding:0;box-sizing:border-box;}'
     +'.inv-head{text-align:center;position:relative;padding:6px;}'
     +'.inv-title{font-size:22px;font-weight:800;color:#C00;letter-spacing:6px;}'
     +'.inv-sub{font-size:11px;color:#C00;}'
@@ -5267,7 +5267,7 @@ function printInvoice(id){
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:12mm;}'
-    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:5mm auto;width:186mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:186mm;margin-left:auto;margin-right:auto;}.inv-top{height:136.5mm;box-sizing:border-box;}.inv-cut{width:186mm;margin:0 auto;}.inv-page{display:flex;flex-direction:column;align-items:center;}.inv-wrap{margin:0;width:100%;display:flex;justify-content:center;align-items:flex-start;}}'
+    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:5mm auto;width:180mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:180mm;margin-left:6mm;margin-right:0;}.inv-top{height:136.5mm;box-sizing:border-box;}.inv-cut{width:180mm;margin:0 0 0 6mm;}.inv-page{display:flex;flex-direction:column;align-items:flex-start;}.inv-wrap{margin:0;width:100%;display:flex;justify-content:flex-start;align-items:flex-start;}}'
     +'.blue.inv-sheet{border-color:#0046C0;}'
     +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
     +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
@@ -5286,7 +5286,7 @@ function printInvoice(id){
   var bodyHtml = '<div class="inv-page">'
     + '<div class="inv-wrap inv-top">' + sheet('공급자 보관용') + '</div>'
     + '<div class="inv-cut"></div>'
-    + '<div class="inv-wrap">' + sheet('공급받는자 보관용','blue') + '</div>'
+    + '<div class="inv-wrap inv-bot">' + sheet('공급받는자 보관용','blue') + '</div>'
     + '</div>';
   window._invPrintCache = { css: css, body: bodyHtml, date: inv.date, name: (sel&&sel.name)||inv.memberName||'' };
   var w = window.open('', '_blank');
