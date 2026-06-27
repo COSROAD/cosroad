@@ -3375,7 +3375,9 @@ var payFilterCourse2 = '';
 var logiPayYear = new Date().getFullYear();
 var logiPayMonth = new Date().getMonth()+1;
 var logiPaySelDate = null;
+var logiCalOpen = false;
 var logiPayKind = 'sale'; // sale=매출(미수금), purchase=매입(미지급금)
+function logiToggleCal(){ logiCalOpen = !logiCalOpen; renderPayment(); }
 function logiPaySetKind(k){ logiPayKind = k; logiPaySelDate = null; renderPayment(); }
 
 function invCollected(inv){
@@ -3419,7 +3421,7 @@ function memberTotalUnpaidPurchase(memberId){
 
 function logiPayPrevMonth(){ logiPayMonth--; if(logiPayMonth<1){logiPayMonth=12;logiPayYear--;} logiPaySelDate=null; renderPayment(); }
 function logiPayNextMonth(){ logiPayMonth++; if(logiPayMonth>12){logiPayMonth=1;logiPayYear++;} logiPaySelDate=null; renderPayment(); }
-function logiPaySelectDate(d){ logiPaySelDate = (logiPaySelDate===d)?null:d; renderPayment(); }
+function logiPaySelectDate(d){ logiPaySelDate = (logiPaySelDate===d)?null:d; logiCalOpen=false; renderPayment(); }
 
 // 거래명세서 한 건 카드 (수금처리)
 function renderLogiInvoiceCard(iv){
@@ -3589,7 +3591,15 @@ function renderLogiPayment(cont){
   h += '</div>';
   h += '</div>';
   h += '<div style="padding:0 16px 16px;">';
-  h += renderLogiCalendar(y, mo, byDate);
+  // 달력 토글 막대
+  var _barLabel = logiPaySelDate ? (logiPaySelDate+' 선택됨') : '날짜 선택';
+  h += '<div onclick="logiToggleCal()" style="display:flex;justify-content:space-between;align-items:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px 14px;cursor:pointer;">';
+  h += '<span style="font-size:13px;font-weight:700;color:#344054;">📅 '+_barLabel+'</span>';
+  h += '<span style="font-size:12px;color:#98A2B3;">'+(logiCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
+  h += '</div>';
+  if(logiCalOpen){
+    h += '<div style="margin-top:8px;">'+renderLogiCalendar(y, mo, byDate)+'</div>';
+  }
   if(logiPaySelDate && byDate[logiPaySelDate]){
     h += '<div style="margin-top:14px;">';
     h += '<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:8px;">'+logiPaySelDate+' 거래</div>';
@@ -3920,7 +3930,9 @@ var taxTab = 'monthly';
 var taxFilter = 'all'; // monthly | records | tax
 
 var taxSelDate = null; // 세무 수입/지출 달력에서 선택한 날짜
-function taxSelectDate(d){ taxSelDate = (taxSelDate===d)?null:d; renderTax(); }
+var taxCalOpen = false;
+function taxToggleCal(){ taxCalOpen = !taxCalOpen; renderTax(); }
+function taxSelectDate(d){ taxSelDate = (taxSelDate===d)?null:d; taxCalOpen=false; renderTax(); }
 // 세무 달력: 날짜별 수입·지출 합계 표시
 function renderTaxCalendar(y, mo, md){
   var byDate = {};
@@ -4055,8 +4067,15 @@ function renderTax(){
     h += '<div style="font-size:10px;color:#7C3AED;margin-top:6px;">'+(taxSelDate?('📅 '+taxSelDate+'로 기록돼요'):'📅 달력에서 날짜를 고르면 그날로 기록돼요 (안 고르면 오늘)')+'</div>';
     h += '</div></div></div>';
 
-    // 달력
-    h += renderTaxCalendar(taxViewYear2, taxViewMonth2, md2);
+    // 달력 (토글 막대 + 펼침)
+    var _taxBarLabel = taxSelDate ? (taxSelDate+' 선택됨') : '날짜 선택';
+    h += '<div onclick="taxToggleCal()" style="display:flex;justify-content:space-between;align-items:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px 14px;cursor:pointer;margin-bottom:10px;">';
+    h += '<span style="font-size:13px;font-weight:700;color:#344054;">📅 '+_taxBarLabel+'</span>';
+    h += '<span style="font-size:12px;color:#98A2B3;">'+(taxCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
+    h += '</div>';
+    if(taxCalOpen){
+      h += '<div style="margin-bottom:10px;">'+renderTaxCalendar(taxViewYear2, taxViewMonth2, md2)+'</div>';
+    }
 
     // 내역 목록
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
