@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 70;
+const APP_VERSION = 71;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5221,12 +5221,12 @@ function printInvoice(id){
       +'<div class="inv-date">거래일자 : '+esc(inv.date)+'</div>'
       +'<table class="inv-party"><tr>'
       +'<td class="ph">공급자</td>'
-      +'<td><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(org.bizNo||'')+'</td></tr>'
+      +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(org.bizNo||'')+'</td></tr>'
       +'<tr><td class="k">상호</td><td>'+esc(org.name||'')+'</td><td class="k">성명</td><td class="ceo-cell">'+esc(org.ceo||'')+(org.stamp?'<img src="'+org.stamp+'" class="inv-stamp"/>':'')+'</td></tr>'
       +'<tr><td class="k">주소</td><td colspan="3">'+esc(org.destAddr||'')+'</td></tr>'
       +'<tr><td class="k">업태</td><td>'+esc(org.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(org.bizItem||'')+'</td></tr></table></td>'
       +'<td class="ph">공급받는자</td>'
-      +'<td><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(sel.bizNo||'')+'</td></tr>'
+      +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(sel.bizNo||'')+'</td></tr>'
       +'<tr><td class="k">상호</td><td>'+esc(sel.name||'')+'</td><td class="k">성명</td><td>'+esc(sel.ceo||'')+'</td></tr>'
       +'<tr><td class="k">주소</td><td colspan="3">'+esc(sel.location||'')+'</td></tr>'
       +'<tr><td class="k">업태</td><td>'+esc(sel.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(sel.bizItem||'')+'</td></tr></table></td>'
@@ -5253,10 +5253,13 @@ function printInvoice(id){
     +'.inv-title{font-size:22px;font-weight:800;color:#C00;letter-spacing:6px;}'
     +'.inv-sub{font-size:11px;color:#C00;}'
     +'.inv-date{font-size:12px;padding:2px 8px;}'
-    +'.inv-party{width:100%;border-collapse:collapse;}'
+    +'.inv-party{width:100%;border-collapse:collapse;table-layout:fixed;}'
     +'.inv-party>tbody>tr>td{border:1px solid #C00;vertical-align:middle;}'
-    +'.ph{width:18px;text-align:center;font-size:11px;color:#C00;font-weight:700;writing-mode:vertical-rl;}'
-    +'.pin{width:100%;border-collapse:collapse;font-size:13px;}'
+    +'.inv-party>tbody>tr>td.ph{width:18px;}'
+    +'.inv-party>tbody>tr>td.pbody{width:calc(50% - 18px);}'
+    +'.ph{text-align:center;font-size:11px;color:#C00;font-weight:700;writing-mode:vertical-rl;}'
+    +'.pin{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}'
+    +'.pin td:not(.k){overflow:hidden;text-overflow:ellipsis;}'
     +'.pin td{border:1px solid #E59;padding:3px 5px;}'
     +'.pin .k{background:#FFF0F0;color:#C00;font-weight:700;width:48px;white-space:nowrap;}'
     +'.pin .ctr{text-align:center;font-weight:700;font-size:13px;}'
@@ -5273,7 +5276,7 @@ function printInvoice(id){
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:12mm;}'
-    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:5mm auto;width:180mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:180mm;margin-left:6mm;margin-right:0;}.inv-top{height:136.5mm;box-sizing:border-box;}.inv-cut{width:180mm;margin:0 0 0 6mm;}.inv-page{display:flex;flex-direction:column;align-items:flex-start;}.inv-wrap{margin:0;width:100%;display:flex;justify-content:flex-start;align-items:flex-start;}}'
+    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:5mm auto;width:180mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:180mm;max-width:100%;margin-left:auto;margin-right:auto;}.inv-page{display:flex;flex-direction:column;align-items:center;}.inv-top{margin-bottom:14mm;}.inv-cut{width:180mm;margin:0 auto 14mm;}.inv-wrap{margin:0;width:100%;display:flex;justify-content:center;}}'
     +'.blue.inv-sheet{border-color:#0046C0;}'
     +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
     +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
