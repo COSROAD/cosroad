@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 84;
+const APP_VERSION = 85;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5404,7 +5404,8 @@ function printInvoice(id){
     + '<button onclick="window.close()" style="padding:8px 18px;font-size:13px;font-weight:700;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:7px;cursor:pointer;">✕ 닫기</button>'
     + '</div>';
   var spacer = '<div class="no-print" style="height:48px;"></div>';
-  w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
+  var hideStyle = '<style>@media print{.no-print{display:none !important;}}</style>';
+  w.document.write('<html><head><title>거래명세서</title>'+css+hideStyle+'</head><body>'
     + topbar + spacer
     + bodyHtml
     + '</body></html>');
