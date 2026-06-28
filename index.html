@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 81;
+const APP_VERSION = 82;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5036,8 +5036,7 @@ function renderInvoice(){
       h += '</div>';
       h += '<div style="display:flex;gap:6px;margin-top:8px;">';
       if((inv.kind||'sale')!=='purchase'){
-        h += '<button onclick="printInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🖨 인쇄</button>';
-        h += '<button onclick="savePdfInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#B42318;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">📄 PDF</button>';
+        h += '<button onclick="printInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🖨 인쇄 / 📄 PDF</button>';
       }
       h += '<button onclick="deleteInvoice(\''+inv.id+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:700;">삭제</button>';
       h += '</div>';
@@ -5399,9 +5398,14 @@ function printInvoice(id){
   window._invPrintCache = { css: css, body: bodyHtml, date: inv.date, name: (sel&&sel.name)||inv.memberName||'' };
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
-  w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body>'
-    + bodyHtml
-    + '<div class="no-print" style="text-align:center;margin:10px;"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;font-weight:700;background:#7C3AED;color:white;border:none;border-radius:8px;cursor:pointer;">🖨 인쇄하기</button></div>'
+  var topbar = '<div class="no-print" style="position:sticky;top:0;z-index:100;display:flex;justify-content:flex-end;gap:8px;align-items:center;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:8px 12px;">'
+    + '<button onclick="window.print()" style="padding:8px 18px;font-size:13px;font-weight:700;background:#475467;color:white;border:none;border-radius:7px;cursor:pointer;">📄 PDF / 🖨 인쇄</button>'
+    + '<button onclick="window.close()" style="padding:8px 18px;font-size:13px;font-weight:700;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:7px;cursor:pointer;">✕ 닫기</button>'
+    + '</div>';
+  var hint = '<div class="no-print" style="text-align:center;font-size:12px;color:#667085;padding:6px 12px;background:#FFFBEB;border-bottom:1px solid #FDE68A;">PDF로 저장하려면 위 버튼을 누른 뒤 대상(프린터)을 \'PDF로 저장\'으로 선택하세요. 미리보기 그대로 저장됩니다.</div>';
+  w.document.write('<html><head><title>거래명세서</title>'+css+'</head><body style="margin:0;">'
+    + topbar + hint
+    + '<div style="padding:6px;">' + bodyHtml + '</div>'
     + '</body></html>');
   w.document.close();
 }
