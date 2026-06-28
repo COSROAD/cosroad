@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 86;
+const APP_VERSION = 87;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3554,13 +3554,13 @@ function renderLogiCalendar(y, mo, byDate){
     var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
     function _fmt(v){ return v>=10000?Math.round(v/1000)+'k':v.toLocaleString(); }
-    c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:46px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
-    c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:58px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
     if(hasSale){
-      c += '<div style="font-size:9px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.2;margin-top:1px;">매출 '+_fmt(saleTotal)+'</div>';
+      c += '<div style="font-size:11px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.25;margin-top:1px;">매출 '+_fmt(saleTotal)+'</div>';
     }
     if(hasPur){
-      c += '<div style="font-size:9px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.2;margin-top:1px;">매입 '+_fmt(purTotal)+'</div>';
+      c += '<div style="font-size:11px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.25;margin-top:1px;">매입 '+_fmt(purTotal)+'</div>';
     }
     c += '</div>';
   }
@@ -3986,15 +3986,15 @@ function renderTaxCalendar(y, mo, md){
     // 미수금(받을 돈)=빨강, 미결제(줄 돈)=주황 테두리 강조
     var borderClr = isSel?'#7C3AED':(up&&up.recv>0?'#F04438':(up&&up.pay>0?'#F79009':'#F2F4F7'));
     var borderW = (!isSel && up && (up.recv>0||up.pay>0))?'2px':'1px';
-    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:44px;border:'+borderW+' solid '+borderClr+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
-    c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:62px;border:'+borderW+' solid '+borderClr+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
     if(rec){
-      if(rec.inc) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.1;">+'+(rec.inc>=10000?Math.round(rec.inc/1000)+'k':rec.inc)+'</div>';
-      if(rec.exp) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.1;">-'+(rec.exp>=10000?Math.round(rec.exp/1000)+'k':rec.exp)+'</div>';
+      if(rec.inc) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.2;">+'+(rec.inc>=10000?Math.round(rec.inc/1000)+'k':rec.inc)+'</div>';
+      if(rec.exp) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">-'+(rec.exp>=10000?Math.round(rec.exp/1000)+'k':rec.exp)+'</div>';
     }
     if(up){
-      if(up.recv>0) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.1;">미수'+(up.recv>=10000?Math.round(up.recv/1000)+'k':up.recv)+'</div>';
-      if(up.pay>0) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.1;">미결'+(up.pay>=10000?Math.round(up.pay/1000)+'k':up.pay)+'</div>';
+      if(up.recv>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">미수'+(up.recv>=10000?Math.round(up.recv/1000)+'k':up.recv)+'</div>';
+      if(up.pay>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.2;">미결'+(up.pay>=10000?Math.round(up.pay/1000)+'k':up.pay)+'</div>';
     }
     c += '</div>';
   }
@@ -4916,10 +4916,10 @@ function renderInvListCalendar(y, mo, byDate){
     var isSel = invListSelDate===ds;
     var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
-    c += '<div onclick="invListSelectDate(\''+ds+'\')" style="min-height:44px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
-    c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
-    if(saleN) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.1;">매출'+saleN+'</div>';
-    if(purN) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.1;">매입'+purN+'</div>';
+    c += '<div onclick="invListSelectDate(\''+ds+'\')" style="min-height:56px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    if(saleN) c += '<div style="font-size:11px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.25;">매출'+saleN+'</div>';
+    if(purN) c += '<div style="font-size:11px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.25;">매입'+purN+'</div>';
     c += '</div>';
   }
   c += '</div></div>';
