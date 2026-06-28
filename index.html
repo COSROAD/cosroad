@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 72;
+const APP_VERSION = 74;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5289,7 +5289,7 @@ function printInvoice(id){
     +'.inv-items td:not(.lft):not(.rgt){text-align:center;}'
     +'.inv-items tfoot td{border:1px solid #C00;font-weight:700;background:#FFF8F8;}'
     +'.inv-foot{display:flex;justify-content:space-between;padding:5px 8px;border:1px solid #C00;border-top:none;font-size:13px;}'
-    +'.inv-grand{font-weight:800;color:#C00;}.ceo-cell{position:relative;}.inv-stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:34px;height:34px;object-fit:contain;opacity:0.85;}'
+    +'.inv-grand{font-weight:800;color:#C00;}.ceo-cell{position:relative;overflow:visible !important;}.inv-stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:34px;height:34px;object-fit:contain;opacity:0.85;z-index:5;}'
     +'.inv-bal{width:100%;border-collapse:collapse;font-size:13px;border:1px solid #C00;border-top:none;}'
     +'.inv-bal td{border:1px solid #E59;padding:4px 6px;}'
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
