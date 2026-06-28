@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 85;
+const APP_VERSION = 86;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -648,6 +648,9 @@ var driverAttViewDate = todayStr();
 function renderDriverAttendance(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
+  cont.innerHTML = buildDriverAttHtml();
+}
+function buildDriverAttHtml(){
   var att = loadDriverAtt();
   // 기사 배정된 차량만
   var driverCars = cars.filter(function(c){ return c.driver && c.driver.trim(); });
@@ -706,7 +709,7 @@ function renderDriverAttendance(){
   }
 
   h += '</div>';
-  cont.innerHTML = h;
+  return h;
 }
 
 // 날짜 이동
@@ -3956,6 +3959,15 @@ function renderTaxCalendar(y, mo, md){
   var byDate = {};
   (md.income||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).inc+=(Number(r.amount)||0); } });
   (md.expense||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).exp+=(Number(r.amount)||0); } });
+  // 거래명세서에서 날짜별 미수금(매출 미수)·미결제(매입 미지급) 집계
+  var unpaidByDate = {};
+  loadInvoices().forEach(function(iv){
+    if(!iv.date) return;
+    var u = invUnpaid(iv);
+    if(u<=0) return;
+    var o = unpaidByDate[iv.date] = unpaidByDate[iv.date] || {recv:0, pay:0};
+    if((iv.kind||'sale')==='purchase') o.pay+=u; else o.recv+=u;
+  });
   var startDow = new Date(y, mo-1, 1).getDay();
   var daysInMonth = new Date(y, mo, 0).getDate();
   var dows = ['일','월','화','수','목','금','토'];
@@ -3967,14 +3979,22 @@ function renderTaxCalendar(y, mo, md){
   for(var d=1; d<=daysInMonth; d++){
     var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var rec = byDate[ds];
+    var up = unpaidByDate[ds];
     var isSel = taxSelDate===ds;
     var bg = isSel?'#7C3AED':(rec?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
-    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:44px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    // 미수금(받을 돈)=빨강, 미결제(줄 돈)=주황 테두리 강조
+    var borderClr = isSel?'#7C3AED':(up&&up.recv>0?'#F04438':(up&&up.pay>0?'#F79009':'#F2F4F7'));
+    var borderW = (!isSel && up && (up.recv>0||up.pay>0))?'2px':'1px';
+    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:44px;border:'+borderW+' solid '+borderClr+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
     c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
     if(rec){
       if(rec.inc) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.1;">+'+(rec.inc>=10000?Math.round(rec.inc/1000)+'k':rec.inc)+'</div>';
       if(rec.exp) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.1;">-'+(rec.exp>=10000?Math.round(rec.exp/1000)+'k':rec.exp)+'</div>';
+    }
+    if(up){
+      if(up.recv>0) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.1;">미수'+(up.recv>=10000?Math.round(up.recv/1000)+'k':up.recv)+'</div>';
+      if(up.pay>0) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.1;">미결'+(up.pay>=10000?Math.round(up.pay/1000)+'k':up.pay)+'</div>';
     }
     c += '</div>';
   }
@@ -5592,7 +5612,14 @@ function renderCars(){
   else { html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
     unassigned.forEach(function(m){ html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+m.name+' +</button>'; });
     html+='</div>'; }
-  html+='</div></div></div>';
+  html+='</div>';
+  // 학원: 차량관리 안에 기사 근태관리 함께 표시
+  if(getBizType()==='academy'){
+    html+='<div style="border-top:8px solid #F2F4F7;margin-top:16px;padding-top:4px;">';
+    html+=buildDriverAttHtml();
+    html+='</div>';
+  }
+  html+='</div></div>';
   document.getElementById('admin-content').innerHTML=html;
 }
 
