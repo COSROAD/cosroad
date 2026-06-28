@@ -245,6 +245,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getStorage, ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBTpvJtKQvfpmyyJS6rteCJDgsphvMyCgI",
@@ -258,10 +259,13 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const auth = getAuth(app);
+  const storage = getStorage(app);
   window._db = db;
   window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot };
   window._auth = auth;
   window._authFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };
+  window._storage = storage;
+  window._storageFns = { storageRef, uploadBytes, uploadString, getDownloadURL };
   window._fbReady = true;
   // 로그인된 사용자가 없으면 익명 로그인 (Firestore 규칙 통과용)
   onAuthStateChanged(auth, function(user){
@@ -482,7 +486,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 // 데이터성 키에는 자동으로 _<orgId>를 붙여 업종별로 완전 분리한다.
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_aligo','tkd_driver_att'];
+  // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -508,7 +513,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 88;
+const APP_VERSION = 90;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1946,9 +1951,48 @@ function cancelNoticeEdit(){
   document.getElementById('admin-content').innerHTML = renderNotice();
 }
 
+// 알림장 사진(dataURL 배열)을 Firebase Storage에 올리고 다운로드 URL 배열을 받음
+function uploadNoticeImages(images, cb){
+  // images: dataURL 문자열 배열
+  if(!images || images.length===0){ console.log('[알림장] 첨부 사진 없음'); cb([]); return; }
+  if(!window._storage || !window._storageFns){
+    // Storage 준비 안 됨 → URL 없이 진행
+    console.log('[알림장] Storage 준비 안 됨 (_storage 없음)');
+    showToast('사진 저장소 준비 안 됨 - 링크 없이 발송');
+    cb([]);
+    return;
+  }
+  console.log('[알림장] 사진 업로드 시작:', images.length+'장');
+  var fns = window._storageFns;
+  var urls = [];
+  var done = 0;
+  var failed = false;
+  images.forEach(function(dataUrl, idx){
+    var bizId = (typeof getBizType==='function') ? getBizType() : 'org';
+    var rnd = Math.random().toString(36).slice(2,8);
+    var path = 'notice-images/'+bizId+'_'+Date.now()+'_'+idx+'_'+rnd+'.jpg';
+    var sref = fns.storageRef(window._storage, path);
+    // dataURL 그대로 업로드 (data_url 형식)
+    fns.uploadString(sref, dataUrl, 'data_url').then(function(snap){
+      return fns.getDownloadURL(snap.ref);
+    }).then(function(url){
+      console.log('[알림장] 업로드 성공:', url);
+      urls[idx] = url;
+      done++;
+      if(done===images.length){ cb(failed?null:urls.filter(function(u){return u;})); }
+    }).catch(function(e){
+      console.log('[알림장] 사진 업로드 실패', e && e.code, e && e.message, e);
+      failed = true;
+      done++;
+      if(done===images.length){ cb(urls.filter(function(u){return u;})); }
+    });
+  });
+}
+
 function sendNoticeSms(id){
   var n = notices.find(function(x){ return x.id === id; });
   if(!n) return;
+  if(typeof loadAligoSettings==='function') loadAligoSettings();
 
   // 대상 회원 목록 (신규 targets 배열 우선, 구 데이터 호환)
   var targets = [];
@@ -1976,20 +2020,61 @@ function sendNoticeSms(id){
     return;
   }
 
-  // 문자 본문
   var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
-  var smsBody = '['+orgName+'] 알림장\n'+n.content;
 
+  // 사진이 있으면 먼저 Storage에 업로드 → 링크를 본문에 포함
+  var imgs = (n.images && n.images.length) ? n.images : [];
+  showToast(imgs.length ? '사진 업로드 중...' : '문자 발송 중...');
+  uploadNoticeImages(imgs, function(urls){
+    var smsBody = '['+orgName+'] 알림장\n'+n.content;
+    if(urls && urls.length){
+      smsBody += '\n\n📷 사진 보기:';
+      urls.forEach(function(u){ smsBody += '\n'+u; });
+    }
+    doSendNoticeMessage(n, phones, smsBody);
+  });
+}
+
+// 실제 발송: 알리고 API가 설정돼 있으면 LMS로, 없으면 폰 문자앱으로 폴백
+function doSendNoticeMessage(n, phones, smsBody){
+  var aligoReady = ALIGO_API_KEY && ALIGO_USER_ID && ALIGO_SENDER;
   // 발송 상태 갱신
   n.sent = true;
   n.sentTs = Date.now();
   saveNotices();
 
-  // 문자앱 열기 (다수 수신자는 콤마로 연결)
-  var recipients = phones.join(',');
-  window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
-
-  document.getElementById('admin-content').innerHTML = renderNotice();
+  if(aligoReady){
+    var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
+    fetch('https://cosroad.vercel.app/api/send-sms', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        apikey: ALIGO_API_KEY,
+        userid: ALIGO_USER_ID,
+        sender: ALIGO_SENDER,
+        receiver: phones.join(','),
+        msg: smsBody,
+        title: '['+orgName+'] 알림장',
+        msg_type: 'LMS'
+      })
+    }).then(function(res){ return res.json(); })
+    .then(function(data){
+      if(data.result_code && Number(data.result_code) > 0){
+        showToast('알림장 문자 발송 완료 ('+(data.success_cnt||phones.length)+'건)');
+      } else {
+        showToast('발송 실패: '+(data.message||'알 수 없는 오류'));
+      }
+      var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
+    }).catch(function(e){
+      showToast('발송 오류: 네트워크를 확인하세요');
+      var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
+    });
+  } else {
+    // 알리고 미설정 → 폰 문자앱 폴백
+    var recipients = phones.join(',');
+    window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
+    var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
+  }
 }
 
 function deleteNotice(id){
@@ -5879,7 +5964,8 @@ async function saveToFirebase(key, data){
   try{
     if(!window._db || !window._firestore) return;
     var { doc, setDoc } = window._firestore;
-    var orgId = getFbOrgId();
+    // 알리고 설정은 전역 공통(프리존 계정 1개)이라 고정 위치에 저장
+    var orgId = (key==='aligo') ? 'cosroad_global' : getFbOrgId();
     await setDoc(doc(window._db, 'orgs', orgId, 'data', key), { value: JSON.stringify(data), updatedAt: Date.now() });
     console.log('Firebase 저장:', key);
   } catch(e){ console.log('Firebase 저장 실패:', e.message); }
@@ -5889,7 +5975,8 @@ async function loadFromFirebase(key){
   try{
     if(!window._db || !window._firestore) return null;
     var { doc, getDoc } = window._firestore;
-    var orgId = getFbOrgId();
+    // 알리고 설정은 전역 공통(프리존 계정 1개)이라 고정 위치에서 로드
+    var orgId = (key==='aligo') ? 'cosroad_global' : getFbOrgId();
     var snap = await getDoc(doc(window._db, 'orgs', orgId, 'data', key));
     if(snap.exists()) return JSON.parse(snap.data().value);
     return null;
