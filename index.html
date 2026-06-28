@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 79;
+const APP_VERSION = 80;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3501,11 +3501,14 @@ function logiCollect(invId){
   saveInvoicesList(list);
   var pi = iv.payments.length-1;
   var mname = (iv.memberName||'')+' ('+(meth?meth.value:'현금')+')';
+  // 세무 기록은 거래일자(iv.date) 기준으로 — 수납 화면 달과 일치
+  var _td = (iv.date||pdate).split('-');
+  var _ty = parseInt(_td[0]), _tm = parseInt(_td[1]);
   if((iv.kind||'sale')==='purchase'){
-    addExpenseRecord(logiPayYear, logiPayMonth, mname, amt, '매입 대금', {invId:invId, payIdx:pi});
+    addExpenseRecord(_ty, _tm, mname, amt, '매입 대금', {invId:invId, payIdx:pi}, null, iv.date||pdate);
     showToast('결제 처리됐어요.');
   } else {
-    addIncomeRecord(logiPayYear, logiPayMonth, mname, amt, '매출 대금', {invId:invId, payIdx:pi});
+    addIncomeRecord(_ty, _tm, mname, amt, '매출 대금', {invId:invId, payIdx:pi}, null, iv.date||pdate);
     showToast('수금 처리됐어요.');
   }
   renderPayment();
@@ -3900,11 +3903,11 @@ function saveTaxData(data){
   saveToFirebase('tax',data);
   setTimeout(function(){ _localSaving = false; }, 2000);
 }
-function addIncomeRecord(year, month, name, amount, category, link, method){
+function addIncomeRecord(year, month, name, amount, category, link, method, dateStr){
   var data = loadTaxData();
   var key = year+'_'+String(month).padStart(2,'0');
   if(!data[key]) data[key]={income:[],expense:[]};
-  var rec = {name:name, amount:amount, category:category, date:new Date().toISOString().slice(0,10), taxType:'과세'};
+  var rec = {name:name, amount:amount, category:category, date:(dateStr||new Date().toISOString().slice(0,10)), taxType:'과세'};
   if(method) rec.method=method;
   if(link){ rec.source='payment'; rec.linkMemberId=link.memberId; rec.linkYear=link.year; rec.linkMonth=link.month; if(link.invId!=null){ rec.linkInvId=link.invId; rec.linkPayIdx=link.payIdx; } }
   data[key].income.push(rec);
@@ -3912,11 +3915,11 @@ function addIncomeRecord(year, month, name, amount, category, link, method){
 }
 
 // 매입 결제 → 지출 기록
-function addExpenseRecord(year, month, name, amount, category, link, method){
+function addExpenseRecord(year, month, name, amount, category, link, method, dateStr){
   var data = loadTaxData();
   var key = year+'_'+String(month).padStart(2,'0');
   if(!data[key]) data[key]={income:[],expense:[]};
-  var rec = {name:name, amount:amount, category:category, date:new Date().toISOString().slice(0,10)};
+  var rec = {name:name, amount:amount, category:category, date:(dateStr||new Date().toISOString().slice(0,10))};
   if(method) rec.method=method;
   if(link){ rec.source='payment'; if(link.invId!=null){ rec.linkInvId=link.invId; rec.linkPayIdx=link.payIdx; } }
   data[key].expense.push(rec);
@@ -4861,6 +4864,47 @@ var invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
 var invoiceSelMember = '';
 var invoiceKind = 'sale';
 var invoiceDate = new Date().toISOString().slice(0,10);
+// 거래명세서 저장목록 달력
+var invListCalOpen = false;
+var invListSelDate = null;
+var invListYear = new Date().getFullYear();
+var invListMonth = new Date().getMonth()+1;
+function invListToggleCal(){ invListCalOpen = !invListCalOpen; renderInvoice(); }
+function invListSelectDate(d){ invListSelDate = (invListSelDate===d)?null:d; invListCalOpen=false; renderInvoice(); }
+function invListPrevMonth(){ invListMonth--; if(invListMonth<1){invListMonth=12;invListYear--;} invListSelDate=null; renderInvoice(); }
+function invListNextMonth(){ invListMonth++; if(invListMonth>12){invListMonth=1;invListYear++;} invListSelDate=null; renderInvoice(); }
+function renderInvListCalendar(y, mo, byDate){
+  var startDow = new Date(y, mo-1, 1).getDay();
+  var daysInMonth = new Date(y, mo, 0).getDate();
+  var dows = ['일','월','화','수','목','금','토'];
+  var c = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:8px;">';
+  c += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">';
+  c += '<button onclick="invListPrevMonth()" style="padding:6px 10px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;">‹</button>';
+  c += '<div style="flex:1;text-align:center;font-size:14px;font-weight:800;color:#1D2939;">'+y+'년 '+mo+'월</div>';
+  c += '<button onclick="invListNextMonth()" style="padding:6px 10px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;">›</button>';
+  c += '</div>';
+  c += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">';
+  dows.forEach(function(d,i){ c += '<div style="text-align:center;font-size:10px;font-weight:700;color:'+(i===0?'#F04438':(i===6?'#1570EF':'#98A2B3'))+';padding:3px 0;">'+d+'</div>'; });
+  c += '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">';
+  for(var i=0;i<startDow;i++){ c += '<div></div>'; }
+  for(var d=1; d<=daysInMonth; d++){
+    var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var invs = byDate[ds]||[];
+    var saleN=0, purN=0;
+    invs.forEach(function(iv){ if((iv.kind||'sale')==='purchase') purN++; else saleN++; });
+    var hasInv = invs.length>0;
+    var isSel = invListSelDate===ds;
+    var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
+    var fg = isSel?'white':'#344054';
+    c += '<div onclick="invListSelectDate(\''+ds+'\')" style="min-height:44px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
+    c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    if(saleN) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.1;">매출'+saleN+'</div>';
+    if(purN) c += '<div style="font-size:8px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.1;">매입'+purN+'</div>';
+    c += '</div>';
+  }
+  c += '</div></div>';
+  return c;
+}
 
 // 품목 한 줄의 공급가액·세액 계산 (과세별도 add / 과세포함 inc / 면세 free)
 function itemAmounts(it){
@@ -4881,7 +4925,8 @@ function renderInvoice(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
   var h = '<div style="padding:12px 16px;">';
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:12px;">';
+  h += '<div style="position:sticky;top:0;z-index:96;background:var(--gray-100);padding-bottom:4px;">';
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:8px;">';
   h += '<div style="font-size:13px;font-weight:800;color:#1D2939;margin-bottom:10px;">🧾 거래명세서 작성</div>';
   h += '<label style="font-size:11px;color:#667085;">거래일자</label>';
   h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="invoiceDate=this.value" style="width:100%;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>';
@@ -4897,6 +4942,7 @@ function renderInvoice(){
   h += '<option value="sale"'+(invoiceKind!=='purchase'?' selected':'')+'>매출 (내가 판매 · 받을 돈)</option>';
   h += '<option value="purchase"'+(invoiceKind==='purchase'?' selected':'')+'>매입 (내가 구매 · 줄 돈)</option>';
   h += '</select></div>';
+  h += '</div>'; // sticky 헤더 끝
 
   var sel = members.find(function(m){return String(m.id)===String(invoiceSelMember);});
   if(sel){
@@ -4956,8 +5002,27 @@ function renderInvoice(){
   h += '</div>';
   h += '<button onclick="saveInvoice()" style="width:100%;padding:13px;background:#12B76A;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;">💾 거래명세서 저장</button>';
 
-  var saved = loadInvoices();
+  var savedAll = loadInvoices();
+  var invByDate = {};
+  savedAll.forEach(function(iv){
+    if(!iv.date) return;
+    var p = iv.date.split('-');
+    if(parseInt(p[0])!==invListYear || parseInt(p[1])!==invListMonth) return;
+    (invByDate[iv.date]=invByDate[iv.date]||[]).push(iv);
+  });
+  var saved = invListSelDate ? savedAll.filter(function(iv){ return iv.date===invListSelDate; }) : savedAll;
   h += '<div style="margin-top:20px;">';
+  var _ilBar = invListSelDate ? (invListSelDate+' 선택됨') : '날짜로 보기';
+  h += '<div onclick="invListToggleCal()" style="display:flex;justify-content:space-between;align-items:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px 14px;cursor:pointer;margin-bottom:10px;">';
+  h += '<span style="font-size:13px;font-weight:700;color:#344054;">📅 '+_ilBar+'</span>';
+  h += '<span style="font-size:12px;color:#98A2B3;">'+(invListCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
+  h += '</div>';
+  if(invListCalOpen){
+    h += '<div style="margin-bottom:10px;">'+renderInvListCalendar(invListYear, invListMonth, invByDate)+'</div>';
+  }
+  if(invListSelDate){
+    h += '<div style="text-align:center;margin-bottom:8px;"><span onclick="invListSelDate=null;renderInvoice();" style="font-size:11px;color:#7C3AED;cursor:pointer;font-weight:700;">전체 보기 ↺</span></div>';
+  }
   h += '<div style="font-size:13px;font-weight:800;color:#1D2939;margin-bottom:10px;">📁 저장된 거래명세서 ('+saved.length+')</div>';
   if(saved.length===0){
     h += '<div style="font-size:12px;color:#98A2B3;text-align:center;padding:14px;background:white;border-radius:12px;border:1px solid #EAECF0;">저장된 거래명세서가 없습니다.</div>';
