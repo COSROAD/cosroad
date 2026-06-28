@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 87;
+const APP_VERSION = 88;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1484,6 +1484,11 @@ function getOrderedAdminTabs(){
 
 // 탭 라벨을 현재 업종 용어로 변환
 function adminTabLabel(t){
+  // 학원·공공은 차량관리에 기사 근태 포함 → 차량/근태관리
+  if(t.id==='cars'){
+    var cb=getBizType();
+    if(cb==='academy'||cb==='public') return '차량/근태관리';
+  }
   // 물류·택배는 출결관리 → 기사 근태관리
   if(t.id==='attendance'){
     var bt=getBizType();
@@ -5613,8 +5618,8 @@ function renderCars(){
     unassigned.forEach(function(m){ html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+m.name+' +</button>'; });
     html+='</div>'; }
   html+='</div>';
-  // 학원: 차량관리 안에 기사 근태관리 함께 표시
-  if(getBizType()==='academy'){
+  // 학원·공공: 차량관리 안에 기사 근태관리 함께 표시
+  if(getBizType()==='academy'||getBizType()==='public'){
     html+='<div style="border-top:8px solid #F2F4F7;margin-top:16px;padding-top:4px;">';
     html+=buildDriverAttHtml();
     html+='</div>';
