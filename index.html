@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 77;
+const APP_VERSION = 78;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3537,17 +3537,24 @@ function renderLogiCalendar(y, mo, byDate){
   for(var d=1; d<=daysInMonth; d++){
     var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var invs = byDate[ds]||[];
-    var dayTotal=0, dayUnpaid=0;
-    invs.forEach(function(iv){ dayTotal+=(Number(iv.total)||0); dayUnpaid+=invUnpaid(iv); });
+    var saleTotal=0, purTotal=0;
+    invs.forEach(function(iv){
+      var amt = Number(iv.total)||0;
+      if((iv.kind||'sale')==='purchase') purTotal+=amt; else saleTotal+=amt;
+    });
+    var hasSale = saleTotal>0, hasPur = purTotal>0;
     var hasInv = invs.length>0;
     var isSel = logiPaySelDate===ds;
-    var bg = isSel?'#7C3AED':(hasInv?(dayUnpaid>0?'#FEF3F2':'#ECFDF3'):'white');
+    var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
+    function _fmt(v){ return v>=10000?Math.round(v/1000)+'k':v.toLocaleString(); }
     c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:46px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
     c += '<div style="font-size:11px;font-weight:700;color:'+fg+';">'+d+'</div>';
-    if(hasInv){
-      var amtColor = isSel?'white':(dayUnpaid>0?'#F04438':'#027A48');
-      c += '<div style="font-size:9px;font-weight:700;color:'+amtColor+';line-height:1.2;margin-top:1px;">'+(dayTotal>=10000?Math.round(dayTotal/1000)+'k':dayTotal.toLocaleString())+'</div>';
+    if(hasSale){
+      c += '<div style="font-size:9px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.2;margin-top:1px;">매출 '+_fmt(saleTotal)+'</div>';
+    }
+    if(hasPur){
+      c += '<div style="font-size:9px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.2;margin-top:1px;">매입 '+_fmt(purTotal)+'</div>';
     }
     c += '</div>';
   }
@@ -3567,6 +3574,14 @@ function renderLogiPayment(cont){
   });
   var byDate = {};
   monthInvs.forEach(function(iv){ (byDate[iv.date]=byDate[iv.date]||[]).push(iv); });
+  // 달력용: 탭과 무관하게 그달 매출·매입 모두 (날짜에 색 표시)
+  var calByDate = {};
+  invoices.forEach(function(iv){
+    if(!iv.date) return;
+    var p = iv.date.split('-');
+    if(parseInt(p[0])!==y || parseInt(p[1])!==mo) return;
+    (calByDate[iv.date]=calByDate[iv.date]||[]).push(iv);
+  });
   var sumTotal=0, sumPaid=0;
   monthInvs.forEach(function(iv){ sumTotal+=(Number(iv.total)||0); sumPaid+=invCollected(iv); });
   var sumUnpaid = sumTotal - sumPaid;
@@ -3598,12 +3613,12 @@ function renderLogiPayment(cont){
   h += '<span style="font-size:12px;color:#98A2B3;">'+(logiCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
   h += '</div>';
   if(logiCalOpen){
-    h += '<div style="margin-top:8px;">'+renderLogiCalendar(y, mo, byDate)+'</div>';
+    h += '<div style="margin-top:8px;">'+renderLogiCalendar(y, mo, calByDate)+'</div>';
   }
-  if(logiPaySelDate && byDate[logiPaySelDate]){
+  if(logiPaySelDate && calByDate[logiPaySelDate]){
     h += '<div style="margin-top:14px;">';
     h += '<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:8px;">'+logiPaySelDate+' 거래</div>';
-    byDate[logiPaySelDate].forEach(function(iv){ h += renderLogiInvoiceCard(iv); });
+    calByDate[logiPaySelDate].forEach(function(iv){ h += renderLogiInvoiceCard(iv); });
     h += '</div>';
   } else {
     h += '<div style="margin-top:14px;text-align:center;color:#98A2B3;font-size:12px;padding:20px;">날짜를 선택하면 그날 거래가 표시됩니다.</div>';
@@ -5295,7 +5310,7 @@ function printInvoice(id){
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:12mm;}'
-    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:5mm auto;width:185mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:185mm;max-width:100%;margin-left:5mm;margin-right:auto;}.inv-page{display:block;padding-top:10mm;}.inv-top{height:131.5mm;box-sizing:border-box;overflow:hidden;}.inv-cut{width:185mm;margin:0 auto 0 5mm;}.inv-wrap{margin:0;width:100%;display:block;}}'
+    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{border-top:1px dashed #888;margin:5mm auto;width:185mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:185mm;max-width:100%;margin-left:5mm;margin-right:auto;}.inv-page{display:block;padding-top:15mm;}.inv-top{height:131.5mm;box-sizing:border-box;overflow:hidden;}.inv-cut{width:185mm;margin:0 auto 0 5mm;}.inv-wrap{margin:0;width:100%;display:block;}}'
     +'.blue.inv-sheet{border-color:#0046C0;}'
     +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
     +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
