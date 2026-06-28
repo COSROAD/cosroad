@@ -508,7 +508,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 80;
+const APP_VERSION = 81;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4924,9 +4924,9 @@ function invoiceVat(){
 function renderInvoice(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
-  var h = '<div style="padding:12px 16px;">';
-  h += '<div style="position:sticky;top:0;z-index:96;background:var(--gray-100);padding-bottom:4px;">';
-  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:8px;">';
+  var h = '<div style="padding:0 16px 12px;">';
+  h += '<div style="position:sticky;top:0;z-index:96;background:var(--gray-100);margin:0 -16px;padding:12px 16px 6px;">';
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
   h += '<div style="font-size:13px;font-weight:800;color:#1D2939;margin-bottom:10px;">🧾 거래명세서 작성</div>';
   h += '<label style="font-size:11px;color:#667085;">거래일자</label>';
   h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="invoiceDate=this.value" style="width:100%;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>';
@@ -5419,7 +5419,15 @@ function savePdfInvoice(id){
   var fname = '거래명세서_'+(cache.name||'')+'_'+(cache.date||'')+'.pdf';
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
-  var doc = '<html><head><meta charset="utf-8"><title>PDF 저장</title>'+cache.css
+  var pdfCss = cache.css + '<style>'
+    + '#pdf-target{width:210mm;background:#fff;margin:0;padding:0;}'
+    + '#pdf-target .inv-page{display:block;padding-top:12.5mm;}'
+    + '#pdf-target .inv-sheet{width:185mm;margin-left:5mm;margin-right:auto;}'
+    + '#pdf-target .inv-top{height:131.5mm;box-sizing:border-box;overflow:hidden;}'
+    + '#pdf-target .inv-cut{width:185mm;margin:0 auto 0 5mm;border:none;}'
+    + '#pdf-target .inv-wrap{margin:0;width:100%;display:block;}'
+    + '</style>';
+  var doc = '<html><head><meta charset="utf-8"><title>PDF 저장</title>'+pdfCss
     + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></scr'+'ipt>'
     + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></scr'+'ipt>'
     + '</head><body>'
