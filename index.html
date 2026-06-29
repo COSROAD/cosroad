@@ -487,7 +487,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -510,10 +510,26 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   Storage.prototype.getItem = function(k){ return _get.call(this, mapKey(k)); };
   Storage.prototype.setItem = function(k,v){ return _set.call(this, mapKey(k), v); };
   Storage.prototype.removeItem = function(k){ return _rem.call(this, mapKey(k)); };
+
+  // ── 일회성 정리: ORG_KEYS 분리 적용 전에 저장된 '옛 키'(org 접미사 없는) 잔재 제거 ──
+  // tkd_invoices, tkd_products 가 예전엔 접미사 없이 저장돼 업종 간 섞임을 유발했음.
+  // 새 키(tkd_invoices__org)는 건드리지 않고, 접미사 없는 옛 키만 원본 함수로 직접 삭제.
+  // Firebase 데이터는 org별로 안전하게 보존돼 있으므로, 옛 로컬 잔재만 비우면 됨.
+  try{
+    var _cleanupFlag = 'cosroad_legacy_cleanup_v1';
+    if(!_get.call(localStorage, _cleanupFlag)){
+      var _legacyKeys = ['tkd_invoices','tkd_products']; // 접미사 없이 잘못 저장됐던 키
+      for(var _li=0; _li<_legacyKeys.length; _li++){
+        // 원본 _rem 사용 → mapKey 거치지 않고 '정확히 그 이름'의 키만 삭제 (새 키는 안전)
+        _rem.call(localStorage, _legacyKeys[_li]);
+      }
+      _set.call(localStorage, _cleanupFlag, '1'); // 다시 실행되지 않도록 표시
+    }
+  }catch(_ce){}
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 92;
+const APP_VERSION = 93;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
