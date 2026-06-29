@@ -513,7 +513,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 91;
+const APP_VERSION = 92;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3082,11 +3082,9 @@ function loadAttendance(){
   return JSON.parse(localStorage.getItem('tkd_attendance')||'{}');
 }
 function saveAttendanceData(data){
+  // 출결 데이터는 전체 영구 보존 (과거 기록 자동삭제 안 함)
+  // Firebase·localStorage 모두 전체 저장하여 잘린 데이터가 서버를 덮어쓰는 사고 방지
   saveToFirebase('attendance',data);
-  var cutoff=new Date();
-  cutoff.setMonth(cutoff.getMonth()-3);
-  var cs=cutoff.toISOString().slice(0,10);
-  Object.keys(data).forEach(function(k){if(k<cs)delete data[k];});
   localStorage.setItem('tkd_attendance',JSON.stringify(data));
 }
 function getAttendanceToday(memberId){
@@ -5960,13 +5958,81 @@ function getUrlBizGroup(){
   return null;
 }
 
+// ===== 데이터 안전장치: 빈 값 덮어쓰기 방지 + 자동 백업(항목당 최근 20개) =====
+var BACKUP_KEEP = 20; // 항목별 보관할 백업 개수
+
+// 데이터가 "비어있는지" 판단 (빈 배열/빈 객체/null)
+function _isEmptyData(d){
+  if(d===null || d===undefined) return true;
+  if(Array.isArray(d)) return d.length===0;
+  if(typeof d==='object') return Object.keys(d).length===0;
+  return false;
+}
+
+// 백업을 남기지 않을 항목 (설정성 데이터는 백업 불필요)
+function _skipBackup(key){
+  return (key==='aligo' || key==='org');
+}
+
+// 서버 현재값을 backups 하위에 복사하고, 오래된 백업 정리
+async function _backupBeforeSave(orgId, key, prevValueStr){
+  try{
+    var { doc, setDoc, collection, getDocs, deleteDoc } = window._firestore;
+    var stamp = Date.now();
+    var backupId = key + '__' + stamp;
+    await setDoc(doc(window._db, 'orgs', orgId, 'backups', backupId), {
+      key: key, value: prevValueStr, backupAt: stamp
+    });
+    // 같은 key의 백업이 BACKUP_KEEP개를 넘으면 오래된 것부터 삭제
+    var snap = await getDocs(collection(window._db, 'orgs', orgId, 'backups'));
+    var mine = [];
+    snap.forEach(function(d){
+      var v = d.data();
+      if(v && v.key===key){ mine.push({ id:d.id, at:(v.backupAt||0) }); }
+    });
+    if(mine.length > BACKUP_KEEP){
+      mine.sort(function(a,b){ return a.at - b.at; }); // 오래된 순
+      var removeCount = mine.length - BACKUP_KEEP;
+      for(var i=0;i<removeCount;i++){
+        try{ await deleteDoc(doc(window._db, 'orgs', orgId, 'backups', mine[i].id)); }catch(_e){}
+      }
+    }
+  } catch(e){ console.log('백업 실패(저장은 계속):', e.message); }
+}
+
 async function saveToFirebase(key, data){
   try{
     if(!window._db || !window._firestore) return;
-    var { doc, setDoc } = window._firestore;
+    var { doc, setDoc, getDoc } = window._firestore;
     // 알리고 설정은 전역 공통(프리존 계정 1개)이라 고정 위치에 저장
     var orgId = (key==='aligo') ? 'cosroad_global' : getFbOrgId();
-    await setDoc(doc(window._db, 'orgs', orgId, 'data', key), { value: JSON.stringify(data), updatedAt: Date.now() });
+    var ref = doc(window._db, 'orgs', orgId, 'data', key);
+
+    // 서버 현재값 읽기 (가드/백업용). 읽기 실패하면 가드 건너뛰고 그냥 저장.
+    var prevSnap = null;
+    try{ prevSnap = await getDoc(ref); }catch(readErr){ prevSnap = null; }
+
+    if(prevSnap && prevSnap.exists()){
+      var prevStr = prevSnap.data().value;
+      var prevData = null;
+      try{ prevData = JSON.parse(prevStr); }catch(_p){ prevData = null; }
+
+      // (1) 빈 값 덮어쓰기 방지: 새 값이 비었는데 서버엔 데이터가 있으면 확인
+      if(_isEmptyData(data) && prevData && !_isEmptyData(prevData)){
+        var ok = window.confirm('⚠️ 주의\n\n['+key+'] 데이터를 전부 비우려고 합니다.\n서버에 저장된 기존 데이터가 모두 사라집니다.\n\n정말 비우시겠습니까?');
+        if(!ok){
+          console.log('빈 값 저장 취소됨:', key);
+          return; // 저장 중단 → 데이터 보존
+        }
+      }
+
+      // (2) 자동 백업: 덮어쓰기 직전 서버값 보관
+      if(!_skipBackup(key) && prevStr){
+        await _backupBeforeSave(orgId, key, prevStr);
+      }
+    }
+
+    await setDoc(ref, { value: JSON.stringify(data), updatedAt: Date.now() });
     console.log('Firebase 저장:', key);
   } catch(e){ console.log('Firebase 저장 실패:', e.message); }
 }
@@ -5996,6 +6062,8 @@ async function syncFromFirebase(){
   var fbNotices = await loadFromFirebase('notices');
   var fbAligo = await loadFromFirebase('aligo');
   var fbDriverAtt = await loadFromFirebase('driverAtt');
+  var fbProducts = await loadFromFirebase('products');
+  var fbInvoices = await loadFromFirebase('invoices');
 
   if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
@@ -6013,6 +6081,8 @@ async function syncFromFirebase(){
   }
   if(fbDriverAtt){ localStorage.setItem('tkd_driver_att', JSON.stringify(fbDriverAtt)); }
   else { localStorage.setItem('tkd_driver_att', '{}'); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
+  if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
+  if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
   var fbDelivDone = await loadFromFirebase('deliveryDone');
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
@@ -6027,7 +6097,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','aligo','driverAtt'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','aligo','driverAtt','products','invoices'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -6047,6 +6117,8 @@ function startFirebaseListeners(){
         ALIGO_SENDER=data.sender||'';
       }
       else if(key==='driverAtt'){ localStorage.setItem('tkd_driver_att',JSON.stringify(data)); }
+      else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
+      else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
       renderByTab();
     });
   });
