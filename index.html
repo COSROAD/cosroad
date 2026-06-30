@@ -529,7 +529,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 96;
+const APP_VERSION = 97;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3636,6 +3636,17 @@ function logiDelPayment(invId, payIdx){
   renderPayment();
 }
 
+// 거래처 id/이름 기반 자동 색상 (수납·세무 달력 공통, 항상 같은 거래처는 같은 색)
+function memberColor(key){
+  var s = String(key||'');
+  var hash = 0;
+  for(var i=0;i<s.length;i++){ hash = (hash*131 + s.charCodeAt(i)*7919) & 0x7fffffff; }
+  // 황금각(137.5°)으로 hue를 분산시켜 연속된 id도 색이 충분히 벌어지게
+  var hue = Math.round((hash * 137.508) % 360);
+  // 가독성을 위해 채도 68%, 명도 40% 고정 (글자색으로 적당히 진하게)
+  return 'hsl('+hue+',68%,40%)';
+}
+
 function renderLogiCalendar(y, mo, byDate){
   var first = new Date(y, mo-1, 1);
   var startDow = first.getDay();
@@ -3650,24 +3661,26 @@ function renderLogiCalendar(y, mo, byDate){
   for(var d=1; d<=daysInMonth; d++){
     var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var invs = byDate[ds]||[];
-    var saleTotal=0, purTotal=0;
-    invs.forEach(function(iv){
-      var amt = Number(iv.total)||0;
-      if((iv.kind||'sale')==='purchase') purTotal+=amt; else saleTotal+=amt;
-    });
-    var hasSale = saleTotal>0, hasPur = purTotal>0;
     var hasInv = invs.length>0;
     var isSel = logiPaySelDate===ds;
     var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
     function _fmt(v){ return Number(v).toLocaleString(); }
-    c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:58px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
-    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
-    if(hasSale){
-      c += '<div style="font-size:11px;font-weight:700;color:'+(isSel?'white':'#1570EF')+';line-height:1.25;margin-top:1px;">매출 '+_fmt(saleTotal)+'</div>';
-    }
-    if(hasPur){
-      c += '<div style="font-size:11px;font-weight:700;color:'+(isSel?'white':'#F04438')+';line-height:1.25;margin-top:1px;">매입 '+_fmt(purTotal)+'</div>';
+    c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:58px;max-height:92px;display:flex;flex-direction:column;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';overflow:hidden;">';
+    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';flex-shrink:0;">'+d+'</div>';
+    if(hasInv){
+      // 거래처별로 줄을 나눠 표시 + 거래처색 + 넘치면 칸 안에서 스크롤
+      c += '<div style="flex:1;overflow-y:auto;min-height:0;">';
+      invs.forEach(function(iv){
+        var amt = Number(iv.total)||0;
+        if(amt<=0) return;
+        var isPur = (iv.kind||'sale')==='purchase';
+        var nm = iv.memberName || '거래처';
+        var clr = isSel ? 'white' : memberColor(iv.memberId!=null?('m'+iv.memberId):nm);
+        var tag = isPur ? '매입' : '매출';
+        c += '<div style="font-size:10px;font-weight:700;color:'+clr+';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeMasterHtml(nm)+' '+tag+' '+_fmt(amt)+'</div>';
+      });
+      c += '</div>';
     }
     c += '</div>';
   }
@@ -4052,6 +4065,51 @@ function removeIncomeByRef(invId, payIdx){
   if(changed) saveTaxData(data);
 }
 
+// 거래명세서 결제내역 중 세무에 누락된 건을 채우는 1회성 동기화
+function syncInvoicesToTax(){
+  var list = loadInvoices();
+  var data = loadTaxData();
+  // 이미 세무에 기록된 (invId, payIdx) 집합 만들기
+  var existing = {};
+  Object.keys(data).forEach(function(key){
+    ['income','expense'].forEach(function(t){
+      (data[key][t]||[]).forEach(function(rec){
+        if(rec.linkInvId!=null && rec.linkPayIdx!=null){
+          existing[rec.linkInvId+'__'+rec.linkPayIdx] = true;
+        }
+      });
+    });
+  });
+  var added = 0;
+  list.forEach(function(iv){
+    if(!iv.payments || iv.payments.length===0) return;
+    iv.payments.forEach(function(p, pi){
+      var refKey = iv.id+'__'+pi;
+      if(existing[refKey]) return; // 이미 세무에 있음 → 건너뜀
+      var amt = Number(p.amount)||0;
+      if(amt<=0) return;
+      var pdate = p.date || iv.date || new Date().toISOString().slice(0,10);
+      var useDate = iv.date || pdate; // 거래일자 기준
+      var td = useDate.split('-');
+      var ty = parseInt(td[0]), tm = parseInt(td[1]);
+      var mname = (iv.memberName||'') + ' (' + (p.method||'현금') + ')';
+      if((iv.kind||'sale')==='purchase'){
+        addExpenseRecord(ty, tm, mname, amt, '매입 대금', {invId:iv.id, payIdx:pi}, null, useDate);
+      } else {
+        addIncomeRecord(ty, tm, mname, amt, '매출 대금', {invId:iv.id, payIdx:pi}, null, useDate);
+      }
+      existing[refKey] = true;
+      added++;
+    });
+  });
+  if(added>0){
+    alert('✅ 누락된 거래 '+added+'건을 세무에 반영했어요.');
+    if(typeof renderTax==='function') renderTax();
+  } else {
+    alert('이미 모든 거래가 세무에 반영되어 있어요.');
+  }
+}
+
 var taxViewYear2 = new Date().getFullYear();
 var taxViewMonth2 = new Date().getMonth()+1;
 var taxTab = 'monthly';
@@ -4067,14 +4125,15 @@ function renderTaxCalendar(y, mo, md){
   var byDate = {};
   (md.income||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).inc+=(Number(r.amount)||0); } });
   (md.expense||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).exp+=(Number(r.amount)||0); } });
-  // 거래명세서에서 날짜별 미수금(매출 미수)·미결제(매입 미지급) 집계
+  // 거래명세서에서 날짜별 미수금(매출 미수)·미결제(매입 미지급) 집계 (거래처별 보관)
   var unpaidByDate = {};
   loadInvoices().forEach(function(iv){
     if(!iv.date) return;
     var u = invUnpaid(iv);
     if(u<=0) return;
-    var o = unpaidByDate[iv.date] = unpaidByDate[iv.date] || {recv:0, pay:0};
+    var o = unpaidByDate[iv.date] = unpaidByDate[iv.date] || {recv:0, pay:0, items:[]};
     if((iv.kind||'sale')==='purchase') o.pay+=u; else o.recv+=u;
+    o.items.push({name:(iv.memberName||'거래처'), mid:iv.memberId, amount:u, pur:(iv.kind||'sale')==='purchase'});
   });
   var startDow = new Date(y, mo-1, 1).getDay();
   var daysInMonth = new Date(y, mo, 0).getDate();
@@ -4094,16 +4153,22 @@ function renderTaxCalendar(y, mo, md){
     // 미수금(받을 돈)=빨강, 미결제(줄 돈)=주황 테두리 강조
     var borderClr = isSel?'#7C3AED':(up&&up.recv>0?'#F04438':(up&&up.pay>0?'#F79009':'#F2F4F7'));
     var borderW = (!isSel && up && (up.recv>0||up.pay>0))?'2px':'1px';
-    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:62px;border:'+borderW+' solid '+borderClr+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
-    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
+    c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:62px;max-height:96px;display:flex;flex-direction:column;border:'+borderW+' solid '+borderClr+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';overflow:hidden;">';
+    c += '<div style="font-size:13px;font-weight:700;color:'+fg+';flex-shrink:0;">'+d+'</div>';
+    c += '<div style="flex:1;overflow-y:auto;min-height:0;">';
     if(rec){
-      if(rec.inc) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.2;">+'+_fmt(rec.inc)+'</div>';
-      if(rec.exp) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">-'+_fmt(rec.exp)+'</div>';
+      if(rec.inc) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.3;">+'+_fmt(rec.inc)+'</div>';
+      if(rec.exp) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.3;">-'+_fmt(rec.exp)+'</div>';
     }
-    if(up){
-      if(up.recv>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">미수'+_fmt(up.recv)+'</div>';
-      if(up.pay>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.2;">미결'+_fmt(up.pay)+'</div>';
+    if(up && up.items){
+      // 거래처별로 줄을 나눠 미수/미결 표시 (거래처색)
+      up.items.forEach(function(it){
+        var clr = isSel ? 'white' : memberColor(it.mid!=null?('m'+it.mid):it.name);
+        var lbl = it.pur ? '미결' : '미수';
+        c += '<div style="font-size:10px;font-weight:700;color:'+clr+';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeMasterHtml(it.name)+' '+lbl+_fmt(it.amount)+'</div>';
+      });
     }
+    c += '</div>';
     c += '</div>';
   }
   c += '</div></div>';
@@ -4215,6 +4280,7 @@ function renderTax(){
 
     // 달력 (토글 막대 + 펼침)
     var _taxBarLabel = taxSelDate ? (taxSelDate+' 선택됨') : '날짜 선택';
+    h += '<button onclick="syncInvoicesToTax()" style="width:100%;padding:10px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔄 거래내역 세무 동기화 (누락분 채우기)</button>';
     h += '<div onclick="taxToggleCal()" style="display:flex;justify-content:space-between;align-items:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px 14px;cursor:pointer;margin-bottom:10px;">';
     h += '<span style="font-size:13px;font-weight:700;color:#344054;">📅 '+_taxBarLabel+'</span>';
     h += '<span style="font-size:12px;color:#98A2B3;">'+(taxCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
@@ -4993,6 +5059,7 @@ var invoiceSelMember = '';
 var invoiceKind = 'sale';
 var invoiceDate = new Date().toISOString().slice(0,10);
 var invEditId = null; // 수정 중인 거래명세서 id (null이면 신규 작성)
+var invHeadCollapsed = false; // 거래명세서 상단 고정 헤더 접힘 여부 (폰 입력 공간 확보용)
 // 거래명세서 저장목록 달력
 var invListCalOpen = false;
 var invListSelDate = null;
@@ -5056,21 +5123,34 @@ function renderInvoice(){
   var h = '<div style="padding:0 16px 12px;">';
   h += '<div style="position:sticky;top:0;z-index:96;background:var(--gray-100);margin:0 -16px;padding:12px 16px 6px;">';
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
-  h += '<div style="font-size:13px;font-weight:800;color:#1D2939;margin-bottom:10px;">🧾 거래명세서 작성</div>';
-  h += '<label style="font-size:11px;color:#667085;">거래일자</label>';
-  h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="invoiceDate=this.value" style="width:100%;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>';
-  h += '<label style="font-size:11px;color:#667085;">거래처 선택</label>';
-  h += '<select id="inv-member" onchange="selectInvoiceMember(this.value)" style="width:100%;padding:10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
-  h += '<option value="">— 거래처를 선택하세요 —</option>';
-  members.forEach(function(m){
-    h += '<option value="'+m.id+'"'+(String(m.id)===String(invoiceSelMember)?' selected':'')+'>'+escapeMasterHtml(m.name)+'</option>';
-  });
-  h += '</select>';
-  h += '<label style="font-size:11px;color:#667085;display:block;margin-top:8px;">구분</label>';
-  h += '<select id="inv-kind" onchange="invoiceKind=this.value;renderInvoice();" style="width:100%;padding:10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;font-weight:700;color:'+(invoiceKind==='purchase'?'#F04438':'#1570EF')+';">';
-  h += '<option value="sale"'+(invoiceKind!=='purchase'?' selected':'')+'>매출 (내가 판매 · 받을 돈)</option>';
-  h += '<option value="purchase"'+(invoiceKind==='purchase'?' selected':'')+'>매입 (내가 구매 · 줄 돈)</option>';
-  h += '</select></div>';
+  var _selM = members.find(function(m){return String(m.id)===String(invoiceSelMember);});
+  var _kindTxt = invoiceKind==='purchase'?'매입':'매출';
+  h += '<div onclick="invHeadCollapsed=!invHeadCollapsed;renderInvoice();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;'+(invHeadCollapsed?'':'margin-bottom:10px;')+'">';
+  if(invHeadCollapsed){
+    h += '<div style="font-size:12px;font-weight:800;color:#1D2939;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🧾 '+invoiceDate+' · '+(_selM?escapeMasterHtml(_selM.name):'거래처 미선택')+' · '+_kindTxt+'</div>';
+    h += '<span style="font-size:11px;color:#7C3AED;font-weight:700;flex-shrink:0;margin-left:8px;">▼ 펼치기</span>';
+  } else {
+    h += '<div style="font-size:13px;font-weight:800;color:#1D2939;">🧾 거래명세서 작성</div>';
+    h += '<span style="font-size:11px;color:#7C3AED;font-weight:700;">▲ 접기</span>';
+  }
+  h += '</div>';
+  if(!invHeadCollapsed){
+    h += '<label style="font-size:11px;color:#667085;">거래일자</label>';
+    h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="invoiceDate=this.value" style="width:100%;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>';
+    h += '<label style="font-size:11px;color:#667085;">거래처 선택</label>';
+    h += '<select id="inv-member" onchange="selectInvoiceMember(this.value)" style="width:100%;padding:10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
+    h += '<option value="">— 거래처를 선택하세요 —</option>';
+    members.forEach(function(m){
+      h += '<option value="'+m.id+'"'+(String(m.id)===String(invoiceSelMember)?' selected':'')+'>'+escapeMasterHtml(m.name)+'</option>';
+    });
+    h += '</select>';
+    h += '<label style="font-size:11px;color:#667085;display:block;margin-top:8px;">구분</label>';
+    h += '<select id="inv-kind" onchange="invoiceKind=this.value;renderInvoice();" style="width:100%;padding:10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;font-weight:700;color:'+(invoiceKind==='purchase'?'#F04438':'#1570EF')+';">';
+    h += '<option value="sale"'+(invoiceKind!=='purchase'?' selected':'')+'>매출 (내가 판매 · 받을 돈)</option>';
+    h += '<option value="purchase"'+(invoiceKind==='purchase'?' selected':'')+'>매입 (내가 구매 · 줄 돈)</option>';
+    h += '</select>';
+  }
+  h += '</div>';
   h += '</div>'; // sticky 헤더 끝
 
   var sel = members.find(function(m){return String(m.id)===String(invoiceSelMember);});
@@ -5100,14 +5180,14 @@ function renderInvoice(){
   invoiceItems.forEach(function(it, idx){
     h += '<div style="border:1px solid #EAECF0;border-radius:9px;padding:8px;margin-bottom:8px;">';
     h += '<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">';
-    h += '<input type="text" placeholder="품명" value="'+escapeMasterHtml(it.name||'')+'" oninput="invoiceItems['+idx+'].name=this.value" style="flex:2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<input type="text" placeholder="규격" value="'+escapeMasterHtml(it.spec||'')+'" oninput="invoiceItems['+idx+'].spec=this.value" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<input type="text" placeholder="단위" value="'+escapeMasterHtml(it.unit||'')+'" oninput="invoiceItems['+idx+'].unit=this.value" style="width:54px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="text" placeholder="품명" value="'+escapeMasterHtml(it.name||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].name=this.value" style="flex:2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="text" placeholder="규격" value="'+escapeMasterHtml(it.spec||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].spec=this.value" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="text" placeholder="단위" value="'+escapeMasterHtml(it.unit||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].unit=this.value" style="width:54px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<button onclick="removeInvoiceItem('+idx+')" style="width:24px;height:24px;border:none;background:#FEF3F2;color:#F04438;border-radius:6px;cursor:pointer;font-size:14px;flex-shrink:0;">×</button>';
     h += '</div>';
     h += '<div style="display:flex;gap:5px;align-items:center;">';
-    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<input type="number" placeholder="단가" value="'+(it.price||'')+'" oninput="invoiceItems['+idx+'].price=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1.4;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="number" placeholder="단가" value="'+(it.price||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].price=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1.4;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<select onchange="invoiceItems['+idx+'].taxType=this.value;renderInvoice()" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;min-width:0;">';
     h += '<option value="add"'+((it.taxType||'add')==='add'?' selected':'')+'>과세(별도)</option>';
     h += '<option value="inc"'+(it.taxType==='inc'?' selected':'')+'>과세(포함)</option>';
@@ -5202,6 +5282,13 @@ function addInvoiceItemFromProduct(prodIdx){
   renderInvoice();
 }
 function removeInvoiceItem(idx){ invoiceItems.splice(idx,1); if(invoiceItems.length===0) invoiceItems=[{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}]; renderInvoice(); }
+
+// 폰에서 입력칸 탭 시 키패드에 가리지 않도록 해당 칸을 화면 가운데로 스크롤
+function invFocusScroll(el){
+  setTimeout(function(){
+    try{ el.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){ try{ el.scrollIntoView(); }catch(e2){} }
+  }, 300);
+}
 
 // 저장된 거래명세서를 작성 폼으로 불러와 수정 시작
 function startEditInvoice(id){
