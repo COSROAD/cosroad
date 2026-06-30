@@ -529,7 +529,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 98;
+const APP_VERSION = 99;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3648,9 +3648,9 @@ function logiCollect(invId){
     var _ty = parseInt(_td[0]), _tm = parseInt(_td[1]);
     var mname = (iv.memberName||'')+' ('+method+')';
     if(isPur){
-      addExpenseRecord(_ty, _tm, mname, put, '매입 대금', {invId:iv.id, payIdx:pi}, null, iv.date||pdate);
+      addExpenseRecord(_ty, _tm, mname, put, '매입 대금', {invId:iv.id, payIdx:pi, memberId:memberId}, null, iv.date||pdate);
     } else {
-      addIncomeRecord(_ty, _tm, mname, put, '매출 대금', {invId:iv.id, payIdx:pi}, null, iv.date||pdate);
+      addIncomeRecord(_ty, _tm, mname, put, '매출 대금', {invId:iv.id, payIdx:pi, memberId:memberId}, null, iv.date||pdate);
     }
     remain -= put;
     distributed += put;
@@ -3663,9 +3663,9 @@ function logiCollect(invId){
     var _bd = (baseIv.date||pdate).split('-');
     var mname2 = (baseIv.memberName||'')+' ('+method+')';
     if(isPur){
-      addExpenseRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매입 대금', {invId:baseIv.id, payIdx:bpi}, null, baseIv.date||pdate);
+      addExpenseRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매입 대금', {invId:baseIv.id, payIdx:bpi, memberId:memberId}, null, baseIv.date||pdate);
     } else {
-      addIncomeRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매출 대금', {invId:baseIv.id, payIdx:bpi}, null, baseIv.date||pdate);
+      addIncomeRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매출 대금', {invId:baseIv.id, payIdx:bpi, memberId:memberId}, null, baseIv.date||pdate);
     }
     distributed += remain;
   }
@@ -3691,10 +3691,12 @@ function memberColor(key){
   var s = String(key||'');
   var hash = 0;
   for(var i=0;i<s.length;i++){ hash = (hash*131 + s.charCodeAt(i)*7919) & 0x7fffffff; }
-  // 황금각(137.5°)으로 hue를 분산시켜 연속된 id도 색이 충분히 벌어지게
+  // 황금각(137.5°)으로 hue를 분산
   var hue = Math.round((hash * 137.508) % 360);
-  // 가독성을 위해 채도 68%, 명도 40% 고정 (글자색으로 적당히 진하게)
-  return 'hsl('+hue+',68%,40%)';
+  // 채도·명도도 해시로 변화를 줘 인접 거래처가 비슷해 보이지 않게
+  var sat = 62 + (hash % 4)*6;      // 62,68,74,80%
+  var lit = 34 + (Math.floor(hash/7) % 4)*5; // 34,39,44,49%
+  return 'hsl('+hue+','+sat+'%,'+lit+'%)';
 }
 
 function renderLogiCalendar(y, mo, byDate){
@@ -4120,17 +4122,28 @@ function removeIncomeByRef(invId, payIdx){
 function syncInvoicesToTax(){
   var list = loadInvoices();
   var data = loadTaxData();
-  // 이미 세무에 기록된 (invId, payIdx) 집합 만들기
+  // 거래명세서 id → 거래처 id 매핑 (linkMemberId 보정용)
+  var invMember = {};
+  list.forEach(function(iv){ invMember[iv.id] = iv.memberId; });
+  // 이미 세무에 기록된 (invId, payIdx) 집합 + 기존 기록의 누락된 거래처 id 보정
   var existing = {};
+  var fixed = 0;
   Object.keys(data).forEach(function(key){
     ['income','expense'].forEach(function(t){
       (data[key][t]||[]).forEach(function(rec){
         if(rec.linkInvId!=null && rec.linkPayIdx!=null){
           existing[rec.linkInvId+'__'+rec.linkPayIdx] = true;
+          // 거래명세서와 연결됐는데 거래처 id가 없으면 채워줌 (수납·세무 색 일치)
+          if((rec.linkMemberId==null) && invMember[rec.linkInvId]!=null){
+            rec.linkMemberId = invMember[rec.linkInvId];
+            fixed++;
+          }
         }
       });
     });
   });
+  if(fixed>0) saveTaxData(data);
+
   var added = 0;
   list.forEach(function(iv){
     if(!iv.payments || iv.payments.length===0) return;
@@ -4145,16 +4158,20 @@ function syncInvoicesToTax(){
       var ty = parseInt(td[0]), tm = parseInt(td[1]);
       var mname = (iv.memberName||'') + ' (' + (p.method||'현금') + ')';
       if((iv.kind||'sale')==='purchase'){
-        addExpenseRecord(ty, tm, mname, amt, '매입 대금', {invId:iv.id, payIdx:pi}, null, useDate);
+        addExpenseRecord(ty, tm, mname, amt, '매입 대금', {invId:iv.id, payIdx:pi, memberId:iv.memberId}, null, useDate);
       } else {
-        addIncomeRecord(ty, tm, mname, amt, '매출 대금', {invId:iv.id, payIdx:pi}, null, useDate);
+        addIncomeRecord(ty, tm, mname, amt, '매출 대금', {invId:iv.id, payIdx:pi, memberId:iv.memberId}, null, useDate);
       }
       existing[refKey] = true;
       added++;
     });
   });
-  if(added>0){
-    alert('✅ 누락된 거래 '+added+'건을 세무에 반영했어요.');
+
+  var msgs = [];
+  if(added>0) msgs.push('누락된 거래 '+added+'건 반영');
+  if(fixed>0) msgs.push('거래처 색 정보 '+fixed+'건 보정');
+  if(msgs.length>0){
+    alert('✅ '+msgs.join(', ')+'했어요.');
     if(typeof renderTax==='function') renderTax();
   } else {
     alert('이미 모든 거래가 세무에 반영되어 있어요.');
@@ -4330,7 +4347,7 @@ function renderTax(){
     h += '</select>';
     h += '<input list="tax-category-list" id="tax-name" placeholder="항목명" style="flex:1 1 120px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '<datalist id="tax-category-list"><option>수강료</option><option>등록비</option><option>기타수입</option><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
-    h += '<input type="number" id="tax-amount" placeholder="금액" style="flex:1 1 90px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
+    h += '<input type="text" inputmode="numeric" id="tax-amount" placeholder="금액" oninput="fmtAmountInput(this)" style="flex:1 1 90px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '</div>';
     h += '<div style="display:flex;gap:6px;">';
     h += '<select id="tax-method" style="flex:1;padding:8px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
@@ -4498,7 +4515,7 @@ function addTaxRecordUnified(){
   if(!typeEl || !nameEl || !amountEl) return;
   var type = typeEl.value;
   var name = nameEl.value.trim();
-  var amount = parseInt(amountEl.value) || 0;
+  var amount = parseInt((amountEl.value||'').replace(/[^0-9]/g,'')) || 0;
   var method = methodEl ? methodEl.value : '';
   if(!name || !amount){ showToast('⚠ 항목명과 금액을 입력해주세요'); return; }
   var data = loadTaxData();
@@ -5120,6 +5137,14 @@ var invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
 var invoiceSelMember = '';
 var invoiceKind = 'sale';
 var invoiceDate = new Date().toISOString().slice(0,10);
+// 거래일자 하루씩 이동 (근태관리 방식)
+function moveInvoiceDate(delta){
+  var d = new Date(invoiceDate+'T00:00:00');
+  d.setDate(d.getDate()+delta);
+  invoiceDate = d.toISOString().slice(0,10);
+  renderInvoice();
+}
+function setInvoiceDate(v){ if(v){ invoiceDate=v; renderInvoice(); } }
 var invEditId = null; // 수정 중인 거래명세서 id (null이면 신규 작성)
 var invHeadCollapsed = false; // 거래명세서 상단 고정 헤더 접힘 여부 (폰 입력 공간 확보용)
 // 거래명세서 저장목록 달력
@@ -5198,7 +5223,11 @@ function renderInvoice(){
   h += '</div>';
   if(!invHeadCollapsed){
     h += '<label style="font-size:11px;color:#667085;">거래일자</label>';
-    h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="invoiceDate=this.value" style="width:100%;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+    h += '<button onclick="moveInvoiceDate(-1)" style="padding:9px 13px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;flex-shrink:0;">◀</button>';
+    h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="setInvoiceDate(this.value)" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;min-width:0;text-align:center;"/>';
+    h += '<button onclick="moveInvoiceDate(1)" style="padding:9px 13px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;flex-shrink:0;">▶</button>';
+    h += '</div>';
     h += '<label style="font-size:11px;color:#667085;">거래처 선택</label>';
     h += '<select id="inv-member" onchange="selectInvoiceMember(this.value)" style="width:100%;padding:10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
     h += '<option value="">— 거래처를 선택하세요 —</option>';
@@ -5249,7 +5278,7 @@ function renderInvoice(){
     h += '</div>';
     h += '<div style="display:flex;gap:5px;align-items:center;">';
     h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<input type="number" placeholder="단가" value="'+(it.price||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].price=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1.4;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="text" inputmode="numeric" placeholder="단가" value="'+(it.price?Number(it.price).toLocaleString():'')+'" onfocus="invFocusScroll(this)" oninput="fmtAmountInput(this);invoiceItems['+idx+'].price=parseInt(this.value.replace(/[^0-9]/g,\'\'))||0;refreshInvoiceCalc()" style="flex:1.4;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<select onchange="invoiceItems['+idx+'].taxType=this.value;renderInvoice()" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;min-width:0;">';
     h += '<option value="add"'+((it.taxType||'add')==='add'?' selected':'')+'>과세(별도)</option>';
     h += '<option value="inc"'+(it.taxType==='inc'?' selected':'')+'>과세(포함)</option>';
@@ -5397,7 +5426,7 @@ function openProductManager(){
     +'</div>'
     +'<div style="display:flex;gap:5px;margin-bottom:12px;">'
     +'<input id="prod-unit" type="text" placeholder="단위(EA)" style="width:70px;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
-    +'<input id="prod-price" type="number" placeholder="단가" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
+    +'<input id="prod-price" type="text" inputmode="numeric" placeholder="단가" oninput="fmtAmountInput(this)" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
     +'<button onclick="addProduct()" style="padding:9px 14px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">추가</button>'
     +'</div>'
     +'<div style="display:flex;gap:6px;margin-bottom:12px;">'
@@ -5418,7 +5447,7 @@ function openProductManager(){
           +'</div>'
           +'<div style="display:flex;gap:5px;">'
           +'<input id="ped-unit-'+idx+'" type="text" placeholder="단위" value="'+escapeMasterHtml(p.unit||'')+'" style="width:64px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
-          +'<input id="ped-price-'+idx+'" type="number" placeholder="단가" value="'+(Number(p.price)||0)+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'<input id="ped-price-'+idx+'" type="text" inputmode="numeric" placeholder="단가" value="'+(Number(p.price)||0).toLocaleString()+'" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
           +'<button onclick="saveProductEdit('+idx+')" style="padding:8px 14px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">수정</button>'
           +'<button onclick="prodEditIdx=null;openProductManager();" style="padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">취소</button>'
           +'</div></div>';
@@ -5442,7 +5471,7 @@ function addProduct(){
   var name=document.getElementById('prod-name').value.trim();
   var spec=document.getElementById('prod-spec').value.trim();
   var unit=document.getElementById('prod-unit').value.trim();
-  var price=Number(document.getElementById('prod-price').value)||0;
+  var price=Number((document.getElementById('prod-price').value||'').replace(/[^0-9]/g,''))||0;
   if(!name){ alert('품명을 입력해주세요.'); return; }
   var list=loadProducts();
   list.push({name:name, spec:spec, unit:unit, price:price});
@@ -5464,7 +5493,7 @@ function saveProductEdit(idx){
   list[idx].name = name;
   list[idx].spec = (document.getElementById('ped-spec-'+idx).value||'').trim();
   list[idx].unit = (document.getElementById('ped-unit-'+idx).value||'').trim();
-  list[idx].price = Number(document.getElementById('ped-price-'+idx).value)||0;
+  list[idx].price = Number((document.getElementById('ped-price-'+idx).value||'').replace(/[^0-9]/g,''))||0;
   saveProducts(list);
   prodEditIdx=null;
   openProductManager();
