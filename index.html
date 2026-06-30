@@ -529,7 +529,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 93;
+const APP_VERSION = 94;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3657,7 +3657,7 @@ function renderLogiCalendar(y, mo, byDate){
     var isSel = logiPaySelDate===ds;
     var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
-    function _fmt(v){ return v>=10000?Math.round(v/1000)+'k':v.toLocaleString(); }
+    function _fmt(v){ return Number(v).toLocaleString(); }
     c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:58px;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
     c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
     if(hasSale){
@@ -4093,12 +4093,12 @@ function renderTaxCalendar(y, mo, md){
     c += '<div onclick="taxSelectDate(\''+ds+'\')" style="min-height:62px;border:'+borderW+' solid '+borderClr+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';">';
     c += '<div style="font-size:13px;font-weight:700;color:'+fg+';">'+d+'</div>';
     if(rec){
-      if(rec.inc) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.2;">+'+(rec.inc>=10000?Math.round(rec.inc/1000)+'k':rec.inc)+'</div>';
-      if(rec.exp) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">-'+(rec.exp>=10000?Math.round(rec.exp/1000)+'k':rec.exp)+'</div>';
+      if(rec.inc) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.2;">+'+_fmt(rec.inc)+'</div>';
+      if(rec.exp) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">-'+_fmt(rec.exp)+'</div>';
     }
     if(up){
-      if(up.recv>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">미수'+(up.recv>=10000?Math.round(up.recv/1000)+'k':up.recv)+'</div>';
-      if(up.pay>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.2;">미결'+(up.pay>=10000?Math.round(up.pay/1000)+'k':up.pay)+'</div>';
+      if(up.recv>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FECDCA':'#F04438')+';line-height:1.2;">미수'+_fmt(up.recv)+'</div>';
+      if(up.pay>0) c += '<div style="font-size:10px;font-weight:700;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.2;">미결'+_fmt(up.pay)+'</div>';
     }
     c += '</div>';
   }
@@ -5432,7 +5432,7 @@ function printInvoice(id){
       var _p=itemAmounts(it);
       var amt=_p.supply;
       var iv=_p.vat;
-      rowsHtml += '<tr><td>'+(i+1)+'</td><td class="lft">'+esc(it.name)+(it.spec?' '+esc(it.spec):'')+'</td><td>'+esc(it.unit||'')+'</td><td class="rgt">'+(Number(it.qty)||0).toLocaleString()+'</td><td class="rgt">'+(Number(it.price)||0).toLocaleString()+'</td><td class="rgt">'+amt.toLocaleString()+'</td><td class="rgt">'+iv.toLocaleString()+'</td></tr>';
+      rowsHtml += '<tr><td>'+(i+1)+'</td><td class="lft"><span class="fitspan">'+esc(it.name)+(it.spec?' '+esc(it.spec):'')+'</span></td><td><span class="fitspan">'+esc(it.unit||'')+'</span></td><td class="rgt"><span class="fitspan">'+(Number(it.qty)||0).toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+(Number(it.price)||0).toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+amt.toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+iv.toLocaleString()+'</span></td></tr>';
     } else {
       rowsHtml += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
     }
@@ -5453,7 +5453,7 @@ function printInvoice(id){
       +'<tr><td class="k">주소</td><td colspan="3">'+esc(sel.location||'')+'</td></tr>'
       +'<tr><td class="k">업태</td><td>'+esc(sel.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(sel.bizItem||'')+'</td></tr></table></td>'
       +'</tr></table>'
-      +'<table class="inv-items"><thead><tr><th>No</th><th>품명 · 규격</th><th>단위</th><th>수량</th><th>단가</th><th>공급가액</th><th>세액</th></tr></thead>'
+      +'<table class="inv-items"><colgroup><col class="c-no"><col class="c-nm"><col class="c-un"><col class="c-qt"><col class="c-pr"><col class="c-am"><col class="c-vt"></colgroup><thead><tr><th>No</th><th>품명 · 규격</th><th>단위</th><th>수량</th><th>단가</th><th>공급가액</th><th>세액</th></tr></thead>'
       +'<tbody>'+rowsHtml+'</tbody>'
       +'<tfoot><tr><td colspan="5" class="rgt">합계</td><td class="rgt">'+supply.toLocaleString()+'</td><td class="rgt">'+vat.toLocaleString()+'</td></tr></tfoot></table>'
       +'<div class="inv-foot"><div>거래해 주셔서 감사합니다.</div><div class="inv-grand">합계금액 : '+grand.toLocaleString()+' 원</div></div>'
@@ -5485,9 +5485,12 @@ function printInvoice(id){
     +'.pin td{border:1px solid #E59;padding:3px 5px;}'
     +'.pin .k{background:#FFF0F0;color:#C00;font-weight:700;width:48px;white-space:nowrap;}'
     +'.pin .ctr{text-align:center;font-weight:700;font-size:13px;}'
-    +'.inv-items{width:100%;border-collapse:collapse;font-size:12px;margin-top:-1px;}'
+    +'.inv-items{width:100%;border-collapse:collapse;font-size:12px;margin-top:-1px;table-layout:fixed;}'
+    +'.inv-items col.c-no{width:7%;} .inv-items col.c-nm{width:33%;} .inv-items col.c-un{width:9%;} .inv-items col.c-qt{width:12%;} .inv-items col.c-pr{width:13%;} .inv-items col.c-am{width:14%;} .inv-items col.c-vt{width:12%;}'
     +'.inv-items th{border:1px solid #C00;background:#FFF0F0;color:#C00;padding:4px;}'
-    +'.inv-items td{border:1px solid #E59;padding:1px 5px;height:11px;}'
+    +'.inv-items td{border:1px solid #E59;padding:1px 5px;height:16px;line-height:14px;white-space:nowrap;overflow:hidden;}'
+    +'.inv-items td .fitspan{display:inline-block;max-width:100%;overflow:hidden;text-overflow:clip;transform-origin:left center;white-space:nowrap;}'
+    +'.inv-items td.rgt .fitspan{transform-origin:right center;}'
     +'.inv-items .lft{text-align:left;} .inv-items .rgt{text-align:right;}'
     +'.inv-items td:not(.lft):not(.rgt){text-align:center;}'
     +'.inv-items tfoot td{border:1px solid #C00;font-weight:700;background:#FFF8F8;}'
@@ -5529,9 +5532,11 @@ function printInvoice(id){
     + '</div>';
   var spacer = '<div class="no-print" style="height:48px;"></div>';
   var hideStyle = '<style>@media print{.no-print{display:none !important;}}</style>';
+  var fitScript = '<script>(function(){function fit(){var cells=document.querySelectorAll(".inv-items td .fitspan");for(var i=0;i<cells.length;i++){var sp=cells[i];sp.style.transform="";var td=sp.parentNode;var avail=td.clientWidth-10;var w=sp.scrollWidth;if(w>avail&&avail>0){var s=avail/w;if(s<0.5)s=0.5;sp.style.transform="scaleX("+s+")";}}}function run(){fit();}if(document.readyState!=="loading"){setTimeout(run,30);}else{document.addEventListener("DOMContentLoaded",run);}window.addEventListener("beforeprint",fit);})();<\/script>';
   w.document.write('<html><head><title>거래명세서</title>'+css+hideStyle+'</head><body>'
     + topbar + spacer
     + bodyHtml
+    + fitScript
     + '</body></html>');
   w.document.close();
 }
