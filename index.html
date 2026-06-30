@@ -529,7 +529,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 94;
+const APP_VERSION = 95;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3581,8 +3581,11 @@ function renderLogiInvoiceCard(iv){
     c += '</div>';
   }
   if(unpaid>0){
+    // 입력칸 자동값 = 이 거래처의 누적 미지급(매입)/미수(매출) 잔액 (다른 거래처는 섞이지 않음)
+    var prefill = isPur ? purU : saleU;
+    if(prefill<=0) prefill = unpaid;
     c += '<div style="display:flex;gap:5px;align-items:center;">';
-    c += '<input type="number" id="lcoll-'+iv.id+'" value="'+unpaid+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    c += '<input type="number" id="lcoll-'+iv.id+'" value="'+prefill+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     c += '<select id="lmeth-'+iv.id+'" style="width:70px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;"><option>현금</option><option>계좌이체</option><option>카드</option><option>기타</option></select>';
     c += '<button onclick="logiCollect(\''+iv.id+'\')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">'+wColl+'</button>';
     c += '</div>';
@@ -4060,6 +4063,7 @@ function taxToggleCal(){ taxCalOpen = !taxCalOpen; renderTax(); }
 function taxSelectDate(d){ taxSelDate = (taxSelDate===d)?null:d; taxCalOpen=false; renderTax(); }
 // 세무 달력: 날짜별 수입·지출 합계 표시
 function renderTaxCalendar(y, mo, md){
+  function _fmt(v){ return Number(v).toLocaleString(); }
   var byDate = {};
   (md.income||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).inc+=(Number(r.amount)||0); } });
   (md.expense||[]).forEach(function(r){ var d=r.date||(''); if(d){ (byDate[d]=byDate[d]||{inc:0,exp:0}).exp+=(Number(r.amount)||0); } });
