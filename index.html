@@ -529,7 +529,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 95;
+const APP_VERSION = 96;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4992,6 +4992,7 @@ var invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
 var invoiceSelMember = '';
 var invoiceKind = 'sale';
 var invoiceDate = new Date().toISOString().slice(0,10);
+var invEditId = null; // 수정 중인 거래명세서 id (null이면 신규 작성)
 // 거래명세서 저장목록 달력
 var invListCalOpen = false;
 var invListSelDate = null;
@@ -5097,24 +5098,21 @@ function renderInvoice(){
     h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">품목 관리에서 품목을 먼저 등록하면 골라서 추가할 수 있어요.</div>';
   }
   invoiceItems.forEach(function(it, idx){
-    var amt = (Number(it.qty)||0)*(Number(it.price)||0);
     h += '<div style="border:1px solid #EAECF0;border-radius:9px;padding:8px;margin-bottom:8px;">';
     h += '<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">';
     h += '<input type="text" placeholder="품명" value="'+escapeMasterHtml(it.name||'')+'" oninput="invoiceItems['+idx+'].name=this.value" style="flex:2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<input type="text" placeholder="규격" value="'+escapeMasterHtml(it.spec||'')+'" oninput="invoiceItems['+idx+'].spec=this.value" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="text" placeholder="단위" value="'+escapeMasterHtml(it.unit||'')+'" oninput="invoiceItems['+idx+'].unit=this.value" style="width:54px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<button onclick="removeInvoiceItem('+idx+')" style="width:24px;height:24px;border:none;background:#FEF3F2;color:#F04438;border-radius:6px;cursor:pointer;font-size:14px;flex-shrink:0;">×</button>';
     h += '</div>';
     h += '<div style="display:flex;gap:5px;align-items:center;">';
-    h += '<input type="text" placeholder="단위" value="'+escapeMasterHtml(it.unit||'')+'" oninput="invoiceItems['+idx+'].unit=this.value" style="width:42px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="width:46px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;"/>';
-    h += '<input type="number" placeholder="단가" value="'+(it.price||'')+'" oninput="invoiceItems['+idx+'].price=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
-    var _ia = itemAmounts(it);
-    h += '<select onchange="invoiceItems['+idx+'].taxType=this.value;renderInvoice()" style="width:90px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;">';
+    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="number" placeholder="단가" value="'+(it.price||'')+'" oninput="invoiceItems['+idx+'].price=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1.4;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<select onchange="invoiceItems['+idx+'].taxType=this.value;renderInvoice()" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;min-width:0;">';
     h += '<option value="add"'+((it.taxType||'add')==='add'?' selected':'')+'>과세(별도)</option>';
     h += '<option value="inc"'+(it.taxType==='inc'?' selected':'')+'>과세(포함)</option>';
     h += '<option value="free"'+(it.taxType==='free'?' selected':'')+'>면세</option>';
     h += '</select>';
-    h += '<div class="inv-amt" data-idx="'+idx+'" style="width:64px;text-align:right;font-size:12px;font-weight:700;color:#1D2939;">'+_ia.supply.toLocaleString()+'</div>';
     h += '</div>';
     h += '</div>';
   });
@@ -5128,7 +5126,13 @@ function renderInvoice(){
   h += '<div style="display:flex;justify-content:space-between;font-size:13px;color:#475467;margin-bottom:8px;"><span>세액</span><span id="inv-vat" style="font-weight:700;">'+vat.toLocaleString()+'원</span></div>';
   h += '<div style="display:flex;justify-content:space-between;font-size:15px;color:#7C3AED;border-top:1px solid #EAECF0;padding-top:8px;"><span style="font-weight:800;">합계</span><span id="inv-total" style="font-weight:800;">'+(supply+vat).toLocaleString()+'원</span></div>';
   h += '</div>';
-  h += '<button onclick="saveInvoice()" style="width:100%;padding:13px;background:#12B76A;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;">💾 거래명세서 저장</button>';
+  if(invEditId){
+    h += '<div style="background:#F3EEFF;border:1px solid #DDD6FE;border-radius:8px;padding:8px 12px;margin-top:12px;font-size:12px;color:#7C3AED;font-weight:700;">✏ 수정 중인 거래명세서입니다.</div>';
+    h += '<button onclick="saveInvoice()" style="width:100%;padding:13px;background:#7C3AED;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;">✏ 수정 저장</button>';
+    h += '<button onclick="cancelEditInvoice()" style="width:100%;padding:11px;background:#F2F4F7;color:#667085;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;">수정 취소</button>';
+  } else {
+    h += '<button onclick="saveInvoice()" style="width:100%;padding:13px;background:#12B76A;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;">💾 거래명세서 저장</button>';
+  }
 
   var savedAll = loadInvoices();
   var invByDate = {};
@@ -5166,6 +5170,7 @@ function renderInvoice(){
       if((inv.kind||'sale')!=='purchase'){
         h += '<button onclick="printInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🖨 인쇄 / 📄 PDF</button>';
       }
+      h += '<button onclick="startEditInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">✏ 수정</button>';
       h += '<button onclick="deleteInvoice(\''+inv.id+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:700;">삭제</button>';
       h += '</div>';
       h += '</div>';
@@ -5177,11 +5182,6 @@ function renderInvoice(){
 }
 
 function refreshInvoiceCalc(){
-  document.querySelectorAll('.inv-amt').forEach(function(el){
-    var idx=Number(el.getAttribute('data-idx'));
-    var it=invoiceItems[idx];
-    if(it){ el.textContent=itemAmounts(it).supply.toLocaleString(); }
-  });
   var supply=invoiceTotal();
   var vat=invoiceVat();
   var sEl=document.getElementById('inv-supply'); if(sEl) sEl.textContent=supply.toLocaleString()+'원';
@@ -5203,10 +5203,35 @@ function addInvoiceItemFromProduct(prodIdx){
 }
 function removeInvoiceItem(idx){ invoiceItems.splice(idx,1); if(invoiceItems.length===0) invoiceItems=[{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}]; renderInvoice(); }
 
+// 저장된 거래명세서를 작성 폼으로 불러와 수정 시작
+function startEditInvoice(id){
+  var inv = loadInvoices().find(function(x){ return x.id===id; });
+  if(!inv){ alert('명세서를 찾을 수 없습니다.'); return; }
+  invEditId = inv.id;
+  invoiceKind = inv.kind || 'sale';
+  invoiceSelMember = inv.memberId;
+  invoiceDate = inv.date;
+  invoiceItems = (inv.items||[]).map(function(it){
+    return {name:it.name||'', spec:it.spec||'', unit:it.unit||'', qty:Number(it.qty)||0, price:Number(it.price)||0, taxType:it.taxType||'add'};
+  });
+  if(invoiceItems.length===0) invoiceItems=[{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
+  renderInvoice();
+  try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
+}
+function cancelEditInvoice(){
+  invEditId = null;
+  invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
+  invoiceSelMember = '';
+  invoiceKind = 'sale';
+  invoiceDate = new Date().toISOString().slice(0,10);
+  renderInvoice();
+}
+
 // ── 품목 리스트 ──
 function loadProducts(){
   try{ return JSON.parse(localStorage.getItem('tkd_products')||'[]'); }catch(e){ return []; }
 }
+var prodEditIdx = null; // 품목 관리에서 인라인 편집 중인 항목 index (null이면 없음)
 function saveProducts(list){
   localStorage.setItem('tkd_products', JSON.stringify(list));
   saveToFirebase('products', list);
@@ -5235,15 +5260,31 @@ function openProductManager(){
   else {
     list.forEach(function(p, idx){
       var specUnit = [p.spec, p.unit].filter(function(x){return x;}).join(' · ');
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #EAECF0;border-radius:8px;margin-bottom:5px;">'
-        +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(p.name)+' <span style="font-size:12px;color:#7C3AED;font-weight:700;">'+(Number(p.price)||0).toLocaleString()+'원</span></div>'
-        +(specUnit?'<div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(specUnit)+'</div>':'')+'</div>'
-        +'<button onclick="removeProduct('+idx+')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;margin-left:6px;">삭제</button>'
-        +'</div>';
+      if(prodEditIdx===idx){
+        // 편집 모드: 입력칸 + 수정 버튼
+        html += '<div style="border:1px solid #DDD6FE;background:#FAF8FF;border-radius:8px;padding:9px;margin-bottom:5px;">'
+          +'<div style="display:flex;gap:5px;margin-bottom:5px;">'
+          +'<input id="ped-name-'+idx+'" type="text" placeholder="품명" value="'+escapeMasterHtml(p.name||'')+'" style="flex:2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'<input id="ped-spec-'+idx+'" type="text" placeholder="규격" value="'+escapeMasterHtml(p.spec||'')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'</div>'
+          +'<div style="display:flex;gap:5px;">'
+          +'<input id="ped-unit-'+idx+'" type="text" placeholder="단위" value="'+escapeMasterHtml(p.unit||'')+'" style="width:64px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'<input id="ped-price-'+idx+'" type="number" placeholder="단가" value="'+(Number(p.price)||0)+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'<button onclick="saveProductEdit('+idx+')" style="padding:8px 14px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">수정</button>'
+          +'<button onclick="prodEditIdx=null;openProductManager();" style="padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">취소</button>'
+          +'</div></div>';
+      } else {
+        // 읽기 모드: 클릭하면 편집 펼침
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #EAECF0;border-radius:8px;margin-bottom:5px;">'
+          +'<div onclick="prodEditIdx='+idx+';openProductManager();" style="min-width:0;flex:1;cursor:pointer;"><div style="font-size:13px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(p.name)+' <span style="font-size:12px;color:#7C3AED;font-weight:700;">'+(Number(p.price)||0).toLocaleString()+'원</span></div>'
+          +(specUnit?'<div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(specUnit)+'</div>':'')+'</div>'
+          +'<button onclick="removeProduct('+idx+')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;margin-left:6px;">삭제</button>'
+          +'</div>';
+      }
     });
   }
   html += '</div>';
-  html += '<button onclick="document.getElementById(\'prod-modal\').remove();renderInvoice();" style="width:100%;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:12px;">닫기</button>';
+  html += '<button onclick="prodEditIdx=null;document.getElementById(\'prod-modal\').remove();renderInvoice();" style="width:100%;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:12px;">닫기</button>';
   html += '</div></div>';
   var ex=document.getElementById('prod-modal'); if(ex) ex.remove();
   document.body.insertAdjacentHTML('beforeend', html);
@@ -5263,6 +5304,20 @@ function removeProduct(idx){
   var list=loadProducts();
   list.splice(idx,1);
   saveProducts(list);
+  prodEditIdx=null;
+  openProductManager();
+}
+function saveProductEdit(idx){
+  var list=loadProducts();
+  if(!list[idx]){ prodEditIdx=null; openProductManager(); return; }
+  var name=(document.getElementById('ped-name-'+idx).value||'').trim();
+  if(!name){ alert('품명을 입력해주세요.'); return; }
+  list[idx].name = name;
+  list[idx].spec = (document.getElementById('ped-spec-'+idx).value||'').trim();
+  list[idx].unit = (document.getElementById('ped-unit-'+idx).value||'').trim();
+  list[idx].price = Number(document.getElementById('ped-price-'+idx).value)||0;
+  saveProducts(list);
+  prodEditIdx=null;
   openProductManager();
 }
 function pickProduct(idx, prodIdx){
@@ -5336,8 +5391,16 @@ function saveInvoice(){
   var sel = members.find(function(m){return String(m.id)===String(invoiceSelMember);});
   var supply = invoiceTotal();
   var vat = invoiceVat();
+  var list = loadInvoices();
+  var isEdit = false, oldInv = null;
+
+  if(invEditId){
+    oldInv = list.find(function(x){ return x.id===invEditId; });
+    if(oldInv) isEdit = true;
+  }
+
   var inv = {
-    id: 'inv_'+Date.now(),
+    id: isEdit ? oldInv.id : ('inv_'+Date.now()),
     kind: invoiceKind||'sale',
     memberId: invoiceSelMember,
     memberName: sel?sel.name:'',
@@ -5346,12 +5409,31 @@ function saveInvoice(){
     supply: supply,
     vat: vat,
     total: supply+vat,
-    createdAt: Date.now()
+    createdAt: isEdit ? (oldInv.createdAt||Date.now()) : Date.now(),
+    payments: isEdit ? (oldInv.payments||[]) : []
   };
-  var list = loadInvoices();
-  list.unshift(inv);
+
+  if(isEdit){
+    // 기존 청구액(수납) 되돌리기: 옛 거래처/월에서 옛 total 차감
+    try{
+      var od = new Date(oldInv.date);
+      var oyy = od.getFullYear(), omm = od.getMonth()+1;
+      var pdataR = loadPayments();
+      var okey = getPaymentKey(oldInv.memberId, oyy, omm);
+      if(pdataR[okey]){
+        pdataR[okey].amount = Math.max(0, (Number(pdataR[okey].amount)||0) - (oldInv.total||0));
+        savePayments(pdataR);
+      }
+    }catch(e){}
+    // 목록에서 기존 건 교체
+    var ei = list.findIndex(function(x){ return x.id===oldInv.id; });
+    if(ei>=0) list[ei] = inv; else list.unshift(inv);
+  } else {
+    list.unshift(inv);
+  }
   saveInvoicesList(list);
 
+  // 새 청구액(수납) 반영: 새 거래처/월에 새 total 가산
   try{
     var d = new Date(inv.date);
     var yy = d.getFullYear(), mm = d.getMonth()+1;
@@ -5364,7 +5446,8 @@ function saveInvoice(){
 
   invoiceItems = [{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}];
   invoiceSelMember = '';
-  alert('✅ 거래명세서가 저장되었습니다.\n수납관리에 청구액이 반영되었어요.');
+  invEditId = null;
+  alert(isEdit ? '✅ 거래명세서가 수정되었습니다.\n수납 청구액도 갱신되었어요.' : '✅ 거래명세서가 저장되었습니다.\n수납관리에 청구액이 반영되었어요.');
   renderInvoice();
 }
 function deleteInvoice(id){
