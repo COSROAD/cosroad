@@ -504,12 +504,27 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     }
     return key;
   }
+  function isOrgKey(key){
+    if(typeof key!=='string') return false;
+    for(var i=0;i<ORG_KEYS.length;i++){ if(key===ORG_KEYS[i]) return true; }
+    // deliveryDone 류(자체 org 분리)도 데모에선 막음
+    if(key.indexOf('tkd_delivery_done_')===0) return true;
+    return false;
+  }
+  function isDemoOrg(){ var o=curOrgId(); return typeof o==='string' && /_demo$/.test(o); }
   var _get = Storage.prototype.getItem;
   var _set = Storage.prototype.setItem;
   var _rem = Storage.prototype.removeItem;
   Storage.prototype.getItem = function(k){ return _get.call(this, mapKey(k)); };
-  Storage.prototype.setItem = function(k,v){ return _set.call(this, mapKey(k), v); };
-  Storage.prototype.removeItem = function(k){ return _rem.call(this, mapKey(k)); };
+  Storage.prototype.setItem = function(k,v){
+    // 데모(읽기전용): 업종 데이터는 로컬에도 저장 안 함 → 새로고침 시 샘플로 복원, 데이터 안 섞임
+    if(isDemoOrg() && isOrgKey(k)) return;
+    return _set.call(this, mapKey(k), v);
+  };
+  Storage.prototype.removeItem = function(k){
+    if(isDemoOrg() && isOrgKey(k)) return;
+    return _rem.call(this, mapKey(k));
+  };
 
   // ── 일회성 정리: ORG_KEYS 분리 적용 전에 저장된 '옛 키'(org 접미사 없는) 잔재 제거 ──
   // tkd_invoices, tkd_products 가 예전엔 접미사 없이 저장돼 업종 간 섞임을 유발했음.
@@ -529,7 +544,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 103;
+const APP_VERSION = 104;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -621,17 +636,21 @@ function loadCourses(){
     if(localStorage.getItem('tkd_courses')) localStorage.removeItem('tkd_courses');
     return [];
   }
-  return JSON.parse(localStorage.getItem('tkd_courses')||'null')||[
+  return JSON.parse(localStorage.getItem('tkd_courses')||'null')||(function(){
+    if(isDemoMode()){ try{ var _s=getDemoSample(); if(_s.courses) return _s.courses; }catch(e){} }
+    return [
     {id:'c1',name:'3시30분반',depart:'14:15',arrive:'14:50'},
     {id:'c2',name:'5~6시반',depart:'16:50',arrive:'17:00'}
-  ];
+  ];})();
 }
 function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));saveToFirebase('courses',c);}
 let courses=loadCourses();
 
 // ── 차량 설정 ──
 function loadCars(){
-  return JSON.parse(localStorage.getItem('tkd_cars')||'null')||[
+  var _stored=localStorage.getItem('tkd_cars');
+  if(!_stored && isDemoMode()){ try{ var _s=getDemoSample(); if(_s.cars) return _s.cars; }catch(e){} }
+  return JSON.parse(_stored||'null')||[
     {id:'car1',name:'1호차',driver:'',phone:'',plate:'',driverPin:''},
     {id:'car2',name:'2호차',driver:'',phone:'',plate:'',driverPin:''},
     {id:'car3',name:'3호차',driver:'',phone:'',plate:'',driverPin:''},
@@ -760,6 +779,7 @@ let cars=loadCars();
 function loadMembers(){
   const s=localStorage.getItem('tkd_members');
   if(s)return JSON.parse(s);
+  if(isDemoMode()){ try{ return getDemoSample().members||[]; }catch(e){} }
   return [];
 }
 function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);}
@@ -6395,6 +6415,93 @@ function getFbOrgId(){
   return localStorage.getItem('tkd_orgId') || 'cosroad_default';
 }
 
+// ===== 데모(읽기 전용) 모드 판별 =====
+// ?org=..._demo 로 끝나는 데모 계정이면 true. 데모에서는 저장이 차단되어 데이터가 섞이지 않음.
+function isDemoMode(){
+  try{
+    var o = getFbOrgId();
+    return typeof o==='string' && /_demo$/.test(o);
+  }catch(e){ return false; }
+}
+
+// ===== 데모 계정용 샘플 데이터 (업종별) =====
+// 방문자에게 보여줄 깔끔한 예시. 실제 데이터와 무관하게 코드에 내장.
+function getDemoSample(){
+  var biz = getBizType();
+  var DAYS=['월','화','수','목','금'];
+  if(biz==='logistics'){
+    return {
+      orgName:'한빛물류(데모)', destName:'한빛물류센터',
+      courses:[],
+      cars:[
+        {id:'car1',name:'1호차',driver:'김성실',phone:'010-1111-2222',plate:'12가3456',driverPin:'1234'},
+        {id:'car2',name:'2호차',driver:'박근면',phone:'010-3333-4444',plate:'34나5678',driverPin:'5678'}
+      ],
+      members:[
+        {id:1,name:'대성마트',carId:'car1',location:'인천 연수구 컨벤시아대로 100',phone:'032-111-2222',days:DAYS,pin:'',on:true,bizNo:'123-45-67890',ceo:'이대성'},
+        {id:2,name:'행복슈퍼',carId:'car1',location:'인천 남동구 구월로 200',phone:'032-222-3333',days:['월','수','금'],pin:'',on:true,bizNo:'234-56-78901',ceo:'김행복'},
+        {id:3,name:'우리반찬',carId:'car2',location:'인천 미추홀구 인하로 50',phone:'032-333-4444',days:['화','목'],pin:'',on:true,bizNo:'345-67-89012',ceo:'최우리'}
+      ]
+    };
+  }
+  if(biz==='public'){
+    return {
+      orgName:'행복복지센터(데모)', destName:'행복복지센터',
+      courses:[{id:'c1',name:'오전반',depart:'09:00',arrive:'09:40'},{id:'c2',name:'오후반',depart:'13:30',arrive:'14:10'}],
+      cars:[
+        {id:'car1',name:'1호차',driver:'정안전',phone:'010-5555-6666',plate:'56다7890',driverPin:'1111'},
+        {id:'car2',name:'2호차',driver:'한믿음',phone:'010-7777-8888',plate:'78라9012',driverPin:'2222'}
+      ],
+      members:[
+        {id:1,name:'김어르신',courseId:'c1',carId:'car1',location:'인천 연수구 함박뫼로 30',phone:'010-1234-5678',days:DAYS,pin:'',on:true},
+        {id:2,name:'이복지',courseId:'c1',carId:'car1',location:'인천 연수구 청능대로 45',phone:'010-2345-6789',days:['월','수','금'],pin:'',on:true},
+        {id:3,name:'박돌봄',courseId:'c2',carId:'car2',location:'인천 남동구 예술로 12',phone:'010-3456-7890',days:['화','목'],pin:'',on:true}
+      ]
+    };
+  }
+  if(biz==='delivery'){
+    return {
+      orgName:'번개택배(데모)', destName:'번개택배',
+      courses:[],
+      cars:[
+        {id:'car1',name:'1호차',driver:'윤신속',phone:'010-9999-0000',plate:'90마1234',driverPin:'1234'},
+        {id:'car2',name:'2호차',driver:'조정확',phone:'010-1212-3434',plate:'12바5678',driverPin:'5678'}
+      ],
+      members:[
+        {id:1,name:'가정1 (302호)',carId:'car1',location:'인천 연수구 송도과학로 10',phone:'010-1111-1111',days:DAYS,pin:'',on:true},
+        {id:2,name:'가정2 (105호)',carId:'car1',location:'인천 연수구 인천타워대로 20',phone:'010-2222-2222',days:DAYS,pin:'',on:true},
+        {id:3,name:'상가A',carId:'car2',location:'인천 남동구 논현로 33',phone:'010-3333-3333',days:['월','화','수','목','금'],pin:'',on:true},
+        {id:4,name:'상가B',carId:'car2',location:'인천 미추홀구 경인로 77',phone:'010-4444-4444',days:DAYS,pin:'',on:true}
+      ]
+    };
+  }
+  // 기본: 학원
+  return {
+    orgName:'으뜸태권도(데모)', destName:'으뜸태권도장',
+    courses:[{id:'c1',name:'3시30분반',depart:'14:15',arrive:'14:50'},{id:'c2',name:'5~6시반',depart:'16:50',arrive:'17:30'}],
+    cars:[
+      {id:'car1',name:'1호차',driver:'관장님',phone:'010-1111-2222',plate:'12가3456',driverPin:'1234'},
+      {id:'car2',name:'2호차',driver:'사범님',phone:'010-3333-4444',plate:'34나5678',driverPin:'5678'}
+    ],
+    members:[
+      {id:1,name:'김민준',courseId:'c1',carId:'car1',location:'인천 연수구 먼우금로 10',phone:'010-1234-1111',phone2:'010-9999-1111',days:DAYS,regfee:150000,monthly:130000,pin:'1001',on:true},
+      {id:2,name:'이서연',courseId:'c1',carId:'car1',location:'인천 연수구 앵고개로 22',phone:'010-1234-2222',days:['월','수','금'],regfee:150000,monthly:130000,pin:'1002',on:true},
+      {id:3,name:'박도윤',courseId:'c2',carId:'car2',location:'인천 남동구 만수로 33',phone:'010-1234-3333',days:['화','목'],regfee:150000,monthly:130000,pin:'1003',on:true},
+      {id:4,name:'최지우',courseId:'c2',carId:'car2',location:'인천 연수구 비류대로 44',phone:'010-1234-4444',days:DAYS,regfee:150000,monthly:130000,pin:'1004',on:true}
+    ]
+  };
+}
+
+// 데모에서 저장 시도 시 1회 안내 (너무 자주 뜨지 않게 쓰로틀)
+var _demoNoticeAt = 0;
+function demoBlockNotice(){
+  var now = Date.now();
+  if(now - _demoNoticeAt > 4000){
+    _demoNoticeAt = now;
+    try{ showToast('🔒 체험용 데모입니다 — 입력은 저장되지 않아요'); }catch(e){}
+  }
+}
+
 // URL의 ?org=그룹_업체 값을 읽음 (영문/숫자/밑줄만 허용)
 function getUrlOrg(){
   try{
@@ -6460,6 +6567,8 @@ async function _backupBeforeSave(orgId, key, prevValueStr){
 
 async function saveToFirebase(key, data){
   try{
+    // 데모(읽기전용) 모드: 서버 저장 차단 → 방문자끼리 데이터 안 섞임
+    if(isDemoMode()){ demoBlockNotice(); return; }
     if(!window._db || !window._firestore) return;
     var { doc, setDoc, getDoc } = window._firestore;
     // 알리고 설정은 전역 공통(프리존 계정 1개)이라 고정 위치에 저장
