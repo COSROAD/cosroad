@@ -529,7 +529,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 102;
+const APP_VERSION = 103;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5876,14 +5876,18 @@ function printClientRange(){
     // 품목 요약 (첫 품목명 + 외 N건)
     var itemSummary = '';
     if(iv.items && iv.items.length){
-      itemSummary = esc(iv.items[0].name||'');
-      if(iv.items.length>1) itemSummary += ' 외 '+(iv.items.length-1)+'건';
+      itemSummary = iv.items.map(function(it){
+        var nm = esc(it.name||'');
+        if(it.spec) nm += ' '+esc(it.spec);
+        var q = Number(it.qty)||0;
+        return nm + (q?' ×'+q.toLocaleString():'');
+      }).join(', ');
     }
     totSupply+=supply; totVat+=vat; totGrand+=grand; totPaid+=paid;
     sumRows += '<tr>'
       +'<td class="ctr">'+esc(iv.date)+'</td>'
       +'<td class="ctr">'+kindTxt+'</td>'
-      +'<td class="lft">'+itemSummary+'</td>'
+      +'<td class="item">'+itemSummary+'</td>'
       +'<td class="rgt">'+supply.toLocaleString()+'</td>'
       +'<td class="rgt">'+vat.toLocaleString()+'</td>'
       +'<td class="rgt">'+grand.toLocaleString()+'</td>'
@@ -5895,7 +5899,7 @@ function printClientRange(){
     +'<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
     +'<div class="inv-sub">'+esc(sel.name||'')+' · '+esc(startYm)+' ~ '+esc(endYm)+'</div></div>'
     +'<div class="inv-date">공급자 : '+esc(org.name||'')+'　|　거래처 : '+esc(sel.name||'')+'　|　건수 : '+list.length+'건</div>'
-    +'<table class="range-tbl"><thead><tr>'
+    +'<table class="range-tbl"><colgroup><col class="rc-date"><col class="rc-kind"><col class="rc-item"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"></colgroup><thead><tr>'
     +'<th>거래일자</th><th>구분</th><th>품목</th><th>공급가액</th><th>세액</th><th>합계</th><th>수금/결제</th><th>미수/미결</th>'
     +'</tr></thead><tbody>'+sumRows+'</tbody>'
     +'<tfoot><tr><td colspan="3" class="rgt">합 계</td>'
@@ -5946,7 +5950,9 @@ function printClientRange(){
     +'.inv-bal .bv{text-align:left;}.inv-bal .rgt{text-align:right;}'
     // 요약표 전용
     +'.range-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;}'
-    +'.range-tbl th,.range-tbl td{border:1px solid #C00;font-size:11px;padding:4px 5px;text-align:center;overflow:hidden;}'
+    +'.range-tbl th,.range-tbl td{border:1px solid #C00;font-size:11px;padding:4px 5px;text-align:center;overflow:hidden;word-break:break-all;}'
+    +'.range-tbl col.rc-date{width:12%;}.range-tbl col.rc-kind{width:7%;}.range-tbl col.rc-item{width:33%;}.range-tbl col.rc-num{width:12%;}'
+    +'.range-tbl td.item{text-align:left;white-space:normal;line-height:1.4;}'
     +'.range-tbl th{background:#FEF2F2;color:#C00;}'
     +'.range-tbl td.lft{text-align:left;}.range-tbl td.rgt{text-align:right;}'
     +'.range-tbl tfoot td{background:#FFF7F7;font-weight:800;color:#C00;}'
