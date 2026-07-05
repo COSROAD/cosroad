@@ -82,11 +82,18 @@
   .biz-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}
   .biz{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px 22px;transition:transform .14s,box-shadow .14s;}
   .biz:hover{transform:translateY(-4px);box-shadow:var(--shadow);}
-  .biz .ico{width:52px;height:52px;border-radius:14px;background:#FFEAD9;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px;}
+  .biz .ico{width:52px;height:52px;border-radius:14px;background:#FFEAD9;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px;flex:none;}
+  .biz-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;}
+  .biz-head .ico{margin-bottom:0;}
+  .biz-head .biz-tags{margin-bottom:0;flex:1;padding-top:2px;}
   .biz h3{font-size:19px;font-weight:780;margin-bottom:8px;letter-spacing:-.02em;}
   .biz-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
   .biz-tags span{display:inline-block;background:#FFEAD9;color:var(--orange);font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;line-height:1.3;}
   .biz p{font-size:14px;color:var(--ink-soft);}
+  .demo-guide{text-align:center;margin-top:32px;padding:22px;background:#FFF1E7;border-radius:16px;}
+  .demo-guide .sec-tag{display:inline-block;margin-bottom:10px;}
+  .demo-guide-title{font-size:20px;font-weight:800;color:var(--orange);margin-bottom:6px;}
+  .demo-guide-desc{font-size:14px;color:var(--ink-soft);}
   @media(max-width:860px){.biz-grid{grid-template-columns:1fr 1fr;}}
   @media(max-width:460px){.biz-grid{grid-template-columns:1fr;}}
   .feat-band{background:var(--ink);color:#fff;border-radius:28px;padding:56px 44px;}
@@ -306,10 +313,15 @@
       <p class="sec-desc">업종마다 일하는 방식이 다릅니다. COSROAD는 네 가지 업종에 맞춰 화면과 기능을 다르게 제공합니다.</p>
     </div>
     <div class="biz-grid">
-      <a class="biz" href="https://cosroad.com/?org=academy_demo" target="_blank"><div class="ico">🎓</div><h3>학원</h3><div class="biz-tags"><span>태권도</span><span>음악학원</span><span>미술학원</span><span>야구·축구교실</span><span>기타</span></div><p>등·하원 출결, 차량 탑승 확인, 학부모 알림, 픽업 코스 최적화까지 학원 운영에 필요한 모든 것.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=logistics_demo" target="_blank"><div class="ico">🚚</div><h3>물류</h3><div class="biz-tags"><span>소규모 거래처</span><span>일일배송</span><span>고정거래처</span></div><p>배송 코스 최적화, 거래명세서, 수납·세무 관리 원스톱으로 물류 운영을 효율화.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=public_demo" target="_blank"><div class="ico">🏛️</div><h3>공공</h3><div class="biz-tags"><span>복지센터</span><span>문화센터</span><span>요양센터</span><span>재가 돌봄센터</span></div><p>이용자 관리와 차량·기사 근태를 한눈에. 공공 셔틀 운영에 최적화.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=delivery_demo" target="_blank"><div class="ico">📦</div><h3>택배</h3><div class="biz-tags"><span>기사 배송코스 자동배정</span><span>지역 몰라도 코스 자동안내</span><span>일일 기사 채용관리</span></div><p>일일 기사 배송코스를 자동 배정하고, 지역을 몰라도 최적 코스를 안내하는 기사 채용·운영 최적 앱.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=academy_demo" target="_blank"><div class="biz-head"><div class="ico">🎓</div><div class="biz-tags"><span>태권도</span><span>음악학원</span><span>미술학원</span><span>야구·축구교실</span><span>기타</span></div></div><h3>학원</h3><p>등·하원 출결, 차량 탑승 확인, 학부모 알림, 픽업 코스 최적화까지 학원 운영에 필요한 모든 것.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=logistics_demo" target="_blank"><div class="biz-head"><div class="ico">🚚</div><div class="biz-tags"><span>소규모 거래처</span><span>일일배송</span><span>고정거래처</span></div></div><h3>물류</h3><p>배송 코스 최적화, 거래명세서, 수납·세무 관리 원스톱으로 물류 운영을 효율화.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=public_demo" target="_blank"><div class="biz-head"><div class="ico">🏛️</div><div class="biz-tags"><span>복지센터</span><span>문화센터</span><span>요양센터</span><span>재가 돌봄센터</span></div></div><h3>공공</h3><p>이용자 관리와 차량·기사 근태를 한눈에. 공공 셔틀 운영에 최적화.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=delivery_demo" target="_blank"><div class="biz-head"><div class="ico">📦</div><div class="biz-tags"><span>기사 배송코스 자동배정</span><span>지역 몰라도 코스 자동안내</span><span>일일 기사 채용관리</span></div></div><h3>택배</h3><p>일일 기사 배송코스를 자동 배정하고, 지역을 몰라도 최적 코스를 안내하는 기사 채용·운영 최적 앱.</p></a>
+    </div>
+    <div id="demo" class="demo-guide">
+      <div class="sec-tag">데모 체험</div>
+      <p class="demo-guide-title">직접 체험하고 결정하세요</p>
+      <p class="demo-guide-desc">위 업종을 눌러 가입 없이 바로 둘러볼 수 있어요. 실제 화면을 체험용으로 자유롭게 사용해 보세요.</p>
     </div>
   </div>
 </section>
@@ -358,21 +370,7 @@
   </div>
 </section>
 
-<section id="demo" style="padding-top:20px;">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="sec-tag">데모 체험</div>
-      <h2 class="sec-title">직접 써보고 결정하세요</h2>
-      <p class="sec-desc">가입 없이 바로 둘러볼 수 있는 체험용 화면입니다.</p>
-    </div>
-    <div class="biz-grid">
-      <a class="biz" href="https://cosroad.com/?org=academy_demo" target="_blank"><div class="ico">🎓</div><h3>학원 데모 →</h3><p>학원용 화면을 체험해 보세요.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=logistics_demo" target="_blank"><div class="ico">🚚</div><h3>물류 데모 →</h3><p>물류용 화면을 체험해 보세요.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=public_demo" target="_blank"><div class="ico">🏛️</div><h3>공공 데모 →</h3><p>공공용 화면을 체험해 보세요.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=delivery_demo" target="_blank"><div class="ico">📦</div><h3>택배 데모 →</h3><p>택배용 화면을 체험해 보세요.</p></a>
-    </div>
-  </div>
-</section>
+
 
 <section id="apply">
   <div class="wrap">
