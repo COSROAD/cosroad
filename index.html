@@ -549,7 +549,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 110;
+const APP_VERSION = 111;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1088,9 +1088,12 @@ function drawMasterPanel(){
       list.forEach(function(c){
         var url = 'https://cosroad.com/?org='+c.orgId;
         h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px;margin-bottom:6px;">';
-        h += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">';
         h += '<span style="font-size:14px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(c.name)+'</span>';
+        h += '<div style="display:flex;gap:6px;flex-shrink:0;">';
         h += '<button onclick="copyMasterUrl(\''+c.orgId+'\')" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">📋 주소복사</button>';
+        h += '<button onclick="deleteMasterCompany(\''+c.orgId+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">🗑 삭제</button>';
+        h += '</div>';
         h += '</div>';
         h += '<div style="font-size:11px;color:#98A2B3;margin-top:4px;word-break:break-all;">'+url+'</div>';
         h += '</div>';
@@ -1137,6 +1140,16 @@ async function addMasterCompany(){
     alert('이미 같은 주소 ID의 업체가 있습니다.'); return;
   }
   masterCompanies.push({ group:group, name:name, orgId:orgId, createdAt:Date.now() });
+  await saveMasterCompanies();
+  drawMasterPanel();
+}
+
+// 업체 삭제 (addMasterCompany의 반대 동작)
+async function deleteMasterCompany(orgId){
+  var target = masterCompanies.find(function(c){ return c.orgId===orgId; });
+  if(!target){ return; }
+  if(!confirm('"'+ (target.name||orgId) +'" 업체를 삭제할까요?\n삭제하면 목록에서 사라지며 되돌릴 수 없습니다.')){ return; }
+  masterCompanies = masterCompanies.filter(function(c){ return c.orgId!==orgId; });
   await saveMasterCompanies();
   drawMasterPanel();
 }
