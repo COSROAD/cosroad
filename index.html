@@ -549,7 +549,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 106;
+const APP_VERSION = 107;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -857,7 +857,7 @@ function onAdminLoggedIn(){
 }
 
 // 회원가입 모달
-function openSignupModal(){
+function openSignupModal(presetBiz){
   var m=document.getElementById('signup-modal');
   if(m){ m.remove(); }
   var html='<div id="signup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">'
@@ -878,6 +878,11 @@ function openSignupModal(){
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">취소</button>'
     +'</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+  // 업종이 지정되면 미리 선택 (구매하기에서 업종 넘어올 때)
+  if(presetBiz){
+    var sb=document.getElementById('su-biz');
+    if(sb){ try{ sb.value=presetBiz; }catch(e){} }
+  }
 }
 
 function doSignup(){
@@ -902,6 +907,8 @@ function doSignup(){
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
       alert('✅ 가입 신청 완료!\n\n구독료 입금 후 관리자 승인이 완료되면 이용하실 수 있습니다.\n문의: cosroad@cosroad.com');
       var ae=document.getElementById('admin-email'); if(ae) ae.value=email;
+      // 가입 후 홈 화면 추가 안내
+      try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
     })
     .catch(function(e){
       showErr(e.code==='auth/email-already-in-use'?'이미 가입된 이메일입니다.':e.code==='auth/invalid-email'?'이메일 형식이 올바르지 않습니다.':'가입 실패: '+e.message);
@@ -2643,6 +2650,12 @@ function deleteCourse(i){
 // ── 설정 ──
 function renderSettings(){
   return`<div class="setting-section">
+    <div class="setting-card" style="background:linear-gradient(135deg,#F4EBFF,#EEF2FF);border:1px solid #E9D7FE;">
+      <div class="setting-row" style="align-items:center;justify-content:space-between;">
+        <div><div style="font-size:14px;font-weight:800;color:#6941C6;">📲 홈 화면에 추가</div><div style="font-size:12px;color:#7A5AF8;margin-top:2px;">앱처럼 바로 실행하기</div></div>
+        <button onclick="showInstallGuide()" style="padding:9px 16px;background:#7C3AED;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">방법 보기</button>
+      </div>
+    </div>
     <div class="setting-title">사용자 정보</div>
     <div class="setting-card">
       <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
@@ -4812,6 +4825,28 @@ window.addEventListener('load', function(){
     return;
   }
   tryAutoLogin();
+  // ?signup=1 또는 ?signup=업종 이면 회원가입 모달 자동 열기 (구매하기에서 연결)
+  try{
+    var _sp = new URLSearchParams(window.location.search);
+    var _su = _sp.get('signup');
+    if(_su){
+      var _bizMap={academy:'academy',logistics:'logistics',public:'public',delivery:'delivery'};
+      var _presetBiz = _bizMap[_su] || '';
+      setTimeout(function(){ if(typeof openSignupModal==='function') openSignupModal(_presetBiz); }, 600);
+    }
+  }catch(e){}
+  // 데모 계정이면 로그인 화면에서 투어 자동 시작 (로그인 안 된 상태일 때만)
+  try{
+    if(typeof isDemoMode==='function' && isDemoMode()){
+      if(typeof ensureTourButton==='function') ensureTourButton();
+      var _ls=document.getElementById('login-screen');
+      var _loggedIn = _ls && _ls.classList.contains('hide');
+      if(!_loggedIn && !window._demoTourSeen){
+        window._demoTourSeen = true;
+        setTimeout(function(){ if(typeof startDemoTour==='function') startDemoTour(); }, 1000);
+      }
+    }
+  }catch(e){}
 });
 
 
@@ -6516,34 +6551,50 @@ var _tourSteps = [];
 // 업종별 투어 단계 정의
 function getTourSteps(){
   var biz = (typeof getBizType==='function') ? getBizType() : 'academy';
+  // 모든 업종 공통: 로그인 안내 (관리자 진입 전)
+  var loginSteps = [
+    { screen:'login', title:'👋 COSROAD 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 반짝이는 곳을 직접 눌러가며 따라 해보세요.' },
+    { screen:'login', selector:'#admin-pw', title:'① 관리자 로그인', body:'초기 관리자 비밀번호는 "1234" 예요. 반짝이는 칸에 1234를 입력해 보세요. (이메일은 비워도 됩니다)' },
+    { screen:'login', selector:'button[onclick^="loginAdmin"]', title:'② 관리자로 시작', body:'"관리자로 시작" 버튼을 누르면 관리 화면으로 들어가요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true }
+  ];
+  var afterSteps = getBizTourSteps(biz);
+  return loginSteps.concat(afterSteps);
+}
+
+// 업종별 관리자 화면 투어 단계
+function getBizTourSteps(biz){
   if(biz==='logistics'){
     return [
-      { tab:null, title:'👋 COSROAD 물류 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
       { tab:'members', title:'① 거래처 관리', body:'배송 거래처를 등록·관리해요. 거래처별 주소, 연락처, 사업자 정보를 한곳에서 관리합니다.' },
+      { tab:'members', selector:'button[onclick^="openAddModal"]', title:'거래처 등록', body:'"＋ 거래처 등록"을 누르면 새 거래처의 상호·주소·사업자번호를 입력할 수 있어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'cars', title:'② 차량·기사 관리', body:'배송 차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태도 기록됩니다.' },
       { tab:'schedule', title:'③ 배송현황', body:'거래처별 납품 순서와 배송 현황을 한눈에 확인해요. 배송 코스가 자동 최적화됩니다.' },
       { tab:'invoice', title:'④ 거래명세서', body:'거래명세서를 작성하고 거래처별·기간별로 모아 PDF로 출력할 수 있어요. 공급가·세액·미수금이 자동 계산됩니다.' },
+      { tab:'invoice', selector:'button[onclick^="saveInvoice"]', title:'거래명세서 저장', body:'품목을 입력하고 "💾 거래명세서 저장"을 누르면 거래가 기록되고 수납·세무에 자동 반영돼요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'payment', title:'⑤ 수납관리', body:'거래처별 수금·미수 현황을 달력으로 관리해요. 오래된 미수부터 자동 정산됩니다.' },
+      { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'거래처의 "납부처리"를 누르면 수금이 기록되고 미수금이 줄어들어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'tax', title:'⑥ 세무관리', body:'매출·매입 세무 기록을 자동으로 정리해요. 거래명세서와 연동되어 관리가 편합니다.' },
       { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
     ];
   }
   if(biz==='public'){
     return [
-      { tab:null, title:'👋 COSROAD 공공 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
       { tab:'members', title:'① 이용자 관리', body:'복지·문화센터 이용자를 등록·관리해요. 이용자 정보와 탑승 코스를 한곳에서 관리합니다.' },
+      { tab:'members', selector:'button[onclick^="openAddModal"]', title:'이용자 등록', body:'"＋ 이용자 등록"을 누르면 이용자 정보와 탑승 코스를 입력할 수 있어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'attendance', title:'② 출결관리', body:'PIN 체크인으로 이용자 출결을 자동 처리하고, 즉시 보호자에게 알림을 보낼 수 있어요.' },
+      { tab:'attendance', selector:'button[onclick^="openPinCheckin"]', title:'PIN 체크인', body:'"🔢 PIN 체크인 모드 열기"를 누르면 이용자가 PIN으로 출결을 체크해요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'cars', title:'③ 차량/근태관리', body:'차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태가 기록되고 호차별로 이용자를 배정합니다.' },
       { tab:'schedule', title:'④ 스케줄', body:'코스별 출발·도착 시간과 탑승 이용자를 한눈에 확인해요. 셔틀 운행을 체계적으로 관리합니다.' },
       { tab:'payment', title:'⑤ 수납관리', body:'이용료 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
+      { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 이용자의 "납부처리"를 누르면 완납으로 바뀌어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'notice', title:'⑥ 알림장', body:'공지와 알림을 카카오 알림톡·문자로 보호자에게 자동 발송해요.' },
       { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
     ];
   }
   if(biz==='delivery'){
     return [
-      { tab:null, title:'👋 COSROAD 택배 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
       { tab:'members', title:'① 배송지 관리', body:'배송지를 등록·관리해요. 주소와 연락처를 저장하면 배송 코스에 자동 반영됩니다.' },
+      { tab:'members', selector:'button[onclick^="openAddModal"]', title:'배송지 등록', body:'"＋ 배송지 등록"을 누르면 배송지 주소와 연락처를 입력할 수 있어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'cars', title:'② 차량·기사 관리', body:'배송 차량과 기사를 등록해요. 일일 기사 채용·근태 관리도 함께 이뤄집니다.' },
       { tab:'schedule', title:'③ 배송현황', body:'기사별 배송 코스가 자동 배정돼요. 지역을 몰라도 최적 순서로 코스가 안내되고, 배송 완료를 체크할 수 있어요.' },
       { tab:'attendance', title:'④ 근태관리', body:'기사 PIN으로 출퇴근 근태를 기록해요. 일일 기사 운영을 간편하게 관리합니다.' },
@@ -6552,13 +6603,16 @@ function getTourSteps(){
   }
   // 기본: 학원
   return [
-    { tab:null, title:'👋 COSROAD 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
-    { tab:'members', title:'① 회원관리', body:'학생 정보와 코스 배정을 한곳에서 관리해요. 등록·검색·분류가 간편하고, 학부모 연락처와 회비도 함께 관리됩니다.' },
-    { tab:'attendance', title:'② 출결관리', body:'PIN 체크인으로 등·하원 출결을 자동 처리하고, 즉시 학부모에게 알림을 보낼 수 있어요.' },
-    { tab:'cars', title:'③ 차량/근태관리', body:'차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태도 기록되고, 호차별로 학생을 배정합니다.' },
-    { tab:'schedule', title:'④ 스케줄', body:'코스(반)별 출발·도착 시간과 탑승 학생을 한눈에 확인해요. 차량 코스 운행을 체계적으로 관리합니다.' },
-    { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
-    { tab:'notice', title:'⑥ 알림장', body:'공지와 알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 이미지 첨부도 가능합니다.' },
+    { tab:'members', title:'① 회원관리', body:'학생 정보와 코스 배정을 한곳에서 관리해요.' },
+    { tab:'members', selector:'button[onclick^="openEditModal"]', title:'회원 정보 수정', body:'회원 옆 "수정" 버튼을 누르면 이름·연락처·코스·회비를 편집할 수 있어요. 반짝이는 수정 버튼을 눌러보세요.', clickAdvance:true },
+    { tab:'attendance', title:'② 출결관리', body:'등·하원 출결을 PIN으로 자동 처리하고 학부모에게 즉시 알림을 보내요.' },
+    { tab:'attendance', selector:'button[onclick^="openPinCheckin"]', title:'PIN 체크인', body:'"🔢 PIN 체크인 모드 열기"를 누르면, 학생이 자기 PIN을 입력해 스스로 출결 체크를 해요. 입력 즉시 학부모에게 알림이 갑니다. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+    { tab:'cars', title:'③ 차량/근태관리', body:'차량과 기사를 등록하고, 기사 PIN으로 출퇴근 근태를 기록해요.' },
+    { tab:'cars', selector:'button[onclick^="addCar"]', title:'차량 추가', body:'"＋ 차량 추가"로 호차를 늘리고, 기사명·차량번호·기사 PIN을 입력한 뒤 저장해요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+    { tab:'schedule', title:'④ 스케줄', body:'코스(반)별 출발·도착 시간과 탑승 학생을 한눈에 확인해요.' },
+    { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납을 달력으로 관리해요.' },
+    { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 학생의 "납부처리"를 누르면 완납으로 바뀌고 색으로 구분돼요. 통계도 자동 집계됩니다. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+    { tab:'notice', title:'⑥ 알림장', body:'공지·알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 사진 첨부도 가능합니다.' },
     { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
   ];
 }
@@ -6575,6 +6629,7 @@ function startDemoTour(){
       + '<div id="demo-tour-dots" style="display:flex;gap:5px;"></div>'
       + '<div style="display:flex;gap:8px;">'
       + '<button id="demo-tour-skip" onclick="endDemoTour()" style="padding:9px 14px;font-size:13px;font-weight:600;background:#F2F4F7;color:#667085;border:none;border-radius:9px;cursor:pointer;">건너뛰기</button>'
+      + '<button id="demo-tour-buy" onclick="goToPurchase()" style="display:none;padding:9px 16px;font-size:13px;font-weight:800;background:#EA580C;color:#fff;border:none;border-radius:9px;cursor:pointer;">🛒 구매하기</button>'
       + '<button id="demo-tour-next" onclick="nextDemoTour()" style="padding:9px 18px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">다음 →</button>'
       + '</div></div></div>';
     document.body.appendChild(ov);
@@ -6589,66 +6644,93 @@ function renderDemoTourStep(){
   var s = _tourSteps[_tourStep];
   if(!s) return;
   clearTourHighlight();
-  // 해당 탭으로 전환 (탭이 지정된 단계)
-  if(s.tab && typeof switchAdminTab==='function'){
+  // 관리자 화면 단계면 탭 전환 (로그인 단계는 제외)
+  if(s.screen !== 'login' && s.tab && typeof switchAdminTab==='function'){
     try{ switchAdminTab(s.tab); }catch(e){}
   }
   var bodyText = s.body;
   document.getElementById('demo-tour-title').textContent = s.title;
-  // 탭이 있는 단계면 "여기를 눌러보세요" 안내 추가 + 하이라이트
-  if(s.tab){
-    bodyText += '\n\n👆 화면에서 반짝이는 "'+tabLabelOf(s.tab)+'" 버튼을 눌러보세요.';
-    setTimeout(function(){ highlightTourTab(s.tab); }, 350);
-  }
   document.getElementById('demo-tour-body').textContent = bodyText;
   document.getElementById('demo-tour-body').style.whiteSpace = 'pre-line';
-  // 진행 점 표시
+  // 진행 점
   var dots = _tourSteps.map(function(_,i){
-    return '<span style="width:7px;height:7px;border-radius:50%;background:'+(i===_tourStep?'#7C3AED':'#D0D5DD')+';display:inline-block;"></span>';
+    return '<span style="width:6px;height:6px;border-radius:50%;background:'+(i===_tourStep?'#7C3AED':'#D0D5DD')+';display:inline-block;"></span>';
   }).join('');
   document.getElementById('demo-tour-dots').innerHTML = dots;
   var nextBtn = document.getElementById('demo-tour-next');
-  nextBtn.textContent = (_tourStep >= _tourSteps.length-1) ? '체험 시작 →' : '다음 →';
+  var isLast = (_tourStep >= _tourSteps.length-1);
+  nextBtn.textContent = isLast ? '체험 계속하기' : '다음 →';
+  // 마지막 단계: '구매하기' 버튼 표시
+  var buyBtn = document.getElementById('demo-tour-buy');
+  if(buyBtn) buyBtn.style.display = isLast ? 'inline-block' : 'none';
+
+  // 하이라이트 대상 결정
+  var ov = document.getElementById('demo-tour-overlay');
+  if(s.selector){
+    // 세부 액션: 배경을 거의 투명하게 해서 뒤 요소를 자유롭게 누를 수 있게
+    if(ov) ov.style.background = 'rgba(0,0,0,.06)';
+    var scope = (s.screen==='login') ? '#login-screen' : '#admin-content';
+    setTimeout(function(){ highlightTourElement(s.selector, s.clickAdvance, scope); }, 400);
+  } else if(s.tab){
+    if(ov) ov.style.background = 'rgba(0,0,0,.35)';
+    setTimeout(function(){ highlightTourTabBtn(s.tab); }, 350);
+  } else {
+    if(ov) ov.style.background = 'rgba(0,0,0,.35)';
+  }
 }
 
-// 탭 id → 현재 업종의 실제 화면 라벨 (버튼에 표시된 것과 일치)
-function tabLabelOf(tabId){
-  try{
-    if(typeof adminTabLabel==='function' && typeof ADMIN_TABS!=='undefined'){
-      var t = ADMIN_TABS.find(function(x){return x.id===tabId;});
-      if(t) return adminTabLabel(t);
-    }
-  }catch(e){}
-  var map={members:'회원관리',attendance:'출결관리',cars:'차량관리',schedule:'스케줄',payment:'수납관리',notice:'알림장',invoice:'거래명세서',tax:'세무관리'};
-  return map[tabId]||tabId;
-}
-
-// 해당 탭 버튼 하이라이트 + 손가락 표시
-function highlightTourTab(tabId){
-  clearTourHighlight();
+// 상단 탭 버튼 하이라이트
+function highlightTourTabBtn(tabId){
   var btn = document.querySelector('.admin-nav-btn[data-tab="'+tabId+'"]');
   if(!btn) return;
-  btn.classList.add('tour-highlight');
-  btn.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
-  // 손가락 아이콘을 버튼 근처에 배치
+  applyHighlight(btn, false);
+}
+
+// 탭/화면 내부 특정 요소 하이라이트 (clickAdvance면 클릭 시 자동으로 다음 단계)
+function highlightTourElement(selector, clickAdvance, scope){
+  scope = scope || '#admin-content';
+  var el = document.querySelector(scope+' '+selector) || document.querySelector(selector);
+  if(!el){ return; }
+  applyHighlight(el, clickAdvance);
+}
+
+function applyHighlight(el, clickAdvance){
+  clearTourHighlight();
+  el.classList.add('tour-highlight');
+  el.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});
   setTimeout(function(){
-    var r = btn.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
     var finger = document.createElement('div');
     finger.className = 'tour-finger';
     finger.id = 'tour-finger';
     finger.textContent = '👆';
     finger.style.left = (r.left + r.width/2 - 12) + 'px';
-    finger.style.top = (r.bottom + 4) + 'px';
+    finger.style.top = (r.bottom + 2) + 'px';
     document.body.appendChild(finger);
-  }, 400);
+  }, 450);
+  // 클릭하면 다음 단계로 진행
+  if(clickAdvance){
+    var handler = function(){
+      el.removeEventListener('click', handler);
+      setTimeout(function(){ if(_tourSteps.length) nextDemoTour(); }, 500);
+    };
+    el.addEventListener('click', handler);
+    _tourClickEl = el;
+    _tourClickHandler = handler;
+  }
 }
+var _tourClickEl = null, _tourClickHandler = null;
 
-// 하이라이트/손가락 제거
+// 하이라이트/손가락/클릭핸들러 제거
 function clearTourHighlight(){
   var hl = document.querySelectorAll('.tour-highlight');
   hl.forEach(function(el){ el.classList.remove('tour-highlight'); });
   var f = document.getElementById('tour-finger');
   if(f) f.remove();
+  if(_tourClickEl && _tourClickHandler){
+    try{ _tourClickEl.removeEventListener('click', _tourClickHandler); }catch(e){}
+    _tourClickEl = null; _tourClickHandler = null;
+  }
 }
 
 function nextDemoTour(){
@@ -6665,6 +6747,50 @@ function endDemoTour(){
   try{ window._demoTourSeen = true; }catch(e){}
 }
 
+// 구매하기 → 회원가입(자동 고유 계정 생성)으로 연결
+function goToPurchase(){
+  // 투어 오버레이가 떠 있으면 닫기
+  try{ endDemoTour(); }catch(e){}
+  // 현재 데모 업종을 미리 선택해서 회원가입 모달 열기
+  var biz = (typeof getBizType==='function') ? getBizType() : '';
+  if(typeof openSignupModal==='function'){
+    openSignupModal(biz);
+  } else {
+    try{ window.open('https://cosroad.com/home.html#apply', '_blank'); }catch(e){ location.href='https://cosroad.com/home.html#apply'; }
+  }
+}
+
+// ===== 홈 화면에 추가 (설치) 안내 팝업 =====
+function showInstallGuide(){
+  var ua = navigator.userAgent || '';
+  var isIOS = /iphone|ipad|ipod/i.test(ua);
+  var isAndroid = /android/i.test(ua);
+  var steps;
+  if(isIOS){
+    steps = '<div class="ig-step"><span class="ig-num">1</span> 사파리 하단의 <b>공유 버튼</b> <span style="font-size:17px;">⬆️</span> 을 누르세요.</div>'
+      + '<div class="ig-step"><span class="ig-num">2</span> 메뉴에서 <b>"홈 화면에 추가"</b> 를 선택하세요.</div>'
+      + '<div class="ig-step"><span class="ig-num">3</span> 오른쪽 위 <b>"추가"</b> 를 누르면 완료! 홈 화면에 COSROAD 아이콘이 생겨요.</div>';
+  } else if(isAndroid){
+    steps = '<div class="ig-step"><span class="ig-num">1</span> 크롬 오른쪽 위 <b>메뉴 ⋮</b> 를 누르세요.</div>'
+      + '<div class="ig-step"><span class="ig-num">2</span> <b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 를 선택하세요.</div>'
+      + '<div class="ig-step"><span class="ig-num">3</span> <b>"추가"</b> 를 누르면 완료! 홈 화면에 COSROAD 아이콘이 생겨요.</div>';
+  } else {
+    steps = '<div class="ig-step"><span class="ig-num">📱</span> <b>휴대폰</b>에서 이 페이지를 연 뒤, 브라우저 메뉴의 <b>"홈 화면에 추가"</b>를 선택하세요.</div>'
+      + '<div class="ig-step" style="color:#667085;font-size:13px;">아이폰: 사파리 공유 → 홈 화면에 추가<br>안드로이드: 크롬 메뉴 ⋮ → 홈 화면에 추가</div>';
+  }
+  var old = document.getElementById('install-guide-modal');
+  if(old) old.remove();
+  var html = '<div id="install-guide-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100001;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    + '<div style="background:#fff;border-radius:18px;max-width:340px;width:100%;padding:24px 22px;box-sizing:border-box;">'
+    + '<div style="font-size:18px;font-weight:800;color:#1F2433;margin-bottom:4px;">📲 홈 화면에 추가하기</div>'
+    + '<div style="font-size:13px;color:#667085;margin-bottom:16px;">COSROAD를 앱처럼 바로 실행할 수 있어요. 설치가 아니라 홈 화면에 아이콘을 추가하는 방식이에요.</div>'
+    + '<style>.ig-step{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:#344054;line-height:1.6;margin-bottom:12px;}.ig-num{flex:none;width:22px;height:22px;background:#7C3AED;color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;}</style>'
+    + steps
+    + '<button onclick="document.getElementById(\'install-guide-modal\').remove()" style="width:100%;padding:12px;margin-top:8px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">확인</button>'
+    + '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
 // 데모 첫 진입 시 자동 시작 (관리자 화면이 뜬 뒤)
 function maybeAutoStartTour(){
   if(!isDemoMode()) return;
@@ -6677,6 +6803,7 @@ function maybeAutoStartTour(){
 // '사용법 보기' 다시보기 버튼 (데모에서만 표시)
 function ensureTourButton(){
   if(!isDemoMode()) return;
+  ensureDemoBuyBar();
   if(document.getElementById('demo-tour-btn')) return;
   var btn = document.createElement('button');
   btn.id = 'demo-tour-btn';
@@ -6684,6 +6811,20 @@ function ensureTourButton(){
   btn.onclick = startDemoTour;
   btn.style.cssText = 'position:fixed;right:16px;bottom:80px;z-index:9999;background:#7C3AED;color:#fff;border:none;border-radius:24px;padding:11px 18px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(124,58,237,.4);cursor:pointer;';
   document.body.appendChild(btn);
+}
+
+// 데모 상단 구매 안내 배너 (항상 표시)
+function ensureDemoBuyBar(){
+  if(!isDemoMode()) return;
+  if(document.getElementById('demo-buy-bar')) return;
+  var bar = document.createElement('div');
+  bar.id = 'demo-buy-bar';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:linear-gradient(90deg,#EA580C,#FB923C);color:#fff;padding:8px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;font-weight:700;box-shadow:0 2px 10px rgba(234,88,12,.3);';
+  bar.innerHTML = '<span>🎬 체험판입니다 · 마음에 드시면</span>'
+    + '<button onclick="goToPurchase()" style="background:#fff;color:#EA580C;border:none;border-radius:8px;padding:5px 14px;font-size:13px;font-weight:800;cursor:pointer;">🛒 구매하기</button>';
+  document.body.appendChild(bar);
+  // 배너 높이만큼 본문을 아래로 밀어 가려지지 않게
+  try{ document.body.style.paddingTop = '38px'; }catch(e){}
 }
 
 // URL의 ?org=그룹_업체 값을 읽음 (영문/숫자/밑줄만 허용)
