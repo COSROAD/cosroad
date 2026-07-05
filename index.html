@@ -549,7 +549,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 108;
+const APP_VERSION = 109;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -6572,7 +6572,7 @@ function getBizTourSteps(biz){
       { tab:'invoice', title:'④ 거래명세서', body:'거래명세서를 작성하고 거래처별·기간별로 모아 PDF로 출력할 수 있어요. 공급가·세액·미수금이 자동 계산됩니다.' },
       { tab:'invoice', selector:'button[onclick^="saveInvoice"]', title:'거래명세서 저장', body:'품목을 입력하고 "💾 거래명세서 저장"을 누르면 거래가 기록되고 수납·세무에 자동 반영돼요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
       { tab:'payment', title:'⑤ 수납관리', body:'거래처별 수금·미수 현황을 달력으로 관리해요. 오래된 미수부터 자동 정산됩니다.' },
-      { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'거래처의 "납부처리"를 누르면 수금이 기록되고 미수금이 줄어들어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+      { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'거래처의 "납부처리"를 누르면 수금이 기록되고 미수금이 줄어들어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'거래명세서를 저장해 거래 데이터를 입력하면, 여기 거래처별 "납부처리" 버튼이 나타나요. 누르면 수금이 기록되고 미수금이 줄어듭니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
       { tab:'tax', title:'⑥ 세무관리', body:'매출·매입 세무 기록을 자동으로 정리해요. 거래명세서와 연동되어 관리가 편합니다.' },
       { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
     ];
@@ -6586,7 +6586,7 @@ function getBizTourSteps(biz){
       { tab:'cars', title:'③ 차량/근태관리', body:'차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태가 기록되고 호차별로 이용자를 배정합니다.' },
       { tab:'schedule', title:'④ 스케줄', body:'코스별 출발·도착 시간과 탑승 이용자를 한눈에 확인해요. 셔틀 운행을 체계적으로 관리합니다.' },
       { tab:'payment', title:'⑤ 수납관리', body:'이용료 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
-      { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 이용자의 "납부처리"를 누르면 완납으로 바뀌어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+      { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 이용자의 "납부처리"를 누르면 완납으로 바뀌어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'이용자를 등록하고 이용료가 부과되면, 여기 미납 이용자별 "납부처리" 버튼이 나타나요. 누르면 완납으로 바뀝니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
       { tab:'notice', title:'⑥ 알림장', body:'공지와 알림을 카카오 알림톡·문자로 보호자에게 자동 발송해요.' },
       { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
     ];
@@ -6611,7 +6611,7 @@ function getBizTourSteps(biz){
     { tab:'cars', selector:'button[onclick^="addCar"]', title:'차량 추가', body:'"＋ 차량 추가"로 호차를 늘리고, 기사명·차량번호·기사 PIN을 입력한 뒤 저장해요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
     { tab:'schedule', title:'④ 스케줄', body:'코스(반)별 출발·도착 시간과 탑승 학생을 한눈에 확인해요.' },
     { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납을 달력으로 관리해요.' },
-    { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 학생의 "납부처리"를 누르면 완납으로 바뀌고 색으로 구분돼요. 통계도 자동 집계됩니다. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+    { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 학생의 "납부처리"를 누르면 완납으로 바뀌고 색으로 구분돼요. 통계도 자동 집계됩니다. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'학생을 등록하고 월 회비가 부과되면, 여기 미납 학생별 "납부처리" 버튼이 나타나요. 누르면 완납으로 바뀌고 통계도 자동 집계됩니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
     { tab:'notice', title:'⑥ 알림장', body:'공지·알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 사진 첨부도 가능합니다.' },
     { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
   ];
@@ -6688,6 +6688,17 @@ function renderDemoTourStep(){
     if(ov) ov.style.background = 'rgba(0,0,0,.06)';
     var scope = (s.screen==='login') ? '#login-screen' : '#admin-content';
     setTimeout(function(){
+      // 대상 요소가 실제로 렌더링됐는지 확인 (데모 데이터가 없으면 없을 수 있음)
+      var target = document.querySelector(scope+' '+s.selector) || document.querySelector(s.selector);
+      if(!target){
+        // 대상 없음: 손가락/클릭 없이 안내 문구로 대체하고 '다음'으로 진행
+        if(ov) ov.style.background = 'rgba(0,0,0,.35)';
+        if(s.fallbackBody){
+          var bodyEl = document.getElementById('demo-tour-body');
+          if(bodyEl) bodyEl.textContent = s.fallbackBody;
+        }
+        return;
+      }
       highlightTourElement(s.selector, s.clickAdvance, scope);
       adjustTourBoxPosition(s.selector, scope);
     }, 400);
@@ -6736,12 +6747,27 @@ function applyHighlight(el, clickAdvance){
   el.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});
   setTimeout(function(){
     var r = el.getBoundingClientRect();
+    var vh = window.innerHeight, vw = window.innerWidth;
     var finger = document.createElement('div');
     finger.className = 'tour-finger';
     finger.id = 'tour-finger';
-    finger.textContent = '👆';
-    finger.style.left = (r.left + r.width/2 - 12) + 'px';
-    finger.style.top = (r.bottom + 2) + 'px';
+    // 대상이 화면 위쪽 절반이면 손가락을 아래에 두고 위를 가리킴(👆),
+    // 아래쪽 절반이면 위에 두고 아래를 가리킴(👇)
+    var topHalf = (r.top + r.height/2) < vh*0.5;
+    var fx = r.left + r.width/2 - 12;
+    var fy;
+    if(topHalf){
+      finger.textContent = '👆';
+      fy = r.bottom + 2;
+    } else {
+      finger.textContent = '👇';
+      fy = r.top - 34;
+    }
+    // 뷰포트 밖으로 나가지 않게 clamp
+    fx = Math.max(6, Math.min(fx, vw - 34));
+    fy = Math.max(6, Math.min(fy, vh - 40));
+    finger.style.left = fx + 'px';
+    finger.style.top = fy + 'px';
     document.body.appendChild(finger);
   }, 450);
   // 클릭하면 다음 단계로 진행
