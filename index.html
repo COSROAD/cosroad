@@ -16,6 +16,11 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{max-width:100%;overflow-x:hidden;}
+/* 데모 투어: 버튼 하이라이트 + 손가락 */
+.tour-highlight{position:relative;z-index:99999!important;animation:tourPulse 1.2s ease-in-out infinite;border-radius:10px;outline:3px solid #7C3AED;outline-offset:2px;box-shadow:0 0 0 6px rgba(124,58,237,.25),0 0 20px rgba(124,58,237,.5)!important;}
+@keyframes tourPulse{0%,100%{outline-color:#7C3AED;box-shadow:0 0 0 6px rgba(124,58,237,.25),0 0 20px rgba(124,58,237,.5);}50%{outline-color:#A855F7;box-shadow:0 0 0 10px rgba(124,58,237,.12),0 0 28px rgba(124,58,237,.7);}}
+.tour-finger{position:fixed;z-index:100000;font-size:34px;pointer-events:none;animation:tourFinger 1s ease-in-out infinite;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35));}
+@keyframes tourFinger{0%,100%{transform:translate(0,0);}50%{transform:translate(0,-10px);}}
 img,svg,video,canvas{max-width:100%;}
 :root{
   --primary:#1A6BFF;--primary-light:#E8F0FF;
@@ -544,7 +549,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 105;
+const APP_VERSION = 106;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1568,10 +1573,10 @@ function renderAdminNav(){
     var active = t.id===currentAdminTab ? ' active' : '';
     var lbl = adminTabLabel(t);
     if(showGrid){
-      return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'
+      return '<button class="admin-nav-btn'+active+'" data-tab="'+t.id+'" onclick="switchAdminTab(\''+t.id+'\')">'
         +'<span class="nav-ico">'+t.ico+'</span><span>'+lbl+'</span></button>';
     }
-    return '<button class="admin-nav-btn'+active+'" onclick="switchAdminTab(\''+t.id+'\')">'+t.ico+' '+lbl+'</button>';
+    return '<button class="admin-nav-btn'+active+'" data-tab="'+t.id+'" onclick="switchAdminTab(\''+t.id+'\')">'+t.ico+' '+lbl+'</button>';
   }).join('');
 }
 
@@ -6506,23 +6511,64 @@ function demoBlockNotice(){
 // ===== 데모 가이드 투어 (말풍선 단계 안내) =====
 // 학원 데모(academy_demo) 첫 진입 시 자동 시작 + 언제든 '사용법 보기'로 재시작
 var _tourStep = 0;
-var _tourSteps = [
-  { tab:null, title:'👋 COSROAD 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
-  { tab:'members', title:'① 회원관리', body:'학생 정보와 코스 배정을 한곳에서 관리해요. 등록·검색·분류가 간편하고, 학부모 연락처와 회비도 함께 관리됩니다.' },
-  { tab:'attendance', title:'② 출결관리', body:'PIN 체크인으로 등·하원 출결을 자동 처리하고, 즉시 학부모에게 알림을 보낼 수 있어요.' },
-  { tab:'cars', title:'③ 차량관리', body:'차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태도 기록되고, 호차별로 학생을 배정합니다.' },
-  { tab:'schedule', title:'④ 스케줄', body:'코스(반)별 출발·도착 시간과 탑승 학생을 한눈에 확인해요. 차량 코스 운행을 체계적으로 관리합니다.' },
-  { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
-  { tab:'notice', title:'⑥ 알림장', body:'공지와 알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 이미지 첨부도 가능합니다.' },
-  { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
-];
+var _tourSteps = [];
+
+// 업종별 투어 단계 정의
+function getTourSteps(){
+  var biz = (typeof getBizType==='function') ? getBizType() : 'academy';
+  if(biz==='logistics'){
+    return [
+      { tab:null, title:'👋 COSROAD 물류 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
+      { tab:'members', title:'① 거래처 관리', body:'배송 거래처를 등록·관리해요. 거래처별 주소, 연락처, 사업자 정보를 한곳에서 관리합니다.' },
+      { tab:'cars', title:'② 차량·기사 관리', body:'배송 차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태도 기록됩니다.' },
+      { tab:'schedule', title:'③ 배송현황', body:'거래처별 납품 순서와 배송 현황을 한눈에 확인해요. 배송 코스가 자동 최적화됩니다.' },
+      { tab:'invoice', title:'④ 거래명세서', body:'거래명세서를 작성하고 거래처별·기간별로 모아 PDF로 출력할 수 있어요. 공급가·세액·미수금이 자동 계산됩니다.' },
+      { tab:'payment', title:'⑤ 수납관리', body:'거래처별 수금·미수 현황을 달력으로 관리해요. 오래된 미수부터 자동 정산됩니다.' },
+      { tab:'tax', title:'⑥ 세무관리', body:'매출·매입 세무 기록을 자동으로 정리해요. 거래명세서와 연동되어 관리가 편합니다.' },
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+    ];
+  }
+  if(biz==='public'){
+    return [
+      { tab:null, title:'👋 COSROAD 공공 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
+      { tab:'members', title:'① 이용자 관리', body:'복지·문화센터 이용자를 등록·관리해요. 이용자 정보와 탑승 코스를 한곳에서 관리합니다.' },
+      { tab:'attendance', title:'② 출결관리', body:'PIN 체크인으로 이용자 출결을 자동 처리하고, 즉시 보호자에게 알림을 보낼 수 있어요.' },
+      { tab:'cars', title:'③ 차량/근태관리', body:'차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태가 기록되고 호차별로 이용자를 배정합니다.' },
+      { tab:'schedule', title:'④ 스케줄', body:'코스별 출발·도착 시간과 탑승 이용자를 한눈에 확인해요. 셔틀 운행을 체계적으로 관리합니다.' },
+      { tab:'payment', title:'⑤ 수납관리', body:'이용료 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
+      { tab:'notice', title:'⑥ 알림장', body:'공지와 알림을 카카오 알림톡·문자로 보호자에게 자동 발송해요.' },
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+    ];
+  }
+  if(biz==='delivery'){
+    return [
+      { tab:null, title:'👋 COSROAD 택배 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
+      { tab:'members', title:'① 배송지 관리', body:'배송지를 등록·관리해요. 주소와 연락처를 저장하면 배송 코스에 자동 반영됩니다.' },
+      { tab:'cars', title:'② 차량·기사 관리', body:'배송 차량과 기사를 등록해요. 일일 기사 채용·근태 관리도 함께 이뤄집니다.' },
+      { tab:'schedule', title:'③ 배송현황', body:'기사별 배송 코스가 자동 배정돼요. 지역을 몰라도 최적 순서로 코스가 안내되고, 배송 완료를 체크할 수 있어요.' },
+      { tab:'attendance', title:'④ 근태관리', body:'기사 PIN으로 출퇴근 근태를 기록해요. 일일 기사 운영을 간편하게 관리합니다.' },
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+    ];
+  }
+  // 기본: 학원
+  return [
+    { tab:null, title:'👋 COSROAD 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 지금부터 주요 기능을 하나씩 안내해 드릴게요.' },
+    { tab:'members', title:'① 회원관리', body:'학생 정보와 코스 배정을 한곳에서 관리해요. 등록·검색·분류가 간편하고, 학부모 연락처와 회비도 함께 관리됩니다.' },
+    { tab:'attendance', title:'② 출결관리', body:'PIN 체크인으로 등·하원 출결을 자동 처리하고, 즉시 학부모에게 알림을 보낼 수 있어요.' },
+    { tab:'cars', title:'③ 차량/근태관리', body:'차량과 기사를 등록해요. 기사 PIN으로 출퇴근 근태도 기록되고, 호차별로 학생을 배정합니다.' },
+    { tab:'schedule', title:'④ 스케줄', body:'코스(반)별 출발·도착 시간과 탑승 학생을 한눈에 확인해요. 차량 코스 운행을 체계적으로 관리합니다.' },
+    { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
+    { tab:'notice', title:'⑥ 알림장', body:'공지와 알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 이미지 첨부도 가능합니다.' },
+    { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+  ];
+}
 
 function startDemoTour(){
   if(!document.getElementById('demo-tour-overlay')){
     var ov = document.createElement('div');
     ov.id = 'demo-tour-overlay';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;';
-    ov.innerHTML = '<div id="demo-tour-box" style="background:#fff;border-radius:18px;max-width:340px;width:100%;padding:24px 22px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative;">'
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center;padding:0 16px 24px;box-sizing:border-box;pointer-events:none;';
+    ov.innerHTML = '<div id="demo-tour-box" style="pointer-events:auto;background:#fff;border-radius:18px;max-width:360px;width:100%;padding:20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative;">'
       + '<div id="demo-tour-title" style="font-size:17px;font-weight:800;color:#1F2433;margin-bottom:10px;line-height:1.4;"></div>'
       + '<div id="demo-tour-body" style="font-size:14px;color:#4A5163;line-height:1.65;margin-bottom:18px;"></div>'
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
@@ -6534,6 +6580,7 @@ function startDemoTour(){
     document.body.appendChild(ov);
   }
   _tourStep = 0;
+  _tourSteps = getTourSteps();
   document.getElementById('demo-tour-overlay').style.display = 'flex';
   renderDemoTourStep();
 }
@@ -6541,20 +6588,67 @@ function startDemoTour(){
 function renderDemoTourStep(){
   var s = _tourSteps[_tourStep];
   if(!s) return;
+  clearTourHighlight();
   // 해당 탭으로 전환 (탭이 지정된 단계)
   if(s.tab && typeof switchAdminTab==='function'){
     try{ switchAdminTab(s.tab); }catch(e){}
   }
+  var bodyText = s.body;
   document.getElementById('demo-tour-title').textContent = s.title;
-  document.getElementById('demo-tour-body').textContent = s.body;
+  // 탭이 있는 단계면 "여기를 눌러보세요" 안내 추가 + 하이라이트
+  if(s.tab){
+    bodyText += '\n\n👆 화면에서 반짝이는 "'+tabLabelOf(s.tab)+'" 버튼을 눌러보세요.';
+    setTimeout(function(){ highlightTourTab(s.tab); }, 350);
+  }
+  document.getElementById('demo-tour-body').textContent = bodyText;
+  document.getElementById('demo-tour-body').style.whiteSpace = 'pre-line';
   // 진행 점 표시
   var dots = _tourSteps.map(function(_,i){
     return '<span style="width:7px;height:7px;border-radius:50%;background:'+(i===_tourStep?'#7C3AED':'#D0D5DD')+';display:inline-block;"></span>';
   }).join('');
   document.getElementById('demo-tour-dots').innerHTML = dots;
-  // 마지막 단계면 버튼 문구 변경
   var nextBtn = document.getElementById('demo-tour-next');
   nextBtn.textContent = (_tourStep >= _tourSteps.length-1) ? '체험 시작 →' : '다음 →';
+}
+
+// 탭 id → 현재 업종의 실제 화면 라벨 (버튼에 표시된 것과 일치)
+function tabLabelOf(tabId){
+  try{
+    if(typeof adminTabLabel==='function' && typeof ADMIN_TABS!=='undefined'){
+      var t = ADMIN_TABS.find(function(x){return x.id===tabId;});
+      if(t) return adminTabLabel(t);
+    }
+  }catch(e){}
+  var map={members:'회원관리',attendance:'출결관리',cars:'차량관리',schedule:'스케줄',payment:'수납관리',notice:'알림장',invoice:'거래명세서',tax:'세무관리'};
+  return map[tabId]||tabId;
+}
+
+// 해당 탭 버튼 하이라이트 + 손가락 표시
+function highlightTourTab(tabId){
+  clearTourHighlight();
+  var btn = document.querySelector('.admin-nav-btn[data-tab="'+tabId+'"]');
+  if(!btn) return;
+  btn.classList.add('tour-highlight');
+  btn.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+  // 손가락 아이콘을 버튼 근처에 배치
+  setTimeout(function(){
+    var r = btn.getBoundingClientRect();
+    var finger = document.createElement('div');
+    finger.className = 'tour-finger';
+    finger.id = 'tour-finger';
+    finger.textContent = '👆';
+    finger.style.left = (r.left + r.width/2 - 12) + 'px';
+    finger.style.top = (r.bottom + 4) + 'px';
+    document.body.appendChild(finger);
+  }, 400);
+}
+
+// 하이라이트/손가락 제거
+function clearTourHighlight(){
+  var hl = document.querySelectorAll('.tour-highlight');
+  hl.forEach(function(el){ el.classList.remove('tour-highlight'); });
+  var f = document.getElementById('tour-finger');
+  if(f) f.remove();
 }
 
 function nextDemoTour(){
@@ -6564,6 +6658,7 @@ function nextDemoTour(){
 }
 
 function endDemoTour(){
+  clearTourHighlight();
   var ov = document.getElementById('demo-tour-overlay');
   if(ov) ov.style.display = 'none';
   // 이번 방문에서 자동투어 봤음 표시 (세션 동안 자동 재시작 방지)
@@ -6575,8 +6670,6 @@ function maybeAutoStartTour(){
   if(!isDemoMode()) return;
   ensureTourButton();
   if(window._demoTourSeen) return;
-  // 학원 데모에서만 자동 (다른 업종은 추후 확장)
-  if(getBizType() !== 'academy') return;
   window._demoTourSeen = true;
   setTimeout(startDemoTour, 800);
 }
@@ -6584,7 +6677,6 @@ function maybeAutoStartTour(){
 // '사용법 보기' 다시보기 버튼 (데모에서만 표시)
 function ensureTourButton(){
   if(!isDemoMode()) return;
-  if(getBizType() !== 'academy') return; // 현재 학원만 투어 제공
   if(document.getElementById('demo-tour-btn')) return;
   var btn = document.createElement('button');
   btn.id = 'demo-tour-btn';
