@@ -66,9 +66,11 @@
   .hero-btns{display:flex;gap:13px;flex-wrap:wrap;}
   .biz-quicklinks-wrap{background:var(--cream);padding:20px 0 4px;}
   .biz-quicklinks{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
-  .biz-quicklinks a{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid var(--orange-2);color:var(--orange);font-weight:700;font-size:15px;padding:10px 20px;border-radius:11px;box-shadow:0 4px 14px rgba(234,88,12,.10);transition:transform .12s,background .12s;}
+  .biz-quicklinks a{display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:#fff;border:1.5px solid var(--orange-2);color:var(--orange);font-weight:700;font-size:15px;padding:8px 16px;border-radius:11px;box-shadow:0 4px 14px rgba(234,88,12,.10);transition:transform .12s,background .12s;}
+  .biz-quicklinks .ql-main{font-size:15px;font-weight:700;}
+  .biz-quicklinks .ql-sub{font-size:10px;font-weight:600;color:#9A8478;letter-spacing:-.02em;}
   .biz-quicklinks a:hover{transform:translateY(-2px);background:#FFF1E7;}
-  @media(max-width:520px){.biz-quicklinks{gap:8px;}.biz-quicklinks a{font-size:14px;padding:10px 12px;flex:1;justify-content:center;min-width:0;}}
+  @media(max-width:520px){.biz-quicklinks{gap:8px;}.biz-quicklinks a{font-size:14px;padding:8px 8px;flex:1;justify-content:center;min-width:0;}.biz-quicklinks .ql-sub{font-size:9px;}}
   .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:16px;padding:15px 28px;border-radius:13px;cursor:pointer;border:none;transition:transform .12s,box-shadow .12s;}
   .btn-primary{background:var(--orange);color:#fff;box-shadow:var(--shadow);}
   .btn-signup{background:#7C3AED;color:#fff;box-shadow:0 8px 24px rgba(124,58,237,.28);font-size:16px;padding:15px 22px;}
@@ -104,6 +106,7 @@
   .biz-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
   .biz-tags span{display:inline-block;background:#FFEAD9;color:var(--orange);font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;line-height:1.3;}
   .biz p{font-size:14px;color:var(--ink-soft);}
+  .biz-target{font-size:12.5px !important;font-weight:800;color:var(--orange) !important;margin-bottom:6px;}
   .demo-guide{text-align:center;margin-top:32px;padding:22px;background:#FFF1E7;border-radius:16px;}
   .demo-guide .sec-tag{display:inline-block;margin-bottom:10px;}
   .demo-guide-title{font-size:20px;font-weight:800;color:var(--orange);margin-bottom:6px;}
@@ -311,10 +314,10 @@
 <div class="biz-quicklinks-wrap">
   <div class="wrap">
     <div class="biz-quicklinks">
-      <a href="https://cosroad.com/?org=academy_demo" target="_blank">🎓 학원</a>
-      <a href="https://cosroad.com/?org=logistics_demo" target="_blank">🚚 물류</a>
-      <a href="https://cosroad.com/?org=public_demo" target="_blank">🏛️ 공공</a>
-      <a href="https://cosroad.com/?org=delivery_demo" target="_blank">📦 택배</a>
+      <a href="https://cosroad.com/?org=academy_demo" target="_blank"><span class="ql-main">🎓 학원</span><span class="ql-sub">유치원·어린이집</span></a>
+      <a href="https://cosroad.com/?org=logistics_demo" target="_blank"><span class="ql-main">🚚 물류</span><span class="ql-sub">개인사업자·고정 일배송</span></a>
+      <a href="https://cosroad.com/?org=public_demo" target="_blank"><span class="ql-main">🏛️ 공공</span><span class="ql-sub">복지·요양·어르신 돌봄센터</span></a>
+      <a href="https://cosroad.com/?org=delivery_demo" target="_blank"><span class="ql-main">📦 택배</span><span class="ql-sub">코스 자동 안내</span></a>
     </div>
   </div>
 </div>
@@ -327,9 +330,9 @@
       <p class="sec-desc">업종마다 일하는 방식이 다릅니다. COSROAD는 네 가지 업종에 맞춰 화면과 기능을 다르게 제공합니다.</p>
     </div>
     <div class="biz-grid">
-      <a class="biz" href="https://cosroad.com/?org=academy_demo" target="_blank"><div class="biz-head"><div class="ico">🎓</div><div class="biz-tags"><span>태권도</span><span>음악학원</span><span>미술학원</span><span>야구·축구교실</span><span>기타</span></div></div><h3>학원</h3><p>등·하원 출결, 차량 탑승 확인, 학부모 알림, 픽업 코스 최적화까지 학원 운영에 필요한 모든 것.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=logistics_demo" target="_blank"><div class="biz-head"><div class="ico">🚚</div><div class="biz-tags"><span>소규모 거래처</span><span>일일배송</span><span>고정거래처</span></div></div><h3>물류</h3><p>배송 코스 최적화, 거래명세서, 수납·세무 관리 원스톱으로 물류 운영을 효율화.</p></a>
-      <a class="biz" href="https://cosroad.com/?org=public_demo" target="_blank"><div class="biz-head"><div class="ico">🏛️</div><div class="biz-tags"><span>복지센터</span><span>문화센터</span><span>요양센터</span><span>재가 돌봄센터</span></div></div><h3>공공</h3><p>이용자 관리와 차량·기사 근태를 한눈에. 공공 셔틀 운영에 최적화.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=academy_demo" target="_blank"><div class="biz-head"><div class="ico">🎓</div><div class="biz-tags"><span>태권도</span><span>음악학원</span><span>미술학원</span><span>야구·축구교실</span><span>유치원·어린이집</span><span>어린이교실</span></div></div><h3>학원</h3><p>등·하원 출결, 차량 탑승 확인, 학부모 알림, 픽업 코스 최적화까지 학원 운영에 필요한 모든 것.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=logistics_demo" target="_blank"><div class="biz-head"><div class="ico">🚚</div><div class="biz-tags"><span>일일배송</span><span>고정거래처</span><span>개인사업자</span><span>편의점 물류</span><span>식자재 배송</span><span>마트 납품</span></div></div><h3>물류</h3><p>배송 코스 최적화, 거래명세서, 수납·세무 관리 원스톱으로 물류 운영을 효율화.</p></a>
+      <a class="biz" href="https://cosroad.com/?org=public_demo" target="_blank"><div class="biz-head"><div class="ico">🏛️</div><div class="biz-tags"><span>복지센터</span><span>문화센터</span><span>요양센터</span><span>재가 돌봄센터</span><span>어르신 돌봄센터</span><span>어린이 체육교실</span></div></div><h3>공공</h3><p>이용자 관리와 차량·기사 근태를 한눈에. 공공 셔틀 운영에 최적화.</p></a>
       <a class="biz" href="https://cosroad.com/?org=delivery_demo" target="_blank"><div class="biz-head"><div class="ico">📦</div><div class="biz-tags"><span>기사 배송코스 자동배정</span><span>지역 몰라도 코스 자동안내</span><span>일일 기사 채용관리</span></div></div><h3>택배</h3><p>일일 기사 배송코스를 자동 배정하고, 지역을 몰라도 최적 코스를 안내하는 기사 채용·운영 최적 앱.</p></a>
     </div>
     <div id="demo" class="demo-guide">
