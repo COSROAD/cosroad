@@ -71,6 +71,20 @@
   @media(max-width:520px){.biz-quicklinks{gap:8px;}.biz-quicklinks a{font-size:14px;padding:10px 12px;flex:1;justify-content:center;min-width:0;}}
   .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:16px;padding:15px 28px;border-radius:13px;cursor:pointer;border:none;transition:transform .12s,box-shadow .12s;}
   .btn-primary{background:var(--orange);color:#fff;box-shadow:var(--shadow);}
+  .btn-signup{background:#7C3AED;color:#fff;box-shadow:0 8px 24px rgba(124,58,237,.28);font-size:16px;padding:15px 22px;}
+  .btn-signup:hover{background:#6D28D9;}
+  .signup-divider{display:flex;align-items:center;text-align:center;color:var(--ink-soft);font-size:13px;margin:20px 0 16px;}
+  .signup-divider::before,.signup-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+  .signup-divider span{padding:0 14px;}
+  .signup-note{font-size:12px;color:var(--ink-soft);text-align:center;margin-top:10px;line-height:1.5;}
+  .install-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:760px;margin:0 auto;}
+  @media(max-width:640px){.install-grid{grid-template-columns:1fr;}}
+  .install-card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px 22px;}
+  .install-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .install-emoji{font-size:26px;}
+  .install-head h3{font-size:17px;font-weight:800;}
+  .install-steps{margin:0;padding-left:20px;}
+  .install-steps li{font-size:14px;color:var(--ink-soft);line-height:1.7;margin-bottom:8px;}
   .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 44px rgba(234,88,12,.22);}
   .btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--border);}
   .btn-ghost:hover{border-color:var(--orange-2);color:var(--orange);}
@@ -389,6 +403,37 @@
         <div class="field full"><button class="btn btn-primary" style="width:100%;justify-content:center;" id="submitBtn" onclick="submitApply()">신청 보내기</button></div>
       </div>
       <div id="formMsg"></div>
+      <div class="signup-divider"><span>또는</span></div>
+      <a href="https://cosroad.com/?signup=1" class="btn btn-signup" style="width:100%;justify-content:center;">🚀 지금 바로 회원가입하고 시작하기</a>
+      <p class="signup-note">가입 후 구독료 입금·승인이 완료되면 바로 사용하실 수 있어요. 고유 계정이 자동으로 만들어집니다.</p>
+    </div>
+  </div>
+</section>
+
+<section id="install" style="background:var(--cream);">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-tag">설치 안내</div>
+      <h2 class="sec-title">폰 홈 화면에 추가하기</h2>
+      <p class="sec-desc">COSROAD는 앱스토어에서 받지 않아요. 브라우저에서 "홈 화면에 추가"하면 앱처럼 아이콘이 생겨 바로 실행됩니다.</p>
+    </div>
+    <div class="install-grid">
+      <div class="install-card">
+        <div class="install-head"><span class="install-emoji">🍎</span><h3>아이폰 (사파리)</h3></div>
+        <ol class="install-steps">
+          <li>사파리 하단의 <b>공유 버튼</b> <span style="font-size:16px;">⬆️</span> 을 누르세요.</li>
+          <li>메뉴에서 <b>"홈 화면에 추가"</b> 를 선택하세요.</li>
+          <li>오른쪽 위 <b>"추가"</b> 를 누르면 완료!</li>
+        </ol>
+      </div>
+      <div class="install-card">
+        <div class="install-head"><span class="install-emoji">🤖</span><h3>안드로이드 (크롬)</h3></div>
+        <ol class="install-steps">
+          <li>크롬 오른쪽 위 <b>메뉴 ⋮</b> 를 누르세요.</li>
+          <li><b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 를 선택하세요.</li>
+          <li><b>"추가"</b> 를 누르면 완료!</li>
+        </ol>
+      </div>
     </div>
   </div>
 </section>
