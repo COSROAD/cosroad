@@ -554,7 +554,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 114;
+const APP_VERSION = 115;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4547,9 +4547,22 @@ function renderTax(){
     h += '</div>';
   }
 
+  // 교육비 납입증명서 (학원 유형 전용)
+  if(getBizType()==='academy'){
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
+    h += '<div style="font-size:14px;font-weight:800;color:#1D2939;margin-bottom:4px;">📄 교육비 납입증명서</div>';
+    h += '<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">수강생별 연간 납부내역을 증명서(PDF)로 발급합니다.</div>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    h += '<button onclick="openCertIssueModal()" style="flex:1;min-width:130px;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">증명서 발급</button>';
+    h += '</div>';
+    h += '<div id="cert-history-box" style="margin-top:12px;"></div>';
+    h += '</div>';
+  }
+
   h += '<div style="height:100px;"></div>';
   h += '</div></div>';
   cont.innerHTML = h;
+  if(getBizType()==='academy' && typeof renderCertHistory==='function'){ renderCertHistory(); }
 }
 
 function updateTaxInputStyle(){
@@ -6112,6 +6125,224 @@ function savePdfInvoice(id){
   w.document.write(doc);
   w.document.close();
 }
+
+// 범용: HTML 문자열을 받아 PDF로 저장 (증명서 등 재사용)
+function saveHtmlAsPdf(innerHtml, fname, extraCss){
+  var w = window.open('', '_blank');
+  if(!w){ alert('팝업이 차단됐어요. 팝업 허용 후 다시 시도해주세요.'); return; }
+  var css = '<style>'
+    + 'body{margin:0;background:#fff;font-family:"Malgun Gothic","맑은 고딕",sans-serif;}'
+    + '#pdf-target{width:210mm;box-sizing:border-box;}'
+    + (extraCss||'')
+    + '</style>';
+  var doc = '<html><head><meta charset="utf-8"><title>'+fname+'</title>'+css
+    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></scr'+'ipt>'
+    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></scr'+'ipt>'
+    + '</head><body>'
+    + '<div id="pdf-status" style="text-align:center;padding:20px;font-family:sans-serif;color:#667085;">PDF를 만드는 중이에요…</div>'
+    + '<div id="pdf-target">'+innerHtml+'</div>'
+    + '<scr'+'ipt>'
+    + 'window.onload=function(){'
+    + ' var el=document.getElementById("pdf-target");'
+    + ' html2canvas(el,{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
+    + '   var img=canvas.toDataURL("image/jpeg",0.95);'
+    + '   var pdf=new jspdf.jsPDF("p","mm","a4");'
+    + '   var pw=210, ph=297, iw=pw, ih=canvas.height*iw/canvas.width;'
+    + '   if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
+    + '   else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
+    + '   var fn='+JSON.stringify(fname)+';'
+    + '   var st=document.getElementById("pdf-status");'
+    + '   if(window.showSaveFilePicker){'
+    + '     var blob=pdf.output("blob");'
+    + '     window.showSaveFilePicker({suggestedName:fn,types:[{description:"PDF",accept:{"application/pdf":[".pdf"]}}]}).then(function(handle){'
+    + '       return handle.createWritable().then(function(ws){ return ws.write(blob).then(function(){ return ws.close(); }); });'
+    + '     }).then(function(){ st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다."; setTimeout(function(){try{window.close();}catch(e){}},1000); })'
+    + '     .catch(function(e){ if(e&&e.name==="AbortError"){ st.textContent="저장이 취소됐어요. 이 창은 닫으셔도 됩니다."; } else { pdf.save(fn); st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다."; setTimeout(function(){try{window.close();}catch(x){}},1000);} });'
+    + '   } else {'
+    + '     pdf.save(fn);'
+    + '     st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다.";'
+    + '     setTimeout(function(){ try{window.close();}catch(e){} }, 1200);'
+    + '   }'
+    + ' }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF 생성 실패: "+err; });'
+    + '};'
+    + '</scr'+'ipt></body></html>';
+  w.document.write(doc);
+  w.document.close();
+}
+
+
+// ===== 교육비 납입증명서 =====
+function loadCertificates(){ return JSON.parse(localStorage.getItem('tkd_certificates')||'[]'); }
+function saveCertificates(arr){ localStorage.setItem('tkd_certificates', JSON.stringify(arr)); saveToFirebase('certificates', arr); }
+
+function _certEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _certComma(n){ return (Number(n)||0).toLocaleString('ko-KR'); }
+
+function _certField(label, id, val, ph){
+  return '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">'+label+'</label>'
+    + '<input type="text" id="'+id+'" value="'+_certEsc(val)+'" placeholder="'+_certEsc(ph||'')+'" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">';
+}
+function closeCertModal(id){ var el=document.getElementById(id); if(el) el.remove(); }
+
+// 증명서 발급 모달 (수강생·연도 선택)
+function openCertIssueModal(){
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  if(!mem.length){ alert('등록된 수강생이 없어요. 먼저 회원을 등록해주세요.'); return; }
+  var nowY = new Date().getFullYear();
+  var yearOpts = '';
+  for(var y=nowY; y>=nowY-4; y--){ yearOpts += '<option value="'+y+'">'+y+'년</option>'; }
+  var memOpts = mem.map(function(m){ return '<option value="'+m.id+'">'+_certEsc(m.name)+'</option>'; }).join('');
+  var html = '<div id="cert-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    + '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;">'
+    + '<div style="font-size:16px;font-weight:800;color:#1D2939;margin-bottom:14px;">📄 교육비 납입증명서 발급</div>'
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">대상 연도</label>'
+    + '<select id="cert-year" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'+yearOpts+'</select>'
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">수강생</label>'
+    + '<select id="cert-member" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'+memOpts+'</select>'
+    + _certField('수강생 생년월일 (선택)', 'cert-birth', '', '예) 2015-03-01')
+    + _certField('발급 목적 (선택)', 'cert-purpose', '연말정산 제출용', '')
+    + '<div style="font-size:11px;color:#98A2B3;margin-top:10px;line-height:1.5;">※ 선택한 연도의 납부 완료 내역이 자동 집계됩니다. 상호·사업자번호·대표자·도장은 <b>설정 탭</b>의 학원정보에서 가져옵니다. 비어 있으면 먼저 설정에서 입력해주세요.</div>'
+    + '<div style="display:flex;gap:8px;margin-top:18px;">'
+    + '<button onclick="closeCertModal(\'cert-modal\')" style="flex:1;padding:11px;font-size:13px;font-weight:700;background:#F2F4F7;color:#475467;border:none;border-radius:9px;cursor:pointer;">취소</button>'
+    + '<button onclick="issueCertificate()" style="flex:1;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">PDF 발급</button>'
+    + '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// 증명서 생성: 납부내역 집계 → HTML → PDF → 이력 기록
+function issueCertificate(){
+  var year = parseInt(document.getElementById('cert-year').value,10);
+  var memberId = document.getElementById('cert-member').value;
+  var birth = (document.getElementById('cert-birth').value||'').trim();
+  var purpose = (document.getElementById('cert-purpose').value||'').trim();
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  // id 타입 매칭(문자/숫자 모두 대응)
+  var m = mem.find(function(x){ return String(x.id)===String(memberId); });
+  if(!m){ alert('수강생을 찾을 수 없어요.'); return; }
+  var pays = loadPayments();
+  // 해당 연도 월별 납부내역 집계
+  var rows = [], total = 0;
+  for(var mo=1; mo<=12; mo++){
+    var key = getPaymentKey(m.id, year, mo);
+    var p = pays[key];
+    if(p && p.paid){
+      var amt = Number(p.collected||p.amount||0);
+      total += amt;
+      rows.push({ month:mo, date:p.date||'', method:p.method||'', amount:amt });
+    }
+  }
+  if(!rows.length){ if(!confirm(year+'년 납부 완료 내역이 없어요. 그래도 빈 증명서를 발급할까요?')) return; }
+  var o = loadOrgSettings();
+  var certNo = year+'-'+String(m.id)+'-'+Date.now().toString().slice(-5);
+  var html = buildCertHtml(o, m, birth, year, rows, total, purpose, certNo);
+  var fname = '교육비납입증명서_'+(m.name||'')+'_'+year+'.pdf';
+  saveHtmlAsPdf(html, fname);
+  // 발급 이력 기록
+  var certs = loadCertificates();
+  certs.unshift({ id:certNo, memberId:String(m.id), memberName:m.name||'', year:year, total:total, count:rows.length, issuedAt:new Date().toISOString().slice(0,10) });
+  saveCertificates(certs);
+  closeCertModal('cert-modal');
+  if(typeof renderCertHistory==='function') renderCertHistory();
+  if(typeof showToast==='function') showToast('증명서를 발급했어요!');
+}
+
+// 증명서 HTML 양식
+function buildCertHtml(o, m, birth, year, rows, total, purpose, certNo){
+  var today = new Date();
+  var todayStr = today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
+  var methodKor = {cash:'현금', card:'카드', transfer:'계좌이체'};
+  var body = '<div style="width:190mm;margin:0 auto;padding:16mm 12mm;font-family:\'Malgun Gothic\',sans-serif;color:#1a1a1a;box-sizing:border-box;">';
+  body += '<div style="text-align:center;font-size:26px;font-weight:800;letter-spacing:8px;margin-bottom:6px;">교육비 납입증명서</div>';
+  body += '<div style="text-align:center;font-size:12px;color:#666;margin-bottom:20px;">증명서 번호: '+_certEsc(certNo)+'</div>';
+  // 수강생 정보
+  body += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">';
+  body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;width:28%;">성명</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(m.name||'')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;">생년월일</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(birth||'—')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;">대상 기간</td><td style="border:1px solid #333;padding:8px 10px;">'+year+'년 1월 ~ '+year+'년 12월</td></tr>';
+  body += '</table>';
+  // 납부 내역
+  body += '<div style="font-size:14px;font-weight:700;margin:8px 0;">납부 내역</div>';
+  body += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;">';
+  body += '<tr style="background:#f5f5f5;font-weight:700;"><td style="border:1px solid #333;padding:7px;text-align:center;">월</td><td style="border:1px solid #333;padding:7px;text-align:center;">납부일</td><td style="border:1px solid #333;padding:7px;text-align:center;">결제수단</td><td style="border:1px solid #333;padding:7px;text-align:center;">납부금액</td></tr>';
+  if(rows.length){
+    rows.forEach(function(r){
+      body += '<tr><td style="border:1px solid #333;padding:7px;text-align:center;">'+r.month+'월</td>'
+        + '<td style="border:1px solid #333;padding:7px;text-align:center;">'+_certEsc(r.date||'—')+'</td>'
+        + '<td style="border:1px solid #333;padding:7px;text-align:center;">'+_certEsc(methodKor[r.method]||r.method||'—')+'</td>'
+        + '<td style="border:1px solid #333;padding:7px;text-align:right;">'+_certComma(r.amount)+' 원</td></tr>';
+    });
+  } else {
+    body += '<tr><td colspan="4" style="border:1px solid #333;padding:12px;text-align:center;color:#888;">납부 내역이 없습니다.</td></tr>';
+  }
+  body += '<tr style="font-weight:800;background:#faf5ff;"><td colspan="3" style="border:1px solid #333;padding:8px;text-align:center;">합계</td><td style="border:1px solid #333;padding:8px;text-align:right;">'+_certComma(total)+' 원</td></tr>';
+  body += '</table>';
+  // 증명 문구
+  body += '<div style="font-size:13px;line-height:1.9;margin:22px 0 8px;text-align:center;">위와 같이 교육비를 납입하였음을 증명합니다.</div>';
+  if(purpose){ body += '<div style="font-size:12px;color:#555;text-align:center;margin-bottom:10px;">(용도: '+_certEsc(purpose)+')</div>'; }
+  body += '<div style="text-align:center;font-size:14px;font-weight:700;margin:18px 0 24px;">'+todayStr+'</div>';
+  // 학원 정보 + 직인 (설정 탭의 orgSettings 값 사용)
+  body += '<div style="border-top:2px solid #333;padding-top:16px;position:relative;">';
+  body += '<table style="width:100%;font-size:13px;line-height:1.8;">';
+  body += '<tr><td style="width:22%;font-weight:700;color:#555;">상&nbsp;&nbsp;&nbsp;호</td><td style="font-weight:700;">'+_certEsc(o.name||'')+'</td></tr>';
+  if(o.bizNo) body += '<tr><td style="font-weight:700;color:#555;">사업자등록번호</td><td>'+_certEsc(o.bizNo)+'</td></tr>';
+  if(o.bizCat||o.bizItem) body += '<tr><td style="font-weight:700;color:#555;">업태 / 종목</td><td>'+_certEsc(o.bizCat||'—')+' / '+_certEsc(o.bizItem||'—')+'</td></tr>';
+  body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
+  body += '</table>';
+  if(o.stamp){ body += '<img src="'+o.stamp+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
+  body += '</div>';
+  body += '</div>';
+  return body;
+}
+
+// 발급 이력 표시
+function renderCertHistory(){
+  var box = document.getElementById('cert-history-box');
+  if(!box) return;
+  var certs = loadCertificates();
+  if(!certs.length){ box.innerHTML = '<div style="font-size:12px;color:#98A2B3;text-align:center;padding:8px;">발급 이력이 없어요.</div>'; return; }
+  var h = '<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:6px;">발급 이력 ('+certs.length+')</div>';
+  certs.forEach(function(c){
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;margin-bottom:6px;">';
+    h += '<div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:#1D2939;">'+_certEsc(c.memberName)+' · '+c.year+'년</div>'
+      + '<div style="font-size:11px;color:#98A2B3;">합계 '+_certComma(c.total)+'원 · '+c.count+'건 · 발급 '+_certEsc(c.issuedAt)+'</div></div>';
+    h += '<div style="display:flex;gap:5px;flex-shrink:0;">';
+    h += '<button onclick="reissueCertificate(\''+_certEsc(c.id)+'\')" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700;">재발급</button>';
+    h += '<button onclick="deleteCertificate(\''+_certEsc(c.id)+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700;">삭제</button>';
+    h += '</div></div>';
+  });
+  box.innerHTML = h;
+}
+
+// 재발급: 이력 기준으로 다시 PDF 생성
+function reissueCertificate(certId){
+  var certs = loadCertificates();
+  var c = certs.find(function(x){ return x.id===certId; });
+  if(!c){ return; }
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  var m = mem.find(function(x){ return String(x.id)===String(c.memberId); }) || {id:c.memberId, name:c.memberName};
+  var pays = loadPayments();
+  var rows=[], total=0;
+  for(var mo=1; mo<=12; mo++){
+    var p = pays[getPaymentKey(m.id, c.year, mo)];
+    if(p && p.paid){ var amt=Number(p.collected||p.amount||0); total+=amt; rows.push({month:mo,date:p.date||'',method:p.method||'',amount:amt}); }
+  }
+  var o = loadOrgSettings();
+  var html = buildCertHtml(o, m, '', c.year, rows, total, '', c.id);
+  saveHtmlAsPdf(html, '교육비납입증명서_'+(m.name||'')+'_'+c.year+'.pdf');
+}
+
+// 발급 이력 삭제 (반대 동작)
+function deleteCertificate(certId){
+  var certs = loadCertificates();
+  var c = certs.find(function(x){ return x.id===certId; });
+  if(!c){ return; }
+  if(!confirm('"'+ (c.memberName||'') +' · '+c.year+'년" 발급 이력을 삭제할까요?\n이력만 지워지며 이미 저장된 PDF 파일에는 영향이 없습니다.')){ return; }
+  certs = certs.filter(function(x){ return x.id!==certId; });
+  saveCertificates(certs);
+  renderCertHistory();
+  if(typeof showToast==='function') showToast('발급 이력을 삭제했어요.');
+}
+
 
 // 거래명세서 엑셀 출력
 function exportInvoiceExcel(id){
