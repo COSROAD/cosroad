@@ -554,7 +554,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 117;
+const APP_VERSION = 118;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4562,6 +4562,8 @@ function renderTax(){
     h += '<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">'+_ct.subjectLabel+'별 연간 납부내역을 '+_ct.docShort+'(PDF)로 발급합니다.</div>';
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
     h += '<button onclick="openCertIssueModal()" style="flex:1;min-width:130px;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">'+_ct.docShort+' 발급</button>';
+    h += '<button onclick="openEnrollModal()" style="flex:1;min-width:130px;padding:11px;font-size:13px;font-weight:700;background:#EDE9FE;color:#7C3AED;border:none;border-radius:9px;cursor:pointer;">재원증명서</button>';
+    h += '<button onclick="openReceiptModal()" style="flex:1;min-width:130px;padding:11px;font-size:13px;font-weight:700;background:#F2F4F7;color:#475467;border:none;border-radius:9px;cursor:pointer;">납부 영수증</button>';
     h += '</div>';
     h += '<div id="cert-history-box" style="margin-top:12px;"></div>';
     h += '</div>';
@@ -6440,6 +6442,157 @@ function deleteCertificate(certId){
   saveCertificates(certs);
   renderCertHistory();
   if(typeof showToast==='function') showToast('발급 이력을 삭제했어요.');
+}
+
+
+// ===== 재원(재학)증명서 =====
+function openEnrollModal(){
+  var _ct = _certLabels(getBizType());
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  if(!mem.length){ alert('등록된 '+_ct.subjectLabel+'가 없어요.'); return; }
+  var memOpts = mem.map(function(m){ return '<option value="'+m.id+'">'+_certEsc(m.name)+'</option>'; }).join('');
+  var orgName = (loadOrgSettings().name)||'우리 기관';
+  var html = '<div id="enroll-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    + '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;">'
+    + '<div style="font-size:16px;font-weight:800;color:#1D2939;margin-bottom:14px;">📄 재원증명서 발급</div>'
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">'+_ct.subjectLabel+'</label>'
+    + '<select id="enr-member" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'+memOpts+'</select>'
+    + _certField(_ct.subjectLabel+' 주민등록번호 또는 생년월일 (선택)', 'enr-birth', '', '예) 2015-03-01')
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">재원 상태</label>'
+    + '<select id="enr-status" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'
+    + '<option value="재원">재원 중</option><option value="퇴원">퇴원(과거 재원)</option><option value="수료">수료</option></select>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<div style="flex:1;">'+_certField('재원 시작일', 'enr-start', '', 'YYYY-MM-DD')+'</div>'
+    + '<div style="flex:1;">'+_certField('재원 종료일 (재원중이면 비움)', 'enr-end', '', 'YYYY-MM-DD')+'</div>'
+    + '</div>'
+    + _certField('발급 용도 (선택)', 'enr-purpose', '', '예) 제출용')
+    + '<div style="font-size:11px;color:#98A2B3;margin-top:10px;line-height:1.5;">※ 기관 정보(상호·대표자·직인)는 설정 탭에서 가져옵니다.</div>'
+    + '<div style="display:flex;gap:8px;margin-top:18px;">'
+    + '<button onclick="closeCertModal(\'enroll-modal\')" style="flex:1;padding:11px;font-size:13px;font-weight:700;background:#F2F4F7;color:#475467;border:none;border-radius:9px;cursor:pointer;">취소</button>'
+    + '<button onclick="issueEnroll()" style="flex:1.4;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">PDF 발급</button>'
+    + '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function issueEnroll(){
+  var _ct = _certLabels(getBizType());
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  var m = mem.find(function(x){ return String(x.id)===String(document.getElementById('enr-member').value); });
+  if(!m){ alert('대상을 찾을 수 없어요.'); return; }
+  var birth = (document.getElementById('enr-birth').value||'').trim();
+  var status = document.getElementById('enr-status').value;
+  var startD = (document.getElementById('enr-start').value||'').trim();
+  var endD = (document.getElementById('enr-end').value||'').trim();
+  var purpose = (document.getElementById('enr-purpose').value||'').trim();
+  if(!startD){ if(!confirm('재원 시작일이 비어 있어요. 그래도 발급할까요?')) return; }
+  var o = loadOrgSettings();
+  var certNo = 'ENR-'+String(m.id)+'-'+Date.now().toString().slice(-5);
+  var html = buildEnrollHtml(o, m, birth, status, startD, endD, purpose, certNo, _ct);
+  saveHtmlAsPdf(html, '재원증명서_'+(m.name||'')+'.pdf');
+  closeCertModal('enroll-modal');
+  if(typeof showToast==='function') showToast('재원증명서를 발급했어요!');
+}
+
+function buildEnrollHtml(o, m, birth, status, startD, endD, purpose, certNo, ct){
+  var today = new Date();
+  var todayStr = today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
+  var period = startD ? (startD + ' ~ ' + (endD || '현재')) : '—';
+  var body = '<div style="width:190mm;margin:0 auto;padding:16mm 12mm;font-family:\'Malgun Gothic\',sans-serif;color:#1a1a1a;box-sizing:border-box;">';
+  body += '<div style="text-align:center;font-size:26px;font-weight:800;letter-spacing:8px;margin-bottom:6px;">재 원 증 명 서</div>';
+  body += '<div style="text-align:center;font-size:12px;color:#666;margin-bottom:24px;">문서 번호: '+_certEsc(certNo)+'</div>';
+  body += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;width:28%;">성명</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(m.name||'')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;">주민등록번호<br>(생년월일)</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(birth||'—')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;">재원 상태</td><td style="border:1px solid #333;padding:9px 12px;font-weight:700;">'+_certEsc(status||'재원')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;">재원 기간</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(period)+'</td></tr>';
+  body += '</table>';
+  var stmt = (status==='재원') ? '위 사람은 현재 본 기관에 재원 중임을 증명합니다.'
+    : (status==='수료') ? '위 사람은 본 기관의 교육과정을 수료하였음을 증명합니다.'
+    : '위 사람은 위 기간 동안 본 기관에 재원하였음을 증명합니다.';
+  body += '<div style="font-size:14px;line-height:1.9;margin:26px 0 8px;text-align:center;">'+stmt+'</div>';
+  if(purpose){ body += '<div style="font-size:12px;color:#555;text-align:center;margin-bottom:10px;">(용도: '+_certEsc(purpose)+')</div>'; }
+  body += '<div style="text-align:center;font-size:14px;font-weight:700;margin:22px 0 28px;">'+todayStr+'</div>';
+  body += '<div style="border-top:2px solid #333;padding-top:16px;position:relative;">';
+  body += '<table style="width:100%;font-size:13px;line-height:1.8;">';
+  body += '<tr><td style="width:22%;font-weight:700;color:#555;">상&nbsp;&nbsp;&nbsp;호</td><td style="font-weight:700;">'+_certEsc(o.name||'')+'</td></tr>';
+  if(o.bizNo) body += '<tr><td style="font-weight:700;color:#555;">사업자등록번호</td><td>'+_certEsc(o.bizNo)+'</td></tr>';
+  if(o.address) body += '<tr><td style="font-weight:700;color:#555;">주&nbsp;&nbsp;&nbsp;소</td><td>'+_certEsc(o.address)+'</td></tr>';
+  if(o.tel) body += '<tr><td style="font-weight:700;color:#555;">전화번호</td><td>'+_certEsc(o.tel)+'</td></tr>';
+  body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
+  body += '</table>';
+  if(o.stamp){ body += '<img src="'+o.stamp+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
+  body += '</div></div>';
+  return body;
+}
+
+// ===== 납부 영수증 (건별) =====
+function openReceiptModal(){
+  var _ct = _certLabels(getBizType());
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  if(!mem.length){ alert('등록된 '+_ct.subjectLabel+'가 없어요.'); return; }
+  var memOpts = mem.map(function(m){ return '<option value="'+m.id+'">'+_certEsc(m.name)+'</option>'; }).join('');
+  var todayStr = new Date().toISOString().slice(0,10);
+  var html = '<div id="receipt-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    + '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;">'
+    + '<div style="font-size:16px;font-weight:800;color:#1D2939;margin-bottom:14px;">🧾 납부 영수증 발급</div>'
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">'+_ct.subjectLabel+'</label>'
+    + '<select id="rcp-member" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'+memOpts+'</select>'
+    + _certField('납부 항목', 'rcp-item', _ct.feeName, '예) '+_ct.feeName)
+    + _certField('납부 금액 (원)', 'rcp-amount', '', '예) 150000')
+    + _certField('납부일', 'rcp-date', todayStr, 'YYYY-MM-DD')
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">결제 수단</label>'
+    + '<select id="rcp-method" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'
+    + '<option value="현금">현금</option><option value="카드">카드</option><option value="계좌이체">계좌이체</option></select>'
+    + '<div style="display:flex;gap:8px;margin-top:18px;">'
+    + '<button onclick="closeCertModal(\'receipt-modal\')" style="flex:1;padding:11px;font-size:13px;font-weight:700;background:#F2F4F7;color:#475467;border:none;border-radius:9px;cursor:pointer;">취소</button>'
+    + '<button onclick="issueReceipt()" style="flex:1.4;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">PDF 발급</button>'
+    + '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function issueReceipt(){
+  var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
+  var m = mem.find(function(x){ return String(x.id)===String(document.getElementById('rcp-member').value); });
+  if(!m){ alert('대상을 찾을 수 없어요.'); return; }
+  var item = (document.getElementById('rcp-item').value||'').trim();
+  var amount = parseInt((document.getElementById('rcp-amount').value||'').replace(/[^0-9]/g,''))||0;
+  var date = (document.getElementById('rcp-date').value||'').trim();
+  var method = document.getElementById('rcp-method').value;
+  if(amount<=0){ alert('납부 금액을 입력해주세요.'); return; }
+  var o = loadOrgSettings();
+  var no = 'RCP-'+String(m.id)+'-'+Date.now().toString().slice(-5);
+  var html = buildReceiptHtml(o, m, item, amount, date, method, no);
+  saveHtmlAsPdf(html, '납부영수증_'+(m.name||'')+'_'+(date||'')+'.pdf');
+  closeCertModal('receipt-modal');
+  if(typeof showToast==='function') showToast('영수증을 발급했어요!');
+}
+
+function buildReceiptHtml(o, m, item, amount, date, method, no){
+  var today = new Date();
+  var todayStr = today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
+  var body = '<div style="width:190mm;margin:0 auto;padding:16mm 12mm;font-family:\'Malgun Gothic\',sans-serif;color:#1a1a1a;box-sizing:border-box;">';
+  body += '<div style="text-align:center;font-size:26px;font-weight:800;letter-spacing:8px;margin-bottom:6px;">영 수 증</div>';
+  body += '<div style="text-align:center;font-size:12px;color:#666;margin-bottom:24px;">영수증 번호: '+_certEsc(no)+'</div>';
+  body += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;width:28%;">받는 분(성명)</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(m.name||'')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;">납부 항목</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(item||'—')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;">납부일</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(date||'—')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:9px 12px;background:#f5f5f5;font-weight:700;">결제 수단</td><td style="border:1px solid #333;padding:9px 12px;">'+_certEsc(method||'—')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:11px 12px;background:#faf5ff;font-weight:800;">납부 금액</td><td style="border:1px solid #333;padding:11px 12px;font-weight:800;font-size:16px;">'+_certComma(amount)+' 원</td></tr>';
+  body += '</table>';
+  body += '<div style="font-size:14px;line-height:1.9;margin:26px 0 8px;text-align:center;">위 금액을 정히 영수합니다.</div>';
+  body += '<div style="text-align:center;font-size:14px;font-weight:700;margin:22px 0 28px;">'+todayStr+'</div>';
+  body += '<div style="border-top:2px solid #333;padding-top:16px;position:relative;">';
+  body += '<table style="width:100%;font-size:13px;line-height:1.8;">';
+  body += '<tr><td style="width:22%;font-weight:700;color:#555;">상&nbsp;&nbsp;&nbsp;호</td><td style="font-weight:700;">'+_certEsc(o.name||'')+'</td></tr>';
+  if(o.bizNo) body += '<tr><td style="font-weight:700;color:#555;">사업자등록번호</td><td>'+_certEsc(o.bizNo)+'</td></tr>';
+  if(o.address) body += '<tr><td style="font-weight:700;color:#555;">주&nbsp;&nbsp;&nbsp;소</td><td>'+_certEsc(o.address)+'</td></tr>';
+  if(o.tel) body += '<tr><td style="font-weight:700;color:#555;">전화번호</td><td>'+_certEsc(o.tel)+'</td></tr>';
+  body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
+  body += '</table>';
+  if(o.stamp){ body += '<img src="'+o.stamp+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
+  body += '</div></div>';
+  return body;
 }
 
 
