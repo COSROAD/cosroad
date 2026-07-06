@@ -554,7 +554,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 116;
+const APP_VERSION = 117;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2699,6 +2699,12 @@ function renderSettings(){
           <div style="flex:1;"><label class="form-label">종목</label>
           <input class="form-input" id="org-bizitem" value="${orgSettings.bizItem||''}" placeholder="예) 교육" style="margin-bottom:0;"/></div>
         </div>
+        <div style="display:flex;gap:8px;width:100%;">
+          <div style="flex:2;"><label class="form-label">주소</label>
+          <input class="form-input" id="org-addr" value="${orgSettings.address||''}" placeholder="예) 서울시 강남구 테헤란로 123" style="margin-bottom:0;"/></div>
+          <div style="flex:1;"><label class="form-label">전화번호</label>
+          <input class="form-input" id="org-tel" value="${orgSettings.tel||''}" placeholder="02-000-0000" style="margin-bottom:0;"/></div>
+        </div>
         <label class="form-label">입금 계좌 (거래명세서 인쇄용)</label>
         <input class="form-input" id="org-bank" value="${orgSettings.bankAccount||''}" placeholder="예) 농협 301-0000-0000-00 예금주: 주식회사 프리존" style="margin-bottom:0;"/>
         <label class="form-label">도장 이미지 (거래명세서 인쇄용)</label>
@@ -2790,7 +2796,7 @@ function saveOrgInfo(){
   function gv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
   var bizTypeVal = getUrlBizGroup() || (bizSel?bizSel.value:getBizType());
   var _prevStamp = (orgSettings&&orgSettings.stamp)||'';
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),bankAccount:gv('org-bank'),stamp:_prevStamp};
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
   applyOrgNameFit();
@@ -4547,13 +4553,15 @@ function renderTax(){
     h += '</div>';
   }
 
-  // 교육비 납입증명서 (학원 유형 전용)
-  if(getBizType()==='academy'){
+  // 납입/납부 증명서 (학원=교육비, 공공=장기요양급여비)
+  var _certBiz = getBizType();
+  if(_certBiz==='academy' || _certBiz==='public'){
+    var _ct = _certLabels(_certBiz);
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-    h += '<div style="font-size:14px;font-weight:800;color:#1D2939;margin-bottom:4px;">📄 교육비 납입증명서</div>';
-    h += '<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">수강생별 연간 납부내역을 증명서(PDF)로 발급합니다.</div>';
+    h += '<div style="font-size:14px;font-weight:800;color:#1D2939;margin-bottom:4px;">📄 '+_ct.docTitle+'</div>';
+    h += '<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">'+_ct.subjectLabel+'별 연간 납부내역을 '+_ct.docShort+'(PDF)로 발급합니다.</div>';
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
-    h += '<button onclick="openCertIssueModal()" style="flex:1;min-width:130px;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">증명서 발급</button>';
+    h += '<button onclick="openCertIssueModal()" style="flex:1;min-width:130px;padding:11px;font-size:13px;font-weight:700;background:#7C3AED;color:#fff;border:none;border-radius:9px;cursor:pointer;">'+_ct.docShort+' 발급</button>';
     h += '</div>';
     h += '<div id="cert-history-box" style="margin-top:12px;"></div>';
     h += '</div>';
@@ -4562,7 +4570,7 @@ function renderTax(){
   h += '<div style="height:100px;"></div>';
   h += '</div></div>';
   cont.innerHTML = h;
-  if(getBizType()==='academy' && typeof renderCertHistory==='function'){ renderCertHistory(); }
+  if((getBizType()==='academy'||getBizType()==='public') && typeof renderCertHistory==='function'){ renderCertHistory(); }
 }
 
 function updateTaxInputStyle(){
@@ -6172,6 +6180,34 @@ function saveHtmlAsPdf(innerHtml, fname, extraCss){
 
 
 // ===== 교육비 납입증명서 =====
+// 유형별 증명서 문구 (학원=교육비, 공공=장기요양급여비)
+function _certLabels(biz){
+  if(biz==='public'){
+    return {
+      docTitle:'장기요양급여비 납부확인서',
+      docShort:'납부확인서',
+      subjectLabel:'이용자',
+      subjectName:'이용자',
+      feeName:'이용료(본인부담금)',
+      isPublic:true,
+      note:'※ 요양 비용 중 비급여 항목(식대·상급침실료·이미용비·간병비 등)은 의료비 세액공제 대상이 아닙니다. 공제 대상 본인부담금만 신고하세요.',
+      certify:'위와 같이 장기요양급여비 본인부담금을 납부하였음을 확인합니다.',
+      fnamePrefix:'장기요양급여비납부확인서'
+    };
+  }
+  return {
+    docTitle:'교육비 납입증명서',
+    docShort:'증명서',
+    subjectLabel:'수강생',
+    subjectName:'수강생',
+    feeName:'교육비',
+    isPublic:false,
+    note:'',
+    certify:'위와 같이 교육비를 납입하였음을 증명합니다.',
+    fnamePrefix:'교육비납입증명서'
+  };
+}
+
 function loadCertificates(){ return JSON.parse(localStorage.getItem('tkd_certificates')||'[]'); }
 function saveCertificates(arr){ localStorage.setItem('tkd_certificates', JSON.stringify(arr)); saveToFirebase('certificates', arr); }
 
@@ -6184,24 +6220,39 @@ function _certField(label, id, val, ph){
 }
 function closeCertModal(id){ var el=document.getElementById(id); if(el) el.remove(); }
 
-// 증명서 발급 모달 (수강생·연도 선택)
+// 증명서 발급 모달 (대상자·연도 선택)
 function openCertIssueModal(){
+  var _ct = _certLabels(getBizType());
   var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
-  if(!mem.length){ alert('등록된 수강생이 없어요. 먼저 회원을 등록해주세요.'); return; }
+  if(!mem.length){ alert('등록된 '+_ct.subjectLabel+'가 없어요. 먼저 회원을 등록해주세요.'); return; }
   var nowY = new Date().getFullYear();
   var yearOpts = '';
   for(var y=nowY; y>=nowY-4; y--){ yearOpts += '<option value="'+y+'">'+y+'년</option>'; }
   var memOpts = mem.map(function(m){ return '<option value="'+m.id+'">'+_certEsc(m.name)+'</option>'; }).join('');
+  // 관계 옵션 (요양=자녀/배우자 위주, 학원=부모 위주)
+  var relOpts = _ct.isPublic
+    ? '<option value="자녀">자녀</option><option value="배우자">배우자</option><option value="본인">본인</option><option value="부">부</option><option value="모">모</option><option value="기타">기타</option>'
+    : '<option value="부">부</option><option value="모">모</option><option value="본인">본인</option><option value="조부">조부</option><option value="조모">조모</option><option value="기타">기타</option>';
+  var extraFee = _ct.isPublic
+    ? _certField('공제 대상 본인부담금 (선택, 비워두면 총액)', 'cert-eligible', '', '예) 급여 본인부담금만 입력')
+    : '';
   var html = '<div id="cert-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px;">'
     + '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;">'
-    + '<div style="font-size:16px;font-weight:800;color:#1D2939;margin-bottom:14px;">📄 교육비 납입증명서 발급</div>'
+    + '<div style="font-size:16px;font-weight:800;color:#1D2939;margin-bottom:14px;">📄 '+_ct.docTitle+' 발급</div>'
     + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">대상 연도</label>'
     + '<select id="cert-year" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'+yearOpts+'</select>'
-    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">수강생</label>'
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">'+_ct.subjectLabel+'</label>'
     + '<select id="cert-member" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'+memOpts+'</select>'
-    + _certField('수강생 생년월일 (선택)', 'cert-birth', '', '예) 2015-03-01')
+    + _certField(_ct.subjectLabel+' 주민등록번호 또는 생년월일', 'cert-birth', '', '예) 400301-1****** 또는 1940-03-01')
+    + extraFee
+    + '<div style="border-top:1px dashed #E4E7EC;margin:14px 0 4px;padding-top:10px;font-size:12px;font-weight:800;color:#7C3AED;">신청인 정보 (공제받는 분)</div>'
+    + _certField('신청인 성명', 'cert-applicant', '', '예) 홍길동')
+    + '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">'+_ct.subjectLabel+'와의 관계</label>'
+    + '<select id="cert-relation" style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:13px;border:1px solid #D0D5DD;border-radius:8px;">'
+    + relOpts + '</select>'
     + _certField('발급 목적 (선택)', 'cert-purpose', '연말정산 제출용', '')
-    + '<div style="font-size:11px;color:#98A2B3;margin-top:10px;line-height:1.5;">※ 선택한 연도의 납부 완료 내역이 자동 집계됩니다. 상호·사업자번호·대표자·도장은 <b>설정 탭</b>의 학원정보에서 가져옵니다. 비어 있으면 먼저 설정에서 입력해주세요.</div>'
+    + '<div style="font-size:11px;color:#98A2B3;margin-top:10px;line-height:1.5;">※ 선택한 연도의 납부 완료 내역이 자동 집계됩니다. 상호·사업자번호·대표자·도장은 <b>설정 탭</b>에서 가져옵니다.'
+    + (_ct.note ? '<br>'+_ct.note : '') + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:18px;">'
     + '<button onclick="closeCertModal(\'cert-modal\')" style="flex:1;padding:11px;font-size:13px;font-weight:700;background:#F2F4F7;color:#475467;border:none;border-radius:9px;cursor:pointer;">취소</button>'
     + '<button onclick="previewCertificate()" style="flex:1.4;padding:11px;font-size:13px;font-weight:700;background:#EDE9FE;color:#7C3AED;border:none;border-radius:9px;cursor:pointer;">👁 미리보기</button>'
@@ -6217,6 +6268,8 @@ function _collectCertData(){
   var memberId = document.getElementById('cert-member').value;
   var birth = (document.getElementById('cert-birth').value||'').trim();
   var purpose = (document.getElementById('cert-purpose').value||'').trim();
+  var applicant = (document.getElementById('cert-applicant')?document.getElementById('cert-applicant').value:'').trim();
+  var relation = (document.getElementById('cert-relation')?document.getElementById('cert-relation').value:'').trim();
   var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
   var m = mem.find(function(x){ return String(x.id)===String(memberId); });
   if(!m){ alert('수강생을 찾을 수 없어요.'); return null; }
@@ -6228,7 +6281,10 @@ function _collectCertData(){
   }
   var o = loadOrgSettings();
   var certNo = year+'-'+String(m.id)+'-'+Date.now().toString().slice(-5);
-  return { year:year, m:m, birth:birth, purpose:purpose, rows:rows, total:total, o:o, certNo:certNo };
+  var eligibleEl = document.getElementById('cert-eligible');
+  var eligible = eligibleEl ? (parseInt((eligibleEl.value||'').replace(/[^0-9]/g,''))||0) : 0;
+  var ct = _certLabels(getBizType());
+  return { year:year, m:m, birth:birth, purpose:purpose, applicant:applicant, relation:relation, rows:rows, total:total, o:o, certNo:certNo, eligible:eligible, ct:ct };
 }
 
 // 증명서 미리보기 (화면에 표시 후 저장/닫기 선택)
@@ -6236,7 +6292,7 @@ function previewCertificate(){
   var d = _collectCertData();
   if(!d) return;
   if(!d.rows.length){ if(!confirm(d.year+'년 납부 완료 내역이 없어요. 그래도 빈 증명서를 미리볼까요?')) return; }
-  var inner = buildCertHtml(d.o, d.m, d.birth, d.year, d.rows, d.total, d.purpose, d.certNo);
+  var inner = buildCertHtml(d.o, d.m, d.birth, d.year, d.rows, d.total, d.purpose, d.certNo, d.applicant, d.relation, d.ct, d.eligible);
   var html = '<div id="cert-preview" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100003;display:flex;flex-direction:column;align-items:center;padding:14px;overflow-y:auto;">'
     + '<div style="background:#fff;max-width:640px;width:100%;border-radius:10px;overflow:hidden;margin-bottom:12px;">'
     + '<div style="transform-origin:top center;">'+inner+'</div>'
@@ -6257,34 +6313,44 @@ function confirmIssueFromPreview(){
 function issueCertificate(){
   var d = _collectCertData();
   if(!d) return;
-  if(!d.rows.length){ if(!confirm(d.year+'년 납부 완료 내역이 없어요. 그래도 빈 증명서를 발급할까요?')) return; }
-  var html = buildCertHtml(d.o, d.m, d.birth, d.year, d.rows, d.total, d.purpose, d.certNo);
-  var fname = '교육비납입증명서_'+(d.m.name||'')+'_'+d.year+'.pdf';
+  if(!d.rows.length){ if(!confirm(d.year+'년 납부 완료 내역이 없어요. 그래도 빈 문서를 발급할까요?')) return; }
+  var html = buildCertHtml(d.o, d.m, d.birth, d.year, d.rows, d.total, d.purpose, d.certNo, d.applicant, d.relation, d.ct, d.eligible);
+  var fname = d.ct.fnamePrefix+'_'+(d.m.name||'')+'_'+d.year+'.pdf';
   saveHtmlAsPdf(html, fname);
-  // 발급 이력 기록
+  // 발급 이력 기록 (유형·공제대상금액 포함)
   var certs = loadCertificates();
-  certs.unshift({ id:d.certNo, memberId:String(d.m.id), memberName:d.m.name||'', year:d.year, total:d.total, count:d.rows.length, issuedAt:new Date().toISOString().slice(0,10) });
+  certs.unshift({ id:d.certNo, biz:getBizType(), memberId:String(d.m.id), memberName:d.m.name||'', year:d.year, total:d.total, count:d.rows.length, issuedAt:new Date().toISOString().slice(0,10), birth:d.birth||'', applicant:d.applicant||'', relation:d.relation||'', eligible:d.eligible||0 });
   saveCertificates(certs);
   closeCertModal('cert-modal');
   if(typeof renderCertHistory==='function') renderCertHistory();
-  if(typeof showToast==='function') showToast('증명서를 발급했어요!');
+  if(typeof showToast==='function') showToast(d.ct.docShort+'를 발급했어요!');
 }
 
 
 // 증명서 HTML 양식
-function buildCertHtml(o, m, birth, year, rows, total, purpose, certNo){
+function buildCertHtml(o, m, birth, year, rows, total, purpose, certNo, applicant, relation, ct, eligible){
+  ct = ct || { docTitle:'교육비 납입증명서', subjectLabel:'수강생', certify:'위와 같이 교육비를 납입하였음을 증명합니다.', note:'', isPublic:false };
   var today = new Date();
   var todayStr = today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
   var methodKor = {cash:'현금', card:'카드', transfer:'계좌이체'};
   var body = '<div style="width:190mm;margin:0 auto;padding:16mm 12mm;font-family:\'Malgun Gothic\',sans-serif;color:#1a1a1a;box-sizing:border-box;">';
-  body += '<div style="text-align:center;font-size:26px;font-weight:800;letter-spacing:8px;margin-bottom:6px;">교육비 납입증명서</div>';
-  body += '<div style="text-align:center;font-size:12px;color:#666;margin-bottom:20px;">증명서 번호: '+_certEsc(certNo)+'</div>';
-  // 수강생 정보
-  body += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">';
+  body += '<div style="text-align:center;font-size:26px;font-weight:800;letter-spacing:8px;margin-bottom:6px;">'+_certEsc(ct.docTitle)+'</div>';
+  body += '<div style="text-align:center;font-size:12px;color:#666;margin-bottom:20px;">문서 번호: '+_certEsc(certNo)+'</div>';
+  // 대상자 정보
+  body += '<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">대상 '+_certEsc(ct.subjectLabel)+'</div>';
+  body += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px;">';
   body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;width:28%;">성명</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(m.name||'')+'</td></tr>';
-  body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;">생년월일</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(birth||'—')+'</td></tr>';
+  body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;">주민등록번호<br>(생년월일)</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(birth||'—')+'</td></tr>';
   body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;">대상 기간</td><td style="border:1px solid #333;padding:8px 10px;">'+year+'년 1월 ~ '+year+'년 12월</td></tr>';
   body += '</table>';
+  // 신청인 정보 (공제받는 사람)
+  if(applicant || relation){
+    body += '<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">신청인 (공제 대상자)</div>';
+    body += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">';
+    body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;width:28%;">성명</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(applicant||'—')+'</td></tr>';
+    body += '<tr><td style="border:1px solid #333;padding:8px 10px;background:#f5f5f5;font-weight:700;">'+_certEsc(ct.subjectLabel)+'와의 관계</td><td style="border:1px solid #333;padding:8px 10px;">'+_certEsc(relation||'—')+'</td></tr>';
+    body += '</table>';
+  }
   // 납부 내역
   body += '<div style="font-size:14px;font-weight:700;margin:8px 0;">납부 내역</div>';
   body += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;">';
@@ -6299,17 +6365,24 @@ function buildCertHtml(o, m, birth, year, rows, total, purpose, certNo){
   } else {
     body += '<tr><td colspan="4" style="border:1px solid #333;padding:12px;text-align:center;color:#888;">납부 내역이 없습니다.</td></tr>';
   }
-  body += '<tr style="font-weight:800;background:#faf5ff;"><td colspan="3" style="border:1px solid #333;padding:8px;text-align:center;">합계</td><td style="border:1px solid #333;padding:8px;text-align:right;">'+_certComma(total)+' 원</td></tr>';
+  body += '<tr style="font-weight:800;background:#faf5ff;"><td colspan="3" style="border:1px solid #333;padding:8px;text-align:center;">납부 총액</td><td style="border:1px solid #333;padding:8px;text-align:right;">'+_certComma(total)+' 원</td></tr>';
+  // 공공(요양): 공제 대상 본인부담금 행 추가
+  if(ct.isPublic && eligible && eligible>0){
+    body += '<tr style="font-weight:800;background:#EFF8FF;"><td colspan="3" style="border:1px solid #333;padding:8px;text-align:center;">이 중 공제 대상 본인부담금</td><td style="border:1px solid #333;padding:8px;text-align:right;">'+_certComma(eligible)+' 원</td></tr>';
+  }
   body += '</table>';
-  // 증명 문구
-  body += '<div style="font-size:13px;line-height:1.9;margin:22px 0 8px;text-align:center;">위와 같이 교육비를 납입하였음을 증명합니다.</div>';
+  // 증명/확인 문구
+  body += '<div style="font-size:13px;line-height:1.9;margin:22px 0 8px;text-align:center;">'+_certEsc(ct.certify)+'</div>';
+  if(ct.note){ body += '<div style="font-size:11px;color:#888;text-align:center;margin-bottom:6px;line-height:1.6;">'+_certEsc(ct.note)+'</div>'; }
   if(purpose){ body += '<div style="font-size:12px;color:#555;text-align:center;margin-bottom:10px;">(용도: '+_certEsc(purpose)+')</div>'; }
   body += '<div style="text-align:center;font-size:14px;font-weight:700;margin:18px 0 24px;">'+todayStr+'</div>';
-  // 학원 정보 + 직인 (설정 탭의 orgSettings 값 사용)
+  // 기관 정보 + 직인 (설정 탭의 orgSettings 값 사용)
   body += '<div style="border-top:2px solid #333;padding-top:16px;position:relative;">';
   body += '<table style="width:100%;font-size:13px;line-height:1.8;">';
   body += '<tr><td style="width:22%;font-weight:700;color:#555;">상&nbsp;&nbsp;&nbsp;호</td><td style="font-weight:700;">'+_certEsc(o.name||'')+'</td></tr>';
   if(o.bizNo) body += '<tr><td style="font-weight:700;color:#555;">사업자등록번호</td><td>'+_certEsc(o.bizNo)+'</td></tr>';
+  if(o.address) body += '<tr><td style="font-weight:700;color:#555;">주&nbsp;&nbsp;&nbsp;소</td><td>'+_certEsc(o.address)+'</td></tr>';
+  if(o.tel) body += '<tr><td style="font-weight:700;color:#555;">전화번호</td><td>'+_certEsc(o.tel)+'</td></tr>';
   if(o.bizCat||o.bizItem) body += '<tr><td style="font-weight:700;color:#555;">업태 / 종목</td><td>'+_certEsc(o.bizCat||'—')+' / '+_certEsc(o.bizItem||'—')+'</td></tr>';
   body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
   body += '</table>';
@@ -6352,8 +6425,9 @@ function reissueCertificate(certId){
     if(p && p.paid){ var amt=Number(p.collected||p.amount||0); total+=amt; rows.push({month:mo,date:p.date||'',method:p.method||'',amount:amt}); }
   }
   var o = loadOrgSettings();
-  var html = buildCertHtml(o, m, '', c.year, rows, total, '', c.id);
-  saveHtmlAsPdf(html, '교육비납입증명서_'+(m.name||'')+'_'+c.year+'.pdf');
+  var ct = _certLabels(c.biz || getBizType());
+  var html = buildCertHtml(o, m, c.birth||'', c.year, rows, total, '', c.id, c.applicant||'', c.relation||'', ct, c.eligible||0);
+  saveHtmlAsPdf(html, ct.fnamePrefix+'_'+(m.name||'')+'_'+c.year+'.pdf');
 }
 
 // 발급 이력 삭제 (반대 동작)
