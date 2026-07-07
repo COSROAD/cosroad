@@ -353,7 +353,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div style="text-align:center;margin-top:8px;"><span onclick="sendPwReset()" style="font-size:12px;color:#98A2B3;cursor:pointer;text-decoration:underline;">비밀번호를 잊으셨나요?</span></div>
     <div class="login-err" id="login-err">로그인 정보가 올바르지 않습니다.</div>
   </div>
-  <div class="login-hint">초기 관리자 비밀번호: 1234</div>
+  <div class="login-hint" id="login-hint">초기 관리자 비밀번호: 1234</div>
   <div style="margin-top:12px;text-align:center;">
     <a href="https://cosroad.com/home.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#fff;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);border-radius:9px;padding:9px 18px;text-decoration:none;">🏠 홈페이지로 가기</a>
   </div>
@@ -554,7 +554,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 118;
+const APP_VERSION = 119;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -7449,6 +7449,21 @@ function getUrlOrg(){
   return null;
 }
 
+// 정식 가입 승인 계정 org인지 판별
+// 가입 시 orgId = 업종_UID12자리(무작위 영숫자, 대소문자 섞임)로 생성됨.
+// 데모(_demo)·기본(cosroad_default)·마스터가 만든 소문자단어 계정과 구분.
+function isRegisteredOrg(){
+  var o = getUrlOrg();
+  if(!o) return false;                       // 주소에 org 없음 = 마스터/기본
+  if(/_demo$/.test(o)) return false;          // 데모
+  if(o === 'cosroad_default') return false;   // 기본
+  // 업종_뒤 문자열이 12자리이고 대문자를 포함하면 Firebase UID 기반 정식 가입 계정
+  var m = o.match(/^(academy|logistics|public|delivery)_(.+)$/);
+  if(!m) return false;
+  var suffix = m[2];
+  return suffix.length >= 12 && /[A-Z]/.test(suffix);
+}
+
 // URL org에서 그룹(업종) 추출: 'logistics_cvs' -> 'logistics'
 function getUrlBizGroup(){
   var v = getUrlOrg();
@@ -7930,6 +7945,23 @@ function showAddrResults(results){
 <div id="fb-loading" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1A6BFF;color:white;padding:6px;text-align:center;font-size:12px;font-weight:700;">
   🔄 데이터 동기화 중...
 </div>
+
+<script>
+// 정식 가입 승인 계정 org에서는 초기 관리자 비밀번호 안내 문구를 숨김
+// (정식 사용자는 이메일 계정으로 로그인하므로 1234 안내가 불필요)
+(function(){
+  function hideHintIfRegistered(){
+    try{
+      if(typeof isRegisteredOrg==='function' && isRegisteredOrg()){
+        var el=document.getElementById('login-hint');
+        if(el) el.style.display='none';
+      }
+    }catch(e){}
+  }
+  if(document.readyState!=='loading'){ hideHintIfRegistered(); }
+  else { document.addEventListener('DOMContentLoaded', hideHintIfRegistered); }
+})();
+</script>
 
 </body>
 </html>
