@@ -554,7 +554,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 120;
+const APP_VERSION = 121;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -880,6 +880,8 @@ function openSignupModal(presetBiz){
     +'<input id="su-pw" type="password" placeholder="비밀번호" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 4px;box-sizing:border-box;"/>'
     +'<div id="su-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
     +'<button onclick="doSignup()" style="width:100%;padding:13px;background:var(--admin);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:10px;">가입하기</button>'
+    +'<div style="text-align:center;font-size:12px;color:#98A2B3;margin:14px 0 6px;">이미 가입·승인받으셨나요?</div>'
+    +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:12px;background:#fff;color:var(--admin);border:1.5px solid var(--admin);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">📱 바로 앱 실행하기</button>'
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">취소</button>'
     +'</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);

@@ -309,7 +309,7 @@
     <div class="sec-head">
       <div class="sec-tag">설치 안내</div>
       <h2 class="sec-title">폰 홈 화면에 추가하기</h2>
-      <p class="sec-desc">COSROAD는 앱스토어에서 받지 않아요. 브라우저에서 "홈 화면에 추가"하면 앱처럼 아이콘이 생겨 바로 실행됩니다.</p>
+      <p class="sec-desc">COSROAD는 앱스토어에서 받지 않아도 돼요. 홈페이지 상단 업종을 클릭하면 앱이 실행되고, 앱에서 "홈 화면에 추가"하면 바탕화면에 앱 아이콘이 생겨 바로 사용 가능하십니다.</p>
     </div>
     <div class="install-grid">
       <div class="install-card">
@@ -447,8 +447,4 @@ function submitApply(){
   }).catch(function(e){
     msg.style.color='#EA580C';
     msg.textContent='전송에 실패했습니다. 잠시 후 다시 시도하거나 cosroad@cosroad.com 으로 연락 주세요.';
-    btn.disabled=false; btn.textContent='신청 보내기';
-    console.log('신청 저장 실패', e);
-  });
-}
-</script>
+    btn.disabled=false; btn.textContent=
