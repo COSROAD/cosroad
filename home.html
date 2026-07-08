@@ -288,6 +288,12 @@
         <div class="field"><label for="f-biz">업종</label><select id="f-biz"><option value="">선택하세요</option><option value="학원">학원</option><option value="물류">물류</option><option value="공공">공공</option><option value="택배">택배</option><option value="기타">기타</option></select></div>
         <div class="field"><label for="f-org">상호 / 기관명</label><input id="f-org" type="text" placeholder="○○학원"></div>
         <div class="field full"><label for="f-memo">문의 내용 (선택)</label><textarea id="f-memo" placeholder="궁금한 점이나 요청사항을 적어주세요."></textarea></div>
+        <div class="field full">
+          <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.6;color:#475467;cursor:pointer;font-weight:500;">
+            <input type="checkbox" id="f-agree" style="margin-top:3px;flex:none;width:16px;height:16px;accent-color:var(--orange);cursor:pointer;">
+            <span><b style="color:#EA580C;">[필수]</b> 개인정보 수집·이용에 동의합니다. 수집 항목: 이름, 연락처, 상호. 목적: 구독 상담 및 서비스 안내. 보유 기간: 문의 처리 후 1년. 자세한 내용은 <a href="#" onclick="showPrivacy();return false;" style="color:#EA580C;text-decoration:underline;font-weight:700;">개인정보 처리방침</a>에서 확인하실 수 있어요.</span>
+          </label>
+        </div>
         <div class="field full"><button class="btn btn-primary" style="width:100%;justify-content:center;" id="submitBtn" onclick="submitApply()">신청 보내기</button></div>
       </div>
       <div id="formMsg"></div>
@@ -375,17 +381,41 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 });
 
+function showPrivacy(){
+  var old=document.getElementById('privacy-modal'); if(old) old.remove();
+  var html='<div id="privacy-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)this.remove();">'
+    +'<div style="background:#fff;border-radius:16px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto;padding:26px 24px;box-sizing:border-box;">'
+    +'<div style="font-size:18px;font-weight:800;color:#1F2433;margin-bottom:14px;">개인정보 처리방침</div>'
+    +'<div style="font-size:13.5px;color:#475467;line-height:1.75;">'
+    +'<p style="margin:0 0 12px;">주식회사 프리존(이하 \'회사\')은 구독 신청·상담을 위해 아래와 같이 개인정보를 수집·이용합니다.</p>'
+    +'<p style="margin:0 0 6px;"><b>1. 수집 항목</b><br>이름, 연락처, 상호/기관명, 문의 내용</p>'
+    +'<p style="margin:0 0 6px;"><b>2. 수집·이용 목적</b><br>구독 상담 및 서비스 안내, 신청 처리</p>'
+    +'<p style="margin:0 0 6px;"><b>3. 보유·이용 기간</b><br>문의 처리 후 1년 (관련 법령에 따라 필요한 경우 해당 기간까지 보관)</p>'
+    +'<p style="margin:0 0 6px;"><b>4. 제3자 제공</b><br>회사는 원칙적으로 이용자의 개인정보를 외부에 제공하지 않습니다.</p>'
+    +'<p style="margin:0 0 6px;"><b>5. 동의 거부 권리</b><br>이용자는 동의를 거부할 권리가 있으며, 다만 필수 항목에 동의하지 않으실 경우 구독 신청·상담이 제한될 수 있습니다.</p>'
+    +'<p style="margin:0 0 6px;"><b>6. 문의처</b><br>개인정보 관련 문의: cosroad@cosroad.com</p>'
+    +'</div>'
+    +'<button onclick="document.getElementById(\'privacy-modal\').remove()" style="width:100%;padding:12px;margin-top:16px;background:#EA580C;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">확인</button>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
 function submitApply(){
   var name=document.getElementById('f-name').value.trim();
   var phone=document.getElementById('f-phone').value.trim();
   var biz=document.getElementById('f-biz').value;
   var org=document.getElementById('f-org').value.trim();
   var memo=document.getElementById('f-memo').value.trim();
+  var agree=document.getElementById('f-agree').checked;
   var msg=document.getElementById('formMsg');
   var btn=document.getElementById('submitBtn');
   if(!name||!phone||!biz){
     msg.style.color='#EA580C';
     msg.textContent='이름·연락처·업종은 필수입니다.';
+    return;
+  }
+  if(!agree){
+    msg.style.color='#EA580C';
+    msg.textContent='개인정보 수집·이용에 동의해 주세요. (필수)';
     return;
   }
   if(!window._applyDb){
@@ -397,7 +427,8 @@ function submitApply(){
   var d=window._applyDb;
   d.addDoc(d.collection(d.db,'subscribeApplies'),{
     name:name, phone:phone, biz:biz, org:org, memo:memo,
-    createdAt:Date.now(), status:'신규'
+    createdAt:Date.now(), status:'신규',
+    privacyAgreed:true, privacyAgreedAt:Date.now()
   }).then(function(){
     msg.style.color='#16A34A';
     msg.innerHTML='✅ 신청이 접수되었습니다. 곧 연락드리겠습니다.'+
@@ -412,6 +443,7 @@ function submitApply(){
     document.getElementById('f-biz').value='';
     document.getElementById('f-org').value='';
     document.getElementById('f-memo').value='';
+    document.getElementById('f-agree').checked=false;
     btn.disabled=false; btn.textContent='신청 보내기';
   }).catch(function(e){
     msg.style.color='#EA580C';
