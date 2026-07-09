@@ -562,7 +562,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 129;
+const APP_VERSION = 130;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1391,10 +1391,10 @@ function renderDrive(){
         <div class="stop-name"><b>${i+1}.</b> ${s.name} <span style="color:var(--gray-400);font-size:11px;">— ${s.location}</span></div>
         ${eta?`<span class="stop-eta-badge">⏱${eta}</span>`:''}</div>`;
     });
-    if(!_logiDrive && !_drop){
+    if(!_logiDrive){
       html+=`<div class="route-stop"><div class="stop-dot dest"></div>
-        <div class="stop-name" style="color:var(--danger);font-weight:700;">🏫 ${orgSettings.destName} 도착</div>
-        <div style="font-size:11px;color:var(--gray-400);">${course?.arrive||''}</div></div>`;
+        <div class="stop-name" style="color:var(--danger);font-weight:700;">🏫 ${orgSettings.destName} ${_drop?'복귀':'도착'}</div>
+        <div style="font-size:11px;color:var(--gray-400);">${_drop?'하차 완료 후 복귀':(course?.arrive||'')}</div></div>`;
     }
     html+=`</div>`;
   }
