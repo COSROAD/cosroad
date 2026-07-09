@@ -442,6 +442,14 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     </div>
     <div id="member-addr-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
     </div>
+    <div id="wrap-droplocation">
+    <label class="form-label" id="lbl-droplocation">하차 장소 <span style="font-weight:400;color:#98A2B3;">(비우면 픽업장소와 동일)</span></label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input class="form-input" type="text" id="m-droplocation" placeholder="예) 행복아파트 101동" style="margin-bottom:0;flex:1;"/>
+      <button type="button" onclick="searchMemberDropAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">📍 검색</button>
+    </div>
+    <div id="member-drop-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
+    </div>
     <div class="form-row" id="wrap-phones">
       <div id="wrap-phone1"><label class="form-label" id="lbl-phone">보호자 연락처1</label>
         <input class="form-input" type="tel" id="m-phone" placeholder="010-0000-0000"/>
@@ -554,7 +562,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 123;
+const APP_VERSION = 124;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2418,16 +2426,17 @@ function downloadSampleExcel(){
   } else {
     // 학원·공공 (기본)
     data=[
-      ['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항'],
-      ['홍길동','3시30분반','1호차','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기'],
-      ['김영희','5~6시반','2호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678',''],
-      ['이철수','3시30분반','1호차','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞'],
+      ['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항','하차장소'],
+      ['홍길동','3시30분반','1호차','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기','행복아파트 101동'],
+      ['김영희','5~6시반','2호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678','',''],
+      ['이철수','3시30분반','1호차','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞',''],
     ];
     note=[
       ['항목','작성 방법','예시'],
       ['이름','이용자 이름','홍길동'],
       ['코스(수업반)','설정된 코스 이름과 동일하게','3시30분반, 5~6시반'],
       ['픽업장소','실제 탑승 위치','용현초 정문'],
+      ['하차장소','하원 시 내려줄 위치 (비우면 픽업장소와 동일)','행복아파트 101동'],
       ['보호자연락처','하이픈(-) 포함','010-1234-5678'],
       ['등원요일','쉼표(,)로 구분','월,화,수,목,금'],
       ['차량','1호차~5호차 중','1호차, 2호차'],
@@ -2459,6 +2468,7 @@ function handleExcelFile(file){
       var courierMap={'CJ대한통운':'04','한진택배':'05','롯데택배':'08','우체국택배':'01','로젠택배':'06'};
       dataRows.forEach(r=>{
         var name,courseName,carName,location,phone,phone2,daysRaw,regfee,monthly,pin,note;
+        var dropLocation='';
         var courier='',invoice='',ordNo='',sender='',senderPhone='';
         var bizNo='',ceo='',bizCat='',bizItem='',bizEmail='';
         if(biz==='logistics'){
@@ -2486,6 +2496,7 @@ function handleExcelFile(file){
           phone=String(r[4]||'').trim(); phone2=String(r[5]||'').trim();
           daysRaw=String(r[6]||'월,화,수,목,금').trim(); regfee=parseInt(r[7])||0;
           monthly=parseInt(r[8])||0; pin=String(r[9]||'').trim(); note=String(r[10]||'').trim();
+          dropLocation=String(r[11]||'').trim();
         }
         if(!name||!location){skipped++;return;}
         var course=courses.find(c=>c.name===courseName);
@@ -2499,7 +2510,7 @@ function handleExcelFile(file){
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name)){skipped++;return;}
         if(pin && (members.find(m=>m.pin===pin) || cars.find(c=>c.driverPin===pin))){skipped++;return;}
-        var obj={id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true};
+        var obj={id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:orgSettings.destLat,lon:orgSettings.destLon,dropLocation:(dropLocation||location),dropLat:orgSettings.destLat,dropLon:orgSettings.destLon,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true};
         if(biz==='delivery'){ obj.courier=courier; obj.invoice=invoice; obj.ordNo=ordNo; obj.sender=sender; obj.senderPhone=senderPhone; }
         if(biz==='logistics'){ obj.bizNo=bizNo; obj.ceo=ceo; obj.bizCat=bizCat; obj.bizItem=bizItem; obj.bizEmail=bizEmail; }
         members.push(obj);
@@ -2921,6 +2932,8 @@ function applyBizModalLayout(){
   var wrapPhone2=document.getElementById('wrap-phone2');
   var wrapFees=document.getElementById('wrap-fees');
   var mLoc=document.getElementById('m-location');
+  var wrapDrop=document.getElementById('wrap-droplocation');
+  if(wrapDrop) wrapDrop.style.display=(biz==='logistics'||biz==='delivery')?'none':'';
   if(biz==='logistics'){
     if(lblName)lblName.textContent='거래처명 *';
     if(lblLoc)lblLoc.textContent='거래처 주소 *';
@@ -3052,6 +3065,10 @@ function openAddModal(){
   document.getElementById('modal-sub').textContent=T('회원')+' 정보를 입력해주세요.';
   document.getElementById('edit-id').value='';
   ['m-name','m-phone','m-phone2','m-location','m-note'].forEach(id=>document.getElementById(id).value='');
+  var _da=document.getElementById('m-droplocation'); if(_da){ _da.value=''; _da.removeAttribute('data-lat'); _da.removeAttribute('data-lon'); }
+  var _dar=document.getElementById('member-drop-result'); if(_dar){ _dar.style.display='none'; _dar.innerHTML=''; }
+  var _la=document.getElementById('m-location'); if(_la){ _la.removeAttribute('data-lat'); _la.removeAttribute('data-lon'); }
+  var _lar=document.getElementById('member-addr-result'); if(_lar){ _lar.style.display='none'; _lar.innerHTML=''; }
   document.getElementById('m-class').value=courses[0]?.id||'';
   document.getElementById('m-car').value=cars[0]?.id||'';
   Object.values(dayIdMap).forEach(d=>document.getElementById('d-'+d).checked=false);
@@ -3070,6 +3087,16 @@ function openEditModal(id){
   document.getElementById('m-phone').value=m.phone;
   document.getElementById('m-phone2').value=m.phone2||'';
   document.getElementById('m-location').value=m.location;
+  document.getElementById('m-location').setAttribute('data-lat', m.lat||'');
+  document.getElementById('m-location').setAttribute('data-lon', m.lon||'');
+  var _de=document.getElementById('m-droplocation');
+  if(_de){
+    // 픽업장소와 동일하면 빈칸으로 두어 "동일" 상태 유지
+    _de.value=(m.dropLocation && m.dropLocation!==m.location)?m.dropLocation:'';
+    _de.setAttribute('data-lat', m.dropLat||'');
+    _de.setAttribute('data-lon', m.dropLon||'');
+    var _dr=document.getElementById('member-drop-result'); if(_dr){ _dr.style.display='none'; _dr.innerHTML=''; }
+  }
   document.getElementById('m-note').value=m.note;
   if(document.getElementById('m-pin'))document.getElementById('m-pin').value=m.pin||'';
   if(document.getElementById('m-regfee'))document.getElementById('m-regfee').value=m.regfee||'';
@@ -3095,6 +3122,14 @@ function saveMember(){
   const location=document.getElementById('m-location').value.trim();
   const locLat=parseFloat(document.getElementById('m-location').getAttribute('data-lat'))||0;
   const locLon=parseFloat(document.getElementById('m-location').getAttribute('data-lon'))||0;
+  var _dropEl=document.getElementById('m-droplocation');
+  const dropLocationIn=_dropEl?_dropEl.value.trim():'';
+  const dropLatIn=_dropEl?(parseFloat(_dropEl.getAttribute('data-lat'))||0):0;
+  const dropLonIn=_dropEl?(parseFloat(_dropEl.getAttribute('data-lon'))||0):0;
+  // 하차장소 비우면 픽업장소와 동일 적용
+  const dropLocation=dropLocationIn||location;
+  const dropLat=dropLocationIn?(dropLatIn||locLat||orgSettings.destLat):(locLat||orgSettings.destLat);
+  const dropLon=dropLocationIn?(dropLonIn||locLon||orgSettings.destLon):(locLon||orgSettings.destLon);
   var biz=getBizType();
   if(!name){showToast('⚠ '+(biz==='logistics'?'거래처명':'이름')+'을 입력해주세요');return;}
   if(!location){showToast('⚠ '+(biz==='logistics'?'거래처 주소':'픽업장소')+'를 입력해주세요');return;}
@@ -3126,7 +3161,7 @@ function saveMember(){
   function dv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
   var deliveryFields = (biz==='delivery') ? {courier:dv('m-courier'),invoice:dv('m-invoice'),ordNo:dv('m-ordno'),sender:dv('m-sender'),senderPhone:dv('m-senderphone')} : {};
   var bizInfoFields = (biz==='logistics') ? {bizNo:dv('m-bizno'),ceo:dv('m-ceo'),bizEmail:dv('m-bizemail'),bizCat:dv('m-bizcat'),bizItem:dv('m-bizitem')} : {};
-  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon}, deliveryFields, bizInfoFields);
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields);
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -7829,9 +7864,9 @@ function showDestResults(results){
   });
 }
 
-function searchMemberAddr(){
-  var addr = document.getElementById('m-location').value.trim();
-  if(!addr){ showToast('⚠ 픽업 장소를 입력해주세요'); return; }
+function searchAddrInto(inputId, resultId, emptyMsg){
+  var addr = document.getElementById(inputId).value.trim();
+  if(!addr){ showToast(emptyMsg); return; }
   fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
   .then(function(r){ return r.json(); })
   .then(function(data){
@@ -7842,20 +7877,24 @@ function searchMemberAddr(){
       .then(function(data2){
         var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
         if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
-        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }));
+        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
       });
       return;
     }
-    showAddrResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }));
+    showAddrResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
+function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','⚠ 픽업 장소를 입력해주세요'); }
+function searchMemberDropAddr(){ searchAddrInto('m-droplocation','member-drop-result','⚠ 하차 장소를 입력해주세요'); }
 
-function showAddrResults(results){
-  var el = document.getElementById('member-addr-result');
+function showAddrResults(results, targetInput, targetResult){
+  targetInput = targetInput || 'm-location';
+  targetResult = targetResult || 'member-addr-result';
+  var el = document.getElementById(targetResult);
   if(!el) return;
   el.style.display = 'block';
-  window._memberResults = results;
-  var html = '<div id="member-result-box" style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;max-height:180px;overflow-y:auto;">';
+  var boxId = targetResult + '-box';
+  var html = '<div id="'+boxId+'" style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;max-height:180px;overflow-y:auto;">';
   results.forEach(function(r, i){
     var bb = i===results.length-1 ? 'border-bottom:none;' : '';
     html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
@@ -7864,13 +7903,13 @@ function showAddrResults(results){
   });
   html += '</div>';
   el.innerHTML = html;
-  document.getElementById('member-result-box').addEventListener('click', function(e){
+  document.getElementById(boxId).addEventListener('click', function(e){
     var item = e.target.closest('.addr-ri');
     if(!item) return;
     var idx = parseInt(item.getAttribute('data-idx'));
-    var r = window._memberResults[idx];
+    var r = results[idx];
     if(!r) return;
-    var loc = document.getElementById('m-location');
+    var loc = document.getElementById(targetInput);
     if(loc){ loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x); }
     el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
     showToast('✅ 위치 확인 완료!');
@@ -7904,49 +7943,4 @@ function showAddrResults(results){
       <button onclick="pinPress('8')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">8</button>
       <button onclick="pinPress('9')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">9</button>
       <button onclick="pinPress('clear')" style="padding:18px;font-size:14px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;color:#475467;">초기화</button>
-      <button onclick="pinPress('0')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">0</button>
-      <button onclick="pinPress('del')" style="padding:18px;font-size:18px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;">⌫</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- 체크인 학부모 알림 팝업 -->
-
-
-<!-- 학부모 확인 팝업 (링크 접속 시 표시) -->
-
-
-<!-- 커스텀 확인 모달 -->
-<div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:300px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-    <div style="font-size:32px;margin-bottom:12px;">🗑</div>
-    <div style="font-size:16px;font-weight:700;color:#344054;margin-bottom:20px;">정말 삭제하시겠습니까?</div>
-    <div style="display:flex;gap:10px;">
-      <button onclick="closeConfirmModal()" style="flex:1;padding:12px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">취소</button>
-      <button id="confirm-ok-btn" onclick="confirmOk()" style="flex:1;padding:12px;background:#F04438;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">삭제</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- 미납 알림 미리보기 모달 -->
-<div id="unpaid-notice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:340px;">
-    <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:12px;">📱 미납 알림 발송</div>
-    <div id="unpaid-msg-preview" style="background:#F2F4F7;border-radius:10px;padding:12px;font-size:12px;color:#344054;white-space:pre-line;margin-bottom:16px;line-height:1.6;"></div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="document.getElementById('unpaid-notice-modal').style.display='none'" style="flex:1;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
-      <button onclick="sendUnpaidSMS()" style="flex:1;padding:11px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📱 발송</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- 납부 결제수단 선택 모달 -->
-<div id="pay-method-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:300px;">
-    <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:16px;">💳 납부 방법 선택</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-      <button onclick="selectPayMethod('현금')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💵 현금</button>
-      <button onclick="selectPayMethod('카드')" style="padding:12px;
+      <button onclick="pinPress('0')" style="padding:18px;font-size:22px;font-weight
