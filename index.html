@@ -562,7 +562,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 128;
+const APP_VERSION = 129;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1365,8 +1365,8 @@ function renderDrive(){
   }
   if(!_logiDrive){
     html+=`<div style="display:flex;gap:6px;padding:10px 16px 0;">
-      <button onclick="driveLeg='pickup';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:${!_drop?'#7C3AED':'#EAECF0'};color:${!_drop?'#fff':'#667085'};">🚐 픽업 (등원)</button>
-      <button onclick="driveLeg='dropoff';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:${_drop?'#EA580C':'#EAECF0'};color:${_drop?'#fff':'#667085'};">🏠 하차 (하원)</button>
+      <button onclick="driveLeg='pickup';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:${!_drop?'#7C3AED':'#EAECF0'};color:${!_drop?'#fff':'#667085'};">🚐 픽업${getBizType()==='public'?'':' (등원)'}</button>
+      <button onclick="driveLeg='dropoff';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:${_drop?'#EA580C':'#EAECF0'};color:${_drop?'#fff':'#667085'};">🏠 하차${getBizType()==='public'?'':' (하원)'}</button>
     </div>`;
   }
   html+=`<div class="summary-bar">
