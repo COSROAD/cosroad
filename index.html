@@ -562,7 +562,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 124;
+const APP_VERSION = 125;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -814,6 +814,7 @@ let nextId=Math.max(...members.map(m=>m.id),0)+1;
 let currentDay=DAYS[[6,0,1,2,3,4,5][new Date().getDay()]]||'월';
 let currentCourseId=courses[0]?.id||'c1';
 let currentCarId=cars[0]?.id||'car1';
+var driveLeg='pickup'; // pickup=픽업(등원), dropoff=하차(하원) — 학원·공공 전용
 let currentTab='drive';
 let currentAdminTab='dashboard';
 let filterRiding=false;
@@ -1253,11 +1254,65 @@ function switchTab(tab){
 function renderByTab(){switchTab(currentTab);}
 
 // ── 운행 화면 ──
+// ── 픽업/하차(등원·하원) 구분 헬퍼 ──
+function isDropLeg(){ return driveLeg==='dropoff' && (getBizType()==='academy'||getBizType()==='public'); }
+function legLoc(m){ return isDropLeg() ? (m.dropLocation||m.location) : m.location; }
+function legLat(m){ return isDropLeg() ? (m.dropLat!=null?m.dropLat:m.lat) : m.lat; }
+function legLon(m){ return isDropLeg() ? (m.dropLon!=null?m.dropLon:m.lon) : m.lon; }
+function legOn(m){ return isDropLeg() ? ((m.offOn!==false) && !isDropoffDoneToday(m.id)) : !!m.on; }
+function legView(m){ if(!isDropLeg()) return m; return Object.assign({}, m, {location:legLoc(m), lat:legLat(m), lon:legLon(m), on:(m.offOn!==false)}); }
+
+// ── 하차(하원) 완료 기록 (날짜별, 픽업과 별개) ──
+function dropoffDoneKey(){ try{ return 'tkd_dropoff_done_'+getFbOrgId(); }catch(e){ return 'tkd_dropoff_done_org'; } }
+function loadDropoffDone(){ try{ return JSON.parse(localStorage.getItem(dropoffDoneKey())||'{}'); }catch(e){ return {}; } }
+function isDropoffDoneToday(memberId){ return loadDropoffDone()[memberId]===todayStr(); }
+function markDropoffDone(memberId){ var d=loadDropoffDone(); d[memberId]=todayStr(); localStorage.setItem(dropoffDoneKey(), JSON.stringify(d)); try{ saveToFirebase('dropoffDone', d); }catch(e){} }
+
+// ── 하차 알림 (문자 기본, 하차 템플릿 승인 시 알림톡) ──
+var BIZ_DROPOFF_TEMPLATE_CODES = { academy:'', public:'' }; // 알리고 하차 템플릿 승인 후 코드 입력하면 알림톡으로 전환
+function buildDropoffMessage(biz, orgName, name, timeStr){
+  return '['+orgName+'] 하차 알림\n━━━━━━━━━\n👤 이름: '+name+'\n⏰ 하차: '+timeStr+'\n✅ 보호자님! 회원님이\n     안전하게 하차했습니다.\n━━━━━━━━━\n♥ 안전한 귀가까지\n    함께하겠습니다.♥';
+}
+function sendDropoffSMS(member, timeStr){
+  var phones=[]; if(member.phone)phones.push(member.phone); if(member.phone2)phones.push(member.phone2);
+  if(phones.length===0){ return; }
+  var msg=buildDropoffMessage(getBizType(), orgSettings.name, member.name, timeStr);
+  window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
+}
+function sendDropoffNotify(member, timeStr){
+  if(!member.phone && !member.phone2){ return; }
+  var biz=getBizType();
+  var tplCode = BIZ_DROPOFF_TEMPLATE_CODES[biz] || '';
+  // 알리고 미설정 또는 하차 템플릿 미승인 → 문자(SMS)로 발송
+  if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_SENDER || !tplCode){
+    sendDropoffSMS(member, timeStr); return;
+  }
+  var phones=[]; if(member.phone)phones.push(member.phone); if(member.phone2)phones.push(member.phone2);
+  var msg=buildDropoffMessage(biz, orgSettings.name, member.name, timeStr);
+  phones.forEach(function(phone){
+    fetch('https://cosroad.vercel.app/api/send-alimtalk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apikey:ALIGO_API_KEY,userid:ALIGO_USER_ID,senderkey:ALIGO_SENDER_KEY,tpl_code:tplCode,sender:ALIGO_SENDER,receiver:phone,name:member.name,message:msg,biz:biz})})
+    .then(function(r){return r.json();}).then(function(d){ if(!(d&&(d.code===0||d.result_code>0))){ sendDropoffSMS(member,timeStr); } }).catch(function(){ sendDropoffSMS(member,timeStr); });
+  });
+}
+function sendDropoffDone(memberId){
+  var m=members.find(function(x){return x.id===memberId;}); if(!m){ return; }
+  if(!m.phone && !m.phone2){ showToast('⚠ 등록된 연락처가 없습니다.'); return; }
+  if(isDropoffDoneToday(memberId)){ showToast('이미 오늘 하차 처리했습니다.'); return; }
+  var now=new Date();
+  var timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  markDropoffDone(memberId);
+  optimizedOrder=null; etaMap={};
+  showToast('✅ '+m.name+' 하차 완료!');
+  renderDrive();
+  loadAligoSettings();
+  sendDropoffNotify(m, timeStr);
+}
+
 function getActiveStudents(){
   var _logi=getBizType()==='logistics'||getBizType()==='delivery';
   const today=members.filter(m=>m.days.includes(currentDay)&&(_logi||m.courseId===currentCourseId)&&m.carId===currentCarId);
-  if(optimizedOrder)return optimizedOrder.filter(s=>s.on&&members.find(m=>m.id===s.id)?.on);
-  return today.filter(m=>m.on);
+  if(optimizedOrder)return optimizedOrder.filter(s=>{var mm=members.find(m=>m.id===s.id);return mm&&legOn(mm);});
+  return today.filter(m=>legOn(m)).map(legView);
 }
 
 function renderDrive(){
@@ -1296,16 +1351,23 @@ function renderDrive(){
   tabHtml += '</div></div>';
   document.getElementById('drive-tabs').innerHTML = tabHtml;
 
-  const clsSt=todayM.filter(m=>(_logiDrive||m.courseId===currentCourseId)&&m.carId===currentCarId);
+  const clsSt=todayM.filter(m=>(_logiDrive||m.courseId===currentCourseId)&&m.carId===currentCarId).map(legView);
   const activeSt=getActiveStudents();
   const course=courses.find(c=>c.id===currentCourseId)||courses[0];
   const car=cars.find(c=>c.id===currentCarId)||cars[0];
 
-  var _onLabel = _logiDrive ? '완료' : '탑승';
-  var _offLabel = _logiDrive ? '미완료' : '미탑승';
+  var _drop=isDropLeg();
+  var _onLabel = _logiDrive ? '완료' : (_drop ? '하차' : '탑승');
+  var _offLabel = _logiDrive ? '미완료' : (_drop ? '제외' : '미탑승');
   // 운전자모드: 기사 PIN 출퇴근 버튼 (기사 등록 차량이 있을 때)
   if(currentMode==='driver' && cars.some(function(c){return c.driver&&c.driver.trim();})){
     html+=`<div style="padding:10px 16px 0;"><button onclick="openPinCheckin()" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔢 기사 PIN 출퇴근 체크</button></div>`;
+  }
+  if(!_logiDrive){
+    html+=`<div style="display:flex;gap:6px;padding:10px 16px 0;">
+      <button onclick="driveLeg='pickup';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:${!_drop?'#1570EF':'#EAECF0'};color:${!_drop?'#fff':'#667085'};">🚐 픽업 (등원)</button>
+      <button onclick="driveLeg='dropoff';optimizedOrder=null;etaMap={};renderDrive()" style="flex:1;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:${_drop?'#EA580C':'#EAECF0'};color:${_drop?'#fff':'#667085'};">🏠 하차 (하원)</button>
+    </div>`;
   }
   html+=`<div class="summary-bar">
     <div class="summary-item"><div class="summary-num">${activeSt.length}</div><div class="summary-label">${_onLabel}</div></div>
@@ -1317,14 +1379,19 @@ function renderDrive(){
   if(car.driver) html+=`<div class="info-box">🚐 ${car.name} · 기사: ${car.driver}${car.phone?' · 📞 '+car.phone:''}</div>`;
 
   if(activeSt.length>0){
-    html+=`<div class="route-preview"><div class="route-header">📍 ${_logiDrive?'납품 순서':'픽업 순서'} ${optimizedOrder?'<span style="color:var(--success)">✅ 최적화됨</span>':''}</div>`;
+    html+=`<div class="route-preview"><div class="route-header">📍 ${_logiDrive?'납품 순서':(_drop?'하차 순서':'픽업 순서')} ${optimizedOrder?'<span style="color:var(--success)">✅ 최적화됨</span>':''}</div>`;
+    if(!_logiDrive && _drop){
+      html+=`<div class="route-stop"><div class="stop-dot dest"></div>
+        <div class="stop-name" style="color:var(--primary);font-weight:700;">🏫 ${orgSettings.destName} 출발</div>
+        <div style="font-size:11px;color:var(--gray-400);">${course?.depart||''}</div></div>`;
+    }
     activeSt.forEach((s,i)=>{
       const eta=etaMap[s.id]||'';
-      html+=`<div class="route-stop"><div class="stop-dot${i===activeSt.length-1?' dest':''}"></div>
+      html+=`<div class="route-stop"><div class="stop-dot${(!_drop&&i===activeSt.length-1)?' dest':''}"></div>
         <div class="stop-name"><b>${i+1}.</b> ${s.name} <span style="color:var(--gray-400);font-size:11px;">— ${s.location}</span></div>
         ${eta?`<span class="stop-eta-badge">⏱${eta}</span>`:''}</div>`;
     });
-    if(!_logiDrive){
+    if(!_logiDrive && !_drop){
       html+=`<div class="route-stop"><div class="stop-dot dest"></div>
         <div class="stop-name" style="color:var(--danger);font-weight:700;">🏫 ${orgSettings.destName} 도착</div>
         <div style="font-size:11px;color:var(--gray-400);">${course?.arrive||''}</div></div>`;
@@ -1332,11 +1399,11 @@ function renderDrive(){
     html+=`</div>`;
   }
 
-  html+=`<div class="section"><div class="section-label">${_logiDrive?'납품 관리':'탑승 관리'} — ${car.name}</div>`;
+  html+=`<div class="section"><div class="section-label">${_logiDrive?'납품 관리':(_drop?'하차 관리':'탑승 관리')} — ${car.name}</div>`;
   clsSt.forEach(s=>{
     const order=activeSt.findIndex(a=>a.id===s.id)+1;
     const mIdx=members.findIndex(m=>m.id===s.id);
-    const _done=(_logiDrive||getBizType()==='delivery')&&isDeliveryDoneToday(s.id);
+    const _done=((_logiDrive||getBizType()==='delivery')&&isDeliveryDoneToday(s.id)) || (_drop&&isDropoffDoneToday(s.id));
     html+=`<div class="student-card ${s.on?'son':'soff'}" style="${_done?'opacity:0.5;background:#F2F4F7;':''}">
       <div class="card-row">
         <div class="card-order">${s.on?order:'–'}</div>
@@ -1351,7 +1418,11 @@ function renderDrive(){
             ?`<span style="font-size:12px;color:#98A2B3;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;padding:6px 13px;font-weight:700;">✔ ${getBizType()==='delivery'?'배송 완료됨':'납품 완료됨'}</span>`
             :`<span onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="display:inline-flex;align-items:center;justify-content:center;font-size:16px;background:#FEE500;border:1px solid #F5DC00;border-radius:8px;padding:5px 10px;cursor:pointer;">💬</span><span onclick="event.stopPropagation();sendDeliveryDone(${s.id})" style="font-size:12px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:8px;padding:6px 13px;cursor:pointer;font-weight:700;">🚚 ${getBizType()==='delivery'?'배송완료':'납품완료'}</span>`
           }</div>`:''}
-          <div style="font-size:10px;color:var(--gray-400);margin-top:3px;">${getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소'}</div>
+          ${_drop&&s.phone?`<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:6px;">${_done
+            ?`<span style="font-size:12px;color:#98A2B3;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;padding:6px 13px;font-weight:700;">✔ 하차 완료됨</span>`
+            :`<span onclick="event.stopPropagation();sendDropoffDone(${s.id})" style="font-size:12px;color:#fff;background:#EA580C;border:none;border-radius:8px;padding:6px 13px;cursor:pointer;font-weight:700;">🏠 하차완료 + 문자</span>`
+          }</div>`:''}
+          <div style="font-size:10px;color:var(--gray-400);margin-top:3px;">${getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':(_drop?'하차 장소':'픽업 장소')}</div>
           <div class="card-location">${s.location}</div>
         </div>
         <button class="toggle-btn ${s.on?'on':'off'}" onclick="toggleStudent(${mIdx})"></button>
@@ -1365,7 +1436,7 @@ function renderDrive(){
   content.innerHTML=html;
 }
 
-function toggleStudent(mIdx){members[mIdx].on=!members[mIdx].on;optimizedOrder=null;etaMap={};saveMembers();renderDrive();}
+function toggleStudent(mIdx){ if(isDropLeg()){ members[mIdx].offOn=(members[mIdx].offOn===false); } else { members[mIdx].on=!members[mIdx].on; } optimizedOrder=null;etaMap={};saveMembers();renderDrive();}
 
 // 운행 중 '곧 도착' 문자 발송 (기사 수동)
 function sendArrivalSoon(memberId){
@@ -7859,88 +7930,4 @@ function showDestResults(results){
     if(!r) return;
     document.getElementById('dest-lat').value = r.y;
     document.getElementById('dest-lon').value = r.x;
-    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
-    showToast('✅ 주소 검색 완료!');
-  });
-}
-
-function searchAddrInto(inputId, resultId, emptyMsg){
-  var addr = document.getElementById(inputId).value.trim();
-  if(!addr){ showToast(emptyMsg); return; }
-  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
-    if(docs.length === 0){
-      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
-      .then(function(r){ return r.json(); })
-      .then(function(data2){
-        var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
-        if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
-        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
-      });
-      return;
-    }
-    showAddrResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
-  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
-}
-function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','⚠ 픽업 장소를 입력해주세요'); }
-function searchMemberDropAddr(){ searchAddrInto('m-droplocation','member-drop-result','⚠ 하차 장소를 입력해주세요'); }
-
-function showAddrResults(results, targetInput, targetResult){
-  targetInput = targetInput || 'm-location';
-  targetResult = targetResult || 'member-addr-result';
-  var el = document.getElementById(targetResult);
-  if(!el) return;
-  el.style.display = 'block';
-  var boxId = targetResult + '-box';
-  var html = '<div id="'+boxId+'" style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;max-height:180px;overflow-y:auto;">';
-  results.forEach(function(r, i){
-    var bb = i===results.length-1 ? 'border-bottom:none;' : '';
-    html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
-      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
-      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
-  });
-  html += '</div>';
-  el.innerHTML = html;
-  document.getElementById(boxId).addEventListener('click', function(e){
-    var item = e.target.closest('.addr-ri');
-    if(!item) return;
-    var idx = parseInt(item.getAttribute('data-idx'));
-    var r = results[idx];
-    if(!r) return;
-    var loc = document.getElementById(targetInput);
-    if(loc){ loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x); }
-    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
-    showToast('✅ 위치 확인 완료!');
-  });
-}
-
-</script>
-
-<!-- PIN 체크인 모달 -->
-<div class="modal-bg" id="pin-checkin-modal" style="align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:24px;padding:28px 24px;width:92%;max-width:360px;position:relative;">
-    <button onclick="closePinCheckin()" style="position:absolute;top:16px;right:16px;font-size:20px;border:none;background:none;cursor:pointer;color:#98A2B3;">✕</button>
-    <div style="text-align:center;margin-bottom:20px;">
-      <div style="font-size:32px;margin-bottom:6px;">🔢</div>
-      <div style="font-size:18px;font-weight:800;color:#344054;">PIN 체크인</div>
-      <div style="font-size:12px;color:#98A2B3;margin-top:4px;">4자리 PIN 번호를 입력하세요</div>
-    </div>
-    <!-- PIN 표시 -->
-    <div id="pin-dots" style="display:flex;justify-content:center;margin-bottom:20px;"></div>
-    <!-- 결과 -->
-    <div id="pin-result" style="min-height:40px;margin-bottom:12px;"></div>
-    <!-- 키패드 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-      <button onclick="pinPress('1')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">1</button>
-      <button onclick="pinPress('2')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">2</button>
-      <button onclick="pinPress('3')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">3</button>
-      <button onclick="pinPress('4')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">4</button>
-      <button onclick="pinPress('5')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">5</button>
-      <button onclick="pinPress('6')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">6</button>
-      <button onclick="pinPress('7')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">7</button>
-      <button onclick="pinPress('8')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">8</button>
-      <button onclick="pinPress('9')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">9</button>
-      <button onclick="pinPress('clear')" style="padding:18px;font-size:14px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;color:#475467;">초기화</button>
-      <button onclick="pinPress('0')" style="padding:18px;font-size:22px;font-weight
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+'
