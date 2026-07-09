@@ -554,7 +554,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 122;
+const APP_VERSION = 123;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5367,8 +5367,9 @@ function renderInvoice(){
   if(prods.length>0){
     h += '<select id="inv-pick" onchange="if(this.value!==\'\'){addInvoiceItemFromProduct(Number(this.value));this.value=\'\';}" style="width:100%;padding:9px;border:1px solid #7C3AED;border-radius:8px;font-size:13px;margin-bottom:10px;color:#7C3AED;font-weight:700;">';
     h += '<option value="">＋ 품목 선택해서 추가…</option>';
-    prods.forEach(function(p, pi){ h += '<option value="'+pi+'">'+escapeMasterHtml(p.name)+(p.spec?' ('+escapeMasterHtml(p.spec)+')':'')+' · '+(Number(p.price)||0).toLocaleString()+'원</option>'; });
+    prods.forEach(function(p, pi){ h += '<option value="'+pi+'">'+escapeMasterHtml(p.name)+(p.spec?' ('+escapeMasterHtml(p.spec)+')':'')+' · 출고 '+(Number(p.price)||0).toLocaleString()+'원'+((Number(p.inPrice)||0)?(' / 입고 '+(Number(p.inPrice)).toLocaleString()+'원'):'')+'</option>'; });
     h += '</select>';
+    h += '<div style="font-size:11px;color:#98A2B3;margin:-4px 0 10px;">현재 <b style="color:'+(invoiceKind==='purchase'?'#F04438':'#1570EF')+';">'+(invoiceKind==='purchase'?'매입 → 입고가':'매출 → 출고가')+'</b>가 단가로 자동 입력됩니다.</div>';
   } else {
     h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">품목 관리에서 품목을 먼저 등록하면 골라서 추가할 수 있어요.</div>';
   }
@@ -5486,14 +5487,21 @@ function refreshInvoiceCalc(){
 }
 function selectInvoiceMember(id){ invoiceSelMember = id; renderInvoice(); }
 function addInvoiceItem(){ invoiceItems.push({name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}); renderInvoice(); }
+// 명세서 종류에 따라 품목 단가 선택: 매입=입고가, 매출=출고가 (없으면 상대값으로 대체)
+function invProdPrice(p){
+  if(!p) return 0;
+  if(invoiceKind==='purchase') return Number(p.inPrice)||Number(p.price)||0;
+  return Number(p.price)||Number(p.inPrice)||0;
+}
 function addInvoiceItemFromProduct(prodIdx){
   var p = loadProducts()[prodIdx];
   if(!p) return;
+  var _pr = invProdPrice(p);
   var empty = invoiceItems.find(function(it){ return !(it.name||'').trim(); });
   if(empty){
-    empty.name=p.name; empty.spec=p.spec||''; empty.unit=p.unit||''; empty.price=Number(p.price)||0; if(!empty.qty) empty.qty=1;
+    empty.name=p.name; empty.spec=p.spec||''; empty.unit=p.unit||''; empty.price=_pr; if(!empty.qty) empty.qty=1;
   } else {
-    invoiceItems.push({name:p.name, spec:p.spec||'', unit:p.unit||'', qty:1, price:Number(p.price)||0, taxType:'add'});
+    invoiceItems.push({name:p.name, spec:p.spec||'', unit:p.unit||'', qty:1, price:_pr, taxType:'add'});
   }
   renderInvoice();
 }
@@ -5549,10 +5557,11 @@ function openProductManager(){
     +'<input id="prod-name" type="text" placeholder="품명" style="flex:2;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
     +'<input id="prod-spec" type="text" placeholder="규격" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
     +'</div>'
-    +'<div style="display:flex;gap:5px;margin-bottom:12px;">'
-    +'<input id="prod-unit" type="text" placeholder="단위(EA)" style="width:70px;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
-    +'<input id="prod-price" type="text" inputmode="numeric" placeholder="단가" oninput="fmtAmountInput(this)" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
-    +'<button onclick="addProduct()" style="padding:9px 14px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">추가</button>'
+    +'<div style="display:flex;gap:5px;margin-bottom:6px;">'
+    +'<input id="prod-unit" type="text" placeholder="단위(EA)" style="width:60px;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
+    +'<input id="prod-inprice" type="text" inputmode="numeric" placeholder="입고가(매입)" oninput="fmtAmountInput(this)" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
+    +'<input id="prod-price" type="text" inputmode="numeric" placeholder="출고가(매출)" oninput="fmtAmountInput(this)" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>'
+    +'<button onclick="addProduct()" style="padding:9px 12px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">추가</button>'
     +'</div>'
     +'<div style="display:flex;gap:6px;margin-bottom:12px;">'
     +'<button onclick="downloadProductTemplate()" style="flex:1;padding:8px;background:#ECFDF3;color:#12B76A;border:1px solid #A6F4C5;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">📋 엑셀 양식</button>'
@@ -5570,17 +5579,20 @@ function openProductManager(){
           +'<input id="ped-name-'+idx+'" type="text" placeholder="품명" value="'+escapeMasterHtml(p.name||'')+'" style="flex:2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
           +'<input id="ped-spec-'+idx+'" type="text" placeholder="규격" value="'+escapeMasterHtml(p.spec||'')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
           +'</div>'
+          +'<div style="display:flex;gap:5px;margin-bottom:5px;">'
+          +'<input id="ped-unit-'+idx+'" type="text" placeholder="단위" value="'+escapeMasterHtml(p.unit||'')+'" style="width:60px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'<input id="ped-inprice-'+idx+'" type="text" inputmode="numeric" placeholder="입고가" value="'+(Number(p.inPrice)||0).toLocaleString()+'" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'<input id="ped-price-'+idx+'" type="text" inputmode="numeric" placeholder="출고가" value="'+(Number(p.price)||0).toLocaleString()+'" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+          +'</div>'
           +'<div style="display:flex;gap:5px;">'
-          +'<input id="ped-unit-'+idx+'" type="text" placeholder="단위" value="'+escapeMasterHtml(p.unit||'')+'" style="width:64px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
-          +'<input id="ped-price-'+idx+'" type="text" inputmode="numeric" placeholder="단가" value="'+(Number(p.price)||0).toLocaleString()+'" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
-          +'<button onclick="saveProductEdit('+idx+')" style="padding:8px 14px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">수정</button>'
-          +'<button onclick="prodEditIdx=null;openProductManager();" style="padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">취소</button>'
+          +'<button onclick="saveProductEdit('+idx+')" style="flex:1;padding:8px 14px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;">수정</button>'
+          +'<button onclick="prodEditIdx=null;openProductManager();" style="flex:1;padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">취소</button>'
           +'</div></div>';
       } else {
         // 읽기 모드: 클릭하면 편집 펼침
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #EAECF0;border-radius:8px;margin-bottom:5px;">'
-          +'<div onclick="prodEditIdx='+idx+';openProductManager();" title="수정하려면 클릭하세요" style="min-width:0;flex:1;cursor:pointer;"><div style="font-size:13px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(p.name)+' <span style="font-size:12px;color:#7C3AED;font-weight:700;">'+(Number(p.price)||0).toLocaleString()+'원</span> <span style="font-size:11px;color:#B0B7C3;font-weight:500;white-space:nowrap;">✏️ 클릭해 수정</span></div>'
-          +(specUnit?'<div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(specUnit)+'</div>':'')+'</div>'
+          +'<div onclick="prodEditIdx='+idx+';openProductManager();" title="수정하려면 클릭하세요" style="min-width:0;flex:1;cursor:pointer;"><div style="font-size:13px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(p.name)+' <span style="font-size:11px;color:#B0B7C3;font-weight:500;white-space:nowrap;">✏️ 클릭해 수정</span></div>'
+          +'<div style="font-size:11px;color:#98A2B3;">'+(specUnit?escapeMasterHtml(specUnit)+' · ':'')+'출고 <b style="color:#1570EF;">'+(Number(p.price)||0).toLocaleString()+'</b> / 입고 <b style="color:#F04438;">'+(Number(p.inPrice)||0).toLocaleString()+'</b>원</div></div>'
           +'<button onclick="removeProduct('+idx+')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;margin-left:6px;">삭제</button>'
           +'</div>';
       }
@@ -5597,9 +5609,10 @@ function addProduct(){
   var spec=document.getElementById('prod-spec').value.trim();
   var unit=document.getElementById('prod-unit').value.trim();
   var price=Number((document.getElementById('prod-price').value||'').replace(/[^0-9]/g,''))||0;
+  var inPrice=Number((document.getElementById('prod-inprice').value||'').replace(/[^0-9]/g,''))||0;
   if(!name){ alert('품명을 입력해주세요.'); return; }
   var list=loadProducts();
-  list.push({name:name, spec:spec, unit:unit, price:price});
+  list.push({name:name, spec:spec, unit:unit, price:price, inPrice:inPrice});
   saveProducts(list);
   openProductManager();
 }
@@ -5619,6 +5632,7 @@ function saveProductEdit(idx){
   list[idx].spec = (document.getElementById('ped-spec-'+idx).value||'').trim();
   list[idx].unit = (document.getElementById('ped-unit-'+idx).value||'').trim();
   list[idx].price = Number((document.getElementById('ped-price-'+idx).value||'').replace(/[^0-9]/g,''))||0;
+  list[idx].inPrice = Number((document.getElementById('ped-inprice-'+idx).value||'').replace(/[^0-9]/g,''))||0;
   saveProducts(list);
   prodEditIdx=null;
   openProductManager();
@@ -5630,7 +5644,7 @@ function pickProduct(idx, prodIdx){
     invoiceItems[idx].name = p.name;
     invoiceItems[idx].spec = p.spec||'';
     invoiceItems[idx].unit = p.unit||'';
-    invoiceItems[idx].price = Number(p.price)||0;
+    invoiceItems[idx].price = invProdPrice(p);
     renderInvoice();
   }
 }
@@ -7935,35 +7949,4 @@ function showAddrResults(results){
     <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:16px;">💳 납부 방법 선택</div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
       <button onclick="selectPayMethod('현금')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💵 현금</button>
-      <button onclick="selectPayMethod('카드')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💳 카드</button>
-      <button onclick="selectPayMethod('계좌이체')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">🏦 계좌이체</button>
-    </div>
-    <button onclick="document.getElementById('pay-method-modal').style.display='none'" style="width:100%;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
-  </div>
-</div>
-
-
-<!-- Firebase 동기화 로딩 -->
-<div id="fb-loading" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1A6BFF;color:white;padding:6px;text-align:center;font-size:12px;font-weight:700;">
-  🔄 데이터 동기화 중...
-</div>
-
-<script>
-// 정식 가입 승인 계정 org에서는 초기 관리자 비밀번호 안내 문구를 숨김
-// (정식 사용자는 이메일 계정으로 로그인하므로 1234 안내가 불필요)
-(function(){
-  function hideHintIfRegistered(){
-    try{
-      if(typeof isRegisteredOrg==='function' && isRegisteredOrg()){
-        var el=document.getElementById('login-hint');
-        if(el) el.style.display='none';
-      }
-    }catch(e){}
-  }
-  if(document.readyState!=='loading'){ hideHintIfRegistered(); }
-  else { document.addEventListener('DOMContentLoaded', hideHintIfRegistered); }
-})();
-</script>
-
-</body>
-</html>
+      <button onclick="selectPayMethod('카드')" style="padding:12px;
