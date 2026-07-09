@@ -562,7 +562,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 125;
+const APP_VERSION = 126;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -7930,4 +7930,164 @@ function showDestResults(results){
     if(!r) return;
     document.getElementById('dest-lat').value = r.y;
     document.getElementById('dest-lon').value = r.x;
-    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+'
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
+    showToast('✅ 주소 검색 완료!');
+  });
+}
+
+function searchAddrInto(inputId, resultId, emptyMsg){
+  var addr = document.getElementById(inputId).value.trim();
+  if(!addr){ showToast(emptyMsg); return; }
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
+    if(docs.length === 0){
+      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
+      .then(function(r){ return r.json(); })
+      .then(function(data2){
+        var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
+        if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
+        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
+      });
+      return;
+    }
+    showAddrResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
+  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+}
+function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','⚠ 픽업 장소를 입력해주세요'); }
+function searchMemberDropAddr(){ searchAddrInto('m-droplocation','member-drop-result','⚠ 하차 장소를 입력해주세요'); }
+
+function showAddrResults(results, targetInput, targetResult){
+  targetInput = targetInput || 'm-location';
+  targetResult = targetResult || 'member-addr-result';
+  var el = document.getElementById(targetResult);
+  if(!el) return;
+  el.style.display = 'block';
+  var boxId = targetResult + '-box';
+  var html = '<div id="'+boxId+'" style="background:white;border:1.5px solid #EAECF0;border-radius:8px;overflow:hidden;margin-top:4px;max-height:180px;overflow-y:auto;">';
+  results.forEach(function(r, i){
+    var bb = i===results.length-1 ? 'border-bottom:none;' : '';
+    html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
+      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
+      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+  document.getElementById(boxId).addEventListener('click', function(e){
+    var item = e.target.closest('.addr-ri');
+    if(!item) return;
+    var idx = parseInt(item.getAttribute('data-idx'));
+    var r = results[idx];
+    if(!r) return;
+    var loc = document.getElementById(targetInput);
+    if(loc){ loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x); }
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
+    showToast('✅ 위치 확인 완료!');
+  });
+}
+
+</script>
+
+<!-- PIN 체크인 모달 -->
+<div class="modal-bg" id="pin-checkin-modal" style="align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:24px;padding:28px 24px;width:92%;max-width:360px;position:relative;">
+    <button onclick="closePinCheckin()" style="position:absolute;top:16px;right:16px;font-size:20px;border:none;background:none;cursor:pointer;color:#98A2B3;">✕</button>
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:32px;margin-bottom:6px;">🔢</div>
+      <div style="font-size:18px;font-weight:800;color:#344054;">PIN 체크인</div>
+      <div style="font-size:12px;color:#98A2B3;margin-top:4px;">4자리 PIN 번호를 입력하세요</div>
+    </div>
+    <!-- PIN 표시 -->
+    <div id="pin-dots" style="display:flex;justify-content:center;margin-bottom:20px;"></div>
+    <!-- 결과 -->
+    <div id="pin-result" style="min-height:40px;margin-bottom:12px;"></div>
+    <!-- 키패드 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <button onclick="pinPress('1')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">1</button>
+      <button onclick="pinPress('2')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">2</button>
+      <button onclick="pinPress('3')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">3</button>
+      <button onclick="pinPress('4')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">4</button>
+      <button onclick="pinPress('5')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">5</button>
+      <button onclick="pinPress('6')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">6</button>
+      <button onclick="pinPress('7')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">7</button>
+      <button onclick="pinPress('8')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">8</button>
+      <button onclick="pinPress('9')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">9</button>
+      <button onclick="pinPress('clear')" style="padding:18px;font-size:14px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;color:#475467;">초기화</button>
+      <button onclick="pinPress('0')" style="padding:18px;font-size:22px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:white;cursor:pointer;">0</button>
+      <button onclick="pinPress('del')" style="padding:18px;font-size:18px;font-weight:700;border:1.5px solid #EAECF0;border-radius:12px;background:#F2F4F7;cursor:pointer;">⌫</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 체크인 학부모 알림 팝업 -->
+
+
+<!-- 학부모 확인 팝업 (링크 접속 시 표시) -->
+
+
+<!-- 커스텀 확인 모달 -->
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:300px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="font-size:32px;margin-bottom:12px;">🗑</div>
+    <div style="font-size:16px;font-weight:700;color:#344054;margin-bottom:20px;">정말 삭제하시겠습니까?</div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeConfirmModal()" style="flex:1;padding:12px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">취소</button>
+      <button id="confirm-ok-btn" onclick="confirmOk()" style="flex:1;padding:12px;background:#F04438;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">삭제</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 미납 알림 미리보기 모달 -->
+<div id="unpaid-notice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:340px;">
+    <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:12px;">📱 미납 알림 발송</div>
+    <div id="unpaid-msg-preview" style="background:#F2F4F7;border-radius:10px;padding:12px;font-size:12px;color:#344054;white-space:pre-line;margin-bottom:16px;line-height:1.6;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="document.getElementById('unpaid-notice-modal').style.display='none'" style="flex:1;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+      <button onclick="sendUnpaidSMS()" style="flex:1;padding:11px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📱 발송</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 납부 결제수단 선택 모달 -->
+<div id="pay-method-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px 20px;width:100%;max-width:300px;">
+    <div style="font-size:15px;font-weight:800;color:#344054;margin-bottom:16px;">💳 납부 방법 선택</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <button onclick="selectPayMethod('현금')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💵 현금</button>
+      <button onclick="selectPayMethod('카드')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">💳 카드</button>
+      <button onclick="selectPayMethod('계좌이체')" style="padding:12px;background:#F2F4F7;color:#344054;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;">🏦 계좌이체</button>
+    </div>
+    <button onclick="document.getElementById('pay-method-modal').style.display='none'" style="width:100%;padding:11px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+  </div>
+</div>
+
+
+<!-- Firebase 동기화 로딩 -->
+<div id="fb-loading" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1A6BFF;color:white;padding:6px;text-align:center;font-size:12px;font-weight:700;">
+  🔄 데이터 동기화 중...
+</div>
+
+<script>
+// 정식 가입 승인 계정 org에서는 초기 관리자 비밀번호 안내 문구를 숨김
+// (정식 사용자는 이메일 계정으로 로그인하므로 1234 안내가 불필요)
+(function(){
+  function hideHintIfRegistered(){
+    try{
+      if(typeof isRegisteredOrg==='function' && isRegisteredOrg()){
+        var el=document.getElementById('login-hint');
+        if(el) el.style.display='none';
+      }
+    }catch(e){}
+  }
+  if(document.readyState!=='loading'){ hideHintIfRegistered(); }
+  else { document.addEventListener('DOMContentLoaded', hideHintIfRegistered); }
+})();
+</script>
+
+</body>
+</html>
