@@ -447,4 +447,10 @@ function submitApply(){
   }).catch(function(e){
     msg.style.color='#EA580C';
     msg.textContent='전송에 실패했습니다. 잠시 후 다시 시도하거나 cosroad@cosroad.com 으로 연락 주세요.';
-    btn.disabled=false; btn.textContent=
+    btn.disabled=false; btn.textContent='신청 보내기';
+    console.log('신청 저장 실패', e);
+  });
+}
+</script>
+</body>
+</html>
