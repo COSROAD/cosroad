@@ -562,7 +562,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 130;
+const APP_VERSION = 131;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -600,10 +600,11 @@ function isKeyManager(){
 
 // ── 기관 설정 ──
 function loadOrgSettings(){
-  return JSON.parse(localStorage.getItem('tkd_org')||'null')||{
-    name:'COSROAD',icon:'🚐',
-    destName:'학원',destLat:37.4467,destLon:126.6516
-  };
+  var _saved=JSON.parse(localStorage.getItem('tkd_org')||'null');
+  if(_saved) return _saved;
+  var _biz='academy'; try{ _biz=getBizType(); }catch(e){}
+  var _defDest=(_biz==='public')?'센터':'학원';
+  return { name:'COSROAD',icon:'🚐', destName:_defDest,destLat:37.4467,destLon:126.6516 };
 }
 function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);}
 let orgSettings=loadOrgSettings();
@@ -1382,7 +1383,7 @@ function renderDrive(){
     html+=`<div class="route-preview"><div class="route-header">📍 ${_logiDrive?'납품 순서':(_drop?'하차 순서':'픽업 순서')} ${optimizedOrder?'<span style="color:var(--success)">✅ 최적화됨</span>':''}</div>`;
     if(!_logiDrive && _drop){
       html+=`<div class="route-stop"><div class="stop-dot dest"></div>
-        <div class="stop-name" style="color:var(--primary);font-weight:700;">🏫 ${orgSettings.destName} 출발</div>
+        <div class="stop-name" style="color:var(--primary);font-weight:700;">${getBizType()==='public'?'🏢':'🏫'} ${orgSettings.destName} 출발</div>
         <div style="font-size:11px;color:var(--gray-400);">${course?.depart||''}</div></div>`;
     }
     activeSt.forEach((s,i)=>{
@@ -1393,7 +1394,7 @@ function renderDrive(){
     });
     if(!_logiDrive){
       html+=`<div class="route-stop"><div class="stop-dot dest"></div>
-        <div class="stop-name" style="color:var(--danger);font-weight:700;">🏫 ${orgSettings.destName} ${_drop?'복귀':'도착'}</div>
+        <div class="stop-name" style="color:var(--danger);font-weight:700;">${getBizType()==='public'?'🏢':'🏫'} ${orgSettings.destName} ${_drop?'복귀':'도착'}</div>
         <div style="font-size:11px;color:var(--gray-400);">${_drop?'하차 완료 후 복귀':(course?.arrive||'')}</div></div>`;
     }
     html+=`</div>`;
@@ -1551,7 +1552,7 @@ function showSharePanel(){
       const eta=etaMap[s.id]?` → 도착예정 ${etaMap[s.id]}`:''
       return `  ${i+1}. ${s.name} (${s.location})${eta}`;
     }).join('\n')+
-    `\n🏫 ${orgSettings.destName} 도착예정: ${course.arrive}`;
+    `\n${getBizType()==='public'?'🏢':'🏫'} ${orgSettings.destName} 도착예정: ${course.arrive}`;
 
   const tmapUrl=`https://www.tmap.co.kr/tmap2/public/tmap.jsp?rGoName=${encodeURIComponent(orgSettings.destName)}&rGoX=${orgSettings.destLon}&rGoY=${orgSettings.destLat}`;
 
