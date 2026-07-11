@@ -571,7 +571,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 })();
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 131;
+const APP_VERSION = 132;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -7507,16 +7507,16 @@ function showInstallGuide(){
   var isAndroid = /android/i.test(ua);
   var steps;
   if(isIOS){
-    steps = '<div class="ig-step"><span class="ig-num">1</span> 사파리 하단의 <b>공유 버튼</b> <span style="font-size:17px;">⬆️</span> 을 누르세요.</div>'
-      + '<div class="ig-step"><span class="ig-num">2</span> 메뉴에서 <b>"홈 화면에 추가"</b> 를 선택하세요.</div>'
-      + '<div class="ig-step"><span class="ig-num">3</span> 오른쪽 위 <b>"추가"</b> 를 누르면 완료! 홈 화면에 COSROAD 아이콘이 생겨요.</div>';
+    steps = '<div class="ig-step"><span class="ig-num">1</span><span>사파리 하단의 <b>공유 버튼</b> <span style="font-size:17px;">⬆️</span> 을 누르세요.</span></div>'
+      + '<div class="ig-step"><span class="ig-num">2</span><span>메뉴에서 <b>"홈 화면에 추가"</b> 를 선택하세요.</span></div>'
+      + '<div class="ig-step"><span class="ig-num">3</span><span>오른쪽 위 <b>"추가"</b> 를 누르면 완료! 홈 화면에 COSROAD 아이콘이 생겨요.</span></div>';
   } else if(isAndroid){
-    steps = '<div class="ig-step"><span class="ig-num">1</span> 크롬 오른쪽 위 <b>메뉴 ⋮</b> 를 누르세요.</div>'
-      + '<div class="ig-step"><span class="ig-num">2</span> <b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 를 선택하세요.</div>'
-      + '<div class="ig-step"><span class="ig-num">3</span> <b>"추가"</b> 를 누르면 완료! 홈 화면에 COSROAD 아이콘이 생겨요.</div>';
+    steps = '<div class="ig-step"><span class="ig-num">1</span><span>크롬 오른쪽 위 <b>메뉴 ⋮</b> 를 누르세요.</span></div>'
+      + '<div class="ig-step"><span class="ig-num">2</span><span><b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 를 선택하세요.</span></div>'
+      + '<div class="ig-step"><span class="ig-num">3</span><span><b>"추가"</b> 를 누르면 완료! 홈 화면에 COSROAD 아이콘이 생겨요.</span></div>';
   } else {
-    steps = '<div class="ig-step"><span class="ig-num">📱</span> <b>휴대폰</b>에서 이 페이지를 연 뒤, 브라우저 메뉴의 <b>"홈 화면에 추가"</b>를 선택하세요.</div>'
-      + '<div class="ig-step" style="color:#667085;font-size:13px;">아이폰: 사파리 공유 → 홈 화면에 추가<br>안드로이드: 크롬 메뉴 ⋮ → 홈 화면에 추가</div>';
+    steps = '<div class="ig-step"><span class="ig-num">📱</span><span><b>휴대폰</b>에서 이 페이지를 연 뒤, 브라우저 메뉴의 <b>"홈 화면에 추가"</b>를 선택하세요.</span></div>'
+      + '<div class="ig-step" style="color:#667085;font-size:13px;"><span>아이폰: 사파리 공유 → 홈 화면에 추가<br>안드로이드: 크롬 메뉴 ⋮ → 홈 화면에 추가</span></div>';
   }
   var old = document.getElementById('install-guide-modal');
   if(old) old.remove();
