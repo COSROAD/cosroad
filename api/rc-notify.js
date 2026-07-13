@@ -123,7 +123,15 @@ const TPL = {
     '[로드크루] 지원 결과 안내\n\n'
     + '공고: ' + (a.jobTitle || '-') + '\n\n'
     + '아쉽게도 이번에는 함께하지 못하게 되었습니다.\n'
-    + '다른 좋은 공고가 많이 있습니다.\nroadcrew.kr'
+    + '다른 좋은 공고가 많이 있습니다.\nroadcrew.kr',
+
+  /* 기사가 채용 제안을 수락 -> 업체에 알림 */
+  accepted: (a) =>
+    '[로드크루] 기사님이 제안을 수락했습니다\n\n'
+    + '공고: ' + (a.jobTitle || '-') + '\n'
+    + '기사: ' + (a.driverName || '-') + '\n'
+    + '연락처: ' + fmt(a.driverPhone) + '\n\n'
+    + '기사님께 연락해 주세요.\nroadcrew.kr'
 };
 
 export default async function handler(req, res) {
@@ -155,7 +163,10 @@ export default async function handler(req, res) {
     const a = await fsGet(appPath);
     if (!a) return res.status(404).json({ ok: false, message: '지원 내역을 찾을 수 없습니다.' });
 
-    if (kind === 'apply') {
+    /* 기사가 보내는 알림: apply(지원), accepted(제안 수락) -> 업체에게 간다
+       업체가 보내는 알림: offer(제안), hired/contact/rejected(상태변경) -> 기사에게 간다 */
+    const fromDriver = (kind === 'apply' || kind === 'accepted');
+    if (fromDriver) {
       if (uid !== a.driverId) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
     } else {
       if (uid !== a.companyId) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
@@ -165,7 +176,7 @@ export default async function handler(req, res) {
     if (a[mark]) return res.status(200).json({ ok: true, skipped: true, message: '이미 발송된 알림입니다.' });
 
     let to = '';
-    if (kind === 'apply') {
+    if (fromDriver) {
       const c = await fsGet('companies/' + encodeURIComponent(a.companyId || ''));
       to = (c && c.phone) || '';
     } else {
