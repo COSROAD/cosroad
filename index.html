@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 137;
+const APP_VERSION = 138;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1286,8 +1286,26 @@ function markDropoffDone(memberId){ var d=loadDropoffDone(); d[memberId]=todaySt
 
 // ── 하차 알림 (문자 기본, 하차 템플릿 승인 시 알림톡) ──
 var BIZ_DROPOFF_TEMPLATE_CODES = { academy:'', public:'' }; // 알리고 하차 템플릿 승인 후 코드 입력하면 알림톡으로 전환
+/* 하차 알림 본문.
+   ⚠️ 알림톡 승인 템플릿과 글자·줄바꿈이 정확히 같아야 발송됩니다.
+   승인 템플릿:
+     [#{기관명}] 하차 알림
+     ━━━━━━━━━
+     👤 이름: #{이름}
+     ⏰ 하차: #{시간}
+     ✅ 보호자님! 자녀분이 안전하게 하차했습니다.   (공공: 회원님이)
+     ━━━━━━━━━
+     ♥ 안전한 귀가까지 함께하겠습니다.♥
+*/
 function buildDropoffMessage(biz, orgName, name, timeStr){
-  return '['+orgName+'] 하차 알림\n━━━━━━━━━\n👤 이름: '+name+'\n⏰ 하차: '+timeStr+'\n✅ 보호자님! 회원님이\n     안전하게 하차했습니다.\n━━━━━━━━━\n♥ 안전한 귀가까지\n    함께하겠습니다.♥';
+  var who = (biz==='public') ? '회원님이' : '자녀분이';
+  return '['+orgName+'] 하차 알림\n'
+       + '━━━━━━━━━\n'
+       + '👤 이름: '+name+'\n'
+       + '⏰ 하차: '+timeStr+'\n'
+       + '✅ 보호자님! '+who+' 안전하게 하차했습니다.\n'
+       + '━━━━━━━━━\n'
+       + '♥ 안전한 귀가까지 함께하겠습니다.♥';
 }
 function sendDropoffSMS(member, timeStr){
   var phones=[]; if(member.phone)phones.push(member.phone); if(member.phone2)phones.push(member.phone2);
