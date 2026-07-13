@@ -12,7 +12,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ result_code: -1, message: 'POST만 허용됩니다.' });
 
   try {
-    const { apikey, userid, sender, receiver, msg, title, msg_type, testmode_yn } = req.body || {};
+    const b = req.body || {};
+    const { receiver, msg, title, msg_type, testmode_yn } = b;
+
+    // 알리고 인증정보는 서버(Vercel 환경변수) 우선. 브라우저의 옛 키를 쓰지 않는다.
+    const apikey = process.env.ALIGO_KEY     || b.apikey;
+    const userid = process.env.ALIGO_USER_ID || b.userid;
+    const sender = process.env.ALIGO_SENDER  || b.sender;
 
     if (!apikey || !userid || !sender || !receiver || !msg) {
       return res.status(400).json({ result_code: -1, message: '필수 항목 누락 (apikey, userid, sender, receiver, msg)' });

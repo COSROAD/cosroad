@@ -10,7 +10,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   // biz(업종), courier(택배사코드), invoice(송장번호) 추가 수신
-  const { apikey, userid, senderkey, tpl_code, sender, receiver, name, message, biz, courier, invoice } = req.body;
+  const b = req.body || {};
+  const { tpl_code, receiver, name, message, biz, courier, invoice } = b;
+
+  // 알리고 인증정보는 서버(Vercel 환경변수)에서 가져온다.
+  // 브라우저가 보낸 값은 옛 키일 수 있으므로 환경변수가 있으면 그것을 우선한다.
+  const apikey    = process.env.ALIGO_KEY        || b.apikey;
+  const userid    = process.env.ALIGO_USER_ID    || b.userid;
+  const senderkey = process.env.ALIGO_SENDER_KEY || b.senderkey;
+  const sender    = process.env.ALIGO_SENDER     || b.sender;
+
   if (!apikey || !userid || !senderkey || !tpl_code || !sender || !receiver) {
     return res.status(400).json({ error: '필수 파라미터 누락 (sender 발신번호 포함 확인)' });
   }
