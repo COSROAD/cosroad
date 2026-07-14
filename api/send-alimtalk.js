@@ -20,8 +20,24 @@ export default async function handler(req, res) {
   const senderkey = process.env.ALIGO_SENDER_KEY || b.senderkey;
   const sender    = process.env.ALIGO_SENDER     || b.sender;
 
-  if (!apikey || !userid || !senderkey || !tpl_code || !sender || !receiver) {
-    return res.status(400).json({ error: '필수 파라미터 누락 (sender 발신번호 포함 확인)' });
+  /* 무엇이 빠졌는지 정확히 알려준다 (값 자체는 절대 노출하지 않는다) */
+  const missing = [];
+  if (!apikey)    missing.push('ALIGO_KEY(서버)');
+  if (!userid)    missing.push('ALIGO_USER_ID(서버)');
+  if (!senderkey) missing.push('ALIGO_SENDER_KEY(서버)');
+  if (!sender)    missing.push('ALIGO_SENDER(서버)');
+  if (!tpl_code)  missing.push('템플릿코드(앱)');
+  if (!receiver)  missing.push('받는번호(앱)');
+  if (missing.length) {
+    return res.status(400).json({
+      error: '누락: ' + missing.join(', '),
+      env: {
+        ALIGO_KEY:        !!process.env.ALIGO_KEY,
+        ALIGO_USER_ID:    !!process.env.ALIGO_USER_ID,
+        ALIGO_SENDER:     !!process.env.ALIGO_SENDER,
+        ALIGO_SENDER_KEY: !!process.env.ALIGO_SENDER_KEY
+      }
+    });
   }
   try {
     const formData = new URLSearchParams();
