@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  ROADCREW 알림 문자 (알리고 SMS)
+//  ROADJOB 알림 문자 (알리고 SMS)
 //
 //  보안 설계
 //   1. 알리고 키는 Vercel 환경변수에만 있음 (앱에는 없음)
@@ -19,7 +19,7 @@ import crypto from 'crypto';
 const RC_PROJECT = 'roadcrew-1e9cd';
 const RC_WEB_KEY = 'AIzaSyBUed_pgSzq6kmtZ3y5fPexV-7mEGzJSuw';
 const FS = `https://firestore.googleapis.com/v1/projects/${RC_PROJECT}/databases/(default)/documents`;
-const ALLOWED = ['https://roadcrew.kr', 'https://www.roadcrew.kr'];
+const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://roadcrew.kr', 'https://www.roadcrew.kr'];
 
 let _tok = null;
 
@@ -99,77 +99,77 @@ function byteLen(s) {
 
 const TPL = {
   apply: (a) =>
-    '[로드크루] 새 지원자\n\n'
+    '[로드잡] 새 지원자\n\n'
     + '공고: ' + (a.jobTitle || '-') + '\n'
     + '기사: ' + (a.driverName || '-') + '\n'
     + '연락처: ' + fmt(a.driverPhone) + '\n\n'
-    + '앱에서 지원자 프로필을 확인하세요.\nroadcrew.kr',
+    + '앱에서 지원자 프로필을 확인하세요.\nroadjob.co.kr',
   offer: (a) =>
-    '[로드크루] 채용 제안이 도착했습니다\n\n'
+    '[로드잡] 채용 제안이 도착했습니다\n\n'
     + '업체: ' + (a.company || '-') + '\n'
     + '공고: ' + (a.jobTitle || '-') + '\n\n'
-    + '앱에서 내용을 확인해 주세요.\nroadcrew.kr',
+    + '앱에서 내용을 확인해 주세요.\nroadjob.co.kr',
   hired: (a) =>
-    '[로드크루] 채용이 확정되었습니다\n\n'
+    '[로드잡] 채용이 확정되었습니다\n\n'
     + '업체: ' + (a.company || '-') + '\n'
     + '공고: ' + (a.jobTitle || '-') + '\n\n'
-    + '업체에서 곧 연락드릴 예정입니다.\nroadcrew.kr',
+    + '업체에서 곧 연락드릴 예정입니다.\nroadjob.co.kr',
   contact: (a) =>
-    '[로드크루] 업체가 연락을 준비 중입니다\n\n'
+    '[로드잡] 업체가 연락을 준비 중입니다\n\n'
     + '업체: ' + (a.company || '-') + '\n'
     + '공고: ' + (a.jobTitle || '-') + '\n\n'
-    + '전화를 받아 주세요.\nroadcrew.kr',
+    + '전화를 받아 주세요.\nroadjob.co.kr',
   rejected: (a) =>
-    '[로드크루] 지원 결과 안내\n\n'
+    '[로드잡] 지원 결과 안내\n\n'
     + '공고: ' + (a.jobTitle || '-') + '\n\n'
     + '아쉽게도 이번에는 함께하지 못하게 되었습니다.\n'
-    + '다른 좋은 공고가 많이 있습니다.\nroadcrew.kr',
+    + '다른 좋은 공고가 많이 있습니다.\nroadjob.co.kr',
 
   /* 기사가 채용 제안을 수락 -> 업체에 알림 */
   accepted: (a) =>
-    '[로드크루] 기사님이 제안을 수락했습니다\n\n'
+    '[로드잡] 기사님이 제안을 수락했습니다\n\n'
     + '공고: ' + (a.jobTitle || '-') + '\n'
     + '기사: ' + (a.driverName || '-') + '\n'
     + '연락처: ' + fmt(a.driverPhone) + '\n\n'
-    + '기사님께 연락해 주세요.\nroadcrew.kr'
+    + '기사님께 연락해 주세요.\nroadjob.co.kr'
 };
 
 /* ── 퀵 주문 문자 (orders) — 모두 고객에게 간다 ── */
 const OTPL = {
   order_accepted: (o) =>
-    '[로드크루] 기사님이 배정되었습니다\n\n'
+    '[로드잡] 기사님이 배정되었습니다\n\n'
     + '기사: ' + (o.driverName || '-') + '\n'
     + '연락처: ' + fmt(o.driverPhone) + '\n'
     + '차량: ' + (o.vehicle || '-') + '\n'
     + '요금: ' + Number(o.fare || 0).toLocaleString() + '원\n\n'
-    + '요금은 기사님께 직접 결제해 주세요.\nroadcrew.kr',
+    + '요금은 기사님께 직접 결제해 주세요.\nroadjob.co.kr',
 
   order_picked: (o) =>
-    '[로드크루] 물품을 픽업했습니다\n\n'
+    '[로드잡] 물품을 픽업했습니다\n\n'
     + '기사: ' + (o.driverName || '-') + '\n'
     + '연락처: ' + fmt(o.driverPhone) + '\n'
     + '도착지: ' + (o.toName || '-') + '\n\n'
-    + '배송을 시작합니다.\nroadcrew.kr',
+    + '배송을 시작합니다.\nroadjob.co.kr',
 
   order_done: (o) =>
-    '[로드크루] 배송이 완료되었습니다\n\n'
+    '[로드잡] 배송이 완료되었습니다\n\n'
     + '도착지: ' + (o.toName || '-') + '\n'
     + '요금: ' + Number(o.fare || 0).toLocaleString() + '원\n\n'
-    + '이용해 주셔서 감사합니다.\nroadcrew.kr',
+    + '이용해 주셔서 감사합니다.\nroadjob.co.kr',
 
   order_soon: (o) =>
-    '[로드크루] 기사님이 곧 도착합니다\n\n'
+    '[로드잡] 기사님이 곧 도착합니다\n\n'
     + '기사: ' + (o.driverName || '-') + '\n'
     + '연락처: ' + fmt(o.driverPhone) + '\n'
     + '도착지: ' + (o.toName || '-') + '\n\n'
     + '수령 준비 부탁드립니다.\n'
-    + '요금 ' + Number(o.fare || 0).toLocaleString() + '원을 준비해 주세요.\nroadcrew.kr',
+    + '요금 ' + Number(o.fare || 0).toLocaleString() + '원을 준비해 주세요.\nroadjob.co.kr',
 
   order_canceled: (o) =>
-    '[로드크루] 주문이 취소되었습니다\n\n'
+    '[로드잡] 주문이 취소되었습니다\n\n'
     + '출발: ' + (o.fromName || '-') + '\n'
     + '도착: ' + (o.toName || '-') + '\n\n'
-    + '다시 주문하실 수 있습니다.\nroadcrew.kr'
+    + '다시 주문하실 수 있습니다.\nroadjob.co.kr'
 };
 
 export default async function handler(req, res) {
@@ -226,7 +226,7 @@ export default async function handler(req, res) {
       oForm.append('receiver', oTo);
       oForm.append('msg', oMsg);
       oForm.append('msg_type', byteLen(oMsg) > 90 ? 'LMS' : 'SMS');
-      oForm.append('title', '로드크루');
+      oForm.append('title', '로드잡');
 
       const oR = await fetch('https://apis.aligo.in/send/', {
         method: 'POST',
@@ -281,7 +281,7 @@ export default async function handler(req, res) {
     form.append('receiver', to);
     form.append('msg', msg);
     form.append('msg_type', byteLen(msg) > 90 ? 'LMS' : 'SMS');
-    form.append('title', '로드크루');
+    form.append('title', '로드잡');
 
     const ar = await fetch('https://apis.aligo.in/send/', {
       method: 'POST',
