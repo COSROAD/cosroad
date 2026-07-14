@@ -134,6 +134,36 @@ const TPL = {
     + '기사님께 연락해 주세요.\nroadcrew.kr'
 };
 
+/* ── 퀵 주문 문자 (orders) — 모두 고객에게 간다 ── */
+const OTPL = {
+  order_accepted: (o) =>
+    '[로드크루] 기사님이 배정되었습니다\n\n'
+    + '기사: ' + (o.driverName || '-') + '\n'
+    + '연락처: ' + fmt(o.driverPhone) + '\n'
+    + '차량: ' + (o.vehicle || '-') + '\n'
+    + '요금: ' + Number(o.fare || 0).toLocaleString() + '원\n\n'
+    + '요금은 기사님께 직접 결제해 주세요.\nroadcrew.kr',
+
+  order_picked: (o) =>
+    '[로드크루] 물품을 픽업했습니다\n\n'
+    + '기사: ' + (o.driverName || '-') + '\n'
+    + '연락처: ' + fmt(o.driverPhone) + '\n'
+    + '도착지: ' + (o.toName || '-') + '\n\n'
+    + '배송을 시작합니다.\nroadcrew.kr',
+
+  order_done: (o) =>
+    '[로드크루] 배송이 완료되었습니다\n\n'
+    + '도착지: ' + (o.toName || '-') + '\n'
+    + '요금: ' + Number(o.fare || 0).toLocaleString() + '원\n\n'
+    + '이용해 주셔서 감사합니다.\nroadcrew.kr',
+
+  order_canceled: (o) =>
+    '[로드크루] 주문이 취소되었습니다\n\n'
+    + '출발: ' + (o.fromName || '-') + '\n'
+    + '도착: ' + (o.toName || '-') + '\n\n'
+    + '다시 주문하실 수 있습니다.\nroadcrew.kr'
+};
+
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
   res.setHeader('Access-Control-Allow-Origin', ALLOWED.includes(origin) ? origin : ALLOWED[0]);
@@ -145,7 +175,8 @@ export default async function handler(req, res) {
   try {
     const { idToken, appId, kind } = req.body || {};
     if (!idToken || !appId || !kind) return res.status(400).json({ ok: false, message: '필수 항목 누락' });
-    if (!TPL[kind]) return res.status(400).json({ ok: false, message: '알 수 없는 종류: ' + kind });
+    const isOrder = !!OTPL[kind];
+    if (!TPL[kind] && !isOrder) return res.status(400).json({ ok: false, message: '알 수 없는 종류: ' + kind });
 
     const KEY = process.env.ALIGO_KEY;
     const USERID = process.env.ALIGO_USER_ID;
@@ -159,6 +190,53 @@ export default async function handler(req, res) {
     const uid = vj && vj.users && vj.users[0] && vj.users[0].localId;
     if (!uid) return res.status(401).json({ ok: false, message: '로그인이 필요합니다.' });
 
+    /* ══ 퀵 주문 알림 (orders) ══ */
+    if (isOrder) {
+      const oPath = 'orders/' + encodeURIComponent(appId);
+      const o = await fsGet(oPath);
+      if (!o) return res.status(404).json({ ok: false, message: '주문을 찾을 수 없습니다.' });
+
+      /* 취소는 고객·기사 둘 다, 나머지는 배정된 기사만 보낼 수 있다 */
+      const allowed = (kind === 'order_canceled')
+        ? (uid === o.customerId || uid === o.driverId)
+        : (uid === o.driverId);
+      if (!allowed) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
+
+      const oMark = 'sms_' + kind;
+      if (o[oMark]) return res.status(200).json({ ok: true, skipped: true, message: '이미 발송된 알림입니다.' });
+
+      let oTo = String(o.customerPhone || '').replace(/[^0-9]/g, '');
+      if (!/^01[0-9]{8,9}$/.test(oTo)) {
+        return res.status(200).json({ ok: false, message: '고객 번호가 없어 문자를 보내지 않았습니다.' });
+      }
+
+      const oMsg = OTPL[kind](o);
+      const oForm = new URLSearchParams();
+      oForm.append('key', KEY);
+      oForm.append('user_id', USERID);
+      oForm.append('sender', SENDER);
+      oForm.append('receiver', oTo);
+      oForm.append('msg', oMsg);
+      oForm.append('msg_type', byteLen(oMsg) > 90 ? 'LMS' : 'SMS');
+      oForm.append('title', '로드크루');
+
+      const oR = await fetch('https://apis.aligo.in/send/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: oForm.toString()
+      });
+      const oD = await oR.json();
+      const oSent = String(oD.result_code) === '1';
+      if (oSent) await fsMark(oPath, oMark).catch(function(){});
+
+      return res.status(200).json({
+        ok: oSent,
+        message: oSent ? '문자를 보냈습니다.' : ('문자 발송 실패: ' + (oD.message || '')),
+        aligo: oD
+      });
+    }
+
+    /* ══ 채용 알림 (applications) ══ */
     const appPath = 'applications/' + encodeURIComponent(appId);
     const a = await fsGet(appPath);
     if (!a) return res.status(404).json({ ok: false, message: '지원 내역을 찾을 수 없습니다.' });
