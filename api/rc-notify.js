@@ -157,6 +157,14 @@ const OTPL = {
     + '요금: ' + Number(o.fare || 0).toLocaleString() + '원\n\n'
     + '이용해 주셔서 감사합니다.\nroadcrew.kr',
 
+  order_soon: (o) =>
+    '[로드크루] 기사님이 곧 도착합니다\n\n'
+    + '기사: ' + (o.driverName || '-') + '\n'
+    + '연락처: ' + fmt(o.driverPhone) + '\n'
+    + '도착지: ' + (o.toName || '-') + '\n\n'
+    + '수령 준비 부탁드립니다.\n'
+    + '요금 ' + Number(o.fare || 0).toLocaleString() + '원을 준비해 주세요.\nroadcrew.kr',
+
   order_canceled: (o) =>
     '[로드크루] 주문이 취소되었습니다\n\n'
     + '출발: ' + (o.fromName || '-') + '\n'

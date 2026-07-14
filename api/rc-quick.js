@@ -67,6 +67,29 @@ export default async function handler(req, res) {
       });
     }
 
+    /* ── 좌표 -> 주소 (내 위치) ── */
+    if (action === 'reverse') {
+      const { lat, lon } = req.body;
+      if (!lat || !lon) return res.status(400).json({ ok: false, message: '좌표 누락' });
+
+      const url = 'https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1'
+        + '&lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon)
+        + '&coordType=WGS84GEO&addressType=A10&appKey=' + TMAP;
+      const r = await fetch(url);
+      const j = await r.json();
+      const a = (j.addressInfo) || null;
+      if (!a) return res.status(200).json({ ok: false, message: '주소를 찾지 못했습니다.' });
+
+      const road = a.fullAddress ? String(a.fullAddress).split(',')[0] : '';
+      const name = a.buildingName || road || '내 위치';
+      return res.status(200).json({
+        ok: true,
+        name: name,
+        addr: road || a.fullAddress || '',
+        lat: Number(lat), lon: Number(lon)
+      });
+    }
+
     return res.status(400).json({ ok: false, message: '알 수 없는 요청' });
   } catch (e) {
     console.error('rc-quick 오류:', e);
