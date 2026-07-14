@@ -21,11 +21,25 @@ export default async function handler(req, res) {
   /* 티맵이 실제로 작동하는지 직접 호출해 본다 */
   const TMAP = process.env.TMAP_KEY || 'Ev7Wbwethh8ekp1gFRZEJ55f99mltQ24C5nNwpOg';
   try {
-    const r = await fetch(
-      'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword=' + encodeURIComponent('인천 연수구청')
-      + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + TMAP
-    );
-    const j = await r.json();
+    const url = 'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword=' + encodeURIComponent('인천 연수구청')
+      + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + TMAP;
+
+    /* 어떤 방식이 통하는지 3가지로 시험한다 */
+    const trials = {};
+    const tryFetch = async (label, opts) => {
+      try {
+        const rr = await fetch(url, opts);
+        const tx = await rr.text();
+        trials[label] = { 상태: rr.status, 응답앞부분: tx.slice(0, 140) };
+        return rr.status === 200 ? JSON.parse(tx) : null;
+      } catch (e) { trials[label] = { 오류: String(e && e.message) }; return null; }
+    };
+
+    let j = await tryFetch('그냥호출', {});
+    if (!j) j = await tryFetch('Referer_cosroad', { headers: { Referer: 'https://cosroad.com/' } });
+    if (!j) j = await tryFetch('Referer_roadcrew', { headers: { Referer: 'https://roadcrew.kr/' } });
+    out.티맵시험 = trials;
+    if (!j) j = {};
     const poi = (((j.searchPoiInfo || {}).pois || {}).poi || [])[0];
     out.티맵 = {
       주소검색: !!poi,
