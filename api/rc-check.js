@@ -89,6 +89,8 @@ export default async function handler(req, res) {
       키길이: TMAP.length,
       원본길이: RAW.length,
       공백제거됨: RAW.length !== TMAP.length,
+      키앞2자: TMAP.slice(0, 2),
+      키뒤3자: TMAP.slice(-3),
       오류: poi ? null : '키가 거부되었습니다. 티맵 콘솔에서 (1) 앱키가 맞는지 (2) POI검색·경로안내·역지오코딩 API가 신청돼 있는지 확인하세요.'
     };
 
