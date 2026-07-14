@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 139;
+const APP_VERSION = 140;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1285,7 +1285,7 @@ function isDropoffDoneToday(memberId){ return loadDropoffDone()[memberId]===toda
 function markDropoffDone(memberId){ var d=loadDropoffDone(); d[memberId]=todayStr(); localStorage.setItem(dropoffDoneKey(), JSON.stringify(d)); try{ saveToFirebase('dropoffDone', d); }catch(e){} }
 
 // ── 하차 알림 (문자 기본, 하차 템플릿 승인 시 알림톡) ──
-var BIZ_DROPOFF_TEMPLATE_CODES = { academy:'', public:'' }; // 알리고 하차 템플릿 승인 후 코드 입력하면 알림톡으로 전환
+var BIZ_DROPOFF_TEMPLATE_CODES = { academy:'UJ_4933', public:'UJ_4932' }; // 하차 알림톡 (승인 완료)
 /* 하차 알림 본문.
    ⚠️ 알림톡 승인 템플릿과 글자·줄바꿈이 정확히 같아야 발송됩니다.
    승인 템플릿:
@@ -1321,14 +1321,12 @@ function sendDropoffNotify(member, timeStr){
   if(!member.phone && !member.phone2){ return; }
   var biz=getBizType();
   var tplCode = BIZ_DROPOFF_TEMPLATE_CODES[biz] || '';
-  // 알리고 미설정 또는 하차 템플릿 미승인 → 문자(SMS)로 발송
-  if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_SENDER || !tplCode){
-    sendDropoffSMS(member, timeStr); return;
-  }
+  // 하차 템플릿이 없는 업종(물류·택배)은 문자(SMS)로 발송
+  if(!tplCode){ sendDropoffSMS(member, timeStr); return; }
   var phones=[]; if(member.phone)phones.push(member.phone); if(member.phone2)phones.push(member.phone2);
   var msg=buildDropoffMessage(biz, orgSettings.name, member.name, timeStr);
   phones.forEach(function(phone){
-    fetch('https://cosroad.vercel.app/api/send-alimtalk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apikey:ALIGO_API_KEY,userid:ALIGO_USER_ID,senderkey:ALIGO_SENDER_KEY,tpl_code:tplCode,sender:ALIGO_SENDER,receiver:phone,name:member.name,message:msg,biz:biz})})
+    fetch('https://cosroad.vercel.app/api/send-alimtalk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tpl_code:tplCode,receiver:phone,name:member.name,message:msg,biz:biz})})
     .then(function(r){return r.json();}).then(function(d){ if(!(d&&(d.code===0||d.result_code>0))){ sendDropoffSMS(member,timeStr); } }).catch(function(){ sendDropoffSMS(member,timeStr); });
   });
 }
@@ -2253,7 +2251,7 @@ function sendNoticeSms(id){
 
 // 실제 발송: 알리고 API가 설정돼 있으면 LMS로, 없으면 폰 문자앱으로 폴백
 function doSendNoticeMessage(n, phones, smsBody){
-  var aligoReady = ALIGO_API_KEY && ALIGO_USER_ID && ALIGO_SENDER;
+  var aligoReady = true;   // 알리고 인증정보는 서버(Vercel)에 있습니다
   // 발송 상태 갱신
   n.sent = true;
   n.sentTs = Date.now();
@@ -2265,9 +2263,6 @@ function doSendNoticeMessage(n, phones, smsBody){
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        apikey: ALIGO_API_KEY,
-        userid: ALIGO_USER_ID,
-        sender: ALIGO_SENDER,
         receiver: phones.join(','),
         msg: smsBody,
         title: '['+orgName+'] 알림장',
@@ -2887,30 +2882,16 @@ function renderSettings(){
         <button class="setting-save-btn" onclick="saveApiKeyFromSettings()">저장</button>
       </div>
     </div>
-    <div class="setting-title" style="margin-top:16px;">💬 알리고 알림톡</div>
+    <div class="setting-title" style="margin-top:16px;">💬 알림톡 · 문자</div>
     <div class="setting-card">
-      <div style="font-size:11px;color:var(--gray-400);margin-bottom:10px;">승인 후 아래 정보를 입력하세요.</div>
-      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
-        <div class="setting-row-label">알리고 아이디</div>
-        <input class="form-input" type="text" id="aligo-userid" placeholder="알리고 로그인 아이디" style="margin-bottom:0;"/>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#12B76A;margin-bottom:8px;">
+        <span>✅</span><span>서버에 설정되어 있습니다</span>
       </div>
-      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
-        <div class="setting-row-label">API Key</div>
-        <input class="form-input" type="text" id="aligo-apikey" placeholder="알리고 API Key" style="margin-bottom:0;"/>
+      <div style="font-size:11.5px;color:var(--gray-400);line-height:1.7;">
+        알리고 인증정보는 <b>서버에만</b> 보관됩니다. 이 앱에는 키가 저장되지 않습니다.<br>
+        도착·하차 시 <b>카카오 알림톡</b>이 나가고, 실패하면 <b>문자(SMS)</b>로 자동 재발송됩니다.<br>
+        <span style="color:var(--gray-300);">설정 변경이 필요하면 관리자에게 문의하세요.</span>
       </div>
-      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
-        <div class="setting-row-label">Senderkey</div>
-        <input class="form-input" type="text" id="aligo-senderkey" placeholder="카카오 채널 Senderkey" style="margin-bottom:0;"/>
-      </div>
-      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
-        <div class="setting-row-label">템플릿 코드</div>
-        <input class="form-input" type="text" id="aligo-tplcode" placeholder="알림톡 템플릿 코드" style="margin-bottom:0;"/>
-      </div>
-      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
-        <div class="setting-row-label">발신번호 (알리고 등록번호)</div>
-        <input class="form-input" type="text" id="aligo-sender" placeholder="예) 0327654321 ('-' 없이)" style="margin-bottom:0;"/>
-      </div>
-      <button onclick="saveAligoSettings()" style="width:100%;padding:11px;background:#FEE500;color:#3A1D1D;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">💬 알리고 설정 저장</button>
     </div>
     ` : ''}
     <div class="setting-title" style="margin-top:16px;">데이터</div>
@@ -2962,7 +2943,7 @@ function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_me
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_aligo','tkd_adminpw'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -3002,8 +2983,7 @@ function restoreData(ev){
       try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); saveToFirebase('courses',courses); } catch(e3){}
       orgSettings = loadOrgSettings(); saveToFirebase('org', orgSettings);
       notices = loadNotices(); saveToFirebase('notices', notices);
-      var aligoRaw = localStorage.getItem('tkd_aligo');
-      if(aligoRaw){ try{ var a=JSON.parse(aligoRaw); ALIGO_API_KEY=a.apikey||''; ALIGO_USER_ID=a.userid||''; ALIGO_SENDER_KEY=a.senderkey||''; ALIGO_TEMPLATE_CODE=a.tplcode||''; ALIGO_SENDER=a.sender||''; saveToFirebase('aligo',a);}catch(e4){} }
+      /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
       var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
       var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
       var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
@@ -5192,10 +5172,8 @@ function buildAlimtalkMessage(biz, orgName, name, timeStr, invoice, courier){
 
 function sendKakaoAlimtalk(member, timeStr){
   if(!member.phone && !member.phone2) return;
-  if(!ALIGO_API_KEY || !ALIGO_USER_ID || !ALIGO_SENDER_KEY || !ALIGO_SENDER){
-    sendCheckinSMSText(member, timeStr);
-    return;
-  }
+  /* 알리고 인증정보는 서버(Vercel)에 있습니다. 앱에는 없습니다.
+     발송이 실패하면 자동으로 문자(SMS)로 다시 보냅니다. */
   var biz = getBizType();
   // 업종별 템플릿코드 자동 선택 (없으면 설정값 폴백)
   var tplCode = BIZ_TEMPLATE_CODES[biz] || ALIGO_TEMPLATE_CODE;
@@ -5209,11 +5187,7 @@ function sendKakaoAlimtalk(member, timeStr){
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        apikey: ALIGO_API_KEY,
-        userid: ALIGO_USER_ID,
-        senderkey: ALIGO_SENDER_KEY,
         tpl_code: tplCode,
-        sender: ALIGO_SENDER,
         receiver: phone,
         name: member.name,
         message: msg,
@@ -6806,45 +6780,17 @@ function exportInvoiceExcel(id){
 }
 
 
-function saveAligoSettings(){
-  ALIGO_API_KEY = document.getElementById('aligo-apikey').value.trim();
-  ALIGO_USER_ID = document.getElementById('aligo-userid').value.trim();
-  ALIGO_SENDER_KEY = document.getElementById('aligo-senderkey').value.trim();
-  ALIGO_TEMPLATE_CODE = document.getElementById('aligo-tplcode').value.trim();
-  ALIGO_SENDER = document.getElementById('aligo-sender').value.trim().replace(/-/g,'');
-  var aligoObj = {
-    apikey: ALIGO_API_KEY,
-    userid: ALIGO_USER_ID,
-    senderkey: ALIGO_SENDER_KEY,
-    tplcode: ALIGO_TEMPLATE_CODE,
-    sender: ALIGO_SENDER
-  };
-  localStorage.setItem('tkd_aligo', JSON.stringify(aligoObj));
-  saveToFirebase('aligo', aligoObj);
-  alert('✅ 알리고 설정이 저장됐어요! (모든 기기에 적용됩니다)');
-}
+/* 알리고 키는 이제 서버(Vercel)에만 있습니다. 앱에서 저장하지 않습니다. */
+function saveAligoSettings(){ alert('알리고 설정은 서버에서 관리합니다.'); }
 
+/* 옛 버전이 기기에 저장해 둔 알리고 키를 지웁니다 (더 이상 쓰지 않음). */
 function loadAligoSettings(){
-  var saved = localStorage.getItem('tkd_aligo');
-  if(saved){
-    var d = JSON.parse(saved);
-    ALIGO_API_KEY = d.apikey||'';
-    ALIGO_USER_ID = d.userid||'';
-    ALIGO_SENDER_KEY = d.senderkey||'';
-    ALIGO_TEMPLATE_CODE = d.tplcode||'';
-    ALIGO_SENDER = d.sender||'';
-  }
+  try{ localStorage.removeItem('tkd_aligo'); }catch(e){}
+  ALIGO_API_KEY = ''; ALIGO_USER_ID = ''; ALIGO_SENDER_KEY = '';
+  ALIGO_TEMPLATE_CODE = ''; ALIGO_SENDER = '';
 }
 
-function fillAligoInputs(){
-  loadAligoSettings();
-  var f = function(id,v){ var el=document.getElementById(id); if(el) el.value=v; };
-  f('aligo-apikey', ALIGO_API_KEY);
-  f('aligo-userid', ALIGO_USER_ID);
-  f('aligo-senderkey', ALIGO_SENDER_KEY);
-  f('aligo-tplcode', ALIGO_TEMPLATE_CODE);
-  f('aligo-sender', ALIGO_SENDER);
-}
+function fillAligoInputs(){ /* 알리고 키는 서버에만 있습니다. 입력칸 없음 */ }
 
 
 var currentCarTab = 0;
@@ -7769,7 +7715,6 @@ async function syncFromFirebase(){
   var fbTax = await loadFromFirebase('tax');
   var fbAtt = await loadFromFirebase('attendance');
   var fbNotices = await loadFromFirebase('notices');
-  var fbAligo = await loadFromFirebase('aligo');
   var fbDriverAtt = await loadFromFirebase('driverAtt');
   var fbProducts = await loadFromFirebase('products');
   var fbInvoices = await loadFromFirebase('invoices');
@@ -7782,12 +7727,8 @@ async function syncFromFirebase(){
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
   if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
   if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
-  if(fbAligo){
-    localStorage.setItem('tkd_aligo', JSON.stringify(fbAligo));
-    ALIGO_API_KEY = fbAligo.apikey||''; ALIGO_USER_ID = fbAligo.userid||'';
-    ALIGO_SENDER_KEY = fbAligo.senderkey||''; ALIGO_TEMPLATE_CODE = fbAligo.tplcode||'';
-    ALIGO_SENDER = fbAligo.sender||'';
-  }
+  /* 알리고 키는 서버(Vercel)에만 있습니다. 클라우드에서 내려받지 않습니다. */
+  try{ localStorage.removeItem('tkd_aligo'); }catch(e){}
   if(fbDriverAtt){ localStorage.setItem('tkd_driver_att', JSON.stringify(fbDriverAtt)); }
   else { localStorage.setItem('tkd_driver_att', '{}'); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
   if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
@@ -7806,7 +7747,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','aligo','driverAtt','products','invoices'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -7819,12 +7760,6 @@ function startFirebaseListeners(){
       else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
       else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }
       else if(key==='notices'){ notices=data; localStorage.setItem('tkd_notices',JSON.stringify(data)); }
-      else if(key==='aligo'){
-        localStorage.setItem('tkd_aligo',JSON.stringify(data));
-        ALIGO_API_KEY=data.apikey||''; ALIGO_USER_ID=data.userid||'';
-        ALIGO_SENDER_KEY=data.senderkey||''; ALIGO_TEMPLATE_CODE=data.tplcode||'';
-        ALIGO_SENDER=data.sender||'';
-      }
       else if(key==='driverAtt'){ localStorage.setItem('tkd_driver_att',JSON.stringify(data)); }
       else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
       else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
