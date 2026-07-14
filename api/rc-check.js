@@ -50,6 +50,34 @@ export default async function handler(req, res) {
       } catch (e) { trials['헤더에_키'] = { 오류: String(e && e.message) }; }
     }
     if (!j) j = await tryFetch('Referer_cosroad', { headers: { Referer: 'https://cosroad.com/' } });
+
+    /* COSROAD가 실제로 쓰는 경로 API를 서버에서 불러본다 (이건 되는지?) */
+    try {
+      const rr = await fetch('https://apis.openapi.sk.com/tmap/routes?version=1&format=json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', appKey: TMAP },
+        body: JSON.stringify({
+          startX: '126.6516', startY: '37.4467',
+          endX: '126.6390',  endY: '37.3894',
+          reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO', searchOption: '0'
+        })
+      });
+      const tt = await rr.text();
+      const okR = rr.status === 200;
+      let dist = null;
+      if (okR) { try { const jj = JSON.parse(tt); dist = jj.features?.[0]?.properties?.totalDistance; } catch(e){} }
+      trials['경로API'] = { 상태: rr.status, 성공: okR, 거리m: dist, 응답앞부분: okR ? '(성공)' : tt.slice(0,140) };
+    } catch (e) { trials['경로API'] = { 오류: String(e && e.message) }; }
+
+    /* 역지오코딩도 */
+    try {
+      const rg = await fetch('https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1&lat=37.4467&lon=126.6516&coordType=WGS84GEO&addressType=A10', {
+        headers: { appKey: TMAP }
+      });
+      const tg = await rg.text();
+      trials['역지오코딩'] = { 상태: rg.status, 응답앞부분: rg.status===200 ? '(성공)' : tg.slice(0,120) };
+    } catch (e) { trials['역지오코딩'] = { 오류: String(e && e.message) }; }
+
     out.티맵시험 = trials;
     if (!j) j = {};
     const poi = (((j.searchPoiInfo || {}).pois || {}).poi || [])[0];
