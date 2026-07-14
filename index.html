@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 140;
+const APP_VERSION = 141;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1327,7 +1327,22 @@ function sendDropoffNotify(member, timeStr){
   var msg=buildDropoffMessage(biz, orgSettings.name, member.name, timeStr);
   phones.forEach(function(phone){
     fetch('https://cosroad.vercel.app/api/send-alimtalk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tpl_code:tplCode,receiver:phone,name:member.name,message:msg,biz:biz})})
-    .then(function(r){return r.json();}).then(function(d){ if(!(d&&(d.code===0||d.result_code>0))){ sendDropoffSMS(member,timeStr); } }).catch(function(){ sendDropoffSMS(member,timeStr); });
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d && (d.code===0 || d.result_code>0)){
+        console.log('하차 알림톡 발송 성공:', member.name);
+      } else {
+        var why = (d && (d.message || d.error)) || '알 수 없는 오류';
+        console.error('하차 알림톡 실패 → 문자로 대체:', d);
+        showToast('⚠ 알림톡 실패(' + why + ') → 문자로 보냅니다');
+        sendDropoffSMS(member, timeStr);
+      }
+    })
+    .catch(function(e){
+      console.error('하차 알림톡 통신 실패 → 문자로 대체:', e);
+      showToast('⚠ 알림톡 서버 연결 실패 → 문자로 보냅니다');
+      sendDropoffSMS(member, timeStr);
+    });
   });
 }
 function sendDropoffDone(memberId){
@@ -5200,10 +5215,14 @@ function sendKakaoAlimtalk(member, timeStr){
       if(data.code === 0){
         console.log('알림톡 발송 성공:', member.name);
       } else {
-        console.log('알림톡 발송 실패:', data.message);
+        var why = (data && (data.message || data.error)) || '알 수 없는 오류';
+        console.error('알림톡 실패 → 문자로 대체:', data);
+        showToast('⚠ 알림톡 실패(' + why + ') → 문자로 보냅니다');
         sendCheckinSMSText(member, timeStr);
       }
     }).catch(function(e){
+      console.error('알림톡 통신 실패 → 문자로 대체:', e);
+      showToast('⚠ 알림톡 서버 연결 실패 → 문자로 보냅니다');
       sendCheckinSMSText(member, timeStr);
     });
   });
