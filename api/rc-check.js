@@ -42,11 +42,14 @@ export default async function handler(req, res) {
     out.티맵시험 = trials;
     if (!j) j = {};
     const poi = (((j.searchPoiInfo || {}).pois || {}).poi || [])[0];
+    const first = trials['그냥호출'] || {};
     out.티맵 = {
       주소검색: !!poi,
       찾은곳: poi ? poi.name : null,
-      상태코드: r.status,
-      오류: poi ? null : (j.error ? (j.error.message || JSON.stringify(j.error)) : '결과 없음')
+      상태코드: first.상태 || null,
+      키길이: (TMAP || '').length,
+      키앞뒤공백: TMAP !== TMAP.trim(),
+      오류: poi ? null : '키가 거부되었습니다. 티맵 콘솔에서 (1) 앱키가 맞는지 (2) POI검색·경로안내·역지오코딩 API가 신청돼 있는지 확인하세요.'
     };
 
     if (poi) {
