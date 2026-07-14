@@ -15,11 +15,12 @@ export default async function handler(req, res) {
       RC_SA_EMAIL: has(process.env.RC_SA_EMAIL),
       RC_SA_KEY:   has(process.env.RC_SA_KEY)
     },
+    로드크루_티맵키: has(process.env.RC_TMAP_KEY),
     티맵: { 확인중: true }
   };
 
   /* 티맵이 실제로 작동하는지 직접 호출해 본다 */
-  const TMAP = process.env.TMAP_KEY || 'Ev7Wbwethh8ekp1gFRZEJ55f99mltQ24C5nNwpOg';
+  const TMAP = process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '';
   try {
     const url = 'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword=' + encodeURIComponent('인천 연수구청')
       + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + TMAP;

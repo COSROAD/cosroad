@@ -4,7 +4,9 @@
 //  Vercel 환경변수: TMAP_KEY (없으면 COSROAD와 같은 키 사용)
 // ═══════════════════════════════════════════════════════════
 
-const TMAP = process.env.TMAP_KEY || 'Ev7Wbwethh8ekp1gFRZEJ55f99mltQ24C5nNwpOg';
+/* 로드크루 전용 티맵 키. COSROAD 키(브라우저 설정 탭)와는 별개입니다.
+   Vercel 환경변수: RC_TMAP_KEY */
+const TMAP = process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '';
 const ALLOWED = ['https://roadcrew.kr', 'https://www.roadcrew.kr'];
 
 export default async function handler(req, res) {
@@ -16,6 +18,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, message: 'POST만 허용' });
 
   const { action } = req.body || {};
+
+  if (!TMAP) {
+    return res.status(500).json({ ok: false, message: '서버에 티맵 키(RC_TMAP_KEY)가 없습니다.' });
+  }
 
   try {
     /* ── 주소 검색 ── */
