@@ -20,7 +20,8 @@ export default async function handler(req, res) {
   };
 
   /* 티맵이 실제로 작동하는지 직접 호출해 본다 */
-  const TMAP = process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '';
+  const RAW  = process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '';
+  const TMAP = RAW.trim();
   try {
     const url = 'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword=' + encodeURIComponent('인천 연수구청')
       + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + TMAP;
@@ -47,8 +48,9 @@ export default async function handler(req, res) {
       주소검색: !!poi,
       찾은곳: poi ? poi.name : null,
       상태코드: first.상태 || null,
-      키길이: (TMAP || '').length,
-      키앞뒤공백: TMAP !== TMAP.trim(),
+      키길이: TMAP.length,
+      원본길이: RAW.length,
+      공백제거됨: RAW.length !== TMAP.length,
       오류: poi ? null : '키가 거부되었습니다. 티맵 콘솔에서 (1) 앱키가 맞는지 (2) POI검색·경로안내·역지오코딩 API가 신청돼 있는지 확인하세요.'
     };
 

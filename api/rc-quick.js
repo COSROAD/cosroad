@@ -6,7 +6,7 @@
 
 /* 로드크루 전용 티맵 키. COSROAD 키(브라우저 설정 탭)와는 별개입니다.
    Vercel 환경변수: RC_TMAP_KEY */
-const TMAP = process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '';
+const TMAP = (process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '').trim();
 const ALLOWED = ['https://roadcrew.kr', 'https://www.roadcrew.kr'];
 
 export default async function handler(req, res) {
