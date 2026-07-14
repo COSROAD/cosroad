@@ -37,9 +37,19 @@ export default async function handler(req, res) {
       } catch (e) { trials[label] = { 오류: String(e && e.message) }; return null; }
     };
 
-    let j = await tryFetch('그냥호출', {});
+    /* 키를 헤더에 담아 보내는 방식도 시험한다 (COSROAD 경로최적화가 쓰는 방식) */
+    const urlNoKey = url.replace('&appKey=' + TMAP, '');
+
+    let j = await tryFetch('주소창에_키', {});
+    if (!j) {
+      try {
+        const rh = await fetch(urlNoKey, { headers: { appKey: TMAP } });
+        const th = await rh.text();
+        trials['헤더에_키'] = { 상태: rh.status, 응답앞부분: th.slice(0, 140) };
+        if (rh.status === 200) j = JSON.parse(th);
+      } catch (e) { trials['헤더에_키'] = { 오류: String(e && e.message) }; }
+    }
     if (!j) j = await tryFetch('Referer_cosroad', { headers: { Referer: 'https://cosroad.com/' } });
-    if (!j) j = await tryFetch('Referer_roadcrew', { headers: { Referer: 'https://roadcrew.kr/' } });
     out.티맵시험 = trials;
     if (!j) j = {};
     const poi = (((j.searchPoiInfo || {}).pois || {}).poi || [])[0];
