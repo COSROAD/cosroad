@@ -16,6 +16,7 @@ export default async function handler(req, res) {
       RC_SA_KEY:   has(process.env.RC_SA_KEY)
     },
     로드크루_티맵키: has(process.env.RC_TMAP_KEY),
+    서버위치: process.env.VERCEL_REGION || '(모름)',
     티맵: { 확인중: true }
   };
 
@@ -50,6 +51,14 @@ export default async function handler(req, res) {
       } catch (e) { trials['헤더에_키'] = { 오류: String(e && e.message) }; }
     }
     if (!j) j = await tryFetch('Referer_cosroad', { headers: { Referer: 'https://cosroad.com/' } });
+    if (!j) j = await tryFetch('브라우저_흉내', {
+      headers: {
+        Origin: 'https://cosroad.com',
+        Referer: 'https://cosroad.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        Accept: 'application/json, text/plain, */*'
+      }
+    });
 
     /* COSROAD가 실제로 쓰는 경로 API를 서버에서 불러본다 (이건 되는지?) */
     try {
