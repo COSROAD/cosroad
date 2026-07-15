@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 142;
+const APP_VERSION = 143;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1618,15 +1618,46 @@ function showStatus(msg,type){
 }
 
 function openTmap(){
-  const active=getActiveStudents();if(active.length===0){alert('탑승 이용자를 선택해주세요.');return;}
+  const active=getActiveStudents();
+  if(active.length===0){alert('탑승 이용자를 선택해주세요.');return;}
   const ordered=optimizedOrder||active;
-  let url=`tmap://route?goalname=${encodeURIComponent(orgSettings.destName)}&goalx=${orgSettings.destLon}&goaly=${orgSettings.destLat}&coordType=WGS84GEO`;
-  ordered.slice(0,5).forEach((s,i)=>{url+=`&via${i+1}name=${encodeURIComponent(s.name)}&via${i+1}x=${s.lon}&via${i+1}y=${s.lat}`;});
-  const f=document.createElement('iframe');f.style.display='none';f.src=url;document.body.appendChild(f);
-  setTimeout(()=>{try{document.body.removeChild(f);}catch(e){}},1500);
-  setTimeout(()=>{
-    const go=confirm(`T맵으로 출발합니다!\n경유: ${ordered.slice(0,5).map(s=>s.name).join(' → ')}\n\nT맵 앱이 열리지 않으면 확인을 누르세요.`);
-    if(go)window.open(`https://www.tmap.co.kr/tmap2/public/tmap.jsp?rGoName=${encodeURIComponent(orgSettings.destName)}&rGoX=${orgSettings.destLon}&rGoY=${orgSettings.destLat}`,'_blank');
+
+  /* 도착지 정하기
+     · 픽업(학원·공공): 마지막에 학원/센터로 → 목적지 = 기관
+     · 그 외(물류·택배·하차): 마지막 방문지가 종점 → 목적지 = 마지막 방문지
+     티맵은 출발지와 도착지가 같으면 거부합니다(에러 022004).
+     지금 위치가 곧 기관이므로, 기관을 목적지로 두면 중복이 됩니다. */
+  var biz = (typeof getBizType==='function') ? getBizType() : 'academy';
+  var isPickup = (biz==='academy' || biz==='public') && (typeof isDropLeg!=='function' || !isDropLeg());
+
+  var goal, vias;
+  if(isPickup){
+    goal = { name: orgSettings.destName, lon: orgSettings.destLon, lat: orgSettings.destLat };
+    vias = ordered.slice(0, 5);
+  } else {
+    var last = ordered[ordered.length - 1];
+    goal = { name: last.name, lon: last.lon, lat: last.lat };
+    vias = ordered.slice(0, ordered.length - 1).slice(0, 5);
+  }
+
+  var url = 'tmap://route?goalname='+encodeURIComponent(goal.name)
+          + '&goalx='+goal.lon+'&goaly='+goal.lat+'&coordType=WGS84GEO';
+  vias.forEach(function(s,i){
+    url += '&via'+(i+1)+'name='+encodeURIComponent(s.name)+'&via'+(i+1)+'x='+s.lon+'&via'+(i+1)+'y='+s.lat;
+  });
+
+  var f=document.createElement('iframe');f.style.display='none';f.src=url;document.body.appendChild(f);
+  setTimeout(function(){try{document.body.removeChild(f);}catch(e){}},1500);
+
+  var path = vias.map(function(s){return s.name;}).concat([goal.name]).join(' → ');
+  var over = (ordered.length - 1) > 5 && !isPickup;
+  setTimeout(function(){
+    var msg = 'T맵으로 출발합니다!\n\n'+path
+      + (over ? '\n\n⚠️ T맵은 경유지를 5곳까지만 받습니다.\n나머지는 도착 후 다시 눌러주세요.' : '')
+      + '\n\nT맵 앱이 열리지 않으면 확인을 누르세요.';
+    var go = confirm(msg);
+    if(go) window.open('https://www.tmap.co.kr/tmap2/public/tmap.jsp?rGoName='+encodeURIComponent(goal.name)
+      +'&rGoX='+goal.lon+'&rGoY='+goal.lat, '_blank');
   },800);
 }
 
