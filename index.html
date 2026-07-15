@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 145;
+const APP_VERSION = 147;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2907,12 +2907,14 @@ function renderSettings(){
           <div style="flex:1;"><label class="form-label">종목</label>
           <input class="form-input" id="org-bizitem" value="${orgSettings.bizItem||''}" placeholder="예) 교육" style="margin-bottom:0;"/></div>
         </div>
-        <div style="display:flex;gap:8px;width:100%;">
-          <div style="flex:2;"><label class="form-label">주소</label>
-          <input class="form-input" id="org-addr" value="${orgSettings.address||''}" placeholder="예) 서울시 강남구 테헤란로 123" style="margin-bottom:0;"/></div>
-          <div style="flex:1;"><label class="form-label">전화번호</label>
-          <input class="form-input" id="org-tel" value="${orgSettings.tel||''}" placeholder="02-000-0000" style="margin-bottom:0;"/></div>
+        <label class="form-label">주소</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input class="form-input" id="org-addr" value="${orgSettings.address||''}" placeholder="예) 서울시 강남구 테헤란로 123" style="margin-bottom:0;flex:1;"/>
+          <button onclick="searchOrgAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📍 검색</button>
         </div>
+        <div id="org-addr-result" style="margin-bottom:6px;"></div>
+        <label class="form-label">전화번호</label>
+        <input class="form-input" id="org-tel" value="${orgSettings.tel||''}" placeholder="02-000-0000" style="margin-bottom:0;"/>
         <label class="form-label">입금 계좌 (거래명세서 인쇄용)</label>
         <input class="form-input" id="org-bank" value="${orgSettings.bankAccount||''}" placeholder="예) 농협 301-0000-0000-00 예금주: 주식회사 프리존" style="margin-bottom:0;"/>
         <label class="form-label">도장 이미지 (거래명세서 인쇄용)</label>
@@ -6067,7 +6069,7 @@ function printInvoice(id){
       +'<td class="ph">공급자</td>'
       +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(org.bizNo||'')+'</td></tr>'
       +'<tr><td class="k">상호</td><td>'+esc(org.name||'')+'</td><td class="k">성명</td><td class="ceo-cell">'+esc(org.ceo||'')+(org.stamp?'<img src="'+org.stamp+'" class="inv-stamp"/>':'')+'</td></tr>'
-      +'<tr><td class="k">주소</td><td colspan="3">'+esc(org.destAddr||'')+'</td></tr>'
+      +'<tr><td class="k">주소</td><td colspan="3">'+esc(org.address||org.destAddr||'')+'</td></tr>'
       +'<tr><td class="k">업태</td><td>'+esc(org.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(org.bizItem||'')+'</td></tr></table></td>'
       +'<td class="ph">공급받는자</td>'
       +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(sel.bizNo||'')+'</td></tr>'
@@ -8008,7 +8010,7 @@ function showDestResults(results){
   });
 }
 
-function searchAddrInto(inputId, resultId, emptyMsg){
+function searchAddrInto(inputId, resultId, emptyMsg, addrOnly){
   var addr = document.getElementById(inputId).value.trim();
   if(!addr){ showToast(emptyMsg); return; }
   fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
@@ -8021,17 +8023,22 @@ function searchAddrInto(inputId, resultId, emptyMsg){
       .then(function(data2){
         var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
         if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
-        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
+        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId, addrOnly);
       });
       return;
     }
-    showAddrResults(docs.map(function(p){ return {name:p.place_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId);
+    showAddrResults(docs.map(function(p){
+      return { name: addrOnly ? (p.road_address_name || p.address_name) : p.place_name,
+               address: p.address_name, x:p.x, y:p.y };
+    }), inputId, resultId, addrOnly);
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
 function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','⚠ 픽업 장소를 입력해주세요'); }
+/* 사업자 주소 — 거래명세서·세금계산서 인쇄용이라 상호가 아니라 '도로명 주소'가 들어가야 합니다 */
+function searchOrgAddr(){ searchAddrInto('org-addr','org-addr-result','⚠ 주소를 입력해주세요', true); }
 function searchMemberDropAddr(){ searchAddrInto('m-droplocation','member-drop-result','⚠ 하차 장소를 입력해주세요'); }
 
-function showAddrResults(results, targetInput, targetResult){
+function showAddrResults(results, targetInput, targetResult, addrOnly){
   targetInput = targetInput || 'm-location';
   targetResult = targetResult || 'member-addr-result';
   var el = document.getElementById(targetResult);
