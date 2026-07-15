@@ -7,7 +7,7 @@
 /* 로드잡 전용 티맵 키. COSROAD 키(브라우저 설정 탭)와는 별개입니다.
    Vercel 환경변수: RC_TMAP_KEY */
 const TMAP = (process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '').trim();
-const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://roadcrew.kr', 'https://www.roadcrew.kr'];
+const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr'];
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
@@ -70,6 +70,49 @@ export default async function handler(req, res) {
         ok: true,
         distanceM: f.totalDistance || 0,   // 미터
         timeSec: f.totalTime || 0          // 초
+      });
+    }
+
+    /* ── 경로 순서 최적화 (COSROAD 운행) ── */
+    if (action === 'optimize') {
+      const { sx, sy, sname, ex, ey, ename, vias } = req.body;
+      if (!sx || !sy || !ex || !ey || !Array.isArray(vias)) {
+        return res.status(400).json({ ok: false, message: '좌표 또는 경유지 누락' });
+      }
+      /* 티맵은 출발지와 도착지가 같으면 거부합니다 (022004) */
+      if (String(sx) === String(ex) && String(sy) === String(ey)) {
+        return res.status(400).json({ ok: false, message: '출발지와 도착지가 같습니다.' });
+      }
+
+      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/optimized-order?version=1&format=json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', appKey: TMAP },
+        body: JSON.stringify({
+          reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
+          startX: String(sx), startY: String(sy), startName: sname || '출발',
+          endX: String(ex), endY: String(ey), endName: ename || '도착',
+          viaPoints: vias.map(function (v, i) {
+            return { viaPointId: 'p' + i, viaPointName: v.name || ('경유' + (i + 1)),
+                     viaX: String(v.lon), viaY: String(v.lat) };
+          })
+        })
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) {
+        return res.status(200).json({
+          ok: false,
+          message: 'T맵 오류 (' + r.status + ') ' + ((j.error && j.error.code) || ''),
+          상세: j.error || null
+        });
+      }
+      const p = j.properties;
+      if (!p) return res.status(200).json({ ok: false, message: '경로를 찾지 못했습니다.' });
+
+      return res.status(200).json({
+        ok: true,
+        order: p.optimalOrder || [],     // 경유지 최적 순서
+        timeSec: p.totalTime || 0,
+        distanceM: p.totalDistance || 0
       });
     }
 
