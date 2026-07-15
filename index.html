@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 141;
+const APP_VERSION = 142;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1581,6 +1581,10 @@ async function optimizeRoute(){
         viaPoints:active.map((s,i)=>({viaPointId:`p${i}`,viaPointName:s.name,viaX:String(s.lon),viaY:String(s.lat)}))})
     });
     const data=await res.json();
+    if(!res.ok || (data.error)){
+      console.error('T맵 응답 오류:', res.status, data);
+      throw new Error('T맵 ' + res.status + ' ' + ((data.error&&data.error.code)||''));
+    }
     if(data.properties){
       const order=data.properties.optimalOrder||[];
       optimizedOrder=order.length>0?order.map(i=>active[i]):active;
@@ -1591,7 +1595,9 @@ async function optimizeRoute(){
       renderDrive();showStatus('✅ T맵 실시간 교통 반영 최적화 완료!','success');
     } else throw new Error();
   } catch(e){
-    optimizedOrder=nearestNeighbor(active);renderDrive();showStatus('✅ 거리 기반 경로 최적화 완료','warn');
+    console.error('T맵 최적화 실패 → 직선거리로 대체:', e);
+    optimizedOrder=nearestNeighbor(active);renderDrive();
+    showStatus('⚠️ T맵 연결 실패 — 직선거리로 임시 정렬했습니다 (실제 도로·교통 미반영)','warn');
   }
   btn.textContent='🔀 최적화';btn.classList.remove('loading');
 }
