@@ -26,13 +26,18 @@ export default async function handler(req, res) {
     const RAW = process.env.RC_TMAP_KEY || '';
     const KEY = RAW.trim();
 
-    /* 키 값은 절대 안 보여주고, 모양만 알려준다 (붙여넣기 사고 잡기용) */
+    /* 키 모양만 알려준다. 값 전체는 절대 안 보여준다.
+       앞3·뒤3 은 SK 콘솔이 이미 그만큼 보여주므로(394…XgC) 같은 수준이고,
+       40자 중 6자로는 아무것도 할 수 없다. 콘솔 것과 같은지 대보기 위함. */
     out.티맵키_모양 = {
       길이: KEY.length,
+      앞3: KEY.slice(0, 3),
+      뒤3: KEY.slice(-3),
       앞뒤공백있었나: RAW !== KEY,
       영문숫자만인가: /^[A-Za-z0-9]+$/.test(KEY),
       줄바꿈섞였나: /[\r\n]/.test(RAW),
       따옴표섞였나: /["']/.test(RAW),
+      안내: '콘솔 「앱키(appKey)」 탭에 보이는 앞뒤 글자와 같은지 대보세요. 다르면 다른 앱의 키입니다.',
     };
 
     /* 키는 헤더로 보낸다 — 티맵 문서 방식 */
