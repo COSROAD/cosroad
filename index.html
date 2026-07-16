@@ -577,7 +577,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 148;
+const APP_VERSION = 149;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -600,9 +600,9 @@ const APP_VERSION = 148;
 const DAYS=['월','화','수','목','금','토','일'];
 const DAY_NAMES=['월요일','화요일','수요일','목요일','금요일','토요일','일요일'];
 const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri',토:'sat',일:'sun'};
-/* T맵 키는 서버(Vercel)에만 있습니다. 기기에 남은 옛 키는 지웁니다. */
+/* T맵 키는 서버(Vercel)에만 있습니다. 앱에는 없습니다.
+   기기에 남아 있을지 모를 옛 키를 지웁니다. */
 try{ localStorage.removeItem('tmapKey'); }catch(e){}
-let TMAP_KEY='';
 let ADMIN_PW=localStorage.getItem('tkd_adminpw')||'1234';
 // 운영자(키 관리) 여부: org 없는 기본 접속(cosroad.com) 또는 admin=1 일 때만 키 입력창 노출
 function isKeyManager(){
@@ -3006,8 +3006,6 @@ function saveOrgInfo(){
   if(typeof renderAdminNav==='function') renderAdminNav();
 }
 function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
-/* T맵 키는 이제 서버(Vercel)에만 있습니다. 앱에서 저장하지 않습니다. */
-function saveApiKeyFromSettings(){ alert('T맵 설정은 서버에서 관리합니다.'); }
 function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_members');members=loadMembers();showToast('초기화됐어요!');renderAdminTab('settings');});}
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기

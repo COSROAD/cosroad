@@ -19,20 +19,64 @@ export default async function handler(req, res) {
     서버위치: process.env.VERCEL_REGION || '(모름)',
   };
 
-  /* 티맵 확인 — ?tmap=1 을 붙였을 때만 딱 한 번 호출합니다 */
+  /* 티맵 확인 — ?tmap=1 을 붙였을 때만.
+     API 를 여러 개 찔러본다. 하나만 되고 나머지가 막히면 「키」가 아니라
+     「그 API 를 콘솔에서 안 켰다」는 뜻이라 원인을 정확히 좁힐 수 있다. */
   if (req.query && req.query.tmap === '1') {
-    const KEY = (process.env.RC_TMAP_KEY || '').trim();
+    const RAW = process.env.RC_TMAP_KEY || '';
+    const KEY = RAW.trim();
+
+    /* 키 값은 절대 안 보여주고, 모양만 알려준다 (붙여넣기 사고 잡기용) */
+    out.티맵키_모양 = {
+      길이: KEY.length,
+      앞뒤공백있었나: RAW !== KEY,
+      영문숫자만인가: /^[A-Za-z0-9]+$/.test(KEY),
+      줄바꿈섞였나: /[\r\n]/.test(RAW),
+      따옴표섞였나: /["']/.test(RAW),
+    };
+
+    const 시험 = [
+      ['주소검색(POI)', 'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword='
+        + encodeURIComponent('연수구청') + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + KEY],
+      ['역지오코딩', 'https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1&lat=37.4103&lon=126.6784'
+        + '&coordType=WGS84GEO&addressType=A10&appKey=' + KEY],
+    ];
+    out.티맵 = {};
+    for (const [이름, url] of 시험) {
+      try {
+        const r = await fetch(url);
+        const t = await r.text();
+        let code = null;
+        try { code = JSON.parse(t)?.error?.id || JSON.parse(t)?.error?.code || null; } catch(e){}
+        out.티맵[이름] = r.status === 200
+          ? { 됨: true, 상태: 200 }
+          : { 됨: false, 상태: r.status, 코드: code, 내용: t.replace(/\s+/g,' ').slice(0, 110) };
+      } catch (e) { out.티맵[이름] = { 됨: false, 오류: String(e && e.message) }; }
+    }
+
+    /* 경로 안내는 POST 라 따로 */
     try {
-      const r = await fetch(
-        'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword=' + encodeURIComponent('연수구청')
-        + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + KEY
-      );
+      const r = await fetch('https://apis.openapi.sk.com/tmap/routes?version=1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', appKey: KEY },
+        body: JSON.stringify({ startX: 126.6784, startY: 37.4103, endX: 126.7052, endY: 37.4563,
+                               reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO', searchOption: 0 })
+      });
       const t = await r.text();
-      let poi = null;
-      if (r.status === 200) { try { poi = JSON.parse(t).searchPoiInfo?.pois?.poi?.[0]; } catch(e){} }
-      out.티맵 = { 주소검색: !!poi, 찾은곳: poi ? poi.name : null, 상태: r.status,
-                   오류: poi ? null : t.slice(0, 130) };
-    } catch (e) { out.티맵 = { 오류: String(e && e.message) }; }
+      let code = null;
+      try { code = JSON.parse(t)?.error?.id || null; } catch(e){}
+      out.티맵['경로안내'] = r.status === 200 ? { 됨: true, 상태: 200 }
+        : { 됨: false, 상태: r.status, 코드: code, 내용: t.replace(/\s+/g,' ').slice(0, 110) };
+    } catch (e) { out.티맵['경로안내'] = { 됨: false, 오류: String(e && e.message) }; }
+
+    /* 무엇이 문제인지 사람 말로 */
+    const 된것 = Object.values(out.티맵).filter(x => x.됨).length;
+    const 전부 = Object.keys(out.티맵).length;
+    out.진단 =
+      된것 === 전부 ? '✅ 티맵 정상. 앱에서 바로 쓰시면 됩니다.'
+      : 된것 > 0    ? '⚠️ 키는 살아 있는데 일부 API 만 막혔습니다 → SK 콘솔에서 그 API 를 켜주세요.'
+      : '❌ 모든 API 가 막혔습니다 → 키 자체가 틀렸거나(붙여넣기 사고) 앱이 비활성/삭제 상태입니다. '
+        + '위 「티맵키_모양」을 보시고, 콘솔의 앱키와 글자 수가 같은지 확인해 주세요.';
   } else {
     out.티맵 = { 호출시험: '생략됨 (?tmap=1 을 붙이면 확인)', 키있음: has(process.env.RC_TMAP_KEY) };
   }
