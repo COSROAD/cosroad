@@ -30,10 +30,12 @@ export default async function handler(req, res) {
       if (!keyword || String(keyword).trim().length < 2) {
         return res.status(400).json({ ok: false, message: '두 글자 이상 입력해 주세요.' });
       }
+      /* 키는 주소에 붙이지 않고 헤더로 — 티맵 문서 방식.
+         주소에 붙이면 로그·중계서버에 키가 남을 수 있습니다. */
       const url = 'https://apis.openapi.sk.com/tmap/pois?version=1'
         + '&searchKeyword=' + encodeURIComponent(keyword)
-        + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=8&appKey=' + TMAP;
-      const r = await fetch(url);
+        + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=8';
+      const r = await fetch(url, { headers: { appKey: TMAP } });
       const j = await r.json();
       const list = (((j.searchPoiInfo || {}).pois || {}).poi || []).map(function (p) {
         const road = [p.upperAddrName, p.middleAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' ');
@@ -123,8 +125,8 @@ export default async function handler(req, res) {
 
       const url = 'https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1'
         + '&lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon)
-        + '&coordType=WGS84GEO&addressType=A10&appKey=' + TMAP;
-      const r = await fetch(url);
+        + '&coordType=WGS84GEO&addressType=A10';
+      const r = await fetch(url, { headers: { appKey: TMAP } });
       const j = await r.json();
       const a = (j.addressInfo) || null;
       if (!a) return res.status(200).json({ ok: false, message: '주소를 찾지 못했습니다.' });

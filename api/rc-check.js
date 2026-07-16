@@ -35,16 +35,17 @@ export default async function handler(req, res) {
       따옴표섞였나: /["']/.test(RAW),
     };
 
+    /* 키는 헤더로 보낸다 — 티맵 문서 방식 */
     const 시험 = [
       ['주소검색(POI)', 'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword='
-        + encodeURIComponent('연수구청') + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1&appKey=' + KEY],
+        + encodeURIComponent('연수구청') + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1'],
       ['역지오코딩', 'https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1&lat=37.4103&lon=126.6784'
-        + '&coordType=WGS84GEO&addressType=A10&appKey=' + KEY],
+        + '&coordType=WGS84GEO&addressType=A10'],
     ];
     out.티맵 = {};
     for (const [이름, url] of 시험) {
       try {
-        const r = await fetch(url);
+        const r = await fetch(url, { headers: { appKey: KEY } });
         const t = await r.text();
         let code = null;
         try { code = JSON.parse(t)?.error?.id || JSON.parse(t)?.error?.code || null; } catch(e){}
@@ -74,9 +75,11 @@ export default async function handler(req, res) {
     const 전부 = Object.keys(out.티맵).length;
     out.진단 =
       된것 === 전부 ? '✅ 티맵 정상. 앱에서 바로 쓰시면 됩니다.'
-      : 된것 > 0    ? '⚠️ 키는 살아 있는데 일부 API 만 막혔습니다 → SK 콘솔에서 그 API 를 켜주세요.'
-      : '❌ 모든 API 가 막혔습니다 → 키 자체가 틀렸거나(붙여넣기 사고) 앱이 비활성/삭제 상태입니다. '
-        + '위 「티맵키_모양」을 보시고, 콘솔의 앱키와 글자 수가 같은지 확인해 주세요.';
+      : 된것 > 0    ? '⚠️ 키는 살아 있는데 일부만 막혔습니다 → SK 콘솔에서 그 API 상품을 켜주세요.'
+      : '❌ 모두 403 INVALID_API_KEY. 흔한 순서대로 — '
+        + '① 이 앱에 「TMAP API」 상품이 안 붙었다 (TMS 는 별개 상품입니다) '
+        + '② Vercel 의 키가 이 앱의 앱키가 아니다 (앱마다 키가 다릅니다) '
+        + '③ 상품 신청 직후라 아직 반영 전 (몇 분 걸립니다)';
   } else {
     out.티맵 = { 호출시험: '생략됨 (?tmap=1 을 붙이면 확인)', 키있음: has(process.env.RC_TMAP_KEY) };
   }
