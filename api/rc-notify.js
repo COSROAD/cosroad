@@ -181,7 +181,9 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, message: 'POST만 허용' });
 
   try {
-    const { idToken, appId, kind } = req.body || {};
+    const { idToken, appId, kind, test } = req.body || {};
+    /* 테스트 버전이면 test_ 컬렉션을 읽는다 (앱의 col() 과 동일) */
+    const col = function(name){ return test ? 'test_' + name : name; };
     if (!idToken || !appId || !kind) return res.status(400).json({ ok: false, message: '필수 항목 누락' });
     const isOrder = !!OTPL[kind];
     if (!TPL[kind] && !isOrder) return res.status(400).json({ ok: false, message: '알 수 없는 종류: ' + kind });
@@ -200,7 +202,7 @@ export default async function handler(req, res) {
 
     /* ══ 퀵 주문 알림 (orders) ══ */
     if (isOrder) {
-      const oPath = 'orders/' + encodeURIComponent(appId);
+      const oPath = col('orders') + '/' + encodeURIComponent(appId);
       const o = await fsGet(oPath);
       if (!o) return res.status(404).json({ ok: false, message: '주문을 찾을 수 없습니다.' });
 
@@ -245,7 +247,7 @@ export default async function handler(req, res) {
     }
 
     /* ══ 채용 알림 (applications) ══ */
-    const appPath = 'applications/' + encodeURIComponent(appId);
+    const appPath = col('applications') + '/' + encodeURIComponent(appId);
     const a = await fsGet(appPath);
     if (!a) return res.status(404).json({ ok: false, message: '지원 내역을 찾을 수 없습니다.' });
 
@@ -263,7 +265,7 @@ export default async function handler(req, res) {
 
     let to = '';
     if (fromDriver) {
-      const c = await fsGet('companies/' + encodeURIComponent(a.companyId || ''));
+      const c = await fsGet(col('companies') + '/' + encodeURIComponent(a.companyId || ''));
       to = (c && c.phone) || '';
     } else {
       to = a.driverPhone || '';
