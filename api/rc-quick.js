@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     /* ── 경로 순서 최적화 (COSROAD 운행) ──
        공식 상품 주소는 routeOptimization10/20/30/100 (경유지 수별 상품·단가가 다름).
        옛 주소(optimized-order)는 현재 상품에 없어 항상 거절되므로 교체함 (2026-07-22).
-       경유지 수에 맞는 가장 싼 상품을 자동 선택: ≤10→10(44원) ≤20→20(55원) ≤30→30(66원) ≤100→100(77원) */
+       경유지 수엜 맞는 가장 싼 상품을 자동 선택: ≤10→10(44원) ≤20→20(55원) ≤30→30(66원) ≤100→100(77원) */
     if (action === 'optimize') {
       const { sx, sy, sname, ex, ey, ename, vias } = req.body;
       if (!sx || !sy || !ex || !ey || !Array.isArray(vias)) {
@@ -99,27 +99,33 @@ export default async function handler(req, res) {
       const startTime = '' + kst.getUTCFullYear() + p2(kst.getUTCMonth() + 1) + p2(kst.getUTCDate())
                       + p2(kst.getUTCHours()) + p2(kst.getUTCMinutes());
 
+      /* 티맵 규칙: 이름(startName·endName·viaPointName)은 URL 인코딩해서 보내야 함.
+         인코딩 없이 한글을 보내면 400 이 남. */
       const r = await fetch('https://apis.openapi.sk.com/tmap/routes/routeOptimization' + size + '?version=1&format=json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', appKey: TMAP },
         body: JSON.stringify({
           reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
-          startName: sname || '출발', startX: String(sx), startY: String(sy),
+          startName: encodeURIComponent(sname || '출발'), startX: String(sx), startY: String(sy),
           startTime: startTime,
-          endName: ename || '도착', endX: String(ex), endY: String(ey),
+          endName: encodeURIComponent(ename || '도착'), endX: String(ex), endY: String(ey),
           searchOption: '0', carType: '4',
           viaPoints: vias.map(function (v, i) {
-            return { viaPointId: String(i), viaPointName: v.name || ('경유' + (i + 1)),
+            return { viaPointId: String(i), viaPointName: encodeURIComponent(v.name || ('경유' + (i + 1))),
                      viaX: String(v.lon), viaY: String(v.lat), viaTime: 60 };
           })
         })
       });
-      const j = await r.json();
+      const raw = await r.text();
+      let j = {};
+      try { j = JSON.parse(raw); } catch (e) {}
       if (!r.ok || j.error) {
+        /* 거절 사유 전문을 서버 기록에 남긴다 — 지점 이름·좌표는 개인정보가 아님 */
+        console.error('최적화 T맵 거절 (' + r.status + '):', raw.replace(/\s+/g, ' ').slice(0, 400));
         return res.status(200).json({
           ok: false,
           message: 'T맵 오류 (' + r.status + ') ' + ((j.error && (j.error.id || j.error.code)) || ''),
-          상세: j.error || null
+          상세: j.error || raw.slice(0, 200)
         });
       }
       const p = j.properties;
