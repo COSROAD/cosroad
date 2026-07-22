@@ -91,6 +91,27 @@ export default async function handler(req, res) {
       if (vias.length > 100) {
         return res.status(400).json({ ok: false, message: '경유지는 100곳까지 가능합니다 (현재 ' + vias.length + '곳).' });
       }
+
+      /* 좌표 빠진 지점 잡기 — 값이 비면 티맵이 9401(필수 파라메터 없음)을 내고,
+         T맵 앱은 빈 좌표 지점들을 「중복」(022004)으로 거부한다.
+         어느 지점이 문제인지 이름을 콕 집어 알려준다. */
+      const numOk = function (x) {
+        return x !== undefined && x !== null && String(x).trim() !== '' && isFinite(Number(x));
+      };
+      const 좌표없는지점 = [];
+      if (!numOk(sx) || !numOk(sy)) 좌표없는지점.push(sname || '출발지');
+      if (!numOk(ex) || !numOk(ey)) 좌표없는지점.push(ename || '도착지');
+      vias.forEach(function (v) {
+        if (!numOk(v.lon) || !numOk(v.lat)) 좌표없는지점.push(v.name || '(이름 없는 지점)');
+      });
+      if (좌표없는지점.length) {
+        console.error('최적화 불가 — 좌표 없는 지점:', 좌표없는지점.join(', '));
+        return res.status(200).json({
+          ok: false,
+          message: '좌표가 등록되지 않은 지점이 있습니다: ' + 좌표없는지점.join(', ')
+            + ' — 해당 지점의 주소를 「주소 검색」으로 다시 등록해 주세요.'
+        });
+      }
       const size = vias.length <= 10 ? '10' : vias.length <= 20 ? '20' : vias.length <= 30 ? '30' : '100';
 
       /* startTime: 한국시간 yyyyMMddHHmm (필수 입력) */
@@ -127,6 +148,8 @@ export default async function handler(req, res) {
       if (!r.ok || j.error) {
         /* 거절 사유 전문을 서버 기록에 남긴다 — 지점 이름·좌표는 개인정보가 아님 */
         console.error('최적화 T맵 거절 (' + r.status + '):', raw.replace(/\s+/g, ' ').slice(0, 400));
+        console.error('보낸 요청 요약:', JSON.stringify({ sx: sx, sy: sy, ex: ex, ey: ey,
+          vias: vias.map(function (v) { return { name: v.name, lat: v.lat, lon: v.lon }; }) }).slice(0, 500));
         return res.status(200).json({
           ok: false,
           message: 'T맵 오류 (' + r.status + ') ' + ((j.error && (j.error.id || j.error.code)) || ''),
