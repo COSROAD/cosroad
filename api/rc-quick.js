@@ -75,7 +75,10 @@ export default async function handler(req, res) {
       });
     }
 
-    /* ── 경로 순서 최적화 (COSROAD 운행) ── */
+    /* ── 경로 순서 최적화 (COSROAD 운행) ──
+       공식 상품 주소는 routeOptimization10/20/30/100 (경유지 수별 상품·단가가 다름).
+       옛 주소(optimized-order)는 현재 상품에 없어 항상 거절되므로 교체함 (2026-07-22).
+       경유지 수에 맞는 가장 싼 상품을 자동 선택: ≤10→10(44원) ≤20→20(55원) ≤30→30(66원) ≤100→100(77원) */
     if (action === 'optimize') {
       const { sx, sy, sname, ex, ey, ename, vias } = req.body;
       if (!sx || !sy || !ex || !ey || !Array.isArray(vias)) {
@@ -85,17 +88,29 @@ export default async function handler(req, res) {
       if (String(sx) === String(ex) && String(sy) === String(ey)) {
         return res.status(400).json({ ok: false, message: '출발지와 도착지가 같습니다.' });
       }
+      if (vias.length > 100) {
+        return res.status(400).json({ ok: false, message: '경유지는 100곳까지 가능합니다 (현재 ' + vias.length + '곳).' });
+      }
+      const size = vias.length <= 10 ? '10' : vias.length <= 20 ? '20' : vias.length <= 30 ? '30' : '100';
 
-      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/optimized-order?version=1&format=json', {
+      /* startTime: 한국시간 yyyyMMddHHmm (필수 입력) */
+      const kst = new Date(Date.now() + 9 * 3600 * 1000);
+      const p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+      const startTime = '' + kst.getUTCFullYear() + p2(kst.getUTCMonth() + 1) + p2(kst.getUTCDate())
+                      + p2(kst.getUTCHours()) + p2(kst.getUTCMinutes());
+
+      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/routeOptimization' + size + '?version=1&format=json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', appKey: TMAP },
         body: JSON.stringify({
           reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
-          startX: String(sx), startY: String(sy), startName: sname || '출발',
-          endX: String(ex), endY: String(ey), endName: ename || '도착',
+          startName: sname || '출발', startX: String(sx), startY: String(sy),
+          startTime: startTime,
+          endName: ename || '도착', endX: String(ex), endY: String(ey),
+          searchOption: '0', carType: '4',
           viaPoints: vias.map(function (v, i) {
-            return { viaPointId: 'p' + i, viaPointName: v.name || ('경유' + (i + 1)),
-                     viaX: String(v.lon), viaY: String(v.lat) };
+            return { viaPointId: String(i), viaPointName: v.name || ('경유' + (i + 1)),
+                     viaX: String(v.lon), viaY: String(v.lat), viaTime: 60 };
           })
         })
       });
@@ -103,18 +118,33 @@ export default async function handler(req, res) {
       if (!r.ok || j.error) {
         return res.status(200).json({
           ok: false,
-          message: 'T맵 오류 (' + r.status + ') ' + ((j.error && j.error.code) || ''),
+          message: 'T맵 오류 (' + r.status + ') ' + ((j.error && (j.error.id || j.error.code)) || ''),
           상세: j.error || null
         });
       }
       const p = j.properties;
       if (!p) return res.status(200).json({ ok: false, message: '경로를 찾지 못했습니다.' });
 
+      /* 방문 순서 복원: 응답의 Point 지점들(features)을 index순으로 정렬해
+         우리가 보낸 viaPointId(=원래 배열 번호)만 뽑는다. 출발·도착 지점은 숫자 id가 아니라 걸러짐. */
+      const points = (j.features || []).filter(function (f) {
+        return f && f.geometry && f.geometry.type === 'Point' && f.properties;
+      });
+      points.sort(function (a, b) { return Number(a.properties.index || 0) - Number(b.properties.index || 0); });
+      const order = [];
+      points.forEach(function (f) {
+        const id = String(f.properties.viaPointId === undefined ? '' : f.properties.viaPointId);
+        if (/^[0-9]+$/.test(id)) {
+          const n = Number(id);
+          if (n >= 0 && n < vias.length && order.indexOf(n) === -1) order.push(n);
+        }
+      });
+
       return res.status(200).json({
         ok: true,
-        order: p.optimalOrder || [],     // 경유지 최적 순서
-        timeSec: p.totalTime || 0,
-        distanceM: p.totalDistance || 0
+        order: order,                           // 경유지 최적 순서 (원래 배열 번호)
+        timeSec: Number(p.totalTime) || 0,
+        distanceM: Number(p.totalDistance) || 0
       });
     }
 
