@@ -1,179 +1,118 @@
-// ═══════════════════════════════════════════════════════════
-//  ROADJOB 퀵 — 주소 검색 · 거리 계산
-//  티맵 키는 서버에만 둔다 (앱에는 없음)
-//  Vercel 환경변수: TMAP_KEY (없으면 COSROAD와 같은 키 사용)
-// ═══════════════════════════════════════════════════════════
-
-/* 로드잡 전용 티맵 키. COSROAD 키(브라우저 설정 탭)와는 별개입니다.
-   Vercel 환경변수: RC_TMAP_KEY */
-const TMAP = (process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '').trim();
-const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr'];
-
+// 서버 설정 진단. 값은 절대 보여주지 않고, 있는지/작동하는지만 알려줍니다.
 export default async function handler(req, res) {
-  const origin = req.headers.origin || '';
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED.includes(origin) ? origin : ALLOWED[0]);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, message: 'POST만 허용' });
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const has = (v) => (v && String(v).trim().length > 0);
+  const out = {
+    ok: true,
+    설명: 'true = 정상 / false = 문제. 값 자체는 표시하지 않습니다.',
+    알리고: {
+      ALIGO_KEY:        has(process.env.ALIGO_KEY),
+      ALIGO_USER_ID:    has(process.env.ALIGO_USER_ID),
+      ALIGO_SENDER:     has(process.env.ALIGO_SENDER),
+      ALIGO_SENDER_KEY: has(process.env.ALIGO_SENDER_KEY)
+    },
+    로드크루_서비스계정: {
+      RC_SA_EMAIL: has(process.env.RC_SA_EMAIL),
+      RC_SA_KEY:   has(process.env.RC_SA_KEY)
+    },
+    로드크루_티맵키: has(process.env.RC_TMAP_KEY),
+    서버위치: process.env.VERCEL_REGION || '(모름)',
+  };
 
-  const { action } = req.body || {};
+  /* 티맵 확인 — ?tmap=1 을 붙였을 때만.
+     API 를 여러 개 찔러본다. 하나만 되고 나머지가 막히면 「키」가 아니라
+     「그 API 를 콘솔에서 안 켰다」는 뜻이라 원인을 정확히 좁힐 수 있다. */
+  if (req.query && req.query.tmap === '1') {
+    const RAW = process.env.RC_TMAP_KEY || '';
+    const KEY = RAW.trim();
 
-  if (!TMAP) {
-    return res.status(500).json({ ok: false, message: '서버에 티맵 키(RC_TMAP_KEY)가 없습니다.' });
-  }
+    /* 키 모양만 알려준다. 값 전체는 절대 안 보여준다.
+       앞3·뒤3 은 SK 콘솔이 이미 그만큼 보여주므로(394…XgC) 같은 수준이고,
+       40자 중 6자로는 아무것도 할 수 없다. 콘솔 것과 같은지 대보기 위함. */
+    out.티맵키_모양 = {
+      길이: KEY.length,
+      앞3: KEY.slice(0, 3),
+      뒤3: KEY.slice(-3),
+      앞뒤공백있었나: RAW !== KEY,
+      영문숫자만인가: /^[A-Za-z0-9]+$/.test(KEY),
+      줄바꿈섞였나: /[\r\n]/.test(RAW),
+      따옴표섞였나: /["']/.test(RAW),
+      안내: '콘솔 「앱키(appKey)」 탭에 보이는 앞뒤 글자와 같은지 대보세요. 다르면 다른 앱의 키입니다.',
+    };
 
-  try {
-    /* ── 주소 검색 ── */
-    if (action === 'search') {
-      const { keyword } = req.body;
-      if (!keyword || String(keyword).trim().length < 2) {
-        return res.status(400).json({ ok: false, message: '두 글자 이상 입력해 주세요.' });
-      }
-      /* 키는 주소에 붙이지 않고 헤더로 — 티맵 문서 방식.
-         주소에 붙이면 로그·중계서버에 키가 남을 수 있습니다. */
-      const url = 'https://apis.openapi.sk.com/tmap/pois?version=1'
-        + '&searchKeyword=' + encodeURIComponent(keyword)
-        + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=8';
-      const r = await fetch(url, { headers: { appKey: TMAP } });
-      const j = await r.json();
-      const list = (((j.searchPoiInfo || {}).pois || {}).poi || []).map(function (p) {
-        const road = [p.upperAddrName, p.middleAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' ');
-        return {
-          name: p.name,
-          addr: road || [p.upperAddrName, p.middleAddrName, p.lowerAddrName].filter(Boolean).join(' '),
-          lat: Number(p.frontLat || p.noorLat),
-          lon: Number(p.frontLon || p.noorLon)
-        };
-      }).filter(function (x) { return x.lat && x.lon; });
-      return res.status(200).json({ ok: true, list });
+    /* 키는 헤더로 보낸다 — 티맵 문서 방식 */
+    const 시험 = [
+      ['주소검색(POI)', 'https://apis.openapi.sk.com/tmap/pois?version=1&searchKeyword='
+        + encodeURIComponent('연수구청') + '&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&count=1'],
+      ['역지오코딩', 'https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1&lat=37.4103&lon=126.6784'
+        + '&coordType=WGS84GEO&addressType=A10'],
+    ];
+    out.티맵 = {};
+    for (const [이름, url] of 시험) {
+      try {
+        const r = await fetch(url, { headers: { appKey: KEY } });
+        const t = await r.text();
+        let code = null;
+        try { code = JSON.parse(t)?.error?.id || JSON.parse(t)?.error?.code || null; } catch(e){}
+        out.티맵[이름] = r.status === 200
+          ? { 됨: true, 상태: 200 }
+          : { 됨: false, 상태: r.status, 코드: code, 내용: t.replace(/\s+/g,' ').slice(0, 110) };
+      } catch (e) { out.티맵[이름] = { 됨: false, 오류: String(e && e.message) }; }
     }
 
-    /* ── 거리 계산 ── */
-    if (action === 'route') {
-      const { sx, sy, ex, ey } = req.body;
-      if (!sx || !sy || !ex || !ey) return res.status(400).json({ ok: false, message: '좌표 누락' });
-
-      const r = await fetch('https://apis.openapi.sk.com/tmap/routes?version=1&format=json', {
+    /* 경로 안내는 POST 라 따로 */
+    try {
+      const r = await fetch('https://apis.openapi.sk.com/tmap/routes?version=1', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', appKey: TMAP },
-        body: JSON.stringify({
-          startX: String(sx), startY: String(sy),
-          endX: String(ex), endY: String(ey),
-          reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
-          searchOption: '0'
-        })
+        headers: { 'Content-Type': 'application/json', appKey: KEY },
+        body: JSON.stringify({ startX: 126.6784, startY: 37.4103, endX: 126.7052, endY: 37.4563,
+                               reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO', searchOption: 0 })
       });
-      const j = await r.json();
-      const f = (j.features && j.features[0] && j.features[0].properties) || null;
-      if (!f) return res.status(200).json({ ok: false, message: '경로를 찾지 못했습니다.' });
+      const t = await r.text();
+      let code = null;
+      try { code = JSON.parse(t)?.error?.id || null; } catch(e){}
+      out.티맵['경로안내'] = r.status === 200 ? { 됨: true, 상태: 200 }
+        : { 됨: false, 상태: r.status, 코드: code, 내용: t.replace(/\s+/g,' ').slice(0, 110) };
+    } catch (e) { out.티맵['경로안내'] = { 됨: false, 오류: String(e && e.message) }; }
 
-      return res.status(200).json({
-        ok: true,
-        distanceM: f.totalDistance || 0,   // 미터
-        timeSec: f.totalTime || 0          // 초
-      });
-    }
-
-    /* ── 경로 순서 최적화 (COSROAD 운행) ──
-       공식 상품 주소는 routeOptimization10/20/30/100 (경유지 수별 상품·단가가 다름).
-       옛 주소(optimized-order)는 현재 상품에 없어 항상 거절되므로 교체함 (2026-07-22).
-       경유지 수에 맞는 가장 싼 상품을 자동 선택: ≤10→10(44원) ≤20→20(55원) ≤30→30(66원) ≤100→100(77원) */
-    if (action === 'optimize') {
-      const { sx, sy, sname, ex, ey, ename, vias } = req.body;
-      if (!sx || !sy || !ex || !ey || !Array.isArray(vias)) {
-        return res.status(400).json({ ok: false, message: '좌표 또는 경유지 누락' });
-      }
-      /* 티맵은 출발지와 도착지가 같으면 거부합니다 (022004) */
-      if (String(sx) === String(ex) && String(sy) === String(ey)) {
-        return res.status(400).json({ ok: false, message: '출발지와 도착지가 같습니다.' });
-      }
-      if (vias.length > 100) {
-        return res.status(400).json({ ok: false, message: '경유지는 100곳까지 가능합니다 (현재 ' + vias.length + '곳).' });
-      }
-      const size = vias.length <= 10 ? '10' : vias.length <= 20 ? '20' : vias.length <= 30 ? '30' : '100';
-
-      /* startTime: 한국시간 yyyyMMddHHmm (필수 입력) */
+    /* 경유지 최적화 (routeOptimization10) — 최적화 버튼이 쓰는 그 API.
+       고정 좌표 시험이라 개인정보 없음. Premium 은 건당 과금(약 44원)이므로 ?tmap=1 일 때만 1회. */
+    try {
       const kst = new Date(Date.now() + 9 * 3600 * 1000);
       const p2 = function (n) { return (n < 10 ? '0' : '') + n; };
-      const startTime = '' + kst.getUTCFullYear() + p2(kst.getUTCMonth() + 1) + p2(kst.getUTCDate())
-                      + p2(kst.getUTCHours()) + p2(kst.getUTCMinutes());
-
-      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/routeOptimization' + size + '?version=1&format=json', {
+      const st = '' + kst.getUTCFullYear() + p2(kst.getUTCMonth() + 1) + p2(kst.getUTCDate())
+               + p2(kst.getUTCHours()) + p2(kst.getUTCMinutes());
+      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/routeOptimization10?version=1&format=json', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', appKey: TMAP },
+        headers: { 'Content-Type': 'application/json', appKey: KEY },
         body: JSON.stringify({
           reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
-          startName: sname || '출발', startX: String(sx), startY: String(sy),
-          startTime: startTime,
-          endName: ename || '도착', endX: String(ex), endY: String(ey),
+          startName: '출발', startX: '126.6784', startY: '37.4103', startTime: st,
+          endName: '도착', endX: '126.7052', endY: '37.4563',
           searchOption: '0', carType: '4',
-          viaPoints: vias.map(function (v, i) {
-            return { viaPointId: String(i), viaPointName: v.name || ('경유' + (i + 1)),
-                     viaX: String(v.lon), viaY: String(v.lat), viaTime: 60 };
-          })
+          viaPoints: [{ viaPointId: '0', viaPointName: '경유1', viaX: '126.6900', viaY: '37.4300', viaTime: 60 }]
         })
       });
-      const j = await r.json();
-      if (!r.ok || j.error) {
-        return res.status(200).json({
-          ok: false,
-          message: 'T맵 오류 (' + r.status + ') ' + ((j.error && (j.error.id || j.error.code)) || ''),
-          상세: j.error || null
-        });
-      }
-      const p = j.properties;
-      if (!p) return res.status(200).json({ ok: false, message: '경로를 찾지 못했습니다.' });
+      const t = await r.text();
+      let code = null;
+      try { const pj = JSON.parse(t); code = (pj.error && (pj.error.id || pj.error.code)) || null; } catch(e){}
+      out.티맵['경유지최적화'] = r.status === 200 ? { 됨: true, 상태: 200 }
+        : { 됨: false, 상태: r.status, 코드: code, 내용: t.replace(/\s+/g,' ').slice(0, 200) };
+    } catch (e) { out.티맵['경유지최적화'] = { 됨: false, 오류: String(e && e.message) }; }
 
-      /* 방문 순서 복원: 응답의 Point 지점들(features)을 index순으로 정렬해
-         우리가 보낸 viaPointId(=원래 배열 번호)만 뽑는다. 출발·도착 지점은 숫자 id가 아니라 걸러짐. */
-      const points = (j.features || []).filter(function (f) {
-        return f && f.geometry && f.geometry.type === 'Point' && f.properties;
-      });
-      points.sort(function (a, b) { return Number(a.properties.index || 0) - Number(b.properties.index || 0); });
-      const order = [];
-      points.forEach(function (f) {
-        const id = String(f.properties.viaPointId === undefined ? '' : f.properties.viaPointId);
-        if (/^[0-9]+$/.test(id)) {
-          const n = Number(id);
-          if (n >= 0 && n < vias.length && order.indexOf(n) === -1) order.push(n);
-        }
-      });
-
-      return res.status(200).json({
-        ok: true,
-        order: order,                           // 경유지 최적 순서 (원래 배열 번호)
-        timeSec: Number(p.totalTime) || 0,
-        distanceM: Number(p.totalDistance) || 0
-      });
-    }
-
-    /* ── 좌표 -> 주소 (내 위치) ── */
-    if (action === 'reverse') {
-      const { lat, lon } = req.body;
-      if (!lat || !lon) return res.status(400).json({ ok: false, message: '좌표 누락' });
-
-      const url = 'https://apis.openapi.sk.com/tmap/geo/reversegeocoding?version=1'
-        + '&lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon)
-        + '&coordType=WGS84GEO&addressType=A10';
-      const r = await fetch(url, { headers: { appKey: TMAP } });
-      const j = await r.json();
-      const a = (j.addressInfo) || null;
-      if (!a) return res.status(200).json({ ok: false, message: '주소를 찾지 못했습니다.' });
-
-      const road = a.fullAddress ? String(a.fullAddress).split(',')[0] : '';
-      const name = a.buildingName || road || '내 위치';
-      return res.status(200).json({
-        ok: true,
-        name: name,
-        addr: road || a.fullAddress || '',
-        lat: Number(lat), lon: Number(lon)
-      });
-    }
-
-    return res.status(400).json({ ok: false, message: '알 수 없는 요청' });
-  } catch (e) {
-    console.error('rc-quick 오류:', e);
-    return res.status(500).json({ ok: false, message: '서버 오류: ' + (e && e.message ? e.message : String(e)) });
+    /* 무엇이 문제인지 사람 말로 */
+    const 된것 = Object.values(out.티맵).filter(x => x.됨).length;
+    const 전부 = Object.keys(out.티맵).length;
+    out.진단 =
+      된것 === 전부 ? '✅ 티맵 정상. 앱에서 바로 쓰시면 됩니다.'
+      : 된것 > 0    ? '⚠️ 키는 살아 있는데 일부만 막혔습니다 → SK 콘솔에서 그 API 상품을 켜주세요.'
+      : '❌ 모두 403 INVALID_API_KEY. 흔한 순서대로 — '
+        + '① 이 앱에 「TMAP API」 상품이 안 붙었다 (TMS 는 별개 상품입니다) '
+        + '② Vercel 의 키가 이 앱의 앱키가 아니다 (앱마다 키가 다릅니다) '
+        + '③ 상품 신청 직후라 아직 반영 전 (몇 분 걸립니다)';
+  } else {
+    out.티맵 = { 호출시험: '생략됨 (?tmap=1 을 붙이면 확인)', 키있음: has(process.env.RC_TMAP_KEY) };
   }
+
+  return res.status(200).json(out);
 }
