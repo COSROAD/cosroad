@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     /* ── 경로 순서 최적화 (COSROAD 운행) ──
        공식 상품 주소는 routeOptimization10/20/30/100 (경유지 수별 상품·단가가 다름).
        옛 주소(optimized-order)는 현재 상품에 없어 항상 거절되므로 교체함 (2026-07-22).
-       경유지 수엜 맞는 가장 싼 상품을 자동 선택: ≤10→10(44원) ≤20→20(55원) ≤30→30(66원) ≤100→100(77원) */
+       경유지 수에 맞는 가장 싼 상품을 자동 선택: ≤10→10(44원) ≤20→20(55원) ≤30→30(66원) ≤100→100(77원) */
     if (action === 'optimize') {
       const { sx, sy, sname, ex, ey, ename, vias } = req.body;
       if (!sx || !sy || !ex || !ey || !Array.isArray(vias)) {
@@ -101,18 +101,23 @@ export default async function handler(req, res) {
 
       /* 티맵 규칙: 이름(startName·endName·viaPointName)은 URL 인코딩해서 보내야 함.
          인코딩 없이 한글을 보내면 400 이 남. */
-      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/routeOptimization' + size + '?version=1&format=json', {
+      /* 공식 샘플과 동일한 본문 구성 — 빈 값이라도 키가 다 있어야 함 (9401 방지) */
+      const r = await fetch('https://apis.openapi.sk.com/tmap/routes/routeOptimization' + size + '?version=1', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', appKey: TMAP },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', appKey: TMAP },
         body: JSON.stringify({
           reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
           startName: encodeURIComponent(sname || '출발'), startX: String(sx), startY: String(sy),
           startTime: startTime,
           endName: encodeURIComponent(ename || '도착'), endX: String(ex), endY: String(ey),
+          endPoiId: '',
           searchOption: '0', carType: '4',
           viaPoints: vias.map(function (v, i) {
             return { viaPointId: String(i), viaPointName: encodeURIComponent(v.name || ('경유' + (i + 1))),
-                     viaX: String(v.lon), viaY: String(v.lat), viaTime: 60 };
+                     viaDetailAddress: '',
+                     viaX: String(v.lon), viaY: String(v.lat),
+                     viaPoiId: '', viaTime: 600,
+                     wishStartTime: '', wishEndTime: '' };
           })
         })
       });
