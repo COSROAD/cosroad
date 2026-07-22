@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 //  ROADJOB 퀵 — 주소 검색 · 거리 계산
 //  티맵 키는 서버에만 둔다 (앱에는 없음)
 //  Vercel 환경변수: TMAP_KEY (없으면 COSROAD와 같은 키 사용)
@@ -24,6 +24,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    /* 좌표는 소수점 6자리로 정리해 보냄 (공식 샘플 형식, 구식 검증기 대비) */
+    const c6 = function (x) { return Number(x).toFixed(6); };
+
     /* ── 주소 검색 ── */
     if (action === 'search') {
       const { keyword } = req.body;
@@ -58,8 +61,8 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', appKey: TMAP },
         body: JSON.stringify({
-          startX: String(sx), startY: String(sy),
-          endX: String(ex), endY: String(ey),
+          startX: c6(sx), startY: c6(sy),
+          endX: c6(ex), endY: c6(ey),
           reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
           searchOption: '0'
         })
@@ -128,15 +131,16 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', appKey: TMAP },
         body: JSON.stringify({
           reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO',
-          startName: encodeURIComponent(sname || '출발'), startX: String(sx), startY: String(sy),
+          startName: encodeURIComponent(sname || '출발'), startX: c6(sx), startY: c6(sy),
           startTime: startTime,
-          endName: encodeURIComponent(ename || '도착'), endX: String(ex), endY: String(ey),
+          endName: encodeURIComponent(ename || '도착'), endX: c6(ex), endY: c6(ey),
           endPoiId: '',
           searchOption: '0', carType: '4',
           viaPoints: vias.map(function (v, i) {
-            return { viaPointId: String(i), viaPointName: encodeURIComponent(v.name || ('경유' + (i + 1))),
+            /* 공식 샘플은 viaPointId 가 1부터 — 0은 구식 검증기가 「값 없음」으로 볼 수 있어 1부터 매김 */
+            return { viaPointId: String(i + 1), viaPointName: encodeURIComponent(v.name || ('경유' + (i + 1))),
                      viaDetailAddress: '',
-                     viaX: String(v.lon), viaY: String(v.lat),
+                     viaX: c6(v.lon), viaY: c6(v.lat),
                      viaPoiId: '', viaTime: 600,
                      wishStartTime: '', wishEndTime: '' };
           })
@@ -169,7 +173,7 @@ export default async function handler(req, res) {
       points.forEach(function (f) {
         const id = String(f.properties.viaPointId === undefined ? '' : f.properties.viaPointId);
         if (/^[0-9]+$/.test(id)) {
-          const n = Number(id);
+          const n = Number(id) - 1;   /* viaPointId 는 1부터 매겼으므로 */
           if (n >= 0 && n < vias.length && order.indexOf(n) === -1) order.push(n);
         }
       });
