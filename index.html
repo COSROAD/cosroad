@@ -449,6 +449,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <input class="form-input" type="text" id="m-location" placeholder="예) 용현초 정문" style="margin-bottom:0;flex:1;"/>
       <button type="button" onclick="searchMemberAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">📍 검색</button>
     </div>
+    <div style="font-size:11px;color:#98A2B3;margin-top:3px;">💡 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동, 새말로 91) — 동 이름만 쓰면 위치가 부정확해요</div>
     <div id="member-addr-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
     </div>
     <div id="wrap-droplocation">
@@ -457,6 +458,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <input class="form-input" type="text" id="m-droplocation" placeholder="예) 행복아파트 101동" style="margin-bottom:0;flex:1;"/>
       <button type="button" onclick="searchMemberDropAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">📍 검색</button>
     </div>
+    <div style="font-size:11px;color:#98A2B3;margin-top:3px;">💡 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동, 새말로 91) — 동 이름만 쓰면 위치가 부정확해요</div>
     <div id="member-drop-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
     </div>
     <div class="form-row" id="wrap-phones">
@@ -577,7 +579,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 150;
+const APP_VERSION = 151;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2417,6 +2419,12 @@ function memberStatusBadge(m){
 function renderAdminMembersBadgeStub(){}
 
 function renderAdminMembers(){
+  // 삭제 등으로 사라진 회원이 선택 목록에 남지 않게 정리
+  for(var _sk in _memberSel){
+    var _ex=false;
+    for(var _si=0;_si<members.length;_si++){ if(String(members[_si].id)===_sk){_ex=true;break;} }
+    if(!_ex) delete _memberSel[_sk];
+  }
   var q='',el=document.getElementById('admin-search');
   if(el) q=el.value.toLowerCase();
   var filtered=members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;}).slice().sort(function(a,b){ return memberSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
@@ -2440,6 +2448,13 @@ function renderAdminMembers(){
   html+='<div id="admin-course-tabs" style="display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto;scrollbar-width:none;">';
   html+='<button onclick="adminFilterCourse=\'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(adminFilterCourse===''?'var(--admin)':'#EAECF0')+';background:'+(adminFilterCourse===''?'var(--admin-light)':'white')+';color:'+(adminFilterCourse===''?'var(--admin)':'#475467')+';">전체 ('+members.length+')</button>';
   html+=tabItems.map(function(cs){ var cnt=members.filter(function(m){return m[tabField]===cs.id;}).length; var isActive=adminFilterCourse===cs.id; var nm=(_bizM==='logistics')?(cs.name+(cs.driver?' ('+cs.driver+')':'')):cs.name; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+nm+' ('+cnt+')</button>'; }).join('');
+  html+='</div>';
+  // 선택 삭제 줄 (전체 선택 + 선택 삭제 버튼)
+  var _selN=Object.keys(_memberSel).length;
+  var _selUnit=(_bizM==='logistics'||_bizM==='delivery')?'곳':'명';
+  html+='<div style="display:flex;align-items:center;gap:8px;padding:0 16px 8px;">';
+  html+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475467;font-weight:700;cursor:pointer;"><input type="checkbox" id="sel-all-cb" onchange="toggleSelAllMembers(this.checked)" style="width:16px;height:16px;accent-color:#F04438;"/> 전체 선택</label>';
+  html+='<button id="bulk-del-btn" onclick="bulkDeleteMembers()" '+(_selN===0?'disabled':'')+' style="margin-left:auto;padding:7px 14px;border-radius:8px;border:1.5px solid #F04438;background:'+(_selN?'#FEF3F2':'white')+';color:#F04438;font-size:12px;font-weight:700;cursor:pointer;opacity:'+(_selN?'1':'0.5')+';">🗑 선택 삭제 ('+_selN+_selUnit+')</button>';
   html+='</div>';
   html+='</div>';
   // 엑셀 패널 (sticky 밖)
@@ -2471,7 +2486,9 @@ function renderAdminMembers(){
     }
     var pin=m.pin?'PIN: '+m.pin:'PIN 미설정';
     html+='<div class="member-card" style="margin:0 0 8px;">'
-      +'<div class="member-header">'+photo
+      +'<div class="member-header">'
+      +'<input type="checkbox" class="member-sel-cb" data-mid="'+m.id+'" onchange="toggleMemberSel('+m.id+',this.checked)" '+(_memberSel[m.id]?'checked':'')+' style="width:18px;height:18px;flex-shrink:0;accent-color:#F04438;cursor:pointer;"/>'
+      +photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
       +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
@@ -2522,7 +2539,9 @@ function filterAdminMembers(q){
     }
     var pin=m.pin?'PIN: '+m.pin:'PIN 미설정';
     html+='<div class="member-card" style="margin:0 0 8px;">'
-      +'<div class="member-header">'+photo
+      +'<div class="member-header">'
+      +'<input type="checkbox" class="member-sel-cb" data-mid="'+m.id+'" onchange="toggleMemberSel('+m.id+',this.checked)" '+(_memberSel[m.id]?'checked':'')+' style="width:18px;height:18px;flex-shrink:0;accent-color:#F04438;cursor:pointer;"/>'
+      +photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
       +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
@@ -2586,7 +2605,7 @@ function downloadSampleExcel(){
       ['항목','작성 방법','예시'],
       ['거래처명','거래처 상호','(주)한빛유통'],
       ['배정차량','1호차~5호차','1호차'],
-      ['거래처주소','배송지 상세','인천 연수구 용담로 111'],
+      ['거래처주소','건물명 또는 도로명+번지까지 입력 (동 이름만 쓰면 위치가 부정확해요)','인천 연수구 용담로 111'],
       ['거래처전화','하이픈 포함','032-111-2222'],
       ['배송요일','쉼표로 구분','월,수,금'],
       ['사업자등록번호','세금계산서용(없으면 빈칸)','123-45-67890'],
@@ -2609,7 +2628,7 @@ function downloadSampleExcel(){
       ['주문번호','주문 식별번호','ORD-001'],
       ['받는분','수령인 이름','홍길동'],
       ['받는분연락처','하이픈 포함','010-1234-5678'],
-      ['배송지주소','상세 주소','인천 연수구 용담로 111'],
+      ['배송지주소','건물명 또는 도로명+번지까지 입력 (동 이름만 쓰면 위치가 부정확해요)','인천 연수구 용담로 111'],
       ['배송요일','쉼표로 구분','월,수,금'],
       ['택배사','택배사명','CJ대한통운, 한진택배, 롯데택배, 우체국택배, 로젠택배'],
       ['송장번호','운송장번호','1234567890'],
@@ -2630,7 +2649,7 @@ function downloadSampleExcel(){
       ['항목','작성 방법','예시'],
       ['이름','이용자 이름','홍길동'],
       ['코스(수업반)','설정된 코스 이름과 동일하게','3시30분반, 5~6시반'],
-      ['픽업장소','실제 탑승 위치','용현초 정문'],
+      ['픽업장소','건물명 또는 도로명+번지까지 입력 (동 이름만 쓰면 위치가 부정확해요)','유원아파트 5동, 새말로 91'],
       ['하차장소','하원 시 내려줄 위치 (비우면 픽업장소와 동일)','행복아파트 101동'],
       ['보호자연락처','하이픈(-) 포함','010-1234-5678'],
       ['등원요일','쉼표(,)로 구분','월,화,수,목,금'],
@@ -2720,7 +2739,7 @@ function handleExcelFile(file){
       upRes.style.display='block';
       var 좌표실패=[], 지역단위=[];
       function geocodeOne(addr){
-        return fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
+        return fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+geoBiasParam())
           .then(function(r){return r.json();})
           .then(function(d){
             var docs=(d&&d.documents&&d.documents.length)?d.documents:[];
@@ -7921,6 +7940,46 @@ function deleteMemberById(id){
   });
 }
 
+// ── 회원 목록 체크박스 선택 삭제 ──
+var _memberSel = {};   // 선택된 회원 id 집합 { "3": true, ... }
+function toggleMemberSel(id, on){
+  if(on) _memberSel[id]=true; else delete _memberSel[id];
+  updateBulkDelUI();
+}
+function toggleSelAllMembers(on){
+  // 「전체 선택」은 지금 화면에 보이는 목록(검색·탭 필터 적용 후) 기준
+  var cbs=document.querySelectorAll('.member-sel-cb');
+  for(var i=0;i<cbs.length;i++){
+    cbs[i].checked=on;
+    var mid=cbs[i].getAttribute('data-mid');
+    if(on) _memberSel[mid]=true; else delete _memberSel[mid];
+  }
+  updateBulkDelUI();
+}
+function updateBulkDelUI(){
+  var btn=document.getElementById('bulk-del-btn');
+  if(!btn) return;
+  var n=Object.keys(_memberSel).length;
+  var biz=getBizType();
+  var unit=(biz==='logistics'||biz==='delivery')?'곳':'명';
+  btn.textContent='🗑 선택 삭제 ('+n+unit+')';
+  btn.disabled=(n===0);
+  btn.style.opacity=(n===0)?'0.5':'1';
+  btn.style.background=(n===0)?'white':'#FEF3F2';
+}
+function bulkDeleteMembers(){
+  var ids=Object.keys(_memberSel).map(function(k){ return parseInt(k); });
+  if(ids.length===0) return;
+  var biz=getBizType();
+  var unit=(biz==='logistics'||biz==='delivery')?'곳':'명';
+  showConfirmModal(function(){
+    members=members.filter(function(m){ return ids.indexOf(m.id)===-1; });
+    _memberSel={};
+    saveMembers();
+    renderAdminTab('members');
+  }, T('회원')+' '+ids.length+unit+'을 삭제합니다. 되돌릴 수 없어요.');
+}
+
 
 
 
@@ -8008,10 +8067,20 @@ function syncTaxPaymentMethods(){
 }
 
 
+/* 키워드 검색에 기관 좌표를 붙여 가까운 순으로 받기 (부산·광주 등 타지역 오등록 방지).
+   기관 좌표가 없으면 빈 문자열 → 기존 방식 그대로 (뒤로 호환).
+   카카오 문서상 x·y·sort는 keyword.json 전용 — 주소 검색(type=address)에는 붙이지 말 것. */
+function geoBiasParam(){
+  var lon = (typeof orgSettings!=='undefined' && orgSettings) ? orgSettings.destLon : null;
+  var lat = (typeof orgSettings!=='undefined' && orgSettings) ? orgSettings.destLat : null;
+  if(!lon || !lat || !isFinite(Number(lon)) || !isFinite(Number(lat))) return '';
+  return '&x='+encodeURIComponent(lon)+'&y='+encodeURIComponent(lat);
+}
+
 function searchDestAddr(){
   var addr = document.getElementById('dest-addr').value.trim();
   if(!addr){ showToast('⚠ 주소를 입력해주세요'); return; }
-  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&size=5')
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&size=5'+geoBiasParam())
   .then(function(r){ return r.json(); })
   .then(function(data){
     var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
@@ -8059,7 +8128,7 @@ function showDestResults(results){
 function searchAddrInto(inputId, resultId, emptyMsg, addrOnly){
   var addr = document.getElementById(inputId).value.trim();
   if(!addr){ showToast(emptyMsg); return; }
-  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr))
+  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+geoBiasParam())
   .then(function(r){ return r.json(); })
   .then(function(data){
     var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
