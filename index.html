@@ -579,7 +579,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 151;
+const APP_VERSION = 152;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1440,6 +1440,11 @@ function renderDrive(){
         <div class="stop-name" style="color:var(--primary);font-weight:700;">${getBizType()==='public'?'🏢':'🏫'} ${orgSettings.destName} 출발</div>
         <div style="font-size:11px;color:var(--gray-400);">${course?.depart||''}</div></div>`;
     }
+    /* 완료된 지점은 ✓ 취소선으로 남겨 진행 상황이 보이게 (T맵 5곳씩 이어가기) */
+    clsSt.filter(s=>isStopCompleted(s.id)).forEach(s=>{
+      html+=`<div class="route-stop"><div class="stop-dot" style="background:#D0D5DD;"></div>
+        <div class="stop-name" style="color:#98A2B3;text-decoration:line-through;">✓ ${s.name} <span style="font-size:11px;">— ${s.location}</span></div></div>`;
+    });
     activeSt.forEach((s,i)=>{
       const eta=etaMap[s.id]||'';
       html+=`<div class="route-stop"><div class="stop-dot${(!_drop&&i===activeSt.length-1)?' dest':''}"></div>
@@ -1452,6 +1457,11 @@ function renderDrive(){
         <div style="font-size:11px;color:var(--gray-400);">${_drop?'하차 완료 후 복귀':(course?.arrive||'')}</div></div>`;
     }
     html+=`</div>`;
+  } else if(clsSt.length>0 && clsSt.every(s=>isStopCompleted(s.id))){
+    /* 전부 완료 — T맵 출발 대신 완료 안내 (5곳씩 이어가기 마무리) */
+    html+=`<div class="route-preview" style="text-align:center;padding:20px 16px;">
+      <div style="font-size:16px;font-weight:800;color:#12B76A;">🎉 모든 지점 완료!</div>
+      <div style="font-size:12px;color:var(--gray-400);margin-top:4px;">오늘 운행을 마쳤습니다. (완료 ${clsSt.length}곳)</div></div>`;
   }
 
   html+=`<div class="section"><div class="section-label">${_logiDrive?'납품 관리':(_drop?'하차 관리':'탑승 관리')} — ${car.name}</div>`;
@@ -1637,19 +1647,45 @@ function showStatus(msg,type){
   setTimeout(()=>el.remove(),5000);
 }
 
+/* ── T맵 5곳씩 이어가기: 업종별 완료 판정 (연결점 대조표) ──
+   학원·공공 픽업 = 탑승 토글 꺼짐 (m.on=false ← toggleStudent)
+   학원·공공 하차 = 하차완료 기록 (isDropoffDoneToday ← markDropoffDone)
+   물류·택배     = 납품/배송완료 기록 (isDeliveryDoneToday ← markDeliveryDone) */
+function isStopCompleted(id){
+  var biz=getBizType();
+  if(biz==='logistics'||biz==='delivery') return isDeliveryDoneToday(id);
+  if(isDropLeg()) return isDropoffDoneToday(id);
+  var m=members.find(function(x){ return x.id===id; });
+  return m ? !m.on : false;
+}
+
 function openTmap(){
   const active=getActiveStudents();
-  if(active.length===0){alert('탑승 이용자를 선택해주세요.');return;}
-  const ordered=optimizedOrder||active;
+  /* 완료된 지점 제외 — getActiveStudents가 이미 거르지만, 완료 직후 재호출 등 대비 이중 확인 */
+  const remaining=(optimizedOrder||active).filter(function(s){ return !isStopCompleted(s.id); });
+
+  /* 진행 상황: 오늘 명단 기준 완료 수 */
+  var _logiT=getBizType()==='logistics'||getBizType()==='delivery';
+  var todayListT=members.filter(function(m){ return m.days.includes(currentDay)&&(_logiT||m.courseId===currentCourseId)&&m.carId===currentCarId; });
+  var doneCnt=todayListT.filter(function(m){ return isStopCompleted(m.id); }).length;
+
+  if(remaining.length===0){
+    if(doneCnt>0){ alert('🎉 모든 지점 완료! 오늘 운행을 마쳤습니다. (완료 '+doneCnt+'곳)'); }
+    else { alert('탑승 이용자를 선택해주세요.'); }
+    return;
+  }
 
   /* 【원칙】 4업종 모두 동일
        출발 = 기사의 현재 위치 (티맵에 넘기지 않음)
-       도착 = 마지막 방문지
+       도착 = 남은 순서의 5번째 (5곳 이하면 마지막 남은 지점)
      기관(센터·회사)을 도착지로 넣으면, 기사가 기관에 있을 때
-     출발지=도착지가 되어 티맵이 거부합니다 (에러 022004). */
-  var last = ordered[ordered.length - 1];
+     출발지=도착지가 되어 티맵이 거부합니다 (에러 022004).
+     티맵 앱은 지점을 5곳까지만 받으므로 「남은 순서의 앞 5곳」만 넘기고,
+     완료 체크 후 다시 누르면 다음 5곳이 이어져 몇십 곳도 끝까지 진행됩니다. */
+  var batch = remaining.slice(0, 5);
+  var last = batch[batch.length - 1];
   var goal = { name: last.name, lon: last.lon, lat: last.lat };
-  var vias = ordered.slice(0, ordered.length - 1).slice(0, 5);
+  var vias = batch.slice(0, batch.length - 1);
 
   var url = 'tmap://route?goalname='+encodeURIComponent(goal.name)
           + '&goalx='+goal.lon+'&goaly='+goal.lat+'&coordType=WGS84GEO';
@@ -1661,10 +1697,10 @@ function openTmap(){
   setTimeout(function(){try{document.body.removeChild(f);}catch(e){}},1500);
 
   var path = vias.map(function(s){return s.name;}).concat([goal.name]).join(' → ');
-  var over = (ordered.length - 1) > 5;
+  var over = remaining.length > 5;
   setTimeout(function(){
-    var msg = 'T맵으로 출발합니다!\n\n'+path
-      + (over ? '\n\n⚠️ T맵은 경유지를 5곳까지만 받습니다.\n나머지는 도착 후 다시 눌러주세요.' : '')
+    var msg = 'T맵으로 출발합니다!\n남은 '+remaining.length+'곳 중 '+batch.length+'곳을 안내합니다 (완료 '+doneCnt+'곳)\n\n'+path
+      + (over ? '\n\n⚠️ T맵은 지점을 5곳까지만 받습니다.\n완료 체크 후 다시 누르면 다음 5곳이 이어집니다.' : '')
       + '\n\nT맵 앱이 열리지 않으면 확인을 누르세요.';
     var go = confirm(msg);
     if(go) window.open('https://www.tmap.co.kr/tmap2/public/tmap.jsp?rGoName='+encodeURIComponent(goal.name)
