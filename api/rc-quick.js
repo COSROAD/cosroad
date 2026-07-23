@@ -7,11 +7,11 @@
 /* 로드잡 전용 티맵 키. COSROAD 키(브라우저 설정 탭)와는 별개입니다.
    Vercel 환경변수: RC_TMAP_KEY */
 const TMAP = (process.env.RC_TMAP_KEY || process.env.TMAP_KEY || '').trim();
-const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr'];
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || '';
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED.includes(origin) ? origin : ALLOWED[0]);
+  /* 카카오톡 인앱 브라우저는 origin을 다르게 보내 허용목록 방식이 CORS로 막힌다.
+     쿠키·인증을 안 쓰는 공개 API라 전체 허용(*)이 안전하다. */
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
