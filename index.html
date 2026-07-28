@@ -579,7 +579,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 153;
+const APP_VERSION = 154;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -862,14 +862,11 @@ function loginAdmin(){
         return loadUserProfile(cred.user.uid);
       })
       .then(function(){
-        if(window._userApproved===false){
-          if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}
-          window._userOrgId=null;window._userBizType=null;
-          var el=document.getElementById('login-err');
-          if(el){ el.textContent='아직 승인 대기 중입니다. 구독료 입금 후 승인되면 이용 가능합니다.'; el.style.display='block'; }
-          return;
-        }
+        /* 30일 무료 정책: 가입 즉시 사용, 만료 시 안내 화면 (paid·데모는 검사 제외) */
+        var st=getTrialStatus();
+        if(st.blocked){ showTrialExpired(); return; }
         onAdminLoggedIn();
+        if(st.banner) showTrialBanner(st.daysLeft);
       })
       .catch(function(e){
         var el=document.getElementById('login-err');
@@ -909,7 +906,7 @@ function openSignupModal(presetBiz){
     +'<input id="su-pw" type="password" placeholder="비밀번호" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 4px;box-sizing:border-box;"/>'
     +'<div id="su-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
     +'<button onclick="doSignup()" style="width:100%;padding:13px;background:var(--admin);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:10px;">가입하기</button>'
-    +'<div style="text-align:center;font-size:12px;color:#98A2B3;margin:14px 0 6px;">이미 가입·승인받으셨나요?</div>'
+    +'<div style="text-align:center;font-size:12px;color:#98A2B3;margin:14px 0 6px;">이미 가입하셨나요?</div>'
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:12px;background:#fff;color:var(--admin);border:1.5px solid var(--admin);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">📱 바로 앱 실행하기</button>'
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">취소</button>'
     +'</div></div>';
@@ -937,11 +934,12 @@ function doSignup(){
       var uid=cred.user.uid;
       var d=window._firestore.doc, sd=window._firestore.setDoc;
       var orgId = biz + '_' + uid.slice(0,12);
-      return sd(d(window._db, 'users', uid), { email: email, bizType: biz, orgName: name, orgId: orgId, approved: false, createdAt: Date.now() });
+      /* 30일 무료 시작: 자동 승인 + 가입일(trialStart) 저장 */
+      return sd(d(window._db, 'users', uid), { email: email, bizType: biz, orgName: name, orgId: orgId, approved: true, plan: 'trial', trialStart: Date.now(), createdAt: Date.now() });
     })
     .then(function(){
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
-      alert('✅ 가입 신청 완료!\n\n구독료 입금 후 관리자 승인이 완료되면 이용하실 수 있습니다.\n문의: cosroad@cosroad.com');
+      alert('✅ 가입 완료!\n\n지금부터 30일 동안 모든 기능을 무료로 사용할 수 있어요.\n방금 만든 이메일·비밀번호로 로그인해 주세요.\n문의: cosroad@cosroad.com');
       var ae=document.getElementById('admin-email'); if(ae) ae.value=email;
       // 가입 후 홈 화면 추가 안내
       try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
@@ -955,7 +953,7 @@ function doSignup(){
 function loadUserProfile(uid){
   window._userUid = uid;
   if(!window._db || !window._firestore) return Promise.resolve();
-  var d=window._firestore.doc, gd=window._firestore.getDoc;
+  var d=window._firestore.doc, gd=window._firestore.getDoc, sd=window._firestore.setDoc;
   return gd(d(window._db, 'users', uid)).then(function(snap){
     if(snap.exists()){
       var u=snap.data();
@@ -963,8 +961,73 @@ function loadUserProfile(uid){
       window._userBizType = u.bizType || null;
       window._userApproved = u.approved===true; // 승인 여부 (다음 단계에서 사용)
       window._userOrgName = u.orgName || '';
+      window._userPlan = u.plan || null;
+      window._userTrialStart = u.trialStart || null;
+      /* ── 30일 무료 정책 마이그레이션 (기존 계정) ──
+         · 이미 승인된(유료) 계정: plan='paid' 기록 → 만료 검사 대상에서 영구 제외 (절대 차단 금지)
+         · 미승인 계정: 수동 승인 흐름 폐지 → 지금부터 30일 무료 시작 */
+      if(!u.trialStart && u.plan!=='paid'){
+        if(u.approved===true){
+          u.plan='paid';
+          window._userPlan='paid';
+        } else {
+          u.approved=true; u.plan='trial'; u.trialStart=Date.now();
+          window._userApproved=true; window._userPlan='trial'; window._userTrialStart=u.trialStart;
+        }
+        try{ sd(d(window._db, 'users', uid), u); }catch(e){}
+      }
     }
   }).catch(function(e){ console.log('사용자 정보 로드 실패:', e.message); });
+}
+
+/* ── 30일 무료 상태 계산 — 로그인/앱 로드 시 호출 ──
+   반환: {blocked, banner, daysLeft}
+   · plan='paid' → 검사 제외 (기존 유료 계정 보호)
+   · _demo·_test 조직 → 검사 제외
+   · trialStart 정보가 없으면 차단하지 않음 (안전 기본값 — 자동로그인 등) */
+function getTrialStatus(){
+  try{
+    var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
+    if(/_demo$|_test$/.test(o)) return {blocked:false, banner:false, daysLeft:null};
+    if(window._userPlan==='paid') return {blocked:false, banner:false, daysLeft:null};
+    var ts=window._userTrialStart;
+    if(!ts) return {blocked:false, banner:false, daysLeft:null};
+    var daysLeft=30-Math.floor((Date.now()-ts)/86400000);
+    if(daysLeft<=0) return {blocked:true, banner:false, daysLeft:0};
+    return {blocked:false, banner:daysLeft<=10, daysLeft:daysLeft};
+  }catch(e){ return {blocked:false, banner:false, daysLeft:null}; }
+}
+
+/* 만료 안내 화면 — 앱 대신 표시 */
+function showTrialExpired(){
+  if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}
+  var old=document.getElementById('trial-expired'); if(old) old.remove();
+  var el=document.createElement('div');
+  el.id='trial-expired';
+  el.style.cssText='position:fixed;inset:0;background:white;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  el.innerHTML='<div style="max-width:340px;text-align:center;">'
+    +'<div style="font-size:44px;">⏰</div>'
+    +'<div style="font-size:19px;font-weight:800;color:#1D2939;margin-top:10px;">30일 무료 기간이 끝났어요</div>'
+    +'<div style="font-size:13px;color:#475467;margin-top:8px;line-height:1.7;">구독 신청 후 계속 이용하실 수 있습니다.<br>지금까지의 데이터는 그대로 보관돼요.</div>'
+    +'<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-top:14px;text-align:left;font-size:12px;color:#344054;line-height:1.8;">'
+    +'<b>구독 신청 방법</b><br>1) 아래 메일로 업체명·연락처를 보내주세요<br>2) 입금 안내에 따라 구독료를 입금하시면<br>3) 확인 즉시 계속 이용하실 수 있어요<br>'
+    +'📧 <a href="mailto:cosroad@cosroad.com" style="color:#1A6BFF;font-weight:700;">cosroad@cosroad.com</a></div>'
+    +'<button onclick="document.getElementById(\'trial-expired\').remove()" style="margin-top:14px;padding:11px 22px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">닫기</button>'
+    +'</div>';
+  document.body.appendChild(el);
+}
+
+/* 만료 10일 전부터 관리자 화면 상단 카운터 배너 */
+function showTrialBanner(daysLeft){
+  try{
+    if(document.getElementById('trial-banner')) return;
+    var b=document.createElement('div');
+    b.id='trial-banner';
+    b.style.cssText='position:sticky;top:0;z-index:9998;background:#FFFAEB;border-bottom:1px solid #FEDF89;color:#B54708;padding:8px 14px;font-size:12px;font-weight:700;text-align:center;';
+    b.innerHTML='⏰ 무료 기간 D-'+daysLeft+' — 계속 쓰시려면 구독을 신청하세요 · 📧 <a href="mailto:cosroad@cosroad.com" style="color:#B54708;">cosroad@cosroad.com</a>';
+    var app=document.getElementById('main-app');
+    if(app) app.insertBefore(b, app.firstChild);
+  }catch(e){}
 }
 
 function sendPwReset(){
@@ -5127,6 +5190,12 @@ function renderGuide(){
   });
   h += '</div>';
 
+  // 기사님 T맵 운행 팁
+  h += '<div style="background:#FFFAEB;border:1px solid #FEDF89;border-radius:12px;padding:14px;margin-bottom:12px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#B54708;margin-bottom:6px;">🗺 기사님 T맵 팁</div>';
+  h += '<div style="font-size:12px;color:#92400E;line-height:1.7;">💡 경유지에 정확히 도착하지 못해도 『아리아, 경유지 취소』라고 말하면 티맵이 다음 지점으로 넘어갑니다. 앱의 탑승 체크는 정차 중에 해주세요.</div>';
+  h += '</div>';
+
   // 패밀리링크 섹션 (학원·공공만)
   if(biz==='academy' || biz==='public'){
     var who = (biz==='public') ? '이용자' : '자녀';
@@ -7455,7 +7524,7 @@ function getBizTourSteps(biz){
       { tab:'payment', title:'⑤ 수납관리', body:'거래처별 수금·미수 현황을 달력으로 관리해요. 오래된 미수부터 자동 정산됩니다.' },
       { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'거래처의 "납부처리"를 누르면 수금이 기록되고 미수금이 줄어들어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'거래명세서를 저장해 거래 데이터를 입력하면, 여기 거래처별 "납부처리" 버튼이 나타나요. 누르면 수금이 기록되고 미수금이 줄어듭니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
       { tab:'tax', title:'⑥ 세무관리', body:'매출·매입 세무 기록을 자동으로 정리해요. 거래명세서와 연동되어 관리가 편합니다.' },
-      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
     ];
   }
   if(biz==='public'){
@@ -7469,7 +7538,7 @@ function getBizTourSteps(biz){
       { tab:'payment', title:'⑤ 수납관리', body:'이용료 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
       { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 이용자의 "납부처리"를 누르면 완납으로 바뀌어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'이용자를 등록하고 이용료가 부과되면, 여기 미납 이용자별 "납부처리" 버튼이 나타나요. 누르면 완납으로 바뀝니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
       { tab:'notice', title:'⑥ 알림장', body:'공지와 알림을 카카오 알림톡·문자로 보호자에게 자동 발송해요.' },
-      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
     ];
   }
   if(biz==='delivery'){
@@ -7479,7 +7548,7 @@ function getBizTourSteps(biz){
       { tab:'cars', title:'② 차량·기사 관리', body:'배송 차량과 기사를 등록해요. 일일 기사 채용·근태 관리도 함께 이뤄집니다.' },
       { tab:'schedule', title:'③ 배송현황', body:'기사별 배송 코스가 자동 배정돼요. 지역을 몰라도 최적 순서로 코스가 안내되고, 배송 완료를 체크할 수 있어요.' },
       { tab:'attendance', title:'④ 근태관리', body:'기사 PIN으로 출퇴근 근태를 기록해요. 일일 기사 운영을 간편하게 관리합니다.' },
-      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
     ];
   }
   // 기본: 학원
@@ -7494,7 +7563,7 @@ function getBizTourSteps(biz){
     { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납을 달력으로 관리해요.' },
     { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 학생의 "납부처리"를 누르면 완납으로 바뀌고 색으로 구분돼요. 통계도 자동 집계됩니다. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'학생을 등록하고 월 회비가 부과되면, 여기 미납 학생별 "납부처리" 버튼이 나타나요. 누르면 완납으로 바뀌고 통계도 자동 집계됩니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
     { tab:'notice', title:'⑥ 알림장', body:'공지·알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 사진 첨부도 가능합니다.' },
-    { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 홈페이지에서 무료로 시작할 수 있어요!' }
+    { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
   ];
 }
 
@@ -8342,19 +8411,19 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
 </div>
 
 <script>
-// 정식 가입 승인 계정 org에서는 초기 관리자 비밀번호 안내 문구를 숨김
-// (정식 사용자는 이메일 계정으로 로그인하므로 1234 안내가 불필요)
+// 초기 관리자 비밀번호(1234) 안내는 _test·_demo 조직에서만 표시
+// (실서비스 화면에서는 숨김 — 정식 사용자는 이메일 계정으로 로그인)
 (function(){
-  function hideHintIfRegistered(){
+  function toggleHint(){
     try{
-      if(typeof isRegisteredOrg==='function' && isRegisteredOrg()){
-        var el=document.getElementById('login-hint');
-        if(el) el.style.display='none';
-      }
+      var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
+      var isPlayground=/_demo$|_test$/.test(o);
+      var el=document.getElementById('login-hint');
+      if(el && !isPlayground) el.style.display='none';
     }catch(e){}
   }
-  if(document.readyState!=='loading'){ hideHintIfRegistered(); }
-  else { document.addEventListener('DOMContentLoaded', hideHintIfRegistered); }
+  if(document.readyState!=='loading'){ toggleHint(); }
+  else { document.addEventListener('DOMContentLoaded', toggleHint); }
 })();
 </script>
 
