@@ -1,6 +1,12 @@
+/* 발송 API 보호 — 돈 나가는 구멍 막기
+   허용 목록 밖 출처(주소 없음 = curl 등 포함)의 요청은 발송을 거부한다.
+   cosroad.vercel.app 은 앱 실서비스 주소(카카오톡 인앱 브라우저 포함) —
+   빠지면 정상 발송이 막힌다 (rc-quick 9401 때와 같은 함정). */
+const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
+
 export default async function handler(req, res) {
-  // CORS 설정 (모든 출처 허용 - 카카오톡 인앱 브라우저 등 대응)
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED.includes(origin) ? origin : ALLOWED[0]);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
@@ -9,9 +15,23 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+  if (!ALLOWED.includes(origin)) {
+    return res.status(403).json({ error: '허용되지 않은 출처입니다.' });
+  }
   // biz(업종), courier(택배사코드), invoice(송장번호) 추가 수신
   const b = req.body || {};
   const { tpl_code, receiver, name, message, biz, courier, invoice } = b;
+
+  /* 형식 검증 — 조직 확인은 이 서버에서 불가(COSROAD Firestore 관리자 연결 없음)하므로 최소 방어 */
+  if (receiver && !/^0\d{8,10}$/.test(String(receiver).replace(/-/g, '').trim())) {
+    return res.status(400).json({ error: '수신번호 형식이 올바르지 않습니다.' });
+  }
+  if (tpl_code && !/^[A-Za-z]{1,4}_?\d{3,6}$/.test(String(tpl_code))) {
+    return res.status(400).json({ error: '템플릿코드 형식이 올바르지 않습니다.' });
+  }
+  if (String(message || '').length > 1000) {
+    return res.status(400).json({ error: '본문이 너무 깁니다 (1000자 이내).' });
+  }
 
   // 알리고 인증정보는 서버(Vercel 환경변수)에서 가져온다.
   // 브라우저가 보낸 값은 옛 키일 수 있으므로 환경변수가 있으면 그것을 우선한다.

@@ -3,17 +3,36 @@
 // 앱 -> 이 함수 -> 알리고 /send/ API
 // 알림장 본문 + 사진 링크(URL)를 LMS로 보냅니다.
 
+/* 발송 API 보호 — 돈 나가는 구멍 막기
+   허용 목록 밖 출처(주소 없음 = curl 등 포함)의 요청은 발송을 거부한다.
+   cosroad.vercel.app 은 앱 실서비스 주소(카카오톡 인앱 브라우저 포함) —
+   빠지면 정상 발송이 막힌다 (rc-quick 9401 때와 같은 함정). */
+const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED.includes(origin) ? origin : ALLOWED[0]);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ result_code: -1, message: 'POST만 허용됩니다.' });
+  if (!ALLOWED.includes(origin)) {
+    return res.status(403).json({ result_code: -1, message: '허용되지 않은 출처입니다.' });
+  }
 
   try {
     const b = req.body || {};
     const { receiver, msg, title, msg_type, testmode_yn } = b;
+
+    /* 형식 검증 — 조직 확인은 이 서버에서 불가(COSROAD Firestore 관리자 연결 없음)하므로 최소 방어 */
+    const rcvList = String(receiver || '').split(',').map(function (r) { return r.replace(/-/g, '').trim(); }).filter(Boolean);
+    if (!rcvList.length || rcvList.length > 50 || !rcvList.every(function (r) { return /^0\d{8,10}$/.test(r); })) {
+      return res.status(400).json({ result_code: -1, message: '수신번호 형식이 올바르지 않습니다.' });
+    }
+    if (String(msg || '').length > 2000) {
+      return res.status(400).json({ result_code: -1, message: '본문이 너무 깁니다 (2000자 이내).' });
+    }
 
     // 알리고 인증정보는 서버(Vercel 환경변수) 우선. 브라우저의 옛 키를 쓰지 않는다.
     const apikey = process.env.ALIGO_KEY     || b.apikey;

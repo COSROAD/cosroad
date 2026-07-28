@@ -7,7 +7,12 @@ export default async function handler(req, res) {
   const { query, type, x, y } = req.query;
   if (!query) { res.status(400).json({ error: 'query 파라미터가 필요합니다' }); return; }
 
-  const KAKAO_REST_KEY = 'cc336e7f9819aabe81555c8f7bac53de';
+  /* 키는 Vercel 환경변수에만 둔다 (공개 저장소 노출 방지) */
+  const KAKAO_REST_KEY = (process.env.KAKAO_REST_KEY || '').trim();
+  if (!KAKAO_REST_KEY) {
+    res.status(500).json({ error: '서버에 카카오 키(KAKAO_REST_KEY)가 없습니다. Vercel 환경변수를 확인하세요.' });
+    return;
+  }
 
   try {
     const endpoint = type === 'address'
