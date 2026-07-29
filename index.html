@@ -579,7 +579,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 155;
+const APP_VERSION = 156;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3469,6 +3469,7 @@ function openEditModal(id){
   document.getElementById('m-location').value=m.location;
   document.getElementById('m-location').setAttribute('data-lat', m.lat||'');
   document.getElementById('m-location').setAttribute('data-lon', m.lon||'');
+  var _ar=document.getElementById('member-addr-result'); if(_ar){ _ar.style.display='none'; _ar.innerHTML=''; }
   var _de=document.getElementById('m-droplocation');
   if(_de){
     // 픽업장소와 동일하면 빈칸으로 두어 "동일" 상태 유지
@@ -3508,11 +3509,13 @@ function saveMember(){
   const dropLonIn=_dropEl?(parseFloat(_dropEl.getAttribute('data-lon'))||0):0;
   // 하차장소 비우면 픽업장소와 동일 적용
   const dropLocation=dropLocationIn||location;
-  const dropLat=dropLocationIn?(dropLatIn||locLat||orgSettings.destLat):(locLat||orgSettings.destLat);
-  const dropLon=dropLocationIn?(dropLonIn||locLon||orgSettings.destLon):(locLon||orgSettings.destLon);
+  const dropLat=dropLocationIn?dropLatIn:locLat;
+  const dropLon=dropLocationIn?dropLonIn:locLon;
   var biz=getBizType();
   if(!name){showToast('⚠ '+(biz==='logistics'?'거래처명':'이름')+'을 입력해주세요');return;}
   if(!location){showToast('⚠ '+(biz==='logistics'?'거래처 주소':'픽업장소')+'를 입력해주세요');return;}
+  if(!locLat||!locLon){showToast('⚠ 주소 위치가 확인되지 않았어요 — 주소 옆 「검색」을 눌러 결과를 선택해 주세요');return;}
+  if(dropLocationIn&&(!dropLatIn||!dropLonIn)){showToast('⚠ 하차 장소 위치가 확인되지 않았어요 — 「검색」으로 결과를 선택해 주세요');return;}
   const days=DAYS.filter(d=>document.getElementById('d-'+dayIdMap[d]).checked);
   if(days.length===0){showToast('⚠ '+(biz==='logistics'?'배송':'등원')+' 요일을 선택해주세요');return;}
   const editId=document.getElementById('edit-id').value;
@@ -3541,7 +3544,7 @@ function saveMember(){
   function dv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
   var deliveryFields = (biz==='delivery') ? {courier:dv('m-courier'),invoice:dv('m-invoice'),ordNo:dv('m-ordno'),sender:dv('m-sender'),senderPhone:dv('m-senderphone')} : {};
   var bizInfoFields = (biz==='logistics') ? {bizNo:dv('m-bizno'),ceo:dv('m-ceo'),bizEmail:dv('m-bizemail'),bizCat:dv('m-bizcat'),bizItem:dv('m-bizitem')} : {};
-  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat||orgSettings.destLat,lon:locLon||orgSettings.destLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields);
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields);
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -8301,6 +8304,16 @@ function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','�
 /* 사업자 주소 — 거래명세서·세금계산서 인쇄용이라 상호가 아니라 '도로명 주소'가 들어가야 합니다 */
 function searchOrgAddr(){ searchAddrInto('org-addr','org-addr-result','⚠ 주소를 입력해주세요', true); }
 function searchMemberDropAddr(){ searchAddrInto('m-droplocation','member-drop-result','⚠ 하차 장소를 입력해주세요'); }
+
+/* 주소 글자를 직접 고치면 이전 좌표·검색 결과는 무효 — 글자와 좌표가 어긋난 채 저장되는 것 방지 */
+['m-location','m-droplocation'].forEach(function(_id){
+  var _el=document.getElementById(_id);
+  if(_el) _el.addEventListener('input', function(){
+    _el.removeAttribute('data-lat'); _el.removeAttribute('data-lon');
+    var _rid=(_id==='m-location')?'member-addr-result':'member-drop-result';
+    var _r=document.getElementById(_rid); if(_r){ _r.style.display='none'; _r.innerHTML=''; }
+  });
+});
 
 function showAddrResults(results, targetInput, targetResult, addrOnly){
   targetInput = targetInput || 'm-location';
