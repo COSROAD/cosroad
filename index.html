@@ -579,7 +579,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 154;
+const APP_VERSION = 155;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -905,6 +905,9 @@ function openSignupModal(presetBiz){
     +'<label style="font-size:12px;font-weight:700;color:#475467;">비밀번호 (6자 이상)</label>'
     +'<input id="su-pw" type="password" placeholder="비밀번호" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 4px;box-sizing:border-box;"/>'
     +'<div id="su-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
+    +'<label style="display:flex;align-items:flex-start;gap:7px;font-size:12px;color:#475467;line-height:1.6;cursor:pointer;margin-top:10px;">'
+    +'<input type="checkbox" id="su-agree" style="margin-top:2px;width:16px;height:16px;accent-color:var(--admin);flex-shrink:0;"/>'
+    +'<span><a href="terms.html" target="_blank" style="color:#EA580C;text-decoration:underline;font-weight:700;">이용약관</a> 및 <a href="privacy.html" target="_blank" style="color:#EA580C;text-decoration:underline;font-weight:700;">개인정보처리방침</a>에 동의합니다. <b style="color:#EA580C;">(필수)</b></span></label>'
     +'<button onclick="doSignup()" style="width:100%;padding:13px;background:var(--admin);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:10px;">가입하기</button>'
     +'<div style="text-align:center;font-size:12px;color:#98A2B3;margin:14px 0 6px;">이미 가입하셨나요?</div>'
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:12px;background:#fff;color:var(--admin);border:1.5px solid var(--admin);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">📱 바로 앱 실행하기</button>'
@@ -928,6 +931,9 @@ function doSignup(){
   if(!name){ showErr('업체명을 입력해주세요.'); return; }
   if(!email){ showErr('이메일을 입력해주세요.'); return; }
   if(pw.length<6){ showErr('비밀번호는 6자 이상이어야 합니다.'); return; }
+  /* 약관·개인정보처리방침 동의 (필수) — 신규 가입에만 적용, 로그인과 무관 */
+  var agr=document.getElementById('su-agree');
+  if(!agr || !agr.checked){ showErr('약관 동의가 필요합니다.'); return; }
   if(!window._auth || !window._authFns){ showErr('가입 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
   window._authFns.createUserWithEmailAndPassword(window._auth, email, pw)
     .then(function(cred){
