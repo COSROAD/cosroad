@@ -451,6 +451,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     </div>
     <div style="font-size:11px;color:#98A2B3;margin-top:3px;">💡 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동, 새말로 91) — 동 이름만 쓰면 위치가 부정확해요</div>
     <div id="member-addr-result" style="font-size:11px;color:#12B76A;margin-top:4px;display:none;"></div>
+    <input class="form-input" type="text" id="m-addrdetail" placeholder="상세 주소 (동·호수 등, 선택) 예) 3동 502호" style="margin-top:6px;"/>
     </div>
     <div id="wrap-droplocation">
     <label class="form-label" id="lbl-droplocation">하차 장소 <span style="font-weight:400;color:#98A2B3;">(비우면 픽업장소와 동일)</span></label>
@@ -579,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 156;
+const APP_VERSION = 157;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2627,7 +2628,7 @@ function renderAdminMembers(){
       +'<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/>'
       +'</label></div></div>'
       +'<div class="member-info">'
-      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+m.location+'</span></div>'
+      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+fullLoc(m)+'</span></div>'
       +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
       +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
       +'</div><div class="days-row">'+dayDots+'</div>'
@@ -2680,7 +2681,7 @@ function filterAdminMembers(q){
       +'<input type="file" accept="image/*" style="display:none;" onchange="uploadMemberPhoto('+m.id+',this)"/>'
       +'</label></div></div>'
       +'<div class="member-info">'
-      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+m.location+'</span></div>'
+      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+fullLoc(m)+'</span></div>'
       +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
       +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
       +'</div><div class="days-row">'+dayDots+'</div>'
@@ -2998,7 +2999,7 @@ function renderDeliverySchedule(){
       var done=isDeliveryDoneToday(m.id);
       var s='<div class="setting-card" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;'+(done?'opacity:0.55;':'')+'">';
       s+='<div><div style="font-size:13px;font-weight:600;color:#344054;">'+m.name+(done?' <span style="font-size:10px;color:#12B76A;">✔</span>':'')+'</div>';
-      s+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+m.location+'</div></div>';
+      s+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+fullLoc(m)+'</div></div>';
       s+='<div style="font-size:11px;color:#475467;text-align:right;flex-shrink:0;">'+(m.phone||'')+'</div>';
       s+='</div>';
       return s;
@@ -3444,7 +3445,7 @@ function openAddModal(){
   document.getElementById('modal-title').textContent=T('회원')+' 등록';
   document.getElementById('modal-sub').textContent=T('회원')+' 정보를 입력해주세요.';
   document.getElementById('edit-id').value='';
-  ['m-name','m-phone','m-phone2','m-location','m-note'].forEach(id=>document.getElementById(id).value='');
+  ['m-name','m-phone','m-phone2','m-location','m-note','m-addrdetail'].forEach(id=>{var _e=document.getElementById(id);if(_e)_e.value='';});
   var _da=document.getElementById('m-droplocation'); if(_da){ _da.value=''; _da.removeAttribute('data-lat'); _da.removeAttribute('data-lon'); }
   var _dar=document.getElementById('member-drop-result'); if(_dar){ _dar.style.display='none'; _dar.innerHTML=''; }
   var _la=document.getElementById('m-location'); if(_la){ _la.removeAttribute('data-lat'); _la.removeAttribute('data-lon'); }
@@ -3470,6 +3471,7 @@ function openEditModal(id){
   document.getElementById('m-location').setAttribute('data-lat', m.lat||'');
   document.getElementById('m-location').setAttribute('data-lon', m.lon||'');
   var _ar=document.getElementById('member-addr-result'); if(_ar){ _ar.style.display='none'; _ar.innerHTML=''; }
+  var _adt=document.getElementById('m-addrdetail'); if(_adt) _adt.value=m.addrDetail||'';
   var _de=document.getElementById('m-droplocation');
   if(_de){
     // 픽업장소와 동일하면 빈칸으로 두어 "동일" 상태 유지
@@ -3544,7 +3546,7 @@ function saveMember(){
   function dv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
   var deliveryFields = (biz==='delivery') ? {courier:dv('m-courier'),invoice:dv('m-invoice'),ordNo:dv('m-ordno'),sender:dv('m-sender'),senderPhone:dv('m-senderphone')} : {};
   var bizInfoFields = (biz==='logistics') ? {bizNo:dv('m-bizno'),ceo:dv('m-ceo'),bizEmail:dv('m-bizemail'),bizCat:dv('m-bizcat'),bizItem:dv('m-bizitem')} : {};
-  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields);
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,addrDetail:(document.getElementById('m-addrdetail')?document.getElementById('m-addrdetail').value.trim():''),days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields);
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -5345,7 +5347,7 @@ function filterDriverMembers(q){
       +(currentMode==='admin'?'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button><button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>':'')
       +'</div>'
       +'<div class="member-info">'
-      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+m.location+'</span></div>'
+      +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+fullLoc(m)+'</span></div>'
       +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
       +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
       +'</div>'
@@ -5776,7 +5778,7 @@ function renderInvoice(){
     h += '<div style="font-weight:700;color:#1D2939;margin-bottom:4px;">받는 곳: '+escapeMasterHtml(sel.name)+'</div>';
     if(sel.bizNo) h += '<div>사업자: '+escapeMasterHtml(sel.bizNo)+'</div>';
     if(sel.ceo) h += '<div>대표자: '+escapeMasterHtml(sel.ceo)+'</div>';
-    if(sel.location) h += '<div>주소: '+escapeMasterHtml(sel.location)+'</div>';
+    if(sel.location) h += '<div>주소: '+escapeMasterHtml(fullLoc(sel))+'</div>';
     h += '</div>';
   }
 
@@ -6276,7 +6278,7 @@ function printInvoice(id){
       +'<td class="ph">공급받는자</td>'
       +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(sel.bizNo||'')+'</td></tr>'
       +'<tr><td class="k">상호</td><td>'+esc(sel.name||'')+'</td><td class="k">성명</td><td>'+esc(sel.ceo||'')+'</td></tr>'
-      +'<tr><td class="k">주소</td><td colspan="3">'+esc(sel.location||'')+'</td></tr>'
+      +'<tr><td class="k">주소</td><td colspan="3">'+esc(fullLoc(sel))+'</td></tr>'
       +'<tr><td class="k">업태</td><td>'+esc(sel.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(sel.bizItem||'')+'</td></tr></table></td>'
       +'</tr></table>'
       +'<table class="inv-items"><colgroup><col class="c-no"><col class="c-nm"><col class="c-un"><col class="c-qt"><col class="c-pr"><col class="c-am"><col class="c-vt"></colgroup><thead><tr><th>No</th><th>품명 · 규격</th><th>단위</th><th>수량</th><th>단가</th><th>공급가액</th><th>세액</th></tr></thead>'
@@ -7313,7 +7315,7 @@ function showDashDetail(type){
     if(car.driver) h+='<div style="font-size:11px;color:#475467;margin-bottom:8px;">기사: '+car.driver+(car.phone?' · '+car.phone:'')+'</div>';
     h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ 탑승 ('+carOn.length+'명)</div>';
     carOn.forEach(function(m){
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#027A48;">'+m.location+'</span></div>';
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#027A48;">'+fullLoc(m)+'</span></div>';
     });
     if(carOff.length>0){
       h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:8px 0 6px;">❌ 미탑승 ('+carOff.length+'명)</div>';
@@ -8300,6 +8302,9 @@ function searchAddrInto(inputId, resultId, emptyMsg, addrOnly){
     }), inputId, resultId, addrOnly);
   }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
 }
+/* 표시용 전체 주소: 기본 주소 + 상세 주소. 좌표·검색에는 쓰지 않는다 */
+function fullLoc(m){ return (m.location||'') + (m.addrDetail ? ' ' + m.addrDetail : ''); }
+
 function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','⚠ 픽업 장소를 입력해주세요'); }
 /* 사업자 주소 — 거래명세서·세금계산서 인쇄용이라 상호가 아니라 '도로명 주소'가 들어가야 합니다 */
 function searchOrgAddr(){ searchAddrInto('org-addr','org-addr-result','⚠ 주소를 입력해주세요', true); }
