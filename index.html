@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 159;
+const APP_VERSION = 160;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5797,6 +5797,14 @@ function renderInvoice(){
   } else {
     h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">품목 관리에서 품목을 먼저 등록하면 골라서 추가할 수 있어요.</div>';
   }
+  // ── 품목 바코드 스캔/입력 — 품목의 code 필드와 대조 (카메라 A + 스캐너/직접입력 B) ──
+  h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
+  h += '<button onclick="openBarcodeScan()" style="flex-shrink:0;padding:9px 12px;background:#1D2939;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">📷 바코드 스캔</button>';
+  h += '<input id="inv-barcode" type="text" placeholder="바코드 입력 후 Enter" onkeydown="if(event.key===\'Enter\'){handleBarcodeValue(this.value);}" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  h += '<button onclick="handleBarcodeValue((document.getElementById(\'inv-barcode\')||{}).value)" style="flex-shrink:0;padding:9px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">확인</button>';
+  h += '</div>';
+  h += '<div id="barcode-result" style="display:none;font-size:12px;font-weight:700;margin-bottom:6px;"></div>';
+  h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;line-height:1.6;">📷 카메라 스캔은 안드로이드 폰 + 크롬에서 됩니다 (자동초점 카메라 권장 · 아이폰은 입력창 이용)<br>⚡ 물량이 많으면 블루투스 바코드 스캐너(키보드형)를 연결해 입력창에 찍으면 더 빨라요</div>';
   invoiceItems.forEach(function(it, idx){
     h += '<div style="border:1px solid #EAECF0;border-radius:9px;padding:8px;margin-bottom:8px;">';
     h += '<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">';
@@ -5930,6 +5938,86 @@ function addInvoiceItemFromProduct(prodIdx){
   renderInvoice();
 }
 function removeInvoiceItem(idx){ invoiceItems.splice(idx,1); if(invoiceItems.length===0) invoiceItems=[{name:'',spec:'',unit:'',qty:1,price:0,taxType:'add'}]; renderInvoice(); }
+
+/* ── 품목 바코드 스캔 (물류 거래명세서) ──
+   품목의 바코드 = 품목 객체의 code 필드 (엑셀 1열 '코드') — uploadProductExcel 대조 확인.
+   카메라(A)·스캐너/직접입력(B) 모두 handleBarcodeValue 하나로 처리한다. */
+var _bcLastCode='', _bcLastAt=0, _bcStream=null, _bcTimer=null;
+
+function handleBarcodeValue(raw){
+  var code=String(raw||'').trim();
+  if(!code) return;
+  var list=loadProducts();
+  var pi=-1;
+  for(var i=0;i<list.length;i++){ if(String(list[i].code||'').trim()===code){ pi=i; break; } }
+  function box(msg, ok){
+    var el=document.getElementById('barcode-result');
+    if(el){ el.style.display='block'; el.style.color=ok?'#12B76A':'#F04438'; el.textContent=msg; }
+    else if(typeof showToast==='function'){ showToast(msg); }
+  }
+  if(pi===-1){ box('⚠ 등록되지 않은 바코드예요: '+code, false); return; }
+  var p=list[pi];
+  /* 이미 줄에 있으면 수량 +1, 없으면 기존 품목-추가 로직(addInvoiceItemFromProduct) 그대로 */
+  var row=invoiceItems.find(function(it){ return (it.name||'').trim()===p.name; });
+  if(row){ row.qty=(Number(row.qty)||0)+1; renderInvoice(); }
+  else { addInvoiceItemFromProduct(pi); row=invoiceItems.find(function(it){ return (it.name||'').trim()===p.name; }); }
+  box('✅ '+p.name+' — 수량 '+(row?row.qty:1), true);
+  var be=document.getElementById('inv-barcode'); if(be){ be.value=''; be.focus(); }
+}
+
+function openBarcodeScan(){
+  if(!('BarcodeDetector' in window)){
+    alert('이 기기는 카메라 스캔을 지원하지 않아요. 안드로이드 폰의 크롬을 쓰시거나, 스캐너 기기 또는 아래 입력창을 사용해 주세요.');
+    return;
+  }
+  closeBarcodeScan();
+  var m=document.createElement('div');
+  m.id='bc-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+  m.innerHTML='<video id="bc-video" autoplay playsinline style="width:100%;max-width:420px;border-radius:12px;background:#000;"></video>'
+    +'<div id="bc-msg" style="color:#fff;font-size:13px;font-weight:700;margin-top:12px;">바코드를 화면에 비춰주세요</div>'
+    +'<button onclick="closeBarcodeScan()" style="margin-top:14px;padding:11px 26px;background:#fff;color:#1D2939;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">닫기</button>';
+  document.body.appendChild(m);
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
+    .then(function(stream){
+      _bcStream=stream;
+      var v=document.getElementById('bc-video');
+      if(!v){ closeBarcodeScan(); return; }
+      v.srcObject=stream;
+      var det=new BarcodeDetector({ formats:['ean_13','ean_8','code_128','code_39','qr_code','itf','upc_a','upc_e'] });
+      _bcTimer=setInterval(function(){
+        var vv=document.getElementById('bc-video');
+        if(!vv) return;
+        det.detect(vv).then(function(codes){
+          if(!codes || !codes.length) return;
+          var val=String(codes[0].rawValue||'').trim();
+          if(!val) return;
+          var now=Date.now();
+          if(val===_bcLastCode && now-_bcLastAt<2000) return;   /* 같은 코드 2초 내 재인식 무시 */
+          _bcLastCode=val; _bcLastAt=now;
+          try{ if(navigator.vibrate) navigator.vibrate(80); }catch(e){}
+          try{
+            var ac=new (window.AudioContext||window.webkitAudioContext)();
+            var o=ac.createOscillator(); var g=ac.createGain();
+            o.connect(g); g.connect(ac.destination); o.frequency.value=1200; g.gain.value=0.08;
+            o.start(); setTimeout(function(){ try{ o.stop(); ac.close(); }catch(e){} },120);
+          }catch(e){}
+          handleBarcodeValue(val);   /* 모달은 닫지 않고 연속 스캔 유지 */
+          var msg=document.getElementById('bc-msg'); if(msg) msg.textContent='인식: '+val+' — 계속 스캔할 수 있어요';
+        }).catch(function(){});
+      }, 300);
+    })
+    .catch(function(){
+      alert('카메라 권한을 허용해 주세요');
+      closeBarcodeScan();
+    });
+}
+
+function closeBarcodeScan(){
+  if(_bcTimer){ clearInterval(_bcTimer); _bcTimer=null; }
+  if(_bcStream){ try{ _bcStream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} _bcStream=null; }
+  var m=document.getElementById('bc-modal'); if(m) m.remove();
+}
 
 // 폰에서 입력칸 탭 시 키패드에 가리지 않도록 해당 칸을 화면 가운데로 스크롤
 function invFocusScroll(el){
