@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 158;
+const APP_VERSION = 159;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1350,7 +1350,7 @@ function legLoc(m){ return isDropLeg() ? (m.dropLocation||m.location) : m.locati
 function legLat(m){ return isDropLeg() ? (m.dropLat!=null?m.dropLat:m.lat) : m.lat; }
 function legLon(m){ return isDropLeg() ? (m.dropLon!=null?m.dropLon:m.lon) : m.lon; }
 function legOn(m){ return isDropLeg() ? ((m.offOn!==false) && !isDropoffDoneToday(m.id)) : !!m.on; }
-function legView(m){ if(!isDropLeg()) return m; return Object.assign({}, m, {location:legLoc(m), lat:legLat(m), lon:legLon(m), on:(m.offOn!==false)}); }
+function legView(m){ if(!isDropLeg()) return m; return Object.assign({}, m, {location:legLoc(m), lat:legLat(m), lon:legLon(m), on:(m.offOn!==false), addrDetail:''}); }
 
 // ── 하차(하원) 완료 기록 (날짜별, 픽업과 별개) ──
 function dropoffDoneKey(){ try{ return 'tkd_dropoff_done_'+getFbOrgId(); }catch(e){ return 'tkd_dropoff_done_org'; } }
@@ -1513,12 +1513,12 @@ function renderDrive(){
     /* 완료된 지점은 ✓ 취소선으로 남겨 진행 상황이 보이게 (T맵 5곳씩 이어가기) */
     clsSt.filter(s=>isStopCompleted(s.id)).forEach(s=>{
       html+=`<div class="route-stop"><div class="stop-dot" style="background:#D0D5DD;"></div>
-        <div class="stop-name" style="color:#98A2B3;text-decoration:line-through;">✓ ${s.name} <span style="font-size:11px;">— ${s.location}</span></div></div>`;
+        <div class="stop-name" style="color:#98A2B3;text-decoration:line-through;">✓ ${s.name} <span style="font-size:11px;">— ${fullLoc(s)}</span></div></div>`;
     });
     activeSt.forEach((s,i)=>{
       const eta=etaMap[s.id]||'';
       html+=`<div class="route-stop"><div class="stop-dot${(!_drop&&i===activeSt.length-1)?' dest':''}"></div>
-        <div class="stop-name"><b>${i+1}.</b> ${s.name} <span style="color:var(--gray-400);font-size:11px;">— ${s.location}</span></div>
+        <div class="stop-name"><b>${i+1}.</b> ${s.name} <span style="color:var(--gray-400);font-size:11px;">— ${fullLoc(s)}</span></div>
         ${eta?`<span class="stop-eta-badge">⏱${eta}</span>`:''}</div>`;
     });
     if(!_logiDrive){
@@ -1558,7 +1558,7 @@ function renderDrive(){
             :`<span onclick="event.stopPropagation();sendDropoffDone(${s.id})" style="display:inline-flex;align-items:center;justify-content:center;font-size:16px;background:#FEE500;border:1px solid #F5DC00;border-radius:8px;padding:5px 10px;cursor:pointer;">💬</span><span onclick="event.stopPropagation();sendDropoffDone(${s.id})" style="font-size:12px;color:#fff;background:#12B76A;border:none;border-radius:8px;padding:6px 13px;cursor:pointer;font-weight:700;">🏠 하차완료</span>`
           }</div>`:''}
           <div style="font-size:10px;color:var(--gray-400);margin-top:3px;">${getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':(_drop?'하차 장소':'픽업 장소')}</div>
-          <div class="card-location">${s.location}</div>
+          <div class="card-location">${fullLoc(s)}</div>
         </div>
         <button class="toggle-btn ${s.on?'on':'off'}" onclick="toggleStudent(${mIdx})"></button>
       </div>
@@ -1788,7 +1788,7 @@ function showSharePanel(){
     `📅 ${currentDay}요일 ${course.name} (${course.depart} 출발)\n`+
     `📍 픽업 순서:\n`+ordered.map((s,i)=>{
       const eta=etaMap[s.id]?` → 도착예정 ${etaMap[s.id]}`:''
-      return `  ${i+1}. ${s.name} (${s.location})${eta}`;
+      return `  ${i+1}. ${s.name} (${fullLoc(s)})${eta}`;
     }).join('\n')+
     `\n${getBizType()==='public'?'🏢':'🏫'} ${orgSettings.destName} 도착예정: ${course.arrive}`;
 
