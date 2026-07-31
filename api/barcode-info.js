@@ -1,5 +1,5 @@
 // COSROAD — 바코드 상품정보 조회 (식약처 C005 바코드연계제품정보)
-// 공식 명세: http://openapi.foodsafetykorea.go.kr/api/{인증키}/C005/json/{시작}/{끝}/BAR_CD={바코드}
+// 공식 명세: https://openapi.foodsafetykorea.go.kr/api/{인증키}/C005/json/{시작}/{끝}/BAR_CD={바코드}
 // 응답: C005.row[] = { BAR_CD, PRDLST_NM(제품명), BSSH_NM(제조사·업소명), PRDLST_DCNM(식품유형), ... }
 // 결과코드: INFO-000 정상 / INFO-200 데이터 없음
 // 키는 Vercel 환경변수 FOODSAFETY_KEY 에만 둔다.
@@ -22,10 +22,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = 'http://openapi.foodsafetykorea.go.kr/api/' + encodeURIComponent(KEY)
+    const url = 'https://openapi.foodsafetykorea.go.kr/api/' + encodeURIComponent(KEY)
       + '/C005/json/1/1/BAR_CD=' + encodeURIComponent(code);
     const r = await fetch(url);
-    const j = await r.json();
+    const raw = await r.text();
+    let j;
+    try {
+      j = JSON.parse(raw);
+    } catch (parseErr) {
+      console.error('barcode-info 응답이 JSON 아님:', r.status, raw.slice(0, 200));
+      return res.status(200).json({ ok: false, message: '상품 DB 응답 형식 오류' });
+    }
 
     const box = j && j.C005;
     const rc = (box && box.RESULT && box.RESULT.CODE) || (j && j.RESULT && j.RESULT.CODE) || '';
