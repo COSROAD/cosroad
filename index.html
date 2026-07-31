@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 160;
+const APP_VERSION = 161;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5955,13 +5955,80 @@ function handleBarcodeValue(raw){
     if(el){ el.style.display='block'; el.style.color=ok?'#12B76A':'#F04438'; el.textContent=msg; }
     else if(typeof showToast==='function'){ showToast(msg); }
   }
-  if(pi===-1){ box('⚠ 등록되지 않은 바코드예요: '+code, false); return; }
+  if(pi===-1){
+    /* 숫자 8~14자리(실물 바코드)면 새 품목 등록 제안 — 연속 스캔 방해 없이 결과 영역에 버튼만.
+       문자 코드(SM-000 등)는 종전대로 안내만 (상품 DB 조회 안 함) */
+    if(/^[0-9]{8,14}$/.test(code)){
+      var uel=document.getElementById('barcode-result');
+      if(uel){
+        uel.style.display='block'; uel.style.color='#F04438';
+        uel.innerHTML='⚠ 등록되지 않은 바코드예요: '+code
+          +' <button onclick="openBarcodeRegister(\''+code+'\')" style="margin-left:6px;padding:5px 10px;background:#7C3AED;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">＋ 새 품목 등록</button>';
+      } else { box('⚠ 등록되지 않은 바코드예요: '+code, false); }
+      return;
+    }
+    box('⚠ 등록되지 않은 바코드예요: '+code, false); return;
+  }
   var p=list[pi];
   /* 이미 줄에 있으면 수량 +1, 없으면 기존 품목-추가 로직(addInvoiceItemFromProduct) 그대로 */
   var row=invoiceItems.find(function(it){ return (it.name||'').trim()===p.name; });
   if(row){ row.qty=(Number(row.qty)||0)+1; renderInvoice(); }
   else { addInvoiceItemFromProduct(pi); row=invoiceItems.find(function(it){ return (it.name||'').trim()===p.name; }); }
   box('✅ '+p.name+' — 수량 '+(row?row.qty:1), true);
+  var be=document.getElementById('inv-barcode'); if(be){ be.value=''; be.focus(); }
+}
+
+/* ── 미등록 바코드 → 상품정보 자동 조회 후 새 품목 등록 ──
+   식약처 C005(api/barcode-info) 조회: ok→품명 자동, notFound/키없음→직접 입력.
+   저장은 기존 품목 로직 그대로(loadProducts→push→saveProducts), code에 바코드. */
+function openBarcodeRegister(code){
+  var el=document.getElementById('barcode-result');
+  if(!el) return;
+  el.style.display='block'; el.style.color='#475467';
+  el.textContent='🔎 상품 정보를 찾는 중… ('+code+')';
+  fetch('https://cosroad.vercel.app/api/barcode-info?code='+encodeURIComponent(code))
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return null; })
+    .then(function(d){
+      var name=(d && d.ok && d.name) || '';
+      var info;
+      if(d && d.ok){ info='✅ 상품 DB: '+d.name+(d.maker?' · '+d.maker:''); }
+      else if(d && d.notFound){ info='상품 DB에 없어요. 품명을 직접 입력해 주세요.'; }
+      else { info=((d && d.message) || '조회 실패')+' — 품명을 직접 입력해 주세요.'; }
+      showBarcodeRegForm(code, name, info);
+    });
+}
+function showBarcodeRegForm(code, name, info){
+  var el=document.getElementById('barcode-result');
+  if(!el) return;
+  el.style.display='block'; el.style.color='#475467';
+  el.innerHTML='<div style="border:1px solid #DDD6FE;background:#FAF8FF;border-radius:8px;padding:9px;">'
+    +'<div style="font-size:11px;color:#7C3AED;font-weight:700;margin-bottom:4px;">＋ 새 품목 등록 — 바코드 '+code+'</div>'
+    +'<div style="font-size:11px;color:#667085;margin-bottom:6px;">'+escapeMasterHtml(info||'')+'</div>'
+    +'<input id="bcreg-name" type="text" placeholder="품명" value="'+escapeMasterHtml(name||'')+'" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;margin-bottom:5px;"/>'
+    +'<div style="display:flex;gap:5px;">'
+    +'<input id="bcreg-inprice" type="text" inputmode="numeric" placeholder="입고가(매입)" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+    +'<input id="bcreg-price" type="text" inputmode="numeric" placeholder="출고가(매출)" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+    +'<button onclick="saveBarcodeProduct(\''+code+'\')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>'
+    +'<button onclick="var _b=document.getElementById(\'barcode-result\');_b.style.display=\'none\';_b.innerHTML=\'\';" style="padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">취소</button>'
+    +'</div></div>';
+  var ne=document.getElementById('bcreg-name');
+  if(ne && !ne.value) ne.focus();
+}
+function saveBarcodeProduct(code){
+  var nameEl=document.getElementById('bcreg-name');
+  var name=nameEl?nameEl.value.trim():'';
+  if(!name){ alert('품명을 입력해주세요.'); return; }
+  var price=Number(((document.getElementById('bcreg-price')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  var inPrice=Number(((document.getElementById('bcreg-inprice')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  /* 기존 품목 저장 로직 그대로 (addProduct와 동일 구조) + code에 바코드 숫자 */
+  var list=loadProducts();
+  list.push({code:code, name:name, spec:'', unit:'', price:price, inPrice:inPrice});
+  saveProducts(list);
+  /* 방금 등록한 품목을 작성 중인 명세서에 바로 한 줄 추가 (renderInvoice 포함) */
+  addInvoiceItemFromProduct(list.length-1);
+  var el=document.getElementById('barcode-result');
+  if(el){ el.style.display='block'; el.style.color='#12B76A'; el.textContent='✅ '+name+' — 품목 등록 + 명세서 추가 완료'; }
   var be=document.getElementById('inv-barcode'); if(be){ be.value=''; be.focus(); }
 }
 
