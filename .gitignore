@@ -1,0 +1,19 @@
+# 대용량 설치파일
+*.exe
+
+# 개인 문서(증명서 등)
+*.pdf
+
+# 엑셀 양식/샘플
+*.xlsx
+*.xls
+
+# OG 이미지 및 이미지 폴더
+og-image.png
+이미지/
+
+# 원본 백업본
+index_raw.html
+
+# Claude 로컬 설정
+.claude/settings.local.json
