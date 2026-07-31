@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 161;
+const APP_VERSION = 162;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -6002,13 +6002,18 @@ function showBarcodeRegForm(code, name, info){
   var el=document.getElementById('barcode-result');
   if(!el) return;
   el.style.display='block'; el.style.color='#475467';
+  var _isPur = (invoiceKind==='purchase');
+  var _priceHint = _isPur ? '입고가를 입력하세요' : '출고가를 입력하세요';
+  var _priceInput = _isPur
+    ? '<input id="bcreg-inprice" type="text" inputmode="numeric" placeholder="입고가" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+    : '<input id="bcreg-price" type="text" inputmode="numeric" placeholder="출고가" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>';
   el.innerHTML='<div style="border:1px solid #DDD6FE;background:#FAF8FF;border-radius:8px;padding:9px;">'
     +'<div style="font-size:11px;color:#7C3AED;font-weight:700;margin-bottom:4px;">＋ 새 품목 등록 — 바코드 '+code+'</div>'
     +'<div style="font-size:11px;color:#667085;margin-bottom:6px;">'+escapeMasterHtml(info||'')+'</div>'
     +'<input id="bcreg-name" type="text" placeholder="품명" value="'+escapeMasterHtml(name||'')+'" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;margin-bottom:5px;"/>'
+    +'<div style="font-size:11px;font-weight:700;color:'+(_isPur?'#F04438':'#1570EF')+';margin-bottom:4px;">'+_priceHint+'</div>'
     +'<div style="display:flex;gap:5px;">'
-    +'<input id="bcreg-inprice" type="text" inputmode="numeric" placeholder="입고가(매입)" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
-    +'<input id="bcreg-price" type="text" inputmode="numeric" placeholder="출고가(매출)" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
+    +_priceInput
     +'<button onclick="saveBarcodeProduct(\''+code+'\')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>'
     +'<button onclick="var _b=document.getElementById(\'barcode-result\');_b.style.display=\'none\';_b.innerHTML=\'\';" style="padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">취소</button>'
     +'</div></div>';
