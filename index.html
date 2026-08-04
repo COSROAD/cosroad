@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 164;
+const APP_VERSION = 165;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5889,6 +5889,13 @@ function renderInvoice(){
   h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;">선택 거래처의 기간 내 거래를 일자별로 모아 출력합니다.</div>';
   h += '</div>';
 
+  var _rw=(localStorage.getItem('receipt_width')||'58');
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+    +'<span style="font-size:11px;color:#667085;font-weight:700;">🧾 영수증 용지</span>'
+    +'<select onchange="localStorage.setItem(\'receipt_width\',this.value)" style="padding:5px 8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;">'
+    +'<option value="58"'+(_rw==='58'?' selected':'')+'>58mm</option>'
+    +'<option value="80"'+(_rw==='80'?' selected':'')+'>80mm</option></select></div>';
+  h += '<div style="font-size:10px;color:#98A2B3;margin-bottom:10px;">무료 앱 RawBT 설치 + 블루투스 프린터 연결 필요 (앱이 없으면 자동으로 설치 화면이 열려요)</div>';
   h += '<div style="font-size:13px;font-weight:800;color:#1D2939;margin-bottom:10px;">📁 저장된 거래명세서 ('+saved.length+')</div>';
   if(saved.length===0){
   } else {
@@ -5902,6 +5909,7 @@ function renderInvoice(){
       h += '<div style="display:flex;gap:6px;margin-top:8px;">';
       if((inv.kind||'sale')!=='purchase'){
         h += '<button onclick="printInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🖨 인쇄 / 📄 PDF</button>';
+        h += '<button onclick="receiptPrintInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#B54708;background:#FFFAEB;border:1px solid #FEDF89;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🧾 영수증</button>';
       }
       h += '<button onclick="startEditInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">✏ 수정</button>';
       h += '<button onclick="deleteInvoice(\''+inv.id+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:700;">삭제</button>';
@@ -6399,6 +6407,71 @@ function calcInvoiceBalance(baseInv){
   // 이번 명세서에 대한 수금액 (부분수금 포함)
   var basePaid = invCollected(baseInv);
   return { prevBalance: prevBalance, basePaid: basePaid };
+}
+
+// ── 거래명세서 영수증 인쇄 (감열 롤 프린터 · RawBT 중계) ──
+// 데이터 추출은 printInvoice와 동일 (새 계산식 금지).
+// RawBT 명세: 텍스트 UTF-8 → base64, intent:base64,(b64)#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;
+// 58mm ≈ 32칸 / 80mm ≈ 48칸 (한글·전각 2칸)
+function buildReceiptText(id, width){
+  var inv = loadInvoices().find(function(x){ return x.id===id; });
+  if(!inv) return '';
+  var sel = members.find(function(m){ return String(m.id)===String(inv.memberId); }) || {};
+  var org = orgSettings || {};
+  var supply = inv.supply!=null ? inv.supply : (inv.total||0);
+  var vat = inv.vat!=null ? inv.vat : Math.round(supply*0.1);
+  var grand = inv.total!=null ? inv.total : (supply+vat);
+  var _bal = calcInvoiceBalance(inv);
+  var prevBal=_bal.prevBalance||0, paidAmt=_bal.basePaid||0;
+  var curBal = prevBal + grand - paidAmt;
+  var W = String(width)==='80' ? 48 : 32;
+  function dw(s){ s=String(s); var w=0; for(var i=0;i<s.length;i++){ w += (s.charCodeAt(i)>0x1100)?2:1; } return w; }
+  function cut(s, max){ s=String(s); var w=0,out=''; for(var i=0;i<s.length;i++){ var cw=(s.charCodeAt(i)>0x1100)?2:1; if(w+cw>max-1){ return out+'…'; } w+=cw; out+=s[i]; } return s; }
+  function padR(label, val){ var l=String(label), v=String(val); var sp=W-dw(l)-dw(v); if(sp<1) sp=1; return l+Array(sp+1).join(' ')+v; }
+  function center(s){ var sp=Math.max(0, Math.floor((W-dw(s))/2)); return Array(sp+1).join(' ')+s; }
+  var line=Array(Math.floor(W/2)+1).join('─');
+  var out=[];
+  out.push(center('거 래 명 세 표'));
+  out.push(line);
+  out.push('발행일: '+(inv.date||''));
+  out.push('공급자: '+(org.name||''));
+  if(org.bizNo) out.push('사업자: '+org.bizNo);
+  out.push('공급받는자: '+(sel.name||inv.memberName||''));
+  out.push(line);
+  (inv.items||[]).forEach(function(it){
+    var qty=Number(it.qty)||0, price=Number(it.price)||0, amt=qty*price;
+    var nm=String(it.name||'')+(it.spec?' '+it.spec:'');
+    if(W>=48){
+      /* 80mm: 한 줄 — 품명(길면 말줄임) + 수량 × 단가 = 금액 오른쪽 정렬 */
+      var right=qty.toLocaleString()+' × '+price.toLocaleString()+' = '+amt.toLocaleString();
+      out.push(padR(cut(nm, W-dw(right)-1), right));
+    } else {
+      /* 58mm: 2단 — 품명 줄 + 계산 줄 */
+      out.push(nm);
+      out.push('  '+qty.toLocaleString()+' × '+price.toLocaleString()+' = '+amt.toLocaleString());
+    }
+  });
+  out.push(line);
+  out.push(padR('공급가액', supply.toLocaleString()));
+  out.push(padR('세액', vat.toLocaleString()));
+  out.push(padR('합계', grand.toLocaleString()));
+  if(prevBal) out.push(padR('전잔액', prevBal.toLocaleString()));
+  if(paidAmt) out.push(padR('입금', paidAmt.toLocaleString()));
+  out.push(padR('현잔액', curBal.toLocaleString()));
+  out.push(line);
+  if(org.bankAccount) out.push('입금계좌: '+org.bankAccount);
+  out.push((org.name||'')+(org.phone?' ☎ '+org.phone:''));
+  return out.join('\n');
+}
+function receiptPrintInvoice(id){
+  if(!/android/i.test((navigator.userAgent||''))){
+    alert('영수증 인쇄는 안드로이드 폰에서 사용할 수 있어요');
+    return;
+  }
+  var text=buildReceiptText(id, localStorage.getItem('receipt_width')||'58');
+  if(!text) return;
+  var b64=btoa(unescape(encodeURIComponent(text+'\n\n\n')));   /* 끝 여백 3줄(절취) */
+  location.href='intent:base64,'+b64+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
 }
 
 // 거래명세서 인쇄 (표준 양식)
