@@ -517,7 +517,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 162;
+const APP_VERSION = 163;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1487,6 +1487,9 @@ function renderDrive(){
   // 운전자모드: 기사 PIN 출퇴근 버튼 (기사 등록 차량이 있을 때)
   if(currentMode==='driver' && cars.some(function(c){return c.driver&&c.driver.trim();})){
     html+=`<div style="padding:10px 16px 0;"><button onclick="openPinCheckin()" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔢 기사 PIN 출퇴근 체크</button></div>`;
+  }
+  if(currentMode==='driver'){
+    html+=`<div style="padding:8px 16px 0;"><button onclick="openDriverCarlog()" style="width:100%;padding:12px;background:#0E7090;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">⛽ 차계부 (주유·정비 기록)</button></div>`;
   }
   if(!_logiDrive){
     html+=`<div style="display:flex;gap:6px;padding:10px 16px 0;">
@@ -3205,7 +3208,7 @@ function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_me
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -3249,6 +3252,7 @@ function restoreData(ev){
       var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
       var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
       var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
+      var clg = localStorage.getItem('tkd_carlog'); if(clg){ try{ saveToFirebase('carlog', JSON.parse(clg)); }catch(e8){} }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
     }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
@@ -7231,6 +7235,321 @@ function fillAligoInputs(){ /* 알리고 키는 서버에만 있습니다. 입�
 
 var currentCarTab = 0;
 function setCarTab(idx){ currentCarTab=idx; renderAdminTab('cars'); }
+// ══════════════════════
+// 차계부 (4업종 공통, 관리자+기사 공유)
+// 데이터: tkd_carlog = { records:[{id,carId,type:'fuel'|'repair'|'etc',date,amount,liters,odo,item,memo,by}], plans:{carId:{항목:다음교체km}} }
+// ORG_KEYS 편입으로 기관별 분리·데모 저장 차단 자동, Firebase 'carlog' 동기화
+// ══════════════════════
+function loadCarlog(){
+  try{
+    var d=JSON.parse(localStorage.getItem('tkd_carlog')||'{}');
+    if(!Array.isArray(d.records)) d.records=[];
+    if(!d.plans || typeof d.plans!=='object') d.plans={};
+    return d;
+  }catch(e){ return {records:[], plans:{}}; }
+}
+/* 공용 저장 함수 — 관리자·기사 모두 이 경로로만 저장 (Firebase 포함) */
+function saveCarlog(d){
+  localStorage.setItem('tkd_carlog', JSON.stringify(d));
+  saveToFirebase('carlog', d);
+}
+function carlogAddRecord(rec){
+  rec.id='cl'+Date.now()+Math.floor(Math.random()*1000);
+  if(!rec.memo) rec.memo='';
+  var d=loadCarlog(); d.records.push(rec); saveCarlog(d);
+  return rec;
+}
+/* 공용 삭제 — 반드시 확인 모달 경유 */
+function carlogDeleteRecord(id, after){
+  showConfirmModal(function(){
+    var d=loadCarlog();
+    d.records=d.records.filter(function(r){ return r.id!==id; });
+    saveCarlog(d);
+    if(after) after();
+  }, '이 차계부 기록을 삭제할까요?');
+}
+/* 차량별 기록 최신순 (날짜 내림차순, 같은 날짜는 나중 입력이 위) */
+function carlogRecords(carId){
+  return loadCarlog().records.filter(function(r){ return r.carId===carId; })
+    .sort(function(a,b){ return a.date===b.date ? String(b.id).localeCompare(String(a.id)) : (a.date<b.date?1:-1); });
+}
+/* 연비: 이 주유와 「직전 주유(odo 있음)」의 계기판 차이 ÷ 이번 리터.
+   둘 중 하나라도 odo 없으면 null (틀린 값 표시 금지) */
+function carlogFuelEff(rec, all){
+  if(!rec || rec.type!=='fuel' || !(Number(rec.odo)>0) || !(Number(rec.liters)>0)) return null;
+  var prev=null;
+  (all||[]).forEach(function(r){
+    if(r.type!=='fuel' || !(Number(r.odo)>0) || r.id===rec.id) return;
+    var before=(r.date<rec.date)||(r.date===rec.date && String(r.id)<String(rec.id));
+    if(!before) return;
+    if(!prev || r.date>prev.date || (r.date===prev.date && String(r.id)>String(prev.id))) prev=r;
+  });
+  if(!prev) return null;
+  var km=Number(rec.odo)-Number(prev.odo);
+  if(!(km>0)) return null;
+  return Math.round(km/Number(rec.liters)*10)/10;
+}
+function carlogMaxOdo(carId){
+  var m=0;
+  loadCarlog().records.forEach(function(r){ if(r.carId===carId && Number(r.odo)>m) m=Number(r.odo); });
+  return m;
+}
+/* 소모품 배지: 최대 odo ≥ (다음교체-500) → 임박(soon), 다음교체 초과 → 필요(due) */
+function carlogPlanBadges(carId){
+  var d=loadCarlog(); var plans=d.plans[carId]||{}; var maxOdo=carlogMaxOdo(carId);
+  var out=[];
+  Object.keys(plans).forEach(function(item){
+    var next=Number(plans[item])||0;
+    if(!next || !maxOdo) return;
+    if(maxOdo>next) out.push({item:item, status:'due'});
+    else if(maxOdo>=next-500) out.push({item:item, status:'soon'});
+  });
+  return out;
+}
+function carlogBadgeHtml(carId){
+  var b=carlogPlanBadges(carId);
+  if(b.some(function(x){return x.status==='due';})) return ' <span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:1px 5px;border-radius:6px;font-weight:800;">⚠</span>';
+  if(b.length) return ' <span style="font-size:10px;background:#FFFAEB;color:#B54708;padding:1px 5px;border-radius:6px;font-weight:800;">🔔</span>';
+  return '';
+}
+
+// ── 관리자 차계부 화면 ──
+var carlogSelCar=null, carlogType='fuel', carlogEditId=null;
+function openCarlog(){
+  if(!carlogSelCar || !cars.find(function(c){return c.id===carlogSelCar;})) carlogSelCar=(cars[0]||{}).id||'';
+  carlogType='fuel'; carlogEditId=null;
+  renderCarlogModal();
+}
+function setCarlogType(t){ carlogType=t; renderCarlogModal(); }
+function renderCarlogModal(){
+  var editRec=null;
+  if(carlogEditId){ editRec=loadCarlog().records.find(function(r){ return r.id===carlogEditId; })||null; if(!editRec) carlogEditId=null; }
+  var h='<div id="carlog-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;">'
+    +'<div style="background:white;border-radius:16px;padding:18px;max-width:400px;width:100%;box-sizing:border-box;max-height:88vh;overflow-y:auto;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;">📒 차계부</div>'
+    +'<button onclick="document.getElementById(\'carlog-modal\').remove();renderAdminTab(\'cars\');" style="padding:6px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">닫기</button></div>'
+    +'<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">주유·정비·지출을 기록하면 연비와 월 지출이 자동 계산돼요.</div>';
+  // 차량 선택
+  h+='<select onchange="carlogSelCar=this.value;carlogEditId=null;renderCarlogModal();" style="width:100%;padding:10px;border:1.5px solid #0E7090;border-radius:10px;font-size:14px;font-weight:700;color:#0E7090;box-sizing:border-box;margin-bottom:8px;">';
+  cars.forEach(function(c){ h+='<option value="'+c.id+'"'+(c.id===carlogSelCar?' selected':'')+'>'+escapeMasterHtml(c.name)+(c.driver?' ('+escapeMasterHtml(c.driver)+')':'')+'</option>'; });
+  h+='</select>';
+  // 소모품 배지
+  var badges=carlogPlanBadges(carlogSelCar);
+  if(badges.length){
+    h+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">';
+    badges.forEach(function(b){
+      h+= b.status==='due'
+        ? '<span style="font-size:11px;background:#FEF3F2;color:#F04438;padding:3px 9px;border-radius:8px;font-weight:700;">⚠ '+escapeMasterHtml(b.item)+' 교체 필요</span>'
+        : '<span style="font-size:11px;background:#FFFAEB;color:#B54708;padding:3px 9px;border-radius:8px;font-weight:700;">🔔 '+escapeMasterHtml(b.item)+' 교체 임박</span>';
+    });
+    h+='</div>';
+  }
+  // 입력 폼
+  h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:12px;background:#F9FAFB;">';
+  if(editRec) h+='<div style="font-size:11px;color:#7C3AED;font-weight:700;margin-bottom:6px;">✏ 기록 수정 중 <span onclick="carlogEditId=null;renderCarlogModal();" style="color:#98A2B3;cursor:pointer;">(취소)</span></div>';
+  h+='<div style="display:flex;gap:5px;margin-bottom:6px;">';
+  [['fuel','⛽ 주유'],['repair','🔧 정비'],['etc','💳 기타']].forEach(function(t){
+    var on=carlogType===t[0];
+    h+='<button onclick="setCarlogType(\''+t[0]+'\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid '+(on?'#0E7090':'#EAECF0')+';background:'+(on?'#E0F2FE':'white')+';color:'+(on?'#0E7090':'#667085')+';font-size:12px;font-weight:700;cursor:pointer;">'+t[1]+'</button>';
+  });
+  h+='</div>';
+  h+='<input id="cl-date" type="date" value="'+(editRec?editRec.date:todayStr())+'" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
+  if(carlogType==='repair'){
+    var _it=editRec?String(editRec.item||''):'';
+    var _std=['엔진오일','타이어','배터리'].indexOf(_it)>=0;
+    h+='<div style="display:flex;gap:5px;margin-bottom:6px;">';
+    h+='<select id="cl-item" onchange="var e=document.getElementById(\'cl-item-etc\');if(e)e.style.display=this.value===\'기타\'?\'block\':\'none\';" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;">';
+    ['엔진오일','타이어','배터리','기타'].forEach(function(o){ h+='<option value="'+o+'"'+((_std?_it===o:o==='기타')&&editRec?' selected':'')+'>'+o+'</option>'; });
+    h+='</select></div>';
+    h+='<input id="cl-item-etc" type="text" placeholder="정비 항목 직접 입력" value="'+(editRec&&!_std?escapeMasterHtml(_it):'')+'" style="display:'+((editRec&&!_std)||false?'block':'none')+';width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
+  }
+  if(carlogType==='etc'){
+    h+='<input id="cl-item-text" type="text" placeholder="내용 (세차·통행료 등)" value="'+(editRec?escapeMasterHtml(editRec.item||''):'')+'" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
+  }
+  h+='<div style="display:flex;gap:5px;">';
+  h+='<input id="cl-amount" type="text" inputmode="numeric" placeholder="금액(원)" value="'+(editRec&&editRec.amount?Number(editRec.amount).toLocaleString():'')+'" oninput="fmtAmountInput(this)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  if(carlogType==='fuel'){
+    h+='<input id="cl-liters" type="number" step="0.01" placeholder="리터(L)" value="'+(editRec&&editRec.liters?editRec.liters:'')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  }
+  if(carlogType!=='etc'){
+    h+='<input id="cl-odo" type="number" placeholder="계기판km(선택)" value="'+(editRec&&editRec.odo?editRec.odo:'')+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  }
+  h+='<button onclick="saveCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">'+(editRec?'수정':'저장')+'</button>';
+  h+='</div></div>';
+  // 기록 목록 (월 구분 + 월 합계)
+  var recs=carlogRecords(carlogSelCar);
+  var byMonth={};
+  recs.forEach(function(r){
+    var mo=String(r.date||'').slice(0,7);
+    if(!byMonth[mo]) byMonth[mo]={fuel:0,repair:0,etc:0};
+    byMonth[mo][r.type]=(byMonth[mo][r.type]||0)+(Number(r.amount)||0);
+  });
+  if(recs.length===0){ h+='<div style="font-size:12px;color:#98A2B3;text-align:center;padding:12px;">기록이 없습니다. 첫 기록을 입력해 보세요.</div>'; }
+  var curMo='';
+  recs.forEach(function(r){
+    var mo=String(r.date||'').slice(0,7);
+    if(mo!==curMo){
+      curMo=mo;
+      var s=byMonth[mo];
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;background:#F2F4F7;border-radius:8px;padding:7px 10px;margin:10px 0 6px;">'
+        +'<span style="font-size:12px;font-weight:800;color:#344054;">'+mo+'</span>'
+        +'<span style="font-size:10px;color:#475467;font-weight:700;">⛽'+s.fuel.toLocaleString()+' · 🔧'+s.repair.toLocaleString()+' · 💳'+s.etc.toLocaleString()+'원</span></div>';
+    }
+    var ico=r.type==='fuel'?'⛽':r.type==='repair'?'🔧':'💳';
+    var eff=carlogFuelEff(r, recs);
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
+      +'<div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:700;color:#1D2939;">'+ico+' '+escapeMasterHtml(r.item||'')
+      +(r.type==='fuel'&&r.liters?' '+r.liters+'L':'')
+      +(eff!==null?' <span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:1px 6px;border-radius:6px;font-weight:800;">'+eff+'km/L</span>':'')
+      +(r.by==='driver'?' <span style="font-size:9px;color:#98A2B3;">기사</span>':'')+'</div>'
+      +'<div style="font-size:10px;color:#98A2B3;">'+r.date+(r.odo?' · '+Number(r.odo).toLocaleString()+'km':'')+'</div></div>'
+      +'<div style="text-align:right;flex-shrink:0;margin-left:6px;"><div style="font-size:13px;font-weight:800;color:#0E7090;">'+(Number(r.amount)||0).toLocaleString()+'원</div>'
+      +'<div style="margin-top:2px;"><span onclick="editCarlogEntry(\''+r.id+'\')" style="font-size:10px;color:#7C3AED;cursor:pointer;font-weight:700;">수정</span>'
+      +' <span onclick="carlogDeleteRecord(\''+r.id+'\', renderCarlogModal)" style="font-size:10px;color:#F04438;cursor:pointer;font-weight:700;">삭제</span></div></div></div>';
+  });
+  // 소모품 교체 주기
+  var plans=loadCarlog().plans[carlogSelCar]||{};
+  h+='<div style="border-top:1px dashed #E4E7EC;margin-top:12px;padding-top:10px;">';
+  h+='<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:6px;">🔩 소모품 교체 주기 <span style="font-size:10px;color:#98A2B3;font-weight:400;">(현재 최대 '+carlogMaxOdo(carlogSelCar).toLocaleString()+'km)</span></div>';
+  Object.keys(plans).forEach(function(item){
+    var st=carlogPlanBadges(carlogSelCar).find(function(b){return b.item===item;});
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #EAECF0;border-radius:8px;padding:7px 10px;margin-bottom:5px;">'
+      +'<span style="font-size:12px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(item)
+      +(st?(st.status==='due'?' <span style="font-size:10px;color:#F04438;font-weight:800;">⚠ 교체 필요</span>':' <span style="font-size:10px;color:#B54708;font-weight:800;">🔔 교체 임박</span>'):'')+'</span>'
+      +'<span style="font-size:11px;color:#475467;">다음 '+Number(plans[item]).toLocaleString()+'km '
+      +'<span onclick="removeCarlogPlan(\''+escapeMasterHtml(item).replace(/'/g,"\\'")+'\')" style="font-size:10px;color:#F04438;cursor:pointer;font-weight:700;margin-left:4px;">삭제</span></span></div>';
+  });
+  h+='<div style="display:flex;gap:5px;">'
+    +'<input id="cl-plan-item" type="text" placeholder="항목 (예: 엔진오일)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<input id="cl-plan-km" type="text" inputmode="numeric" placeholder="다음 교체 km" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<button onclick="addCarlogPlan()" style="padding:8px 12px;background:#344054;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">추가</button></div>';
+  h+='</div>';
+  h+='</div></div>';
+  var ex=document.getElementById('carlog-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+function saveCarlogEntry(){
+  if(!carlogSelCar){ alert('차량을 선택해주세요.'); return; }
+  var date=((document.getElementById('cl-date')||{}).value)||todayStr();
+  var amount=Number((((document.getElementById('cl-amount')||{}).value)||'').replace(/[^0-9]/g,''))||0;
+  if(!amount){ alert('금액을 입력해주세요.'); return; }
+  var rec={carId:carlogSelCar, type:carlogType, date:date, amount:amount, by:'admin'};
+  if(carlogType==='fuel'){
+    rec.liters=Number((document.getElementById('cl-liters')||{}).value)||0;
+    rec.odo=Number((document.getElementById('cl-odo')||{}).value)||0;
+    rec.item='주유';
+    if(!(rec.liters>0)){ alert('리터를 입력해주세요.'); return; }
+  } else if(carlogType==='repair'){
+    var sel=(document.getElementById('cl-item')||{}).value||'';
+    rec.item = sel==='기타' ? (((document.getElementById('cl-item-etc')||{}).value)||'').trim() : sel;
+    rec.odo=Number((document.getElementById('cl-odo')||{}).value)||0;
+    if(!rec.item){ alert('정비 항목을 입력해주세요.'); return; }
+  } else {
+    rec.item=(((document.getElementById('cl-item-text')||{}).value)||'').trim();
+    if(!rec.item){ alert('내용을 입력해주세요.'); return; }
+  }
+  if(carlogEditId){
+    var d=loadCarlog();
+    var ex=d.records.find(function(r){ return r.id===carlogEditId; });
+    if(ex){ rec.id=ex.id; rec.by=ex.by; rec.memo=ex.memo||''; Object.assign(ex, rec); saveCarlog(d); }
+    carlogEditId=null;
+  } else {
+    carlogAddRecord(rec);
+  }
+  renderCarlogModal();
+}
+function editCarlogEntry(id){
+  var r=loadCarlog().records.find(function(x){ return x.id===id; });
+  if(!r) return;
+  carlogEditId=id; carlogType=r.type; carlogSelCar=r.carId;
+  renderCarlogModal();
+}
+function addCarlogPlan(){
+  var item=(((document.getElementById('cl-plan-item')||{}).value)||'').trim();
+  var km=Number((((document.getElementById('cl-plan-km')||{}).value)||'').replace(/[^0-9]/g,''))||0;
+  if(!item||!km){ alert('항목과 다음 교체 km를 입력해주세요.'); return; }
+  var d=loadCarlog();
+  if(!d.plans[carlogSelCar]) d.plans[carlogSelCar]={};
+  d.plans[carlogSelCar][item]=km;
+  saveCarlog(d);
+  renderCarlogModal();
+}
+function removeCarlogPlan(item){
+  showConfirmModal(function(){
+    var d=loadCarlog();
+    if(d.plans[carlogSelCar]) delete d.plans[carlogSelCar][item];
+    saveCarlog(d);
+    renderCarlogModal();
+  }, '「'+item+'」 교체 주기를 삭제할까요?');
+}
+
+// ── 기사(운전자) 차계부 — 본인 배정 차량 고정, 조회만(수정·삭제 없음) ──
+var driverCarlogType='fuel';
+function openDriverCarlog(){
+  driverCarlogType='fuel';
+  renderDriverCarlog();
+}
+function setDriverCarlogType(t){ driverCarlogType=t; renderDriverCarlog(); }
+function renderDriverCarlog(){
+  var car=cars.find(function(c){ return c.id===currentCarId; })||cars[0];
+  if(!car){ alert('배정된 차량이 없습니다.'); return; }
+  var h='<div id="dcarlog-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;">'
+    +'<div style="background:white;border-radius:16px;padding:18px;max-width:400px;width:100%;box-sizing:border-box;max-height:88vh;overflow-y:auto;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;">⛽ 차계부 — '+escapeMasterHtml(car.name)+'</div>'
+    +'<button onclick="document.getElementById(\'dcarlog-modal\').remove();" style="padding:6px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">닫기</button></div>'
+    +'<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">배정 차량에 바로 기록돼요. (수정·삭제는 관리자에게 요청)</div>';
+  h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:12px;background:#F9FAFB;">';
+  h+='<div style="display:flex;gap:5px;margin-bottom:6px;">';
+  [['fuel','⛽ 주유'],['repair','🔧 정비'],['etc','💳 기타']].forEach(function(t){
+    var on=driverCarlogType===t[0];
+    h+='<button onclick="setDriverCarlogType(\''+t[0]+'\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid '+(on?'#0E7090':'#EAECF0')+';background:'+(on?'#E0F2FE':'white')+';color:'+(on?'#0E7090':'#667085')+';font-size:12px;font-weight:700;cursor:pointer;">'+t[1]+'</button>';
+  });
+  h+='</div>';
+  if(driverCarlogType!=='fuel'){
+    h+='<input id="dcl-item" type="text" placeholder="'+(driverCarlogType==='repair'?'정비 항목 (예: 엔진오일)':'내용 (세차·통행료 등)')+'" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
+  }
+  h+='<div style="display:flex;gap:5px;">';
+  h+='<input id="dcl-amount" type="text" inputmode="numeric" placeholder="금액(원)" oninput="fmtAmountInput(this)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  if(driverCarlogType==='fuel'){
+    h+='<input id="dcl-liters" type="number" step="0.01" placeholder="리터(L)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  }
+  h+='<input id="dcl-odo" type="number" placeholder="계기판km(선택)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  h+='<button onclick="saveDriverCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>';
+  h+='</div></div>';
+  var recs=carlogRecords(car.id).slice(0,20);
+  if(recs.length===0){ h+='<div style="font-size:12px;color:#98A2B3;text-align:center;padding:12px;">기록이 없습니다.</div>'; }
+  recs.forEach(function(r){
+    var ico=r.type==='fuel'?'⛽':r.type==='repair'?'🔧':'💳';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
+      +'<div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:700;color:#1D2939;">'+ico+' '+escapeMasterHtml(r.item||'')+(r.type==='fuel'&&r.liters?' '+r.liters+'L':'')+'</div>'
+      +'<div style="font-size:10px;color:#98A2B3;">'+r.date+(r.odo?' · '+Number(r.odo).toLocaleString()+'km':'')+'</div></div>'
+      +'<div style="font-size:13px;font-weight:800;color:#0E7090;flex-shrink:0;margin-left:6px;">'+(Number(r.amount)||0).toLocaleString()+'원</div></div>';
+  });
+  h+='</div></div>';
+  var ex=document.getElementById('dcarlog-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+function saveDriverCarlogEntry(){
+  var car=cars.find(function(c){ return c.id===currentCarId; })||cars[0];
+  if(!car){ alert('배정된 차량이 없습니다.'); return; }
+  var amount=Number((((document.getElementById('dcl-amount')||{}).value)||'').replace(/[^0-9]/g,''))||0;
+  if(!amount){ alert('금액을 입력해주세요.'); return; }
+  var rec={carId:car.id, type:driverCarlogType, date:todayStr(), amount:amount, by:'driver'};
+  rec.odo=Number((document.getElementById('dcl-odo')||{}).value)||0;
+  if(driverCarlogType==='fuel'){
+    rec.liters=Number((document.getElementById('dcl-liters')||{}).value)||0;
+    rec.item='주유';
+    if(!(rec.liters>0)){ alert('리터를 입력해주세요.'); return; }
+  } else {
+    rec.item=(((document.getElementById('dcl-item')||{}).value)||'').trim();
+    if(!rec.item){ alert('항목/내용을 입력해주세요.'); return; }
+  }
+  carlogAddRecord(rec);
+  renderDriverCarlog();
+}
+
 /* 기사 면허 확인 체크 저장 — 차량 데이터(car.licenseVerified)에 담아 기존 saveCars 방식 사용 */
 function setLicenseVerified(i, on){
   if(!cars[i]) return;
@@ -7267,13 +7586,14 @@ function renderCars(){
   cars.forEach(function(c,idx){
     var cnt=members.filter(function(m){return m.carId===c.id;}).length;
     var isActive=idx===currentCarTab;
-    html+='<button onclick="setCarTab('+idx+')" style="flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;border-radius:20px;margin:6px 4px;background:'+(isActive?'#ABEFC6':'#F2F4F7')+';color:'+(isActive?'#067647':'#475467')+';">'+c.name+' <span style="font-size:10px;">('+cnt+')</span></button>';
+    html+='<button onclick="setCarTab('+idx+')" style="flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;border-radius:20px;margin:6px 4px;background:'+(isActive?'#ABEFC6':'#F2F4F7')+';color:'+(isActive?'#067647':'#475467')+';">'+c.name+carlogBadgeHtml(c.id)+' <span style="font-size:10px;">('+cnt+')</span></button>';
   });
   html+='</div>';
   html+='</div>';
   // 차량 정보 카드
   html+='<div style="padding:12px 16px 0;">';
-  html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">🚐 '+car.name+' 정보</div>';
+  html+='<div class="status-card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="status-card-title">🚐 '+car.name+' 정보'+carlogBadgeHtml(car.id)+'</div>'
+    +'<button onclick="carlogSelCar=\''+car.id+'\';openCarlog();" style="font-size:11px;color:#0E7090;background:#E0F2FE;border:1px solid #B9E6FE;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;">📒 차계부</button></div>';
   html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
   html+='<input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="'+car.driver+'" oninput="cars['+i+'].driver=this.value"/>';
   html+='<input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="'+car.phone+'" oninput="cars['+i+'].phone=this.value" type="tel"/>';
@@ -8184,6 +8504,8 @@ async function syncFromFirebase(){
   else { localStorage.setItem('tkd_driver_att', '{}'); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
   if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
   if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
+  var fbCarlog = await loadFromFirebase('carlog');
+  if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
   var fbDelivDone = await loadFromFirebase('deliveryDone');
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
@@ -8198,7 +8520,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -8214,6 +8536,7 @@ function startFirebaseListeners(){
       else if(key==='driverAtt'){ localStorage.setItem('tkd_driver_att',JSON.stringify(data)); }
       else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
       else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
+      else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
       renderByTab();
     });
   });
