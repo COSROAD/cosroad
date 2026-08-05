@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 167;
+const APP_VERSION = 168;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5931,7 +5931,12 @@ function renderInvoice(){
   if(prods.length>0){
     h += '<select id="inv-pick" onchange="if(this.value!==\'\'){addInvoiceItemFromProduct(Number(this.value));this.value=\'\';}" style="width:100%;padding:9px;border:1px solid #7C3AED;border-radius:8px;font-size:13px;margin-bottom:10px;color:#7C3AED;font-weight:700;">';
     h += '<option value="">＋ 품목 선택해서 추가…</option>';
-    prods.forEach(function(p, pi){ h += '<option value="'+pi+'">'+escapeMasterHtml(p.name)+(p.spec?' ('+escapeMasterHtml(p.spec)+')':'')+' · 출고 '+(Number(p.price)||0).toLocaleString()+'원'+((Number(p.inPrice)||0)?(' / 입고 '+(Number(p.inPrice)).toLocaleString()+'원'):'')+'</option>'; });
+    /* 명세서 종류에 맞는 단가만 표시: 매입=입고가, 매출=출고가 (0이면 가격 생략) */
+    prods.forEach(function(p, pi){
+      var _pv = invoiceKind==='purchase' ? (Number(p.inPrice)||0) : (Number(p.price)||0);
+      var _pl = invoiceKind==='purchase' ? '입고' : '출고';
+      h += '<option value="'+pi+'">'+escapeMasterHtml(p.name)+(p.spec?' ('+escapeMasterHtml(p.spec)+')':'')+(_pv?' · '+_pl+' '+_pv.toLocaleString()+'원':'')+'</option>';
+    });
     h += '</select>';
     h += '<div style="font-size:11px;color:#98A2B3;margin:-4px 0 10px;">현재 <b style="color:'+(invoiceKind==='purchase'?'#F04438':'#1570EF')+';">'+(invoiceKind==='purchase'?'매입 → 입고가':'매출 → 출고가')+'</b>가 단가로 자동 입력됩니다.</div>';
   } else {
