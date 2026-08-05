@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 168;
+const APP_VERSION = 169;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -6030,6 +6030,7 @@ function renderInvoice(){
   h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;">선택 거래처의 기간 내 거래를 일자별로 모아 출력합니다.</div>';
   h += '</div>';
 
+  h += '<button onclick="openSettlement()" style="width:100%;padding:11px;background:#0E7090;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📊 월말 정산 — 거래처별 매출·입금·미수·매입</button>';
   var _rw=(localStorage.getItem('receipt_width')||'58');
   h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
     +'<span style="font-size:11px;color:#667085;font-weight:700;">🧾 영수증 용지</span>'
@@ -6613,6 +6614,125 @@ function receiptPrintInvoice(id){
   if(!text) return;
   var b64=btoa(unescape(encodeURIComponent(text+'\n\n\n')));   /* 끝 여백 3줄(절취) */
   location.href='intent:base64,'+b64+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+}
+
+/* ── 월말 정산 리포트 (물류: 거래처별 매출·입금·미수·매입) ──
+   계산은 전부 기존 로직 재사용 (새 계산식 없음):
+   매출/매입 = 해당 월 명세서 total 합 · 입금 = 매출 명세서 payments 중 해당 월 date 합
+   당월 미수 = 매출-입금 · 누적 미수금 = memberTotalUnpaid(전체 잔액) ·
+   명세서별 수금/잔액 = invCollected/invUnpaid */
+var settleYm=null;
+function buildSettlementData(ym){
+  var invs=loadInvoices();
+  var byMember={};
+  function slot(id, name){
+    if(!byMember[id]) byMember[id]={ name:name||'', sale:0, paid:0, purchase:0 };
+    if(name && !byMember[id].name) byMember[id].name=name;
+    return byMember[id];
+  }
+  var invList=[];
+  invs.forEach(function(iv){
+    var kind=iv.kind||'sale';
+    var mo=String(iv.date||'').slice(0,7);
+    var mname=iv.memberName||((members.find(function(m){return String(m.id)===String(iv.memberId);})||{}).name)||'';
+    if(mo===ym){
+      var s=slot(iv.memberId, mname);
+      if(kind==='sale') s.sale+=(Number(iv.total)||0);
+      else s.purchase+=(Number(iv.total)||0);
+      var supply=iv.supply!=null?iv.supply:(iv.total||0);
+      var vat=iv.vat!=null?iv.vat:Math.round(supply*0.1);
+      invList.push([iv.date, mname, kind==='purchase'?'매입':'매출', supply, vat, Number(iv.total)||0, invCollected(iv), invUnpaid(iv)]);
+    }
+    /* 입금: 매출 명세서의 수금 기록 중 해당 월 date (과거 명세서 수금 포함) */
+    if(kind==='sale' && Array.isArray(iv.payments)){
+      iv.payments.forEach(function(p){
+        if(String(p.date||'').slice(0,7)===ym){
+          slot(iv.memberId, mname).paid+=(Number(p.amount)||0);
+        }
+      });
+    }
+  });
+  var rows=[];
+  Object.keys(byMember).forEach(function(id){
+    var s=byMember[id];
+    var cum=memberTotalUnpaid(id);
+    var monthUnpaid=s.sale-s.paid;
+    if(!s.sale && !s.paid && !monthUnpaid && !cum && !s.purchase) return;   /* 전부 0이면 제외 */
+    rows.push({ name:s.name, sale:s.sale, paid:s.paid, monthUnpaid:monthUnpaid, cumUnpaid:cum, purchase:s.purchase });
+  });
+  rows.sort(function(a,b){ return b.cumUnpaid-a.cumUnpaid; });
+  var totals=rows.reduce(function(t,r){
+    t.sale+=r.sale; t.paid+=r.paid; t.monthUnpaid+=r.monthUnpaid; t.cumUnpaid+=r.cumUnpaid; t.purchase+=r.purchase;
+    return t;
+  }, {sale:0,paid:0,monthUnpaid:0,cumUnpaid:0,purchase:0});
+  invList.sort(function(a,b){ return a[0]<b[0]?-1:1; });
+  return { rows:rows, totals:totals, invList:invList };
+}
+function openSettlement(){
+  if(!settleYm){
+    var n=new Date(); var y=n.getFullYear(), m=n.getMonth();
+    if(m===0){ y--; m=12; }
+    settleYm=y+'-'+String(m).padStart(2,'0');
+  }
+  renderSettlementModal();
+}
+function renderSettlementModal(){
+  var d=buildSettlementData(settleYm);
+  var h='<div id="settle-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;">'
+    +'<div style="background:white;border-radius:16px;padding:18px;max-width:560px;width:100%;box-sizing:border-box;max-height:88vh;overflow-y:auto;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;">📊 월말 정산</div>'
+    +'<button onclick="document.getElementById(\'settle-modal\').remove();" style="padding:6px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">닫기</button></div>';
+  h+='<div style="display:flex;gap:5px;margin-bottom:12px;">'
+    +'<input id="settle-ym" type="month" value="'+settleYm+'" onchange="settleYm=this.value;renderSettlementModal();" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<button onclick="exportSettlement(settleYm)" style="padding:8px 12px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📄 엑셀 다운로드</button></div>';
+  if(d.rows.length===0){
+    h+='<div style="font-size:13px;color:#98A2B3;text-align:center;padding:24px;">해당 월 거래가 없습니다.</div>';
+  } else {
+    h+='<div style="overflow-x:auto;"><table style="border-collapse:collapse;width:100%;font-size:11px;min-width:480px;">';
+    h+='<tr style="background:#F2F4F7;">'+'<th style="padding:7px 8px;text-align:left;border:1px solid #EAECF0;">거래처</th>'
+      +['매출','입금','당월 미수','누적 미수금','매입'].map(function(k){ return '<th style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;">'+k+'</th>'; }).join('')+'</tr>';
+    d.rows.forEach(function(r){
+      h+='<tr><td style="padding:6px 8px;border:1px solid #F2F4F7;font-weight:700;">'+escapeMasterHtml(r.name)+'</td>'
+        +[r.sale,r.paid,r.monthUnpaid].map(function(v){ return '<td style="padding:6px 8px;text-align:right;border:1px solid #F2F4F7;">'+v.toLocaleString()+'</td>'; }).join('')
+        +'<td style="padding:6px 8px;text-align:right;border:1px solid #F2F4F7;color:'+(r.cumUnpaid>0?'#F04438':'#344054')+';font-weight:700;">'+r.cumUnpaid.toLocaleString()+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;border:1px solid #F2F4F7;">'+r.purchase.toLocaleString()+'</td></tr>';
+    });
+    var t=d.totals;
+    h+='<tr style="background:#FFF7ED;font-weight:800;"><td style="padding:7px 8px;border:1px solid #EAECF0;">합계</td>'
+      +[t.sale,t.paid,t.monthUnpaid].map(function(v){ return '<td style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;">'+v.toLocaleString()+'</td>'; }).join('')
+      +'<td style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;color:#F04438;">'+t.cumUnpaid.toLocaleString()+'</td>'
+      +'<td style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;">'+t.purchase.toLocaleString()+'</td></tr>';
+    h+='</table></div>';
+    h+='<div style="font-size:10px;color:#98A2B3;margin-top:8px;">누적 미수금 큰 순 정렬 · 입금은 과거 명세서에 대한 이달 수금 포함</div>';
+  }
+  h+='</div></div>';
+  var ex=document.getElementById('settle-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+function exportSettlement(ym){
+  var d=buildSettlementData(ym);
+  if(d.rows.length===0){ alert('해당 월 거래가 없습니다.'); return; }
+  var XLSX=window.XLSX;
+  var s1=[
+    ['월말 정산 요약'],
+    ['기관명', (orgSettings&&orgSettings.name)||'', '대상 월', ym, '작성일', todayStr()],
+    [],
+    ['거래처','매출','입금','당월 미수','누적 미수금','매입']
+  ];
+  d.rows.forEach(function(r){ s1.push([r.name, r.sale, r.paid, r.monthUnpaid, r.cumUnpaid, r.purchase]); });
+  var t=d.totals;
+  s1.push(['합계', t.sale, t.paid, t.monthUnpaid, t.cumUnpaid, t.purchase]);
+  var s2=[['명세서 목록 — '+ym],
+    ['일자','거래처','구분','공급가액','세액','합계','수금액','잔액']].concat(d.invList);
+  var wb=XLSX.utils.book_new();
+  var ws1=XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols']=[{wch:16},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws1, '정산요약');
+  var ws2=XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols']=[{wch:11},{wch:16},{wch:6},{wch:11},{wch:10},{wch:11},{wch:11},{wch:11}];
+  XLSX.utils.book_append_sheet(wb, ws2, '명세서목록');
+  XLSX.writeFile(wb, '월말정산_'+ym+'.xlsx');
 }
 
 // 거래명세서 인쇄 (표준 양식)
