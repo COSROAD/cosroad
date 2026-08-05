@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 169;
+const APP_VERSION = 170;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4478,6 +4478,7 @@ function renderPayment(){
   h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+cntTotal+'명</div><div style="font-size:10px;color:#7C3AED;">전체</div></div>';
   h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+cntPaid+'명</div><div style="font-size:10px;color:#12B76A;">'+W_paid+'</div></div>';
   h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+cntUnpaid+'명</div><div style="font-size:10px;color:#F04438;">'+W_unpaid+'</div></div>';
+  h += '<button onclick="openPayReport();" style="width:100%;padding:11px;background:#0E7090;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📊 월 수납 정산</button>';
   h += '<button onclick="exportPaymentExcel();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📊 수납 내역 엑셀 출력</button>';
   h += '<button onclick="sendUnpaidAll();" style="width:100%;padding:11px;background:#F79009;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📩 전체 미납 알림 문자</button>';
   h += '<input type="text" id="pay-member-search" placeholder="🔍 회원 검색" oninput="filterPayMember(this.value)" style="width:100%;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
@@ -4588,6 +4589,100 @@ function togglePayment(memberId){
     document.getElementById('pay-method-modal').style.display = 'flex';
     return;
   }
+}
+
+/* ── 월 수납 정산 리포트 (학원·공공·택배 — 물류는 renderLogiPayment 분기라 미노출) ──
+   계산은 기존 수납 로직 재사용: 청구=m.monthly, 기록=tkd_payments[id_YYYY_MM]
+   {paid,method,date,collected?}, 납부액은 getPrevUnpaid와 같은 관례
+   (collected!=null → collected, 아니면 paid면 청구액). 이월 미납 열은
+   학원·공공 수납에 이월 개념이 없어(물류 전용 getPrevUnpaid) 추가하지 않음. */
+var payReportYm=null;
+function buildPayReportData(ym){
+  var y=Number(ym.slice(0,4)), mo=Number(ym.slice(5,7));
+  var data=loadPayments();
+  var rows=[];
+  members.forEach(function(m){
+    var charge=Number(m.monthly)||0;
+    var key=getPaymentKey(m.id, y, mo);
+    var pd=data[key]||{};
+    var paidAmt = pd.collected!=null ? (Number(pd.collected)||0) : (pd.paid ? charge : 0);
+    if(!charge && !paidAmt) return;   /* 월정액도 납부도 없는 회원 제외 */
+    var unpaid=Math.max(0, charge-paidAmt);
+    var course=courses.find(function(c){ return c.id===m.courseId; });
+    rows.push({ name:m.name, course:course?course.name:'', charge:charge, paid:paidAmt,
+      payInfo: pd.paid ? ((pd.date||'')+(pd.method?' · '+pd.method:'')) : '',
+      unpaid:unpaid });
+  });
+  rows.sort(function(a,b){ return (b.unpaid-a.unpaid) || a.name.localeCompare(b.name,'ko'); });
+  var totals=rows.reduce(function(t,r){ t.charge+=r.charge; t.paid+=r.paid; t.unpaid+=r.unpaid; return t; }, {charge:0,paid:0,unpaid:0});
+  totals.rate = totals.charge>0 ? Math.round(totals.paid/totals.charge*100) : null;
+  return { rows:rows, totals:totals };
+}
+function openPayReport(){
+  if(!payReportYm){
+    var n=new Date(); var y=n.getFullYear(), m=n.getMonth();
+    if(m===0){ y--; m=12; }
+    payReportYm=y+'-'+String(m).padStart(2,'0');
+  }
+  renderPayReportModal();
+}
+function renderPayReportModal(){
+  var d=buildPayReportData(payReportYm);
+  var feeW=T('수강료');
+  var h='<div id="payreport-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;">'
+    +'<div style="background:white;border-radius:16px;padding:18px;max-width:560px;width:100%;box-sizing:border-box;max-height:88vh;overflow-y:auto;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;">📊 월 수납 정산</div>'
+    +'<button onclick="document.getElementById(\'payreport-modal\').remove();" style="padding:6px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">닫기</button></div>';
+  h+='<div style="display:flex;gap:5px;margin-bottom:12px;">'
+    +'<input type="month" value="'+payReportYm+'" onchange="payReportYm=this.value;renderPayReportModal();" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<button onclick="exportPayReport(payReportYm)" style="padding:8px 12px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📄 엑셀 다운로드</button></div>';
+  if(d.rows.length===0){
+    h+='<div style="font-size:13px;color:#98A2B3;text-align:center;padding:24px;">해당 월 수납 대상이 없습니다.</div>';
+  } else {
+    h+='<div style="overflow-x:auto;"><table style="border-collapse:collapse;width:100%;font-size:11px;min-width:480px;">';
+    h+='<tr style="background:#F2F4F7;">'
+      +['이름','코스(반)','청구('+feeW+')','납부액','납부일·방법','미납액'].map(function(k,i){ return '<th style="padding:7px 8px;text-align:'+(i<2||i===4?'left':'right')+';border:1px solid #EAECF0;">'+k+'</th>'; }).join('')+'</tr>';
+    d.rows.forEach(function(r){
+      h+='<tr style="'+(r.unpaid>0?'background:#FEF3F2;':'')+'">'
+        +'<td style="padding:6px 8px;border:1px solid #F2F4F7;font-weight:700;">'+escapeMasterHtml(r.name)+'</td>'
+        +'<td style="padding:6px 8px;border:1px solid #F2F4F7;">'+escapeMasterHtml(r.course)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;border:1px solid #F2F4F7;">'+r.charge.toLocaleString()+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;border:1px solid #F2F4F7;">'+r.paid.toLocaleString()+'</td>'
+        +'<td style="padding:6px 8px;border:1px solid #F2F4F7;font-size:10px;color:#667085;">'+escapeMasterHtml(r.payInfo)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;border:1px solid #F2F4F7;color:'+(r.unpaid>0?'#F04438':'#344054')+';font-weight:700;">'+r.unpaid.toLocaleString()+'</td></tr>';
+    });
+    var t=d.totals;
+    h+='<tr style="background:#FFF7ED;font-weight:800;"><td style="padding:7px 8px;border:1px solid #EAECF0;" colspan="2">합계</td>'
+      +'<td style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;">'+t.charge.toLocaleString()+'</td>'
+      +'<td style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;">'+t.paid.toLocaleString()+'</td>'
+      +'<td style="padding:7px 8px;border:1px solid #EAECF0;">수납률 '+(t.rate!=null?t.rate+'%':'—')+'</td>'
+      +'<td style="padding:7px 8px;text-align:right;border:1px solid #EAECF0;color:#F04438;">'+t.unpaid.toLocaleString()+'</td></tr>';
+    h+='</table></div>';
+    h+='<div style="font-size:10px;color:#98A2B3;margin-top:8px;">미납액 큰 순 정렬 · 월정액·납부가 모두 없는 '+T('회원')+'은 제외</div>';
+  }
+  h+='</div></div>';
+  var ex=document.getElementById('payreport-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+function exportPayReport(ym){
+  var d=buildPayReportData(ym);
+  if(d.rows.length===0){ alert('해당 월 수납 대상이 없습니다.'); return; }
+  var XLSX=window.XLSX;
+  var s1=[
+    ['월 수납 정산'],
+    ['기관명', (orgSettings&&orgSettings.name)||'', '대상 월', ym, '작성일', todayStr()],
+    [],
+    ['이름','코스(반)','청구('+T('수강료')+')','납부액','납부일·방법','미납액']
+  ];
+  d.rows.forEach(function(r){ s1.push([r.name, r.course, r.charge, r.paid, r.payInfo, r.unpaid]); });
+  var t=d.totals;
+  s1.push(['합계','', t.charge, t.paid, '수납률 '+(t.rate!=null?t.rate+'%':'—'), t.unpaid]);
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(s1);
+  ws['!cols']=[{wch:10},{wch:12},{wch:12},{wch:12},{wch:18},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, '수납정산');
+  XLSX.writeFile(wb, '수납정산_'+ym+'.xlsx');
 }
 
 function confirmPayment(memberId){
