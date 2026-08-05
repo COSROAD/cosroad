@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 165;
+const APP_VERSION = 166;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3782,7 +3782,7 @@ function handleDriverPinCheckin(car){
   var today=todayStr();
   var k=attKey(car.id, today);
   if(!att[k]) att[k]={};
-  var msg, color;
+  var msg, color, odoAsk=false;
   if(!att[k].in){
     att[k].in=nowTimeStr();
     msg='✅ '+car.driver+' 기사님 출근 ('+att[k].in+')';
@@ -3792,19 +3792,40 @@ function handleDriverPinCheckin(car){
     var mins=calcWorkMinutes(att[k].in, att[k].out);
     msg='🏁 '+car.driver+' 기사님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins);
     color='#F04438';
+    odoAsk=true;   /* 퇴근 시 계기판 km 입력 (선택) — 운행기록부용 */
   } else {
     msg='이미 출퇴근이 모두 기록되었습니다.';
     color='#F79009';
   }
   saveDriverAtt(att);
   var r=document.getElementById('pin-result');
-  if(r) r.innerHTML='<div style="color:'+color+';font-size:15px;font-weight:700;text-align:center;padding:14px;">'+msg+'</div>';
+  if(r) r.innerHTML='<div style="color:'+color+';font-size:15px;font-weight:700;text-align:center;padding:14px;">'+msg+'</div>'
+    +(odoAsk?'<div style="display:flex;gap:6px;justify-content:center;padding:0 14px 10px;">'
+      +'<input id="pin-odo" type="number" inputmode="numeric" placeholder="계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
+      +'<button onclick="savePinOdo(\''+car.id+'\')" style="padding:9px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button></div>':'');
   pinInput='';
   setTimeout(function(){
     var rr=document.getElementById('pin-result');
-    if(rr)rr.innerHTML='';
+    if(rr && !document.getElementById('pin-odo'))rr.innerHTML='';
     renderPinDisplay();
   }, 2500);
+  if(odoAsk){
+    setTimeout(function(){
+      var rr=document.getElementById('pin-result');
+      if(rr)rr.innerHTML='';
+      renderPinDisplay();
+    }, 20000);
+  }
+}
+/* 퇴근 시 계기판 저장 — 같은 차량·같은 날짜는 덮어쓰기(최신값) */
+function savePinOdo(carId){
+  var el=document.getElementById('pin-odo');
+  var v=el?Number(el.value):0;
+  var r=document.getElementById('pin-result');
+  if(!(v>0)){ if(r) r.innerHTML=''; renderPinDisplay(); return; }
+  carlogSetDailyOdo(carId, todayStr(), v, 'driver');
+  if(r) r.innerHTML='<div style="color:#12B76A;font-size:14px;font-weight:700;text-align:center;padding:12px;">📏 계기판 '+v.toLocaleString()+'km 저장!</div>';
+  setTimeout(function(){ var rr=document.getElementById('pin-result'); if(rr)rr.innerHTML=''; }, 2000);
 }
 
 function checkPin(){
@@ -7341,6 +7362,15 @@ function carlogDeleteRecord(id, after){
     if(after) after();
   }, '이 차계부 기록을 삭제할까요?');
 }
+/* 일일 계기판(odo) 기록 — 같은 차량·같은 날짜는 덮어쓰기(최신값). 지출 아님(합계 미포함) */
+function carlogSetDailyOdo(carId, date, odo, by){
+  var d=loadCarlog();
+  var ex=d.records.find(function(r){ return r.type==='odo' && r.carId===carId && r.date===date; });
+  if(ex){ ex.odo=Number(odo); ex.by=by||ex.by; }
+  else d.records.push({id:'cl'+Date.now()+Math.floor(Math.random()*1000), carId:carId, type:'odo', date:date, odo:Number(odo), by:by||'driver'});
+  saveCarlog(d);
+}
+
 /* 차량별 기록 최신순 (날짜 내림차순, 같은 날짜는 나중 입력이 위) */
 function carlogRecords(carId){
   return loadCarlog().records.filter(function(r){ return r.carId===carId; })
@@ -7418,13 +7448,20 @@ function renderCarlogModal(){
     });
     h+='</div>';
   }
+  // 운행기록부 내보내기 (기본: 지난달)
+  var _lmn=new Date(); var _lmy=_lmn.getFullYear(), _lmm=_lmn.getMonth();
+  if(_lmm===0){ _lmy--; _lmm=12; }
+  var _lm=_lmy+'-'+String(_lmm).padStart(2,'0');
+  h+='<div style="display:flex;gap:5px;margin-bottom:8px;">'
+    +'<input id="cl-export-ym" type="month" value="'+_lm+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<button onclick="exportDriveLogbook(carlogSelCar,(document.getElementById(\'cl-export-ym\')||{}).value)" style="padding:8px 12px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📄 운행기록부 내보내기</button></div>';
   // 입력 폼
   h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:12px;background:#F9FAFB;">';
   if(editRec) h+='<div style="font-size:11px;color:#7C3AED;font-weight:700;margin-bottom:6px;">✏ 기록 수정 중 <span onclick="carlogEditId=null;renderCarlogModal();" style="color:#98A2B3;cursor:pointer;">(취소)</span></div>';
   h+='<div style="display:flex;gap:5px;margin-bottom:6px;">';
-  [['fuel','⛽ 주유'],['repair','🔧 정비'],['etc','💳 기타']].forEach(function(t){
+  [['fuel','⛽ 주유'],['repair','🔧 정비'],['etc','💳 기타'],['odo','📏 계기판']].forEach(function(t){
     var on=carlogType===t[0];
-    h+='<button onclick="setCarlogType(\''+t[0]+'\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid '+(on?'#0E7090':'#EAECF0')+';background:'+(on?'#E0F2FE':'white')+';color:'+(on?'#0E7090':'#667085')+';font-size:12px;font-weight:700;cursor:pointer;">'+t[1]+'</button>';
+    h+='<button onclick="setCarlogType(\''+t[0]+'\')" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid '+(on?'#0E7090':'#EAECF0')+';background:'+(on?'#E0F2FE':'white')+';color:'+(on?'#0E7090':'#667085')+';font-size:12px;font-weight:700;cursor:pointer;">'+t[1]+'</button>';
   });
   h+='</div>';
   h+='<input id="cl-date" type="date" value="'+(editRec?editRec.date:todayStr())+'" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
@@ -7441,12 +7478,14 @@ function renderCarlogModal(){
     h+='<input id="cl-item-text" type="text" placeholder="내용 (세차·통행료 등)" value="'+(editRec?escapeMasterHtml(editRec.item||''):'')+'" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
   }
   h+='<div style="display:flex;gap:5px;">';
-  h+='<input id="cl-amount" type="text" inputmode="numeric" placeholder="금액(원)" value="'+(editRec&&editRec.amount?Number(editRec.amount).toLocaleString():'')+'" oninput="fmtAmountInput(this)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  if(carlogType!=='odo'){
+    h+='<input id="cl-amount" type="text" inputmode="numeric" placeholder="금액(원)" value="'+(editRec&&editRec.amount?Number(editRec.amount).toLocaleString():'')+'" oninput="fmtAmountInput(this)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  }
   if(carlogType==='fuel'){
     h+='<input id="cl-liters" type="number" step="0.01" placeholder="리터(L)" value="'+(editRec&&editRec.liters?editRec.liters:'')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
   if(carlogType!=='etc'){
-    h+='<input id="cl-odo" type="number" placeholder="계기판km(선택)" value="'+(editRec&&editRec.odo?editRec.odo:'')+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+    h+='<input id="cl-odo" type="number" placeholder="'+(carlogType==='odo'?'계기판 km':'계기판km(선택)')+'" value="'+(editRec&&editRec.odo?editRec.odo:'')+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
   h+='<button onclick="saveCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">'+(editRec?'수정':'저장')+'</button>';
   h+='</div></div>';
@@ -7468,6 +7507,15 @@ function renderCarlogModal(){
       h+='<div style="display:flex;justify-content:space-between;align-items:center;background:#F2F4F7;border-radius:8px;padding:7px 10px;margin:10px 0 6px;">'
         +'<span style="font-size:12px;font-weight:800;color:#344054;">'+mo+'</span>'
         +'<span style="font-size:10px;color:#475467;font-weight:700;">⛽'+s.fuel.toLocaleString()+' · 🔧'+s.repair.toLocaleString()+' · 💳'+s.etc.toLocaleString()+'원</span></div>';
+    }
+    if(r.type==='odo'){
+      /* 계기판 기록 — 지출 아님(합계 미포함), 작은 줄로만 표시 */
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px dashed #EAECF0;border-radius:8px;padding:5px 10px;margin-bottom:5px;">'
+        +'<span style="font-size:11px;color:#475467;">📏 계기판 '+(Number(r.odo)||0).toLocaleString()+'km'+(r.by==='driver'?' <span style="font-size:9px;color:#98A2B3;">기사</span>':'')+'</span>'
+        +'<span style="font-size:10px;color:#98A2B3;">'+r.date
+        +' <span onclick="editCarlogEntry(\''+r.id+'\')" style="color:#7C3AED;cursor:pointer;font-weight:700;">수정</span>'
+        +' <span onclick="carlogDeleteRecord(\''+r.id+'\', renderCarlogModal)" style="color:#F04438;cursor:pointer;font-weight:700;">삭제</span></span></div>';
+      return;
     }
     var ico=r.type==='fuel'?'⛽':r.type==='repair'?'🔧':'💳';
     var eff=carlogFuelEff(r, recs);
@@ -7505,6 +7553,20 @@ function renderCarlogModal(){
 function saveCarlogEntry(){
   if(!carlogSelCar){ alert('차량을 선택해주세요.'); return; }
   var date=((document.getElementById('cl-date')||{}).value)||todayStr();
+  /* 📏 계기판: 금액 없는 일일 odo 기록 — 같은 날은 덮어쓰기 (기사 보완용) */
+  if(carlogType==='odo'){
+    var ov=Number((document.getElementById('cl-odo')||{}).value)||0;
+    if(!(ov>0)){ alert('계기판 km를 입력해주세요.'); return; }
+    if(carlogEditId){
+      var d0=loadCarlog();
+      d0.records=d0.records.filter(function(r){ return r.id!==carlogEditId; });
+      saveCarlog(d0);
+      carlogEditId=null;
+    }
+    carlogSetDailyOdo(carlogSelCar, date, ov, 'admin');
+    renderCarlogModal();
+    return;
+  }
   var amount=Number((((document.getElementById('cl-amount')||{}).value)||'').replace(/[^0-9]/g,''))||0;
   if(!amount){ alert('금액을 입력해주세요.'); return; }
   var rec={carId:carlogSelCar, type:carlogType, date:date, amount:amount, by:'admin'};
@@ -7557,6 +7619,94 @@ function removeCarlogPlan(item){
   }, '「'+item+'」 교체 주기를 삭제할까요?');
 }
 
+/* ── 운행기록부 엑셀 내보내기 (세무 증빙용, 2시트) ──
+   기존 엑셀 방식(XLSX.utils.aoa_to_sheet + writeFile) 그대로 재사용.
+   값은 수식이 아닌 계산된 숫자로 넣는다.
+   날짜별 계기판 = 그날 기록(계기판·주유·정비)의 odo 최대값,
+   주행 전 = 직전 기록일의 계기판 값(월 이전 포함), odo 없는 날은 빈칸. */
+function exportDriveLogbook(carId, ym){
+  var car=cars.find(function(c){ return c.id===carId; });
+  if(!car){ alert('차량을 선택해주세요.'); return; }
+  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
+  var XLSX=window.XLSX;
+  var all=loadCarlog().records.filter(function(r){ return r.carId===carId; });
+  var odoByDate={};
+  all.forEach(function(r){
+    var o=Number(r.odo)||0;
+    if(o>0 && (!odoByDate[r.date] || o>odoByDate[r.date])) odoByDate[r.date]=o;
+  });
+  var odoDates=Object.keys(odoByDate).sort();
+  var year=Number(ym.slice(0,4)), mon=Number(ym.slice(5,7));
+  var lastDay=new Date(year, mon, 0).getDate();
+  var bizName={academy:'학원',logistics:'물류',public:'공공',delivery:'택배'}[getBizType()]||'';
+  var commute=Number(car.commuteKm)||0;
+  var org=orgSettings||{};
+
+  var body=[], totalKm=0, totalBiz=0;
+  for(var d=1; d<=lastDay; d++){
+    var ds=ym+'-'+String(d).padStart(2,'0');
+    var after=odoByDate[ds]||null;
+    var before=null, drive='', cm='', bizKm='';
+    if(after){
+      for(var i=odoDates.length-1;i>=0;i--){ if(odoDates[i]<ds){ before=odoByDate[odoDates[i]]; break; } }
+      if(before!=null && after>=before){
+        drive=after-before;
+        totalKm+=drive;
+        /* 출퇴근용은 주행거리를 넘지 않게, 업무용 = 주행 - 출퇴근 (합이 주행과 일치) */
+        cm = commute ? Math.min(commute, drive) : '';
+        bizKm = drive-(cm||0);
+        totalBiz+=bizKm;
+      }
+    }
+    body.push([ds, bizName, car.driver||'', (after&&before!=null)?before:'', after||'', drive, cm, bizKm, '']);
+  }
+  var monthRecs=all.filter(function(r){ return String(r.date||'').slice(0,7)===ym; });
+  var fuelRecs=monthRecs.filter(function(r){ return r.type==='fuel'; });
+  var repRecs=monthRecs.filter(function(r){ return r.type==='repair'; });
+  var totalL=fuelRecs.reduce(function(s,r){ return s+(Number(r.liters)||0); },0);
+  var fuelAmt=fuelRecs.reduce(function(s,r){ return s+(Number(r.amount)||0); },0);
+  var repAmt=repRecs.reduce(function(s,r){ return s+(Number(r.amount)||0); },0);
+  var eff = totalL>0 ? Math.round(totalKm/totalL*10)/10 : '';
+  var pct = totalKm>0 ? Math.round(totalBiz/totalKm*100)+'%' : '';
+
+  var s1=[
+    ['업무용 차량 운행기록부'],
+    ['과세기간', ym+'-01 ~ '+ym+'-'+String(lastDay).padStart(2,'0'), '', '상호명', org.name||''],
+    ['사업자등록번호', org.bizNo||'', '', '차종', car.name||''],
+    ['자동차등록번호', car.plate||''],
+    [],
+    ['운행기록(총주행 km)', totalKm, '차량연비(km/L)', eff, '주유금액 합계', fuelAmt, '정비금액 합계', repAmt],
+    [],
+    ['사용일자','부서','성명','주행 전 계기판(km)','주행 후 계기판(km)','주행거리(km)','출·퇴근용(km)','업무용(km)','운행내역']
+  ].concat(body).concat([
+    [],
+    ['과세기간 총주행거리(km)', totalKm, '업무용 사용거리(km)', totalBiz, '업무용 사용비율', pct]
+  ]);
+
+  var s2=[['주유·지출 내역 — '+ym],
+    ['일자','구분','내역','운행기록(km)','급유량(L)','단가(원/L)','금액(원)']];
+  fuelRecs.forEach(function(r){
+    var L=Number(r.liters)||0, amt=Number(r.amount)||0;
+    s2.push([r.date,'주유','주유', Number(r.odo)||'', L, L>0?Math.round(amt/L):'', amt]);
+  });
+  repRecs.forEach(function(r){
+    s2.push([r.date,'정비', String(r.item||''), Number(r.odo)||'', '', '', Number(r.amount)||0]);
+  });
+  s2.push([]);
+  s2.push(['합계','','','', totalL, '주유금액', fuelAmt]);
+  s2.push(['','','','','','정비금액', repAmt]);
+  s2.push(['통계 — 차량연비(km/L)', eff]);
+
+  var wb=XLSX.utils.book_new();
+  var ws1=XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols']=[{wch:11},{wch:7},{wch:9},{wch:15},{wch:15},{wch:11},{wch:11},{wch:10},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws1, '운행기록부');
+  var ws2=XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols']=[{wch:11},{wch:6},{wch:16},{wch:12},{wch:9},{wch:9},{wch:11}];
+  XLSX.utils.book_append_sheet(wb, ws2, '주유지출내역');
+  XLSX.writeFile(wb, '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx');
+}
+
 // ── 기사(운전자) 차계부 — 본인 배정 차량 고정, 조회만(수정·삭제 없음) ──
 var driverCarlogType='fuel';
 function openDriverCarlog(){
@@ -7594,6 +7744,12 @@ function renderDriverCarlog(){
   var recs=carlogRecords(car.id).slice(0,20);
   if(recs.length===0){ h+='<div style="font-size:12px;color:#98A2B3;text-align:center;padding:12px;">기록이 없습니다.</div>'; }
   recs.forEach(function(r){
+    if(r.type==='odo'){
+      h+='<div style="border:1px dashed #EAECF0;border-radius:8px;padding:5px 10px;margin-bottom:5px;display:flex;justify-content:space-between;">'
+        +'<span style="font-size:11px;color:#475467;">📏 계기판 '+(Number(r.odo)||0).toLocaleString()+'km</span>'
+        +'<span style="font-size:10px;color:#98A2B3;">'+r.date+'</span></div>';
+      return;
+    }
     var ico=r.type==='fuel'?'⛽':r.type==='repair'?'🔧':'💳';
     h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
       +'<div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:700;color:#1D2939;">'+ico+' '+escapeMasterHtml(r.item||'')+(r.type==='fuel'&&r.liters?' '+r.liters+'L':'')+'</div>'
@@ -7687,7 +7843,9 @@ function renderCars(){
   html+='<input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="'+car.phone+'" oninput="cars['+i+'].phone=this.value" type="tel"/>';
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="'+car.plate+'" oninput="cars['+i+'].plate=this.value"/>';
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="기사 PIN 4자리" maxlength="4" inputmode="numeric" value="'+(car.driverPin||'')+'" oninput="cars['+i+'].driverPin=this.value.replace(/[^0-9]/g,\'\')"/>';
+  html+='<input class="setting-input" style="flex:1;min-width:110px;" type="number" placeholder="출퇴근 거리(km/일)" value="'+(car.commuteKm||'')+'" oninput="cars['+i+'].commuteKm=Number(this.value)||0"/>';
   html+='</div>';
+  html+='<div style="font-size:11px;color:#98A2B3;margin-top:4px;">출퇴근 거리(km/일)는 운행기록부의 「출·퇴근용(km)」에 매일 자동 반영됩니다</div>';
   // 기사 면허 진위확인 — 경찰청 교통민원24(이파인) 무료 조회 후 관리자가 체크
   html+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;">';
   html+='<button onclick="window.open(\'https://www.efine.go.kr\',\'_blank\')" style="padding:8px 12px;background:white;border:1.5px solid #1A6BFF;color:#1A6BFF;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔍 면허 진위확인 ↗</button>';
