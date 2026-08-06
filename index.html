@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 173;
+const APP_VERSION = 174;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -735,8 +735,17 @@ function exportPayrollDetail(ym){
   var year=Number(ym.slice(0,4)), mon=Number(ym.slice(5,7));
   var lastDay=new Date(year, mon, 0).getDate();
   var rates=getInsRates();
-  var dayCols=[]; for(var d=1; d<=lastDay; d++) dayCols.push(d+'일');
-  var head=['NO','시급','식대','성명','구분'].concat(dayCols).concat(['근무시간','급여','합계','공제','공제후','실급여(식대포함)']);
+  var 요일=['일','월','화','수','목','금','토'];
+  var dayCols=[], dayDows=[];
+  for(var d=1; d<=lastDay; d++){
+    var _dw=new Date(ym+'-'+String(d).padStart(2,'0')+'T00:00:00').getDay();
+    dayDows.push(_dw);
+    dayCols.push(d+'('+요일[_dw]+')');
+  }
+  /* 공제 열 이름: 기사 전원이 같은 방식이면 그 이름으로 (원본 양식: "원천징수(3.3%)") */
+  var _modes=driverCars.map(function(c){ return c.taxMode||'free33'; });
+  var dedName=_modes.every(function(m){ return m==='free33'; })?'원천징수(3.3%)':_modes.every(function(m){ return m==='insure4'; })?'4대보험':'공제';
+  var head=['NO','시급','식대','성명','구분'].concat(dayCols).concat(['근무시간','급여','합계',dedName,'공제후','실급여(식대포함)']);
   var aoa=[
     ['급여상세내역 ('+ym+')'],
     ['※ 공휴일은 자동 판정하지 않습니다 — 평일로 계산되니 필요시 수기 조정하세요. 심야·주휴수당·명절휴가비는 수기 입력 칸입니다.'],
@@ -782,15 +791,16 @@ function exportPayrollDetail(ym){
     var after=total-ded;
     var net=after+meal;
     var empty=dayCols.map(function(){ return ''; });
-    aoa.push([ci+1, wage, meal, car.driver, '기본'].concat(base).concat([bh||'', bPay, total, ded, after, net]));
+    aoa.push([ci+1, wage, meal, car.driver+' ('+mon+'월)', '기본'].concat(base).concat([bh||'', bPay, total, ded, after, net]));
     aoa.push(['', '', '', '', '잔업'].concat(over).concat([oh||'', oPay, '', '', '', '']));
     aoa.push(['', '', '', '', '심야'].concat(empty).concat(['', '', '', '', '', '']));
-    aoa.push(['', '', '', '', '주휴수당'].concat(empty).concat(['', '', '', '', '', '']));
+    aoa.push(['', wage||'', '', '', '주휴수당'].concat(empty).concat(['', '', '', '', '', '']));
     aoa.push(['', '', '', '', '명절휴가비'].concat(empty).concat(['', '', '', '', '', '']));
-    aoa.push(['', '', '', '', '특근(1.5배)'].concat(spec).concat([sh||'', sPay, '', '', '', '']));
+    aoa.push(['', wage?Math.round(wage*1.5):'', '', '', '특근(1.5배)'].concat(spec).concat([sh||'', sPay, '', '', '', '']));
     if(dedNote) aoa.push(['', '', '', '', dedNote]);
     aoa.push([]);
   });
+  aoa.push(['임시공휴일 메모', '']);   /* 원본 양식: 공휴일 수기 기재 칸 */
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   /* ── 수식 입히기 — 열: 시급 B(1)·식대 C(2)·날짜 5..5+lastDay-1·
@@ -799,14 +809,18 @@ function exportPayrollDetail(ym){
   blocks.forEach(function(b){
     var base=b.r;
     var wageC=xlsCell(base,1), mealC=xlsCell(base,2);
+    /* 주휴 행 시급 = 기본 시급, 특근 행 시급 = 기본 ×1.5 (원본 양식처럼 행에 표기, 수식 연동) */
+    xlsF(ws, base+3, 1, Number(aoa[base+3][1])||'', wageC);
+    xlsF(ws, base+5, 1, Number(aoa[base+5][1])||'', 'ROUND('+wageC+'*1.5,0)');
     for(var li=0; li<6; li++){
       var r=base+li;
       var rng=xlsCell(r,5)+':'+xlsCell(r,5+lastDay-1);
       var htC=xlsCell(r,HT);
-      var mult=(li===5)?'*1.5':'';   /* 특근 줄만 1.5배 */
+      /* 급여 = 시간 × 그 줄의 시급 (주휴·특근은 자기 행 시급 셀, 나머지는 기본 시급) */
+      var wageRef=(li===3||li===5)?xlsCell(r,1):wageC;
       var vHT=aoa[r][HT], vPAY=aoa[r][PAY];
       xlsF(ws, r, HT, vHT===''?'':Number(vHT)||0, 'IF(SUM('+rng+')=0,"",SUM('+rng+'))');
-      xlsF(ws, r, PAY, vPAY===''?'':Number(vPAY)||0, 'IF('+htC+'="","",ROUND('+htC+'*'+wageC+mult+',0))');
+      xlsF(ws, r, PAY, vPAY===''?'':Number(vPAY)||0, 'IF('+htC+'="","",ROUND('+htC+'*'+wageRef+',0))');
     }
     var totC=xlsCell(base,TOT), dedC=xlsCell(base,DED), aftC=xlsCell(base,AFT);
     var payRng=xlsCell(base,PAY)+':'+xlsCell(base+5,PAY);
@@ -827,14 +841,21 @@ function exportPayrollDetail(ym){
   ['근무시간','급여','합계','공제','공제후','실급여'].forEach(function(){ cols.push({wch:10}); });
   ws['!cols']=cols;
   XLSX.utils.book_append_sheet(wb, ws, '급여상세');
-  /* 원본 양식: 기사 블록 세로 병합 (NO·시급·식대·성명 + 합계·공제·공제후·실급여, 6행) */
+  /* 원본 양식: 기사 블록 세로 병합 (NO·식대·성명 + 합계·공제·공제후·실급여 6행 —
+     시급 열은 주휴·특근 행에 별도 시급이 있어 병합 제외) */
   var _pm=[];
   blocks.forEach(function(b){
-    [0,1,2,3,TOT,DED,AFT,NET].forEach(function(c){ _pm.push({r1:b.r, c1:c, r2:b.r+5, c2:c}); });
+    [0,2,3,TOT,DED,AFT,NET].forEach(function(c){ _pm.push({r1:b.r, c1:c, r2:b.r+5, c2:c}); });
+  });
+  /* 날짜 헤더 요일 색: 토=파랑, 일=빨강 */
+  var _hf=[];
+  dayDows.forEach(function(dw, di){
+    if(dw===0) _hf.push({r:3, c:5+di, argb:'FFCC0000'});
+    else if(dw===6) _hf.push({r:3, c:5+di, argb:'FF1A6BFF'});
   });
   finishExcelExport([
     { name:'급여상세', ws:ws, st:{ titleRow:0, headerRows:[3], bodyFrom:4, bodyTo:aoa.length-1,
-        moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm } }
+        moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm, cellFonts:_hf } }
   ], '급여상세내역_'+ym+'.xlsx', wb);
 }
 
@@ -8129,12 +8150,30 @@ function xlsStyleSheet(wbx, name, ws, st){
       if((st.redSumCols||[]).indexOf(c)>=0){ cell.font={bold:true, color:{argb:'FFCC0000'}}; }
     });
   });
+  /* 추가 테두리·금액 서식 행 (요약 값 줄 등) */
+  (st.borderRows||[]).forEach(function(rr){
+    eachCell(rr, function(cell, c){
+      cell.border=allB;
+      if((st.moneyCols||[]).indexOf(c)>=0){ cell.numFmt='#,##0'; cell.alignment={horizontal:'right'}; }
+    });
+  });
   (st.merges||[]).forEach(function(m){
     try{
       wsx.mergeCells(m.r1+1, m.c1+1, m.r2+1, m.c2+1);
       var mc=wsx.getRow(m.r1+1).getCell(m.c1+1);
-      mc.alignment=Object.assign({}, mc.alignment||{}, {vertical:'middle'});
+      mc.alignment=Object.assign({}, mc.alignment||{}, {vertical:'middle', horizontal:mc.alignment&&mc.alignment.horizontal||'center'});
     }catch(e){}
+  });
+  /* 병합형 제목 셀 (박스 배치용) */
+  (st.titleCells||[]).forEach(function(tc){
+    var cell=wsx.getRow(tc.r+1).getCell(tc.c+1);
+    cell.font={bold:true, size:16};
+    cell.alignment={horizontal:'center', vertical:'middle'};
+  });
+  /* 개별 셀 글자색 (요일 토=파랑/일=빨강 등) — 마지막에 적용해 우선 */
+  (st.cellFonts||[]).forEach(function(cf){
+    var cell=wsx.getRow(cf.r+1).getCell(cf.c+1);
+    cell.font=Object.assign({}, cell.font||{}, {color:{argb:cf.argb}});
   });
   return wsx;
 }
@@ -8182,9 +8221,11 @@ function exportDriveLogbook(carId, ym){
   var org=orgSettings||{};
 
   var 요일=['일','월','화','수','목','금','토'];
-  var body=[], totalKm=0, totalBiz=0, driveDays=[];
+  var body=[], totalKm=0, totalBiz=0, driveDays=[], dayDows=[];
   for(var d=1; d<=lastDay; d++){
     var ds=ym+'-'+String(d).padStart(2,'0');
+    var dow=new Date(ds+'T00:00:00').getDay();
+    dayDows.push(dow);
     var after=odoByDate[ds]||null;
     var before=null, drive='', cm='', bizKm='';
     if(after){
@@ -8199,7 +8240,7 @@ function exportDriveLogbook(carId, ym){
         driveDays.push({day:d, drive:drive, bizKm:bizKm});
       }
     }
-    body.push([ds+' ('+요일[new Date(ds+'T00:00:00').getDay()]+')', bizName, car.driver||'', (after&&before!=null)?before:'', after||'', drive, cm, bizKm, '']);
+    body.push([ds+' ('+요일[dow]+')', bizName, car.driver||'', (after&&before!=null)?before:'', after||'', drive, cm, bizKm, '']);
   }
   var monthRecs=all.filter(function(r){ return String(r.date||'').slice(0,7)===ym; });
   var fuelRecs=monthRecs.filter(function(r){ return r.type==='fuel'; });
@@ -8211,88 +8252,103 @@ function exportDriveLogbook(carId, ym){
   var avg = totalL>0 ? Math.round(fuelAmt/totalL) : '';
   var pct = totalKm>0 ? Math.round(totalBiz/totalKm*100)+'%' : '';
 
+  /* ── 시트1: 원본 양식 배치 — 상단 박스(기본정보/주유·지출) + 2단 헤더 ──
+     0 제목줄(과세기간·제목·상호) · 1 사업자 · 3 박스제목 · 4 라벨 · 5 값 ·
+     7~8 2단 헤더 · 9.. 본문 · 하단 합계 */
   var s1=[
-    ['업무용 차량 운행기록부'],
-    ['과세기간', ym+'-01 ~ '+ym+'-'+String(lastDay).padStart(2,'0'), '', '상호명', org.name||''],
-    ['사업자등록번호', org.bizNo||'', '', '차종', car.name||''],
-    ['자동차등록번호', car.plate||''],
+    ['과세기간', ym+'-01 ~ '+ym+'-'+String(lastDay).padStart(2,'0'), '', '업무용 차량 운행기록부', '', '', '', '상호명', org.name||''],
+    ['', '', '', '', '', '', '', '사업자등록번호', org.bizNo||''],
     [],
-    ['운행기록(총주행 km)', totalKm, '차량연비(km/L)', eff, '주유금액 합계', fuelAmt, '정비금액 합계', repAmt, '주유평균(원/L)', avg],
+    ['기본정보', '', '', '주유 및 지출내역'],
+    ['차종', '자동차등록번호', '', '운행기록(km)', '차량연비(km/L)', '주유평균(원/L)', '주유금액', '정비금액'],
+    [car.model||car.name||'', car.plate||'', '', totalKm, eff, avg, fuelAmt, repAmt],
     [],
-    ['사용일자(요일)','부서','성명','주행 전 계기판(km)','주행 후 계기판(km)','주행거리(km)','출·퇴근용(km)','업무용(km)','운행내역']
+    ['사용일자(요일)', '사용자', '', '운  행  내  역', '', '', '', '', '운행내역(방문지)'],
+    ['', '부서', '성명', '주행 전 계기판(km)', '주행 후 계기판(km)', '주행거리(km)', '출·퇴근용(km)', '업무용(km)', '']
   ].concat(body).concat([
     [],
     ['과세기간 총주행거리(km)', totalKm, '업무용 사용거리(km)', totalBiz, '업무용 사용비율', pct]
   ]);
 
+  /* ── 시트2: 주유·정비 통합 표 + 기본 15행 입력칸 ── */
   var s2=[['주유·지출 내역 — '+ym],
-    ['일자','구분','내역','운행기록(km)','급유량(L)','단가(원/L)','금액(원)']];
+    ['주유일자','운행기록(km)','급유량(L)','단가(원/L)','주유금액','정비내역','정비금액']];
+  var dataRows=[];
   fuelRecs.forEach(function(r){
     var L=Number(r.liters)||0, amt=Number(r.amount)||0;
-    s2.push([r.date,'주유','주유', Number(r.odo)||'', L, L>0?Math.round(amt/L):'', amt]);
+    dataRows.push({date:r.date, row:[r.date, Number(r.odo)||'', L, L>0?Math.round(amt/L):'', amt, '', '']});
   });
   repRecs.forEach(function(r){
-    s2.push([r.date,'정비', String(r.item||''), Number(r.odo)||'', '', '', Number(r.amount)||0]);
+    dataRows.push({date:r.date, row:[r.date, Number(r.odo)||'', '', '', '', String(r.item||''), Number(r.amount)||0]});
   });
+  dataRows.sort(function(a,b){ return a.date<b.date?-1:1; });
+  var DATA_N=Math.max(15, dataRows.length);   /* 기록 없어도 기본 15행 입력칸 */
+  for(var ri=0; ri<DATA_N; ri++){
+    s2.push(ri<dataRows.length ? dataRows[ri].row : ['', '', '', '', '', '', '']);
+  }
   s2.push([]);
-  s2.push(['합계','','','', totalL, '주유금액', fuelAmt]);
-  s2.push(['','','','','','정비금액', repAmt]);
+  s2.push(['합계', '', totalL, '', fuelAmt, '', repAmt]);
   s2.push(['통계 — 차량연비(km/L)', eff, '주유평균(원/L)', avg]);
 
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(s1);
   var ws2=XLSX.utils.aoa_to_sheet(s2);
 
-  /* ── 수식 입히기 (캐시값은 기존 계산 그대로) — 셀 위치: 0-기준 행 인덱스 ──
-     s1: 5 요약 · 7 헤더 · 8..8+lastDay-1 본문 · 8+lastDay+1 하단
-     s2: 1 헤더 · 2..2+nf-1 주유 · ..+nr 정비 · 빈줄 · 합계 · 정비금액 · 통계 */
-  var B0=8, BE=8+lastDay-1, BOT=8+lastDay+1;
-  var nf=fuelRecs.length, nr=repRecs.length;
-  var F0=2, T=2+nf+nr+1, TR=T+1, ST=T+2;   /* s2: 주유 시작·합계·정비금액·통계 행 */
-  /* 본문 — 계기판 있는 날만 (빈 날 수식·0 생성 금지) */
+  /* ── 수식 입히기 (0-기준 행) ── */
+  var B0=9, BE=9+lastDay-1, BOT=BE+2;
+  var F0=2, T=2+DATA_N+1, ST=T+1;   /* s2: 데이터 시작·합계·통계 */
   driveDays.forEach(function(dd){
     var r=B0+dd.day-1;
-    xlsF(ws1, r, 5, dd.drive, xlsCell(r,4)+'-'+xlsCell(r,3));                 /* 주행 = 후-전 */
-    xlsF(ws1, r, 7, dd.bizKm, xlsCell(r,5)+'-SUM('+xlsCell(r,6)+')');          /* 업무 = 주행-출퇴근(빈칸=0) */
+    xlsF(ws1, r, 5, dd.drive, xlsCell(r,4)+'-'+xlsCell(r,3));
+    xlsF(ws1, r, 7, dd.bizKm, xlsCell(r,5)+'-SUM('+xlsCell(r,6)+')');
   });
   var Frng='F'+(B0+1)+':F'+(BE+1), Hrng='H'+(B0+1)+':H'+(BE+1);
   xlsF(ws1, BOT, 1, totalKm, 'SUM('+Frng+')');
   xlsF(ws1, BOT, 3, totalBiz, 'SUM('+Hrng+')');
   xlsF(ws1, BOT, 5, pct, 'IF('+xlsCell(BOT,1)+'=0,"",ROUND('+xlsCell(BOT,3)+'/'+xlsCell(BOT,1)+'*100,0)&"%")');
-  var s2E='주유지출내역!'+xlsCell(T,4), s2G='주유지출내역!'+xlsCell(T,6), s2GR='주유지출내역!'+xlsCell(TR,6);
-  xlsF(ws1, 5, 1, totalKm, 'SUM('+Frng+')');
-  xlsF(ws1, 5, 3, eff, 'IF('+s2E+'=0,"",ROUND('+xlsCell(5,1)+'/'+s2E+',1))');
-  xlsF(ws1, 5, 5, fuelAmt, s2G);
-  xlsF(ws1, 5, 7, repAmt, s2GR);
-  xlsF(ws1, 5, 9, avg, 'IF('+s2E+'=0,"",ROUND('+s2G+'/'+s2E+',0))');
-  /* s2: 주유 단가 = 금액÷리터, 합계·통계 수식 */
-  fuelRecs.forEach(function(r, fi){
-    var L=Number(r.liters)||0;
-    if(L>0){
-      var rr=F0+fi;
-      xlsF(ws2, rr, 5, Math.round((Number(r.amount)||0)/L), 'IF('+xlsCell(rr,4)+'=0,"",ROUND('+xlsCell(rr,6)+'/'+xlsCell(rr,4)+',0))');
-    }
-  });
-  if(nf>0){
-    xlsF(ws2, T, 4, totalL, 'SUM('+xlsCell(F0,4)+':'+xlsCell(F0+nf-1,4)+')');
-    xlsF(ws2, T, 6, fuelAmt, 'SUM('+xlsCell(F0,6)+':'+xlsCell(F0+nf-1,6)+')');
+  var s2C='주유지출내역!'+xlsCell(T,2), s2E='주유지출내역!'+xlsCell(T,4), s2G='주유지출내역!'+xlsCell(T,6);
+  xlsF(ws1, 5, 3, totalKm, 'SUM('+Frng+')');
+  xlsF(ws1, 5, 4, eff, 'IF('+s2C+'=0,"",ROUND('+xlsCell(5,3)+'/'+s2C+',1))');
+  xlsF(ws1, 5, 5, avg, 'IF('+s2C+'=0,"",ROUND('+s2E+'/'+s2C+',0))');
+  xlsF(ws1, 5, 6, fuelAmt, s2E);
+  xlsF(ws1, 5, 7, repAmt, s2G);
+  /* s2: 빈 입력칸 포함 전 행에 단가 수식 — 급유량·금액을 채우면 자동 계산 */
+  for(var dr=0; dr<DATA_N; dr++){
+    var rr=F0+dr;
+    var cached=(dr<dataRows.length && dataRows[dr].row[3]!=='')?dataRows[dr].row[3]:'';
+    xlsF(ws2, rr, 3, cached, 'IF('+xlsCell(rr,2)+'=0,"",ROUND('+xlsCell(rr,4)+'/'+xlsCell(rr,2)+',0))');
   }
-  if(nr>0){
-    xlsF(ws2, TR, 6, repAmt, 'SUM('+xlsCell(F0+nf,6)+':'+xlsCell(F0+nf+nr-1,6)+')');
-  }
-  xlsF(ws2, ST, 1, eff, 'IF('+xlsCell(T,4)+'=0,"",ROUND(운행기록부!'+xlsCell(5,1)+'/'+xlsCell(T,4)+',1))');
-  xlsF(ws2, ST, 3, avg, 'IF('+xlsCell(T,4)+'=0,"",ROUND('+xlsCell(T,6)+'/'+xlsCell(T,4)+',0))');
+  xlsF(ws2, T, 2, totalL, 'SUM('+xlsCell(F0,2)+':'+xlsCell(F0+DATA_N-1,2)+')');
+  xlsF(ws2, T, 4, fuelAmt, 'SUM('+xlsCell(F0,4)+':'+xlsCell(F0+DATA_N-1,4)+')');
+  xlsF(ws2, T, 6, repAmt, 'SUM('+xlsCell(F0,6)+':'+xlsCell(F0+DATA_N-1,6)+')');
+  xlsF(ws2, ST, 1, eff, 'IF('+xlsCell(T,2)+'=0,"",ROUND(운행기록부!'+xlsCell(5,3)+'/'+xlsCell(T,2)+',1))');
+  xlsF(ws2, ST, 3, avg, 'IF('+xlsCell(T,2)+'=0,"",ROUND('+xlsCell(T,4)+'/'+xlsCell(T,2)+',0))');
 
-  ws1['!cols']=[{wch:14},{wch:7},{wch:9},{wch:15},{wch:15},{wch:11},{wch:11},{wch:10},{wch:16}];
+  ws1['!cols']=[{wch:15},{wch:9},{wch:9},{wch:15},{wch:15},{wch:12},{wch:12},{wch:11},{wch:18}];
   XLSX.utils.book_append_sheet(wb, ws1, '운행기록부');
-  ws2['!cols']=[{wch:11},{wch:6},{wch:16},{wch:12},{wch:9},{wch:9},{wch:11}];
+  ws2['!cols']=[{wch:12},{wch:12},{wch:10},{wch:10},{wch:11},{wch:16},{wch:11}];
   XLSX.utils.book_append_sheet(wb, ws2, '주유지출내역');
+
+  /* 요일 색: 토=파랑, 일=빨강 (본문 사용일자 셀) */
+  var dateFonts=[];
+  dayDows.forEach(function(dow, di){
+    if(dow===0) dateFonts.push({r:B0+di, c:0, argb:'FFCC0000'});
+    else if(dow===6) dateFonts.push({r:B0+di, c:0, argb:'FF1A6BFF'});
+  });
   finishExcelExport([
-    { name:'운행기록부', ws:ws1, st:{ titleRow:0, headerRows:[7], bodyFrom:B0, bodyTo:BE,
-        sumRows:[5, BOT], moneyCols:[3,4,5,6,7],
-        merges:[{r1:1,c1:1,r2:1,c2:2},{r1:2,c1:1,r2:2,c2:2}] } },
-    { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:F0, bodyTo:F0+nf+nr-1,
-        sumRows:[T, TR, ST], moneyCols:[3,4,5,6] } }
+    { name:'운행기록부', ws:ws1, st:{ titleRow:null, headerRows:[3,4,7,8], bodyFrom:B0, bodyTo:BE,
+        sumRows:[BOT], borderRows:[5], moneyCols:[3,4,5,6,7], cellFonts:dateFonts,
+        merges:[ {r1:0,c1:3,r2:0,c2:5},              /* 제목 */
+                 {r1:0,c1:1,r2:0,c2:2},              /* 과세기간 값 */
+                 {r1:3,c1:0,r2:3,c2:1},              /* 기본정보 박스 제목 */
+                 {r1:3,c1:3,r2:3,c2:7},              /* 주유및지출 박스 제목 */
+                 {r1:7,c1:0,r2:8,c2:0},              /* 사용일자 세로 */
+                 {r1:7,c1:1,r2:7,c2:2},              /* 사용자 */
+                 {r1:7,c1:3,r2:7,c2:7},              /* 운행내역 묶음 */
+                 {r1:7,c1:8,r2:8,c2:8} ],            /* 방문지 세로 */
+        titleCells:[{r:0,c:3}] } },
+    { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:F0, bodyTo:F0+DATA_N-1,
+        sumRows:[T, ST], moneyCols:[1,2,3,4,6] } }
   ], '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx', wb);
 }
 
@@ -8431,6 +8487,7 @@ function renderCars(){
   html+='<input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="'+car.driver+'" oninput="cars['+i+'].driver=this.value"/>';
   html+='<input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="'+car.phone+'" oninput="cars['+i+'].phone=this.value" type="tel"/>';
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="'+car.plate+'" oninput="cars['+i+'].plate=this.value"/>';
+  html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차종 (예: 포터2)" value="'+(car.model||'')+'" oninput="cars['+i+'].model=this.value"/>';
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="기사 PIN 4자리" maxlength="4" inputmode="numeric" value="'+(car.driverPin||'')+'" oninput="cars['+i+'].driverPin=this.value.replace(/[^0-9]/g,\'\')"/>';
   html+='<input class="setting-input" style="flex:1;min-width:110px;" type="number" placeholder="출퇴근 거리(km/일)" value="'+(car.commuteKm||'')+'" oninput="cars['+i+'].commuteKm=Number(this.value)||0"/>';
   html+='<input class="setting-input" style="flex:1;min-width:100px;" type="text" inputmode="numeric" placeholder="시급(원)" value="'+(car.hourlyWage?Number(car.hourlyWage).toLocaleString():'')+'" oninput="fmtAmountInput(this);cars['+i+'].hourlyWage=parseInt(this.value.replace(/[^0-9]/g,\'\'))||0"/>';
