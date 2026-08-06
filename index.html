@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 172;
+const APP_VERSION = 173;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -827,7 +827,15 @@ function exportPayrollDetail(ym){
   ['근무시간','급여','합계','공제','공제후','실급여'].forEach(function(){ cols.push({wch:10}); });
   ws['!cols']=cols;
   XLSX.utils.book_append_sheet(wb, ws, '급여상세');
-  XLSX.writeFile(wb, '급여상세내역_'+ym+'.xlsx');
+  /* 원본 양식: 기사 블록 세로 병합 (NO·시급·식대·성명 + 합계·공제·공제후·실급여, 6행) */
+  var _pm=[];
+  blocks.forEach(function(b){
+    [0,1,2,3,TOT,DED,AFT,NET].forEach(function(c){ _pm.push({r1:b.r, c1:c, r2:b.r+5, c2:c}); });
+  });
+  finishExcelExport([
+    { name:'급여상세', ws:ws, st:{ titleRow:0, headerRows:[3], bodyFrom:4, bodyTo:aoa.length-1,
+        moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm } }
+  ], '급여상세내역_'+ym+'.xlsx', wb);
 }
 
 // 기사 근태 화면에서 보는 날짜 (기본: 오늘)
@@ -4725,7 +4733,10 @@ function exportPayReport(ym){
     'IF('+xlsCell(RS,2)+'=0,"","수납률 "&ROUND('+xlsCell(RS,3)+'/'+xlsCell(RS,2)+'*100,0)&"%")');
   ws['!cols']=[{wch:10},{wch:12},{wch:12},{wch:12},{wch:18},{wch:12}];
   XLSX.utils.book_append_sheet(wb, ws, '수납정산');
-  XLSX.writeFile(wb, '수납정산_'+ym+'.xlsx');
+  finishExcelExport([
+    { name:'수납정산', ws:ws, st:{ titleRow:0, headerRows:[3], bodyFrom:R0, bodyTo:RS-1,
+        sumRows:[RS], moneyCols:[2,3,5], redCols:[5], redSumCols:[5] } }
+  ], '수납정산_'+ym+'.xlsx', wb);
 }
 
 function confirmPayment(memberId){
@@ -6899,7 +6910,12 @@ function exportSettlement(ym){
   XLSX.utils.book_append_sheet(wb, ws1, '정산요약');
   ws2['!cols']=[{wch:11},{wch:16},{wch:6},{wch:11},{wch:10},{wch:11},{wch:11},{wch:11}];
   XLSX.utils.book_append_sheet(wb, ws2, '명세서목록');
-  XLSX.writeFile(wb, '월말정산_'+ym+'.xlsx');
+  finishExcelExport([
+    { name:'정산요약', ws:ws1, st:{ titleRow:0, headerRows:[3], bodyFrom:R0, bodyTo:RS-1,
+        sumRows:[RS], moneyCols:[1,2,3,4,5], redCols:[4], redSumCols:[4] } },
+    { name:'명세서목록', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:2, bodyTo:1+d.invList.length,
+        moneyCols:[3,4,5,6,7], redCols:[7] } }
+  ], '월말정산_'+ym+'.xlsx', wb);
 }
 
 // 거래명세서 인쇄 (표준 양식)
@@ -8038,6 +8054,110 @@ function xlsF(ws, r, c, v, f){
   ws[xlsCell(r,c)] = (typeof v==='number') ? {t:'n', v:v, f:f} : {t:'s', v:String(v), f:f};
 }
 
+/* ── ExcelJS 동적 로드 (내보내기 4종 서식용 — 앱 초기 로딩 영향 0) ── */
+var _excelJsLoading=null;
+function loadExcelJS(){
+  if(window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if(_excelJsLoading) return _excelJsLoading;
+  _excelJsLoading=new Promise(function(resolve, reject){
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload=function(){ if(window.ExcelJS) resolve(window.ExcelJS); else reject(new Error('ExcelJS 없음')); };
+    s.onerror=function(){ _excelJsLoading=null; reject(new Error('ExcelJS 로드 실패')); };
+    document.head.appendChild(s);
+  });
+  return _excelJsLoading;
+}
+
+/* SheetJS 시트(수식 포함)를 ExcelJS 시트로 옮기며 서식 적용.
+   st: {titleRow, headerRows[], bodyFrom, bodyTo, sumRows[], moneyCols[], redCols[], redSumCols[], merges[]} */
+function xlsStyleSheet(wbx, name, ws, st){
+  st=st||{};
+  var wsx=wbx.addWorksheet(name);
+  var range=XLSX.utils.decode_range(ws['!ref']);
+  for(var r=range.s.r; r<=range.e.r; r++){
+    for(var c=range.s.c; c<=range.e.c; c++){
+      var cell=ws[XLSX.utils.encode_cell({r:r,c:c})];
+      if(!cell || cell.v===undefined) continue;
+      var tgt=wsx.getRow(r+1).getCell(c+1);
+      if(cell.f) tgt.value={ formula:cell.f, result:(cell.t==='n'?Number(cell.v):String(cell.v)) };
+      else tgt.value=(cell.t==='n')?Number(cell.v):cell.v;
+    }
+  }
+  (ws['!cols']||[]).forEach(function(cd, ci){ if(cd && cd.wch) wsx.getColumn(ci+1).width=cd.wch+2; });
+  var thin={style:'thin', color:{argb:'FFBFBFBF'}};
+  var allB={top:thin,left:thin,right:thin,bottom:thin};
+  function eachCell(rr, fn){
+    var row=wsx.getRow(rr+1);
+    for(var c=range.s.c; c<=range.e.c; c++){ fn(row.getCell(c+1), c); }
+  }
+  function cellNum(cell){
+    var v=cell.value;
+    if(v && typeof v==='object' && v.result!==undefined) v=v.result;
+    return Number(v)||0;
+  }
+  if(st.titleRow!=null){
+    try{ wsx.mergeCells(st.titleRow+1, 1, st.titleRow+1, range.e.c+1); }catch(e){}
+    var tc=wsx.getRow(st.titleRow+1).getCell(1);
+    tc.font={bold:true, size:16};
+    tc.alignment={horizontal:'center', vertical:'middle'};
+    wsx.getRow(st.titleRow+1).height=26;
+  }
+  (st.headerRows||[]).forEach(function(hr){
+    eachCell(hr, function(cell){
+      cell.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FFF2F2F2'}};
+      cell.font={bold:true};
+      cell.alignment={horizontal:'center', vertical:'middle', wrapText:true};
+      cell.border=allB;
+    });
+  });
+  if(st.bodyFrom!=null && st.bodyTo!=null){
+    for(var br=st.bodyFrom; br<=st.bodyTo; br++){
+      eachCell(br, function(cell, c){
+        cell.border=allB;
+        if((st.moneyCols||[]).indexOf(c)>=0){ cell.numFmt='#,##0'; cell.alignment={horizontal:'right'}; }
+        if((st.redCols||[]).indexOf(c)>=0 && cellNum(cell)>0){ cell.font={color:{argb:'FFCC0000'}}; }
+      });
+    }
+  }
+  (st.sumRows||[]).forEach(function(sr){
+    eachCell(sr, function(cell, c){
+      cell.font={bold:true};
+      cell.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FFFFF9E6'}};
+      cell.border={top:{style:'double', color:{argb:'FF999999'}}, left:thin, right:thin, bottom:thin};
+      if((st.moneyCols||[]).indexOf(c)>=0){ cell.numFmt='#,##0'; cell.alignment={horizontal:'right'}; }
+      if((st.redSumCols||[]).indexOf(c)>=0){ cell.font={bold:true, color:{argb:'FFCC0000'}}; }
+    });
+  });
+  (st.merges||[]).forEach(function(m){
+    try{
+      wsx.mergeCells(m.r1+1, m.c1+1, m.r2+1, m.c2+1);
+      var mc=wsx.getRow(m.r1+1).getCell(m.c1+1);
+      mc.alignment=Object.assign({}, mc.alignment||{}, {vertical:'middle'});
+    }catch(e){}
+  });
+  return wsx;
+}
+
+/* 서식 내보내기 공용: ExcelJS 성공 → 꾸민 파일 / 실패(오프라인 등) → 기존 SheetJS 그대로 */
+function finishExcelExport(sheetDefs, fname, sheetJsWb){
+  loadExcelJS().then(function(E){
+    var wbx=new E.Workbook();
+    sheetDefs.forEach(function(sd){ xlsStyleSheet(wbx, sd.name, sd.ws, sd.st); });
+    return wbx.xlsx.writeBuffer().then(function(buf){
+      var blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url; a.download=fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} }, 1500);
+    });
+  }).catch(function(){
+    try{ XLSX.writeFile(sheetJsWb, fname); }catch(e){}
+    if(typeof showToast==='function') showToast('서식 없이 내보냈어요 (인터넷 연결 확인)');
+  });
+}
+
 /* ── 운행기록부 엑셀 내보내기 (세무 증빙용, 2시트) ──
    기존 엑셀 방식(XLSX.utils.aoa_to_sheet + writeFile) 그대로 재사용.
    값은 수식이 아닌 계산된 숫자로 넣는다.
@@ -8167,7 +8287,13 @@ function exportDriveLogbook(carId, ym){
   XLSX.utils.book_append_sheet(wb, ws1, '운행기록부');
   ws2['!cols']=[{wch:11},{wch:6},{wch:16},{wch:12},{wch:9},{wch:9},{wch:11}];
   XLSX.utils.book_append_sheet(wb, ws2, '주유지출내역');
-  XLSX.writeFile(wb, '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx');
+  finishExcelExport([
+    { name:'운행기록부', ws:ws1, st:{ titleRow:0, headerRows:[7], bodyFrom:B0, bodyTo:BE,
+        sumRows:[5, BOT], moneyCols:[3,4,5,6,7],
+        merges:[{r1:1,c1:1,r2:1,c2:2},{r1:2,c1:1,r2:2,c2:2}] } },
+    { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:F0, bodyTo:F0+nf+nr-1,
+        sumRows:[T, TR, ST], moneyCols:[3,4,5,6] } }
+  ], '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx', wb);
 }
 
 // ── 기사(운전자) 차계부 — 본인 배정 차량 고정, 조회만(수정·삭제 없음) ──
