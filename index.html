@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 170;
+const APP_VERSION = 171;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4906,6 +4906,14 @@ var taxFilter = 'all'; // monthly | records | tax
 var taxSelDate = null; // 세무 수입/지출 달력에서 선택한 날짜
 var taxCalOpen = false;
 function taxToggleCal(){ taxCalOpen = !taxCalOpen; renderTax(); }
+/* 수입/지출 월 이동 (연도 경계 자동 조정, 날짜 선택 해제) */
+function taxMoveMonth(delta){
+  taxViewMonth2 += delta;
+  if(taxViewMonth2 < 1){ taxViewMonth2 = 12; taxViewYear2--; }
+  else if(taxViewMonth2 > 12){ taxViewMonth2 = 1; taxViewYear2++; }
+  taxSelDate = null;
+  renderTax();
+}
 function taxSelectDate(d){ taxSelDate = (taxSelDate===d)?null:d; renderTax(); }
 // 세무 달력: 날짜별 수입·지출 합계 표시
 function renderTaxCalendar(y, mo, md){
@@ -5032,6 +5040,12 @@ function renderTax(){
     h += '</div></div>';
 
   } else if(taxTab==='records'){
+    // 월 이동 막대 (◀ 이전달 · 가운데 누르면 월별현황 카드로 · 다음달 ▶)
+    h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">';
+    h += '<button onclick="taxMoveMonth(-1)" style="padding:6px 14px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">◀</button>';
+    h += '<span onclick="taxTab=\'monthly\';renderTax();" title="월 카드 목록으로" style="font-size:15px;font-weight:800;color:#344054;cursor:pointer;">'+taxViewYear2+'년 '+taxViewMonth2+'월</span>';
+    h += '<button onclick="taxMoveMonth(1)" style="padding:6px 14px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">▶</button>';
+    h += '</div>';
     // 수입/지출 입력
     h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
     h += '<select onchange="taxViewYear2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
