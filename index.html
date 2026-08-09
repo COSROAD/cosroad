@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 179;
+const APP_VERSION = 180;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4769,6 +4769,13 @@ function renderLogiPayment(cont){
   cont.innerHTML = h;
 }
 
+/* 수납 도구(정산·엑셀·미납문자) 접기 — 기본 접힘, 열림 상태는 기기에 기억 */
+var payToolsOpen = (function(){ try{ return localStorage.getItem('pay_tools_open')==='1'; }catch(e){ return false; } })();
+function payToggleTools(){
+  payToolsOpen = !payToolsOpen;
+  try{ localStorage.setItem('pay_tools_open', payToolsOpen?'1':'0'); }catch(e){}
+  renderPayment();
+}
 function renderPayment(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
@@ -4811,16 +4818,30 @@ function renderPayment(){
     h += '<option value="'+mo+'"'+(mo===payViewMonth?' selected':'')+'>'+mo+'월</option>';
   }
   h += '</select></div>';
-  // 통계 카드 (연월선택과 함께 sticky)
+  h += '</div>';   // sticky 끝 — 연월 선택만 고정
+  h += '<div style="padding:0 16px 6px;">';
+  // 통계 카드
   h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:6px 0 8px;">';
   h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+cntTotal+'명</div><div style="font-size:10px;color:#7C3AED;">전체</div></div>';
   h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+cntPaid+'명</div><div style="font-size:10px;color:#12B76A;">'+W_paid+'</div></div>';
   h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+cntUnpaid+'명</div><div style="font-size:10px;color:#F04438;">'+W_unpaid+'</div></div>';
+  h += '</div>';
+  // 정산·내보내기·문자 — 접기 카드 (기본 접힘, 열림 상태는 기기에 기억)
+  h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;margin-bottom:6px;overflow:hidden;">';
+  h += '<div onclick="payToggleTools()" style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;cursor:pointer;">';
+  h += '<span style="font-size:13px;font-weight:800;color:#344054;">📊 정산 · 내보내기 · 미납 문자</span>';
+  h += '<span style="font-size:11px;font-weight:700;color:#7C3AED;">'+(payToolsOpen?'▲ 접기':'▼ 펼치기')+'</span>';
+  h += '</div>';
+  if(payToolsOpen){
+  h += '<div style="padding:0 14px 12px;">';
   h += '<button onclick="openPayReport();" style="width:100%;padding:11px;background:#0E7090;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📊 월 수납 정산</button>';
   h += '<button onclick="exportPaymentExcel();" style="width:100%;padding:11px;background:var(--success);color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📊 수납 내역 엑셀 출력</button>';
   h += '<button onclick="sendUnpaidAll();" style="width:100%;padding:11px;background:#F79009;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;">📩 전체 미납 알림 문자</button>';
-  h += '<input type="text" id="pay-member-search" placeholder="🔍 회원 검색" oninput="filterPayMember(this.value)" style="width:100%;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
-  h += '</div></div>';
+  h += '</div>';
+  }
+  h += '</div>';
+  h += '<input type="text" id="pay-member-search" placeholder="🔍 회원 검색" oninput="filterPayMember(this.value)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
+  h += '</div>';
   h += '<div style="padding:0 16px;">';
 
   // 회원별 수납 목록
@@ -5258,7 +5279,14 @@ var taxFilter = 'all'; // monthly | records | tax
 
 var taxSelDate = null; // 세무 수입/지출 달력에서 선택한 날짜
 var taxCalOpen = false;
+/* 입력 폼 접기 — 기본 접힘. 폰에서 목록이 화면 대부분을 차지하게. 열림 상태는 기기에 기억 */
+var taxInputOpen = (function(){ try{ return localStorage.getItem('tax_input_open')==='1'; }catch(e){ return false; } })();
 function taxToggleCal(){ taxCalOpen = !taxCalOpen; renderTax(); }
+function taxToggleInput(){
+  taxInputOpen = !taxInputOpen;
+  try{ localStorage.setItem('tax_input_open', taxInputOpen?'1':'0'); }catch(e){}
+  renderTax();
+}
 /* 수입/지출 월 이동 (연도 경계 자동 조정, 날짜 선택 해제) */
 function taxMoveMonth(delta){
   taxViewMonth2 += delta;
@@ -5342,13 +5370,14 @@ function renderTax(){
 
   var h = '<div style="padding:0;">';
 
-  // 탭 + 입력 영역 sticky 시작
+  // 탭 바만 고정 (요약·입력은 아래로 흘려보내 폰에서 목록 공간 확보)
   h += '<div style="position:sticky;top:0;z-index:97;background:var(--gray-100);">';
   h += '<div style="display:flex;border-bottom:1px solid #EAECF0;background:white;">';
   h += '<button onclick=\"taxTab=\'monthly\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='monthly'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='monthly'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='monthly'?'var(--admin)':'transparent')+';">📅 월별현황</button>';
   h += '<button onclick=\"taxTab=\'records\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='records'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='records'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='records'?'var(--admin)':'transparent')+';">📋 수입/지출</button>';
   h += '<button onclick=\"taxTab=\'tax\';renderTax();\" style="flex:1;padding:11px;font-size:12px;font-weight:'+(taxTab==='tax'?'700':'500')+';border:none;background:none;cursor:pointer;color:'+(taxTab==='tax'?'var(--admin)':'#475467')+';border-bottom:2px solid '+(taxTab==='tax'?'var(--admin)':'transparent')+';">🧾 세금계산</button>';
   h += '</div>';
+  h += '</div>';   // sticky 끝 — 여기부터는 일반 흐름
   h += '<div style="padding:12px 16px 0;">';
 
   if(taxTab==='monthly'){
@@ -5393,29 +5422,25 @@ function renderTax(){
     h += '</div></div>';
 
   } else if(taxTab==='records'){
-    // 월 이동 막대 (◀ 이전달 · 가운데 누르면 월별현황 카드로 · 다음달 ▶)
+    /* 월 이동 막대 하나로 통합 — 월 표기는 이 한 곳뿐.
+       ◀ 라벨 ▶ 옆에 「📅 달력」 토글까지 함께 두고, 달력 본체는 날짜 격자만 그린다.
+       (가운데 라벨을 누르면 월별현황 카드로 — 기존 동작 유지) */
     h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">';
     h += navArrowBtn('taxMoveMonth(-1)','◀');
     h += '<span onclick="taxTab=\'monthly\';renderTax();" title="월 카드 목록으로" style="font-size:15px;font-weight:800;color:#344054;cursor:pointer;">'+taxViewYear2+'년 '+taxViewMonth2+'월</span>';
     h += navArrowBtn('taxMoveMonth(1)','▶');
+    h += '<button onclick="taxToggleCal()" style="min-height:40px;padding:6px 12px;background:'+(taxCalOpen?'#F3EEFF':'white')+';border:1.5px solid '+(taxCalOpen?'#7C3AED':'#D0D5DD')+';border-radius:10px;font-size:12px;font-weight:700;color:'+(taxCalOpen?'#7C3AED':'#344054')+';cursor:pointer;flex-shrink:0;white-space:nowrap;">📅 달력 '+(taxCalOpen?'▲':'▼')+'</button>';
     h += '</div>';
-    // 수입/지출 입력
-    h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
-    h += '<select onchange="taxViewYear2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
-    for(var y2=now.getFullYear()-1;y2<=now.getFullYear();y2++){
-      h += '<option value="'+y2+'"'+(y2===taxViewYear2?' selected':'')+'>'+y2+'년</option>';
-    }
-    h += '</select>';
-    h += '<select onchange="taxViewMonth2=parseInt(this.value);renderTax();" style="flex:1;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;">';
-    for(var mo3=1;mo3<=12;mo3++){
-      h += '<option value="'+mo3+'"'+(mo3===taxViewMonth2?' selected':'')+'>'+mo3+'월</option>';
-    }
-    h += '</select></div>';
 
     var key3 = taxViewYear2+'_'+String(taxViewMonth2).padStart(2,'0');
     var md2 = data[key3]||{income:[],expense:[]};
     var inc2 = md2.income.reduce(function(s,r){return s+r.amount;},0);
     var exp2 = md2.expense.reduce(function(s,r){return s+r.amount;},0);
+
+    // 달력 본체 — 월 표기 없이 날짜 격자만 (월은 위 이동 막대에서 확인)
+    if(taxCalOpen){
+      h += '<div style="margin-bottom:10px;">'+renderTaxCalendar(taxViewYear2, taxViewMonth2, md2)+'</div>';
+    }
 
     // 요약
     h += '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:8px;margin-bottom:12px;">';
@@ -5424,9 +5449,14 @@ function renderTax(){
     h += '<div style="background:#F3EEFF;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:14px;font-weight:800;color:#7C3AED;">'+(inc2-exp2).toLocaleString()+'</div><div style="font-size:10px;color:#7C3AED;">순이익</div></div>';
     h += '</div>';
 
-    // 수입/지출 통합 입력
-    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-    h += '<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">➕ 내역 추가</div>';
+    // 수입/지출 통합 입력 — 접기 카드 (기본 접힘, 열림 상태는 기기에 기억)
+    h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;margin-bottom:10px;overflow:hidden;">';
+    h += '<div onclick="taxToggleInput()" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;">';
+    h += '<span style="font-size:13px;font-weight:800;color:#344054;">＋ 수입/지출 입력</span>';
+    h += '<span style="font-size:11px;font-weight:700;color:#7C3AED;">'+(taxInputOpen?'▲ 접기':'▼ 펼치기')+'</span>';
+    h += '</div>';
+    if(taxInputOpen){
+    h += '<div style="padding:0 14px 14px;">';
     h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">';
     h += '<select id="tax-type-select" onchange="updateTaxInputStyle()" style="flex:0 0 72px;padding:8px 4px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;font-weight:700;text-align:center;">';
     h += '<option value="income" style="color:#12B76A;">수입</option>';
@@ -5440,20 +5470,12 @@ function renderTax(){
     h += '<select id="tax-method" style="flex:1;padding:8px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;"><option>현금</option><option>카드</option><option>계좌이체</option></select>';
     h += '<button id="tax-add-btn" onclick="addTaxRecordUnified()" style="padding:8px 18px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">추가</button>';
     h += '</div>';
-    h += '<div style="font-size:10px;color:#7C3AED;margin-top:6px;">'+(taxSelDate?('📅 '+taxSelDate+'로 기록돼요'):'📅 달력에서 날짜를 고르면 그날로 기록돼요 (안 고르면 오늘)')+'</div>';
-    h += '</div></div></div>';
-
-    // 달력 (토글 막대 + 펼침)
-    var _taxBarLabel = taxSelDate ? (taxSelDate+' 선택됨') : '날짜 선택';
-    h += '<button onclick="syncInvoicesToTax()" style="width:100%;padding:10px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔄 거래내역 세무 동기화 (누락분 채우기)</button>';
-    h += '<div onclick="taxToggleCal()" style="display:flex;justify-content:space-between;align-items:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px 14px;cursor:pointer;margin-bottom:10px;">';
-    h += '<span style="font-size:13px;font-weight:700;color:#344054;">📅 '+_taxBarLabel+'</span>';
-    h += '<span style="font-size:12px;color:#98A2B3;">'+(taxCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
+    h += '<div style="font-size:10px;color:#7C3AED;margin-top:6px;">'+(taxSelDate?('📅 '+taxSelDate+'로 기록돼요'):'📅 위 「📅 달력」에서 날짜를 고르면 그날로 기록돼요 (안 고르면 오늘)')+'</div>';
     h += '</div>';
-    if(taxCalOpen){
-      h += '<div style="margin-bottom:10px;">'+renderTaxCalendar(taxViewYear2, taxViewMonth2, md2)+'</div>';
-      h += '<div onclick="taxToggleCal()" style="text-align:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:9px;cursor:pointer;margin-bottom:10px;font-size:12px;font-weight:700;color:#7C3AED;">▲ 달력 접기</div>';
     }
+    h += '</div>';
+
+    h += '<button onclick="syncInvoicesToTax()" style="width:100%;padding:10px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔄 거래내역 세무 동기화 (누락분 채우기)</button>';
 
     // 내역 목록
     h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
@@ -6276,7 +6298,14 @@ function moveInvoiceDate(delta){
 }
 function setInvoiceDate(v){ if(v){ invoiceDate=v; renderInvoice(); } }
 var invEditId = null; // 수정 중인 거래명세서 id (null이면 신규 작성)
-var invHeadCollapsed = false; // 거래명세서 상단 고정 헤더 접힘 여부 (폰 입력 공간 확보용)
+/* 거래명세서 상단 고정 헤더 접힘 여부 (폰 입력 공간 확보용)
+   기본은 펼침(작성이 이 화면의 주목적) — 접은 상태는 기기에 기억해 다시 안 접게 한다 */
+var invHeadCollapsed = (function(){ try{ return localStorage.getItem('inv_head_collapsed')==='1'; }catch(e){ return false; } })();
+function invToggleHead(){
+  invHeadCollapsed = !invHeadCollapsed;
+  try{ localStorage.setItem('inv_head_collapsed', invHeadCollapsed?'1':'0'); }catch(e){}
+  renderInvoice();
+}
 // 거래명세서 저장목록 달력
 var invListCalOpen = false;
 var invListSelDate = null;
@@ -6342,7 +6371,7 @@ function renderInvoice(){
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
   var _selM = members.find(function(m){return String(m.id)===String(invoiceSelMember);});
   var _kindTxt = invoiceKind==='purchase'?'매입':'매출';
-  h += '<div onclick="invHeadCollapsed=!invHeadCollapsed;renderInvoice();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;'+(invHeadCollapsed?'':'margin-bottom:10px;')+'">';
+  h += '<div onclick="invToggleHead()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;'+(invHeadCollapsed?'':'margin-bottom:10px;')+'">';
   if(invHeadCollapsed){
     h += '<div style="font-size:12px;font-weight:800;color:#1D2939;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🧾 '+invoiceDate+' · '+(_selM?escapeMasterHtml(_selM.name):'거래처 미선택')+' · '+_kindTxt+'</div>';
     h += '<span style="font-size:11px;color:#7C3AED;font-weight:700;flex-shrink:0;margin-left:8px;">▼ 펼치기</span>';
