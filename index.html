@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 185;
+const APP_VERSION = 186;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -632,11 +632,11 @@ let orgSettings=loadOrgSettings();
 // ── 업종별 용어 사전 ──
 // 업종 코드: academy(학원,기본) / logistics(물류) / public(공공) / delivery(택배)
 var BIZ_TERMS = {
-  academy:   { 회원:'회원', 출석:'출석', 출결:'출결', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장' },
-  logistics: { 회원:'거래처', 출석:'납품완료', 출결:'납품', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지' },
-  public:    { 회원:'이용자', 출석:'출석', 출결:'출결', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장' },
+  academy:   { 회원:'회원', 출석:'출석', 결석:'결석', 출결:'출결', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장' },
+  logistics: { 회원:'거래처', 출석:'납품완료', 결석:'미납품', 출결:'납품', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지' },
+  public:    { 회원:'이용자', 출석:'출석', 결석:'결석', 출결:'출결', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장' },
   /* 택배는 알림장 탭 자체가 숨김(getOrderedAdminTabs) — 표 모양만 맞춰 fallback과 같은 값 */
-  delivery:  { 회원:'배송지', 출석:'배송완료', 출결:'배송', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장' }
+  delivery:  { 회원:'배송지', 출석:'배송완료', 결석:'미배송', 출결:'배송', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장' }
 };
 var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
 
@@ -1501,8 +1501,8 @@ function copyMasterUrl(orgId){
 var HELP_QA=[
   {role:'admin', keys:['회원','거래처','등록','추가'], t:'회원/거래처 등록',
    a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
-  {role:'admin', keys:['엑셀','업로드','일괄','양식'], t:'엑셀 일괄 업로드',
-   a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록'},
+  {role:'admin', keys:['엑셀','업로드','일괄','양식','다운','내려받기'], t:'엑셀 일괄 업로드·데이터 다운',
+   a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록\n5. 「⬇ 데이터 다운」은 지금 «회원» 목록을 샘플 양식과 같은 칸으로 내려받아요 — 고쳐서 그대로 다시 업로드할 수 있어요'},
   {role:'admin', keys:['주소','검색','좌표','위치'], t:'주소 검색 요령',
    a:'1. 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동)\n2. 기관에서 가까운 곳이 먼저 나와요\n3. 카카오 지도에 없는 곳은 네이버 결과로 보조 검색돼요'},
   {role:'all', keys:['최적화','코스','경로','순서'], t:'코스 최적화',
@@ -4007,7 +4007,9 @@ function saveMember(){
   if(!locLat||!locLon){showToast('⚠ 주소 위치가 확인되지 않았어요 — 주소 옆 「검색」을 눌러 결과를 선택해 주세요');return;}
   if(dropLocationIn&&(!dropLatIn||!dropLonIn)){showToast('⚠ 하차 장소 위치가 확인되지 않았어요 — 「검색」으로 결과를 선택해 주세요');return;}
   const days=DAYS.filter(d=>document.getElementById('d-'+dayIdMap[d]).checked);
-  if(days.length===0){showToast('⚠ '+(biz==='logistics'?'배송':'등원')+' 요일을 선택해주세요');return;}
+  /* 요일 라벨과 같은 단어로 (물류·택배=배송 요일, 공공=이용 요일, 학원=등원 요일 — openMemberModal의 lbl-days와 일치) */
+  var _dayWord=(biz==='logistics'||biz==='delivery')?'배송':(biz==='public'?'이용':'등원');
+  if(days.length===0){showToast('⚠ '+_dayWord+' 요일을 선택해주세요');return;}
   const editId=document.getElementById('edit-id').value;
   const pinEl=document.getElementById('m-pin');
   const regEl=document.getElementById('m-regfee');
@@ -4154,18 +4156,18 @@ function renderAttendance(){
 
   // 통계
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">';
-  h+='<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#12B76A;">'+pc+'</div><div style="font-size:10px;color:#12B76A;">출석</div></div>';
-  h+='<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#F04438;">'+ac+'</div><div style="font-size:10px;color:#F04438;">결석</div></div>';
+  h+='<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#12B76A;">'+pc+'</div><div style="font-size:10px;color:#12B76A;">'+T('출석')+'</div></div>';
+  h+='<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#F04438;">'+ac+'</div><div style="font-size:10px;color:#F04438;">'+T('결석')+'</div></div>';
   h+='<div style="background:#F2F4F7;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#98A2B3;">'+uc+'</div><div style="font-size:10px;color:#98A2B3;">미처리</div></div>';
   h+='</div>';
 
   // 학부모 알림
-  h+='<button onclick="toggleAttSummary()" id="att-summary-btn" style="width:100%;padding:11px;background:#7C3AED;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📊 출결 현황 보기</button>';
+  h+='<button onclick="toggleAttSummary()" id="att-summary-btn" style="width:100%;padding:11px;background:#7C3AED;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📊 '+T('출결')+' 현황 보기</button>';
   h+='<div id="att-summary-panel" style="display:none;"></div>';
 
   // 회원 목록
   if(dm.length===0){
-    h+='<div style="text-align:center;padding:36px;color:#98A2B3;font-size:13px;">해당 날짜에 등원 예정 원생이 없습니다.</div>';
+    h+='<div style="text-align:center;padding:36px;color:#98A2B3;font-size:13px;">해당 날짜에 예정된 '+T('회원')+조사(T('회원'),'이','가')+' 없습니다.</div>';
   }else{
     h+='<div style="display:flex;flex-direction:column;gap:8px;">';
     for(var mi=0;mi<dm.length;mi++){
@@ -4181,8 +4183,8 @@ function renderAttendance(){
       h+='<div style="flex:1;"><div style="font-size:14px;font-weight:700;">'+m.name+'</div>';
       h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?cr.name:'')+(m.phone?' · '+m.phone:'')+(m.pin?' · PIN:'+m.pin:'')+'</div></div>';
       h+='<div style="display:flex;gap:6px;">';
-      h+='<button onclick="setAttendance('+m.id+',\'present\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='present'?'#12B76A':'#F2F4F7')+';color:'+(st==='present'?'white':'#475467')+';">✅ 출석</button>';
-      h+='<button onclick="setAttendance('+m.id+',\'absent\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='absent'?'#F04438':'#F2F4F7')+';color:'+(st==='absent'?'white':'#475467')+';">❌ 결석</button>';
+      h+='<button onclick="setAttendance('+m.id+',\'present\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='present'?'#12B76A':'#F2F4F7')+';color:'+(st==='present'?'white':'#475467')+';">✅ '+T('출석')+'</button>';
+      h+='<button onclick="setAttendance('+m.id+',\'absent\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='absent'?'#F04438':'#F2F4F7')+';color:'+(st==='absent'?'white':'#475467')+';">❌ '+T('결석')+'</button>';
       h+='</div></div>';
       if(m.note)h+='<div style="font-size:11px;color:#F79009;margin-top:6px;padding-left:52px;">※ '+m.note+'</div>';
       h+='</div>';
@@ -4195,7 +4197,7 @@ function renderAttendance(){
   var fd=new Date(cy,cm,1).getDay(),ld=new Date(cy,cm+1,0).getDate();
   var dns=['일','월','화','수','목','금','토'];
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-top:10px;">';
-  h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:10px;">📅 이번 달 출결 현황</div>';
+  h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:10px;">📅 이번 달 '+T('출결')+' 현황</div>';
   h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">';
   for(var di=0;di<7;di++)h+='<div style="font-size:10px;font-weight:700;color:#98A2B3;padding:3px 0;">'+dns[di]+'</div>';
   for(var fi=0;fi<fd;fi++)h+='<div></div>';
@@ -4965,7 +4967,8 @@ function togglePayment(memberId){
           var taxKey2 = parts[1]+'_'+parts[2];
           if(taxData2[taxKey2] && taxData2[taxKey2].income){
             taxData2[taxKey2].income = taxData2[taxKey2].income.filter(function(r){
-              return r.name.indexOf(m2.name+' '+T('수강료')) < 0;
+              // 업종 용어 표기 + 예전 '수강료' 표기 둘 다 지움 (selectPayMethod의 이중 처리와 짝)
+              return r.name.indexOf(m2.name+' '+T('수강료')) < 0 && r.name.indexOf(m2.name+' 수강료') < 0;
             });
             saveTaxData(taxData2);
           }
@@ -5494,7 +5497,8 @@ function renderTax(){
     h += '<option value="expense" style="color:#F04438;">지출</option>';
     h += '</select>';
     h += '<input list="tax-category-list" id="tax-name" placeholder="항목명" style="flex:1 1 120px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
-    h += '<datalist id="tax-category-list"><option>수강료</option><option>등록비</option><option>기타수입</option><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
+    /* 항목 추천 — 수입 첫 항목은 업종 용어(학원 수강료 / 물류 운임 / 공공 이용료), '등록비'는 학원만 */
+    h += '<datalist id="tax-category-list"><option>'+T('수강료')+'</option>'+(getBizType()==='academy'?'<option>등록비</option>':'')+'<option>기타수입</option><option>임대료</option><option>인건비</option><option>재료비</option><option>관리비</option><option>기타지출</option></datalist>';
     h += '<input type="text" inputmode="numeric" id="tax-amount" placeholder="금액" oninput="fmtAmountInput(this)" style="flex:1 1 90px;min-width:0;padding:8px 10px;border:1.5px solid #EAECF0;border-radius:8px;font-size:12px;outline:none;"/>';
     h += '</div>';
     h += '<div style="display:flex;gap:6px;">';
@@ -5575,7 +5579,8 @@ function renderTax(){
     h += '<div style="font-size:14px;font-weight:800;color:#7C3AED;margin-top:4px;">부가세: '+half2Vat.toLocaleString()+'원</div>';
     h += '<div style="font-size:10px;color:#98A2B3;margin-top:4px;">신고기간: 다음해 1월 25일</div>';
     h += '</div></div>';
-    h += '<div style="margin-top:12px;padding:10px;background:#FFFAEB;border-radius:8px;font-size:11px;color:#92400E;">⚠ 체육시설 수강료는 부가세 면세 대상일 수 있습니다. 정확한 세무처리는 세무사와 상담하세요.</div>';
+    /* 체육시설 면세 안내는 학원에만 해당 (물류·공공에서는 숨김) */
+    if(getBizType()==='academy') h += '<div style="margin-top:12px;padding:10px;background:#FFFAEB;border-radius:8px;font-size:11px;color:#92400E;">⚠ 체육시설 수강료는 부가세 면세 대상일 수 있습니다. 정확한 세무처리는 세무사와 상담하세요.</div>';
     h += '</div>';
 
     // 물류: 거래처별 세금계산서 발행 (홈택스 링크 + 정보 복사)
@@ -5625,7 +5630,7 @@ function renderTax(){
     h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">세무신고·기장·컨설팅 전문 eltax.co.kr</div></div>';
     h += '<div style="margin-left:auto;font-size:12px;color:#7C3AED;font-weight:700;">바로가기 →</div>';
     h += '</a>';
-    h += '<div style="font-size:10px;color:#98A2B3;margin-top:8px;text-align:center;">체육시설 수강료 세무처리는 전문가와 상담하세요.</div>';
+    if(getBizType()==='academy') h += '<div style="font-size:10px;color:#98A2B3;margin-top:8px;text-align:center;">체육시설 수강료 세무처리는 전문가와 상담하세요.</div>';
     h += '</div>';
     h += '</div>';
   }
@@ -5661,7 +5666,7 @@ function updateTaxInputStyle(){
   btn.style.background = isIncome ? '#12B76A' : '#F04438';
   sel.style.color = isIncome ? '#12B76A' : '#F04438';
   sel.style.borderColor = isIncome ? '#12B76A' : '#F04438';
-  nameEl.placeholder = isIncome ? '항목명 (수강료, 등록비...)' : '항목명 (임대료, 인건비...)';
+  nameEl.placeholder = isIncome ? ('항목명 ('+T('수강료')+', 기타수입...)') : '항목명 (임대료, 인건비...)';
 }
 
 function addTaxRecordUnified(){
@@ -8879,14 +8884,14 @@ function toggleAttSummary(){
   var panel=document.getElementById('att-summary-panel');
   var btn=document.getElementById('att-summary-btn');
   if(!panel) return;
-  if(attSummaryOpen){ if(btn) btn.textContent='📊 출결 현황 닫기'; panel.style.display='block'; var summaryHtml=renderAttSummary(); panel.innerHTML=summaryHtml; }
-  else { if(btn) btn.textContent='📊 출결 현황 보기'; panel.style.display='none'; }
+  if(attSummaryOpen){ if(btn) btn.textContent='📊 '+T('출결')+' 현황 닫기'; panel.style.display='block'; var summaryHtml=renderAttSummary(); panel.innerHTML=summaryHtml; }
+  else { if(btn) btn.textContent='📊 '+T('출결')+' 현황 보기'; panel.style.display='none'; }
 }
 function renderAttSummary(){
   var data=loadAttendance(); var now=new Date(); var year=now.getFullYear(); var month=now.getMonth()+1;
   var daysInMonth=new Date(year,month,0).getDate(); var h='';
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📊 '+month+'월 출결 통계</div>';
+  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📊 '+month+'월 '+T('출결')+' 통계</div>';
   var totalPresent=0,totalAbsent=0,totalDays=0;
   members.forEach(function(m){
     for(var d=1;d<=daysInMonth;d++){
@@ -8899,15 +8904,15 @@ function renderAttSummary(){
   });
   var pct=totalDays?Math.round(totalPresent/totalDays*100):0;
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
-  h+='<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#12B76A;">'+totalPresent+'</div><div style="font-size:10px;color:#12B76A;">총 출석</div></div>';
-  h+='<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#F04438;">'+totalAbsent+'</div><div style="font-size:10px;color:#F04438;">총 결석</div></div>';
-  h+='<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#7C3AED;">'+pct+'%</div><div style="font-size:10px;color:#7C3AED;">출석률</div></div>';
+  h+='<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#12B76A;">'+totalPresent+'</div><div style="font-size:10px;color:#12B76A;">총 '+T('출석')+'</div></div>';
+  h+='<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#F04438;">'+totalAbsent+'</div><div style="font-size:10px;color:#F04438;">총 '+T('결석')+'</div></div>';
+  h+='<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#7C3AED;">'+pct+'%</div><div style="font-size:10px;color:#7C3AED;">'+T('출석')+'률</div></div>';
   h+='</div></div>';
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:8px;">📋 출결 엑셀 다운로드</div>';
-  h+='<button onclick="exportAttendanceExcel();" style="width:100%;padding:11px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📋 이번 달 출결 다운로드</button></div>';
+  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:8px;">📋 '+T('출결')+' 엑셀 다운로드</div>';
+  h+='<button onclick="exportAttendanceExcel();" style="width:100%;padding:11px;background:#12B76A;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📋 이번 달 '+T('출결')+' 다운로드</button></div>';
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📅 연속 결석 원생 (3일 이상)</div>';
+  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">📅 연속 '+T('결석')+' '+T('회원')+' (3일 이상)</div>';
   var absentMembers=[];
   members.forEach(function(m){
     var count=0;
@@ -8920,17 +8925,19 @@ function renderAttSummary(){
     }
     if(count>=3) absentMembers.push({m:m,count:count});
   });
-  if(absentMembers.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">🎉 연속 결석 원생이 없습니다!</div>';
+  if(absentMembers.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">🎉 연속 '+T('결석')+' '+T('회원')+조사(T('회원'),'이','가')+' 없습니다!</div>';
   else absentMembers.forEach(function(item){
     h+='<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#FEF3F2;border-radius:8px;margin-bottom:6px;">';
     h+='<span style="font-size:20px;">⚠️</span><div style="flex:1;"><div style="font-size:13px;font-weight:700;">'+item.m.name+'</div>';
-    h+='<div style="font-size:11px;color:#F04438;">'+item.count+'일 연속 결석</div></div>';
+    h+='<div style="font-size:11px;color:#F04438;">'+item.count+'일 연속 '+T('결석')+'</div></div>';
     if(item.m.phone) h+='<a href="tel:'+item.m.phone+'" style="padding:5px 10px;background:#F04438;color:white;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;">📞 연락</a>';
     h+='</div>';
   });
   h+='</div>';
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
-  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🏆 이달 출석 우수자</div>';
+  /* 물류·택배는 '개근/우수자' 개념이 없어 '빠짐없이 납품완료(배송완료)된 거래처(배송지)'로 바꿔 표기 */
+  var _isLogiAtt=(getBizType()==='logistics'||getBizType()==='delivery');
+  h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🏆 이달 '+(_isLogiAtt?('빠짐없이 '+T('출석')+'된 '+T('회원')):'출석 우수자')+'</div>';
   var perfect=[];
   members.forEach(function(m){
     var scheduled=0,attended=0;
@@ -8942,7 +8949,7 @@ function renderAttSummary(){
     }
     if(scheduled>0&&attended===scheduled) perfect.push(m);
   });
-  if(perfect.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">아직 개근 원생이 없습니다.</div>';
+  if(perfect.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">'+(_isLogiAtt?('아직 빠짐없이 '+T('출석')+'된 '+T('회원')+조사(T('회원'),'이','가')+' 없습니다.'):'아직 개근 원생이 없습니다.')+'</div>';
   else { h+='<div style="display:flex;flex-wrap:wrap;gap:6px;">';
     perfect.forEach(function(m){ h+='<div style="padding:6px 12px;background:#FFFAEB;border:1px solid #FDE68A;border-radius:20px;font-size:12px;font-weight:700;color:#92400E;">🏆 '+m.name+'</div>'; });
     h+='</div>'; }
@@ -8955,7 +8962,7 @@ function exportAttendanceExcel(){
   var data=loadAttendance(); var now=new Date(); var year=now.getFullYear(); var month=now.getMonth()+1;
   var daysInMonth=new Date(year,month,0).getDate();
   var headers=['이름','코스']; for(var d=1;d<=daysInMonth;d++) headers.push(d+'일');
-  headers.push('출석','결석','출석률');
+  headers.push(T('출석'),T('결석'),T('출석')+'률');
   var rows=[headers];
   members.forEach(function(m){
     var course=courses.find(function(c){return c.id===m.courseId;});
@@ -8971,23 +8978,48 @@ function exportAttendanceExcel(){
     rows.push(row);
   });
   var wb=XLSX.utils.book_new(); var ws=XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb,ws,month+'월 출결');
-  XLSX.writeFile(wb,year+'년_'+month+'월_출결현황.xlsx');
+  XLSX.utils.book_append_sheet(wb,ws,month+'월 '+T('출결'));
+  XLSX.writeFile(wb,year+'년_'+month+'월_'+T('출결')+'현황.xlsx');
 }
 
+/* 데이터 다운 — 샘플 양식(downloadSampleExcel)과 같은 방식으로 업종별 분기.
+   헤더 순서·필드는 샘플 양식 / saveMember 저장 객체와 1:1로 맞춘다 (다시 올려서 등록되게).
+   주소는 4업종 모두 fullLoc(m) — 기본주소+상세주소 */
 function downloadMembersExcel(){
   var XLSX=window.XLSX; if(!XLSX){alert('잠시 후 다시 시도해주세요.');return;}
-  var rows=[['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항']];
-  members.forEach(function(m){
-    var course=courses.find(function(c){return c.id===m.courseId;});
-    var car=cars.find(function(c){return c.id===m.carId;});
-    rows.push([m.name,course?course.name:'',car?car.name:'',m.location,m.phone||'',m.phone2||'',(m.days||[]).join(','),m.regfee||0,m.monthly||0,m.pin||'',m.note||'']);
-  });
+  var biz=getBizType();
+  var rows,cols,sheetName,fileWord;
+  var carName=function(m){ var c=cars.find(function(x){return x.id===m.carId;}); return c?c.name:''; };
+  if(biz==='logistics'){
+    rows=[['거래처명','배정차량','거래처주소','거래처전화','배송요일','사업자등록번호','대표자','업태','종목','계산서이메일','특이사항']];
+    members.forEach(function(m){
+      rows.push([m.name,carName(m),fullLoc(m),m.phone||'',(m.days||[]).join(','),m.bizNo||'',m.ceo||'',m.bizCat||'',m.bizItem||'',m.bizEmail||'',m.note||'']);
+    });
+    cols=[{wch:16},{wch:8},{wch:24},{wch:14},{wch:12},{wch:16},{wch:10},{wch:10},{wch:10},{wch:20},{wch:20}];
+    sheetName='거래처명단'; fileWord='거래처명단';
+  } else if(biz==='delivery'){
+    /* 택배사는 코드로 저장돼 있어 이름으로 되돌려 내보냄 (buildAlimtalkMessage의 courierNames와 같은 표) */
+    var courierNames={'04':'CJ대한통운','05':'한진택배','08':'롯데택배','01':'우체국택배','06':'로젠택배'};
+    rows=[['배정차량','주문번호','받는분','받는분연락처','배송지주소','배송요일','택배사','송장번호','보내는사람','보내는전화','배송메세지']];
+    members.forEach(function(m){
+      rows.push([carName(m),m.ordNo||'',m.name,m.phone||'',fullLoc(m),(m.days||[]).join(','),courierNames[m.courier]||'',m.invoice||'',m.sender||'',m.senderPhone||'',m.note||'']);
+    });
+    cols=[{wch:8},{wch:12},{wch:12},{wch:16},{wch:24},{wch:12},{wch:12},{wch:14},{wch:12},{wch:14},{wch:20}];
+    sheetName='배송지명단'; fileWord='배송지명단';
+  } else {
+    rows=[['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항']];
+    members.forEach(function(m){
+      var course=courses.find(function(c){return c.id===m.courseId;});
+      rows.push([m.name,course?course.name:'',carName(m),fullLoc(m),m.phone||'',m.phone2||'',(m.days||[]).join(','),m.regfee||0,m.monthly||0,m.pin||'',m.note||'']);
+    });
+    cols=[{wch:12},{wch:12},{wch:8},{wch:20},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:8},{wch:20}];
+    sheetName=T('회원')+'명단'; fileWord=T('회원')+'명단';
+  }
   var wb=XLSX.utils.book_new(); var ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:12},{wch:12},{wch:8},{wch:20},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:8},{wch:20}];
-  XLSX.utils.book_append_sheet(wb,ws,'원생명단');
+  ws['!cols']=cols;
+  XLSX.utils.book_append_sheet(wb,ws,sheetName);
   var today=new Date();
-  XLSX.writeFile(wb,today.getFullYear()+'년'+(today.getMonth()+1)+'월'+today.getDate()+'일_원생명단.xlsx');
+  XLSX.writeFile(wb,today.getFullYear()+'년'+(today.getMonth()+1)+'월'+today.getDate()+'일_'+fileWord+'.xlsx');
 }
 
 var dashDetailType='';
@@ -8997,6 +9029,11 @@ function showDashDetail(type){
   if(dashDetailType===type&&panel.style.display!=='none'){panel.style.display='none';dashDetailType='';return;}
   dashDetailType=type; panel.style.display='block';
   var todayAll=members.filter(function(m){return m.days.includes(currentDay);});
+  /* 대시보드 상단 카드(renderDashboard)의 _onWord와 같은 단어를 써야 화면이 따로 놀지 않음 */
+  var _ddBiz=getBizType();
+  var _ddLogi=(_ddBiz==='logistics'||_ddBiz==='delivery');
+  var _ddOnWord=_ddLogi?(_ddBiz==='delivery'?'배송완료':'납품완료'):'탑승';
+  var _ddOffWord=_ddLogi?T('결석'):'미탑승';
   var h='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
   if(type==='all'){
     h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">👥 전체 '+T('회원')+' ('+members.length+TUnit()+')</div>';
@@ -9012,31 +9049,31 @@ function showDashDetail(type){
     });
   } else if(type==='today'){
     var todayOn=todayAll.filter(function(m){return m.on;}); var todayOff=todayAll.filter(function(m){return !m.on;});
-    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 오늘('+currentDay+') 탑승 현황</div>';
-    h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ 탑승 ('+todayOn.length+'명)</div>';
+    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 오늘('+currentDay+') '+_ddOnWord+' 현황</div>';
+    h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ '+_ddOnWord+' ('+todayOn.length+TUnit()+')</div>';
     todayOn.forEach(function(m){
       var car=cars.find(function(c){return c.id===m.carId;});
       h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#027A48;">'+(car?car.name:'')+'</span></div>';
     });
     if(todayOff.length>0){
-      h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:10px 0 6px;">❌ 미탑승 ('+todayOff.length+'명)</div>';
+      h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:10px 0 6px;">❌ '+_ddOffWord+' ('+todayOff.length+TUnit()+')</div>';
       todayOff.forEach(function(m){ h+='<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+m.name+'</div>'; });
     }
   } else {
     var car=cars.find(function(c){return c.id===type;});
     if(!car){h+='차량 정보 없음';h+='</div>';panel.innerHTML=h;return;}
     var carOn=todayAll.filter(function(m){return m.carId===type&&m.on;}); var carOff=todayAll.filter(function(m){return m.carId===type&&!m.on;});
-    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 '+car.name+' 오늘 탑승 현황</div>';
+    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 '+car.name+' 오늘 '+_ddOnWord+' 현황</div>';
     if(car.driver) h+='<div style="font-size:11px;color:#475467;margin-bottom:8px;">기사: '+car.driver+(car.phone?' · '+car.phone:'')+'</div>';
-    h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ 탑승 ('+carOn.length+'명)</div>';
+    h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ '+_ddOnWord+' ('+carOn.length+TUnit()+')</div>';
     carOn.forEach(function(m){
       h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#027A48;">'+fullLoc(m)+'</span></div>';
     });
     if(carOff.length>0){
-      h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:8px 0 6px;">❌ 미탑승 ('+carOff.length+'명)</div>';
+      h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:8px 0 6px;">❌ '+_ddOffWord+' ('+carOff.length+TUnit()+')</div>';
       carOff.forEach(function(m){ h+='<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+m.name+'</div>'; });
     }
-    if(carOn.length===0&&carOff.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">오늘 배정된 원생이 없습니다.</div>';
+    if(carOn.length===0&&carOff.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">오늘 배정된 '+T('회원')+조사(T('회원'),'이','가')+' 없습니다.</div>';
   }
   h+='</div>';
   panel.innerHTML=h;
@@ -9877,16 +9914,18 @@ function selectPayMethod(method){
   var m = members.find(function(x){return x.id===parseInt(memberId);});
   if(m){
     var amount = m.monthly || 0;
+    var feeWord = T('수강료');
     // 기존 중복 기록 제거 후 새로 저장
+    // 예전에 저장된 '수강료' 표기와 업종 용어 표기를 둘 다 지워야 중복이 안 쌓임 (revertPaymentFromTax와 같은 이중 처리)
     var taxData = loadTaxData();
     var taxKey = payViewYear+'_'+String(payViewMonth).padStart(2,'0');
     if(taxData[taxKey] && taxData[taxKey].income){
       taxData[taxKey].income = taxData[taxKey].income.filter(function(r){
-        return r.name.indexOf(m.name+' 수강료') < 0;
+        return r.name.indexOf(m.name+' '+feeWord) < 0 && r.name.indexOf(m.name+' 수강료') < 0;
       });
     }
     if(!taxData[taxKey]) taxData[taxKey] = {income:[],expense:[]};
-    taxData[taxKey].income.push({name:m.name+' 수강료('+method+')',amount:amount,category:'수강료',date:new Date().toISOString().slice(0,10),taxType:'과세'});
+    taxData[taxKey].income.push({name:m.name+' '+feeWord+'('+method+')',amount:amount,category:feeWord,date:new Date().toISOString().slice(0,10),taxType:'과세'});
     saveTaxData(taxData);
   }
   showToast('✅ '+method+' 납부 처리됐어요!');
@@ -9900,6 +9939,7 @@ function syncTaxPaymentMethods(){
   var payData = loadPayments();
   var taxData = loadTaxData();
   var updated = 0;
+  var feeWord = T('수강료');
 
   members.forEach(function(m){
     Object.keys(payData).forEach(function(key){
@@ -9920,9 +9960,9 @@ function syncTaxPaymentMethods(){
       if(!taxData[taxKey] || !taxData[taxKey].income) return;
 
       taxData[taxKey].income.forEach(function(r, i){
-        // 결제수단 없는 수강료 내역 업데이트
-        if(r.name === m.name+' 수강료'){
-          taxData[taxKey].income[i].name = m.name+' 수강료('+pd.method+')';
+        // 결제수단 없는 수강료 내역 업데이트 (예전 '수강료' 표기 기록도 함께 잡음)
+        if(r.name === m.name+' '+feeWord || r.name === m.name+' 수강료'){
+          taxData[taxKey].income[i].name = m.name+' '+feeWord+'('+pd.method+')';
           updated++;
         }
       });
