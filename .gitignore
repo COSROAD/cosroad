@@ -16,4 +16,4 @@ og-image.png
 index_raw.html
 
 # Claude 로컬 설정
-.claude/settings.local.json
+.claude/
