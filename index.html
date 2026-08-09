@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 174;
+const APP_VERSION = 175;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -706,6 +706,10 @@ function saveDriverAtt(d){ localStorage.setItem('tkd_driver_att', JSON.stringify
 function attKey(carId, dateStr){ return carId+'_'+dateStr; }
 function todayStr(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
 function nowTimeStr(){ var n=new Date(); return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+/* 날짜·월 이동 화살표 버튼 — 전 화면 공통 스타일 (새 화면에도 이걸 재사용해 통일) */
+function navArrowBtn(onclickStr, ch){
+  return '<button onclick="'+onclickStr+'" style="min-width:40px;min-height:40px;padding:6px 12px;background:white;border:1.5px solid #D0D5DD;border-radius:10px;font-size:18px;font-weight:800;color:#344054;cursor:pointer;flex-shrink:0;">'+ch+'</button>';
+}
 // 근무시간 계산 (분 단위) → "9시간 30분" 형태
 function calcWorkMinutes(inT, outT){
   if(!inT || !outT) return null;
@@ -886,9 +890,9 @@ function buildDriverAttHtml(){
 
   // 날짜 이동
   h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;">';
-  h += '<button onclick="moveAttDate(-1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">◀</button>';
-  h += '<input type="date" id="att-date-input" value="'+driverAttViewDate+'" onchange="setAttDate(this.value)" style="padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/>';
-  h += '<button onclick="moveAttDate(1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">▶</button>';
+  h += navArrowBtn('moveAttDate(-1)','◀');
+  h += '<input type="date" id="att-date-input" value="'+driverAttViewDate+'" onchange="setAttDate(this.value)" style="padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;"/>';
+  h += navArrowBtn('moveAttDate(1)','▶');
   h += '</div>';
 
   if(driverCars.length===0){
@@ -3117,9 +3121,9 @@ function renderDeliverySchedule(){
   h+='<div class="setting-title" style="margin-bottom:10px;">📦 요일별 '+(getBizType()==='delivery'?'배송지':'배송 거래처')+'</div>';
   // 날짜 이동 (근태관리와 동일한 방식)
   h+='<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;">';
-  h+='<button onclick="moveDeliveryDate(-1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">◀</button>';
-  h+='<input type="date" id="delivery-date-input" value="'+deliverySelDate+'" onchange="setDeliveryDate(this.value)" style="padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/>';
-  h+='<button onclick="moveDeliveryDate(1)" style="padding:6px 12px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">▶</button>';
+  h+=navArrowBtn('moveDeliveryDate(-1)','◀');
+  h+='<input type="date" id="delivery-date-input" value="'+deliverySelDate+'" onchange="setDeliveryDate(this.value)" style="padding:7px 10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;"/>';
+  h+=navArrowBtn('moveDeliveryDate(1)','▶');
   h+='</div>';
   // 선택 날짜의 거래처 목록
   var selObj=new Date(deliverySelDate+'T00:00:00');
@@ -5117,9 +5121,9 @@ function renderTax(){
   } else if(taxTab==='records'){
     // 월 이동 막대 (◀ 이전달 · 가운데 누르면 월별현황 카드로 · 다음달 ▶)
     h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">';
-    h += '<button onclick="taxMoveMonth(-1)" style="padding:6px 14px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">◀</button>';
+    h += navArrowBtn('taxMoveMonth(-1)','◀');
     h += '<span onclick="taxTab=\'monthly\';renderTax();" title="월 카드 목록으로" style="font-size:15px;font-weight:800;color:#344054;cursor:pointer;">'+taxViewYear2+'년 '+taxViewMonth2+'월</span>';
-    h += '<button onclick="taxMoveMonth(1)" style="padding:6px 14px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;">▶</button>';
+    h += navArrowBtn('taxMoveMonth(1)','▶');
     h += '</div>';
     // 수입/지출 입력
     h += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
@@ -6075,10 +6079,10 @@ function renderInvoice(){
   h += '</div>';
   if(!invHeadCollapsed){
     h += '<label style="font-size:11px;color:#667085;">거래일자</label>';
-    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
-    h += '<button onclick="moveInvoiceDate(-1)" style="padding:9px 13px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;flex-shrink:0;">◀</button>';
-    h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="setInvoiceDate(this.value)" style="flex:1;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;min-width:0;text-align:center;"/>';
-    h += '<button onclick="moveInvoiceDate(1)" style="padding:9px 13px;background:#F2F4F7;border:none;border-radius:8px;font-size:14px;cursor:pointer;flex-shrink:0;">▶</button>';
+    h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">';
+    h += navArrowBtn('moveInvoiceDate(-1)','◀');
+    h += '<input type="date" id="inv-date" value="'+invoiceDate+'" onchange="setInvoiceDate(this.value)" style="width:170px;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;box-sizing:border-box;text-align:center;"/>';
+    h += navArrowBtn('moveInvoiceDate(1)','▶');
     h += '</div>';
     h += '<label style="font-size:11px;color:#667085;">거래처 선택</label>';
     h += '<select id="inv-member" onchange="selectInvoiceMember(this.value)" style="width:100%;padding:10px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
