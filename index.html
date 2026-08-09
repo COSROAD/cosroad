@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 178;
+const APP_VERSION = 179;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4733,10 +4733,10 @@ function renderLogiPayment(cont){
   h += '<button onclick="logiPaySetKind(\'sale\')" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:'+(logiPayKind==='sale'?'#1570EF':'#EAECF0')+';color:'+(logiPayKind==='sale'?'white':'#667085')+';">매출 (받을 돈)</button>';
   h += '<button onclick="logiPaySetKind(\'purchase\')" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:'+(logiPayKind==='purchase'?'#F04438':'#EAECF0')+';color:'+(logiPayKind==='purchase'?'white':'#667085')+';">매입 (줄 돈)</button>';
   h += '</div>';
-  h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">';
-  h += '<button onclick="logiPayPrevMonth()" style="padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;font-size:14px;">‹</button>';
-  h += '<div style="flex:1;text-align:center;font-size:15px;font-weight:800;color:#1D2939;">'+y+'년 '+mo+'월</div>';
-  h += '<button onclick="logiPayNextMonth()" style="padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;font-size:14px;">›</button>';
+  h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">';
+  h += navArrowBtn('logiPayPrevMonth()','◀');
+  h += '<div style="text-align:center;font-size:15px;font-weight:800;color:#1D2939;">'+y+'년 '+mo+'월</div>';
+  h += navArrowBtn('logiPayNextMonth()','▶');
   h += '</div>';
   var _wPaid = logiPayKind==='purchase'?'결제액':'수금액';
   var _wUnpaid = logiPayKind==='purchase'?'미지급금':'미수금';
@@ -6291,10 +6291,10 @@ function renderInvListCalendar(y, mo, byDate){
   var daysInMonth = new Date(y, mo, 0).getDate();
   var dows = ['일','월','화','수','목','금','토'];
   var c = '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:8px;">';
-  c += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">';
-  c += '<button onclick="invListPrevMonth()" style="padding:6px 10px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;">‹</button>';
-  c += '<div style="flex:1;text-align:center;font-size:14px;font-weight:800;color:#1D2939;">'+y+'년 '+mo+'월</div>';
-  c += '<button onclick="invListNextMonth()" style="padding:6px 10px;border:1.5px solid #EAECF0;border-radius:8px;background:white;cursor:pointer;">›</button>';
+  c += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">';
+  c += navArrowBtn('invListPrevMonth()','◀');
+  c += '<div style="text-align:center;font-size:14px;font-weight:800;color:#1D2939;">'+y+'년 '+mo+'월</div>';
+  c += navArrowBtn('invListNextMonth()','▶');
   c += '</div>';
   c += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">';
   dows.forEach(function(d,i){ c += '<div style="text-align:center;font-size:10px;font-weight:700;color:'+(i===0?'#F04438':(i===6?'#1570EF':'#98A2B3'))+';padding:3px 0;">'+d+'</div>'; });
