@@ -494,5 +494,215 @@ function submitApply(){
   });
 }
 </script>
+
+<script>
+/* ══════════════════════
+   코스로드 도우미 챗 (홈페이지 방문자용) — 내장 도움말 봇 + 문의 창구
+   앱(index.html)의 도우미와 같은 모양이지만 문답표는 방문자용으로 별도 작성.
+   답변 근거는 모두 이 페이지의 실제 내용(요금·체험·업종·가입·약관·문의처).
+   ══════════════════════ */
+/* 도우미 캐릭터 '코스' — 버튼·챗 제목·봇 말풍선 공용 (index.html 과 동일 SVG) */
+function cosFaceSvg(size){
+  return '<svg viewBox="0 0 64 64" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg" style="display:block;">'
+    +'<circle cx="32" cy="34" r="26" fill="#EA580C"/>'
+    +'<circle cx="32" cy="34" r="21" fill="#FFF7ED"/>'
+    +'<line x1="32" y1="4" x2="32" y2="10" stroke="#EA580C" stroke-width="3" stroke-linecap="round"/>'
+    +'<circle cx="32" cy="4" r="3" fill="#F59E0B"/>'
+    +'<circle cx="24" cy="31" r="3.5" fill="#1D2939"/>'
+    +'<circle cx="40" cy="31" r="3.5" fill="#1D2939"/>'
+    +'<circle cx="25.2" cy="29.8" r="1.2" fill="white"/>'
+    +'<circle cx="41.2" cy="29.8" r="1.2" fill="white"/>'
+    +'<path d="M24 41 Q32 48 40 41" stroke="#EA580C" stroke-width="3" fill="none" stroke-linecap="round"/>'
+    +'<circle cx="18" cy="37" r="2.5" fill="#FDBA74"/>'
+    +'<circle cx="46" cy="37" r="2.5" fill="#FDBA74"/>'
+    +'</svg>';
+}
+var HELP_QA=[
+  {keys:['요금','가격','얼마','비용','구독료','유료'], t:'요금',
+   a:'· 월간 구독 50,000원 (VAT 별도) — 언제든 해지 가능\n· 연간 구독 480,000원 (VAT 별도 · 월 40,000원 꼴, 20% 할인)\n두 요금제 모두 모든 기능을 씁니다.\n카드 자동결제는 준비 중이에요 — 먼저 쓰고 싶으시면 ☎ 010-3660-3911'},
+  {keys:['무료','체험','30일','공짜'], t:'30일 무료 체험',
+   a:'가입 즉시 30일 동안 모든 기능이 무료예요.\n· 카드 등록 없이 시작\n· 체험 중 해지해도 비용이 들지 않아요'},
+  {keys:['가입','시작','회원가입','신청','계정'], t:'가입 방법',
+   a:'1. 「🚀 지금 무료로 시작하기」 또는 상단 업종을 누르면 앱이 열려요\n2. 회원가입하면 30일 무료로 바로 시작 — 고유 계정이 자동으로 만들어져요\n3. 폰에서 브라우저 메뉴의 「홈 화면에 추가」를 누르면 앱 아이콘이 생겨요'},
+  {keys:['데모','둘러','미리','샘플'], t:'가입 없이 데모 체험',
+   a:'홈 화면 「우리 업종에 딱 맞게」에서 학원·물류·공공·택배 카드를 누르면\n가입 없이 실제 화면을 그대로 둘러볼 수 있어요. 체험용이라 자유롭게 눌러보셔도 됩니다.'},
+  {keys:['업종','학원','물류','공공','택배','어떤곳','누가'], t:'지원 업종',
+   a:'· 학원 — 등·하원 출결, 탑승 확인, 학부모 알림, 픽업 코스, 증명서 발급\n· 물류 — 배송 코스 최적화, 거래명세서, 수납·세무\n· 공공 — 이용자 출결, 차량·기사 근태, 셔틀 코스, 민원 증명서\n· 택배 — 일일 기사 코스 자동 배정, 지역을 몰라도 코스 자동 안내'},
+  {keys:['기능','뭐할수','무엇을','할수있'], t:'주요 기능',
+   a:'회원관리 · 근태관리 · 출결관리(PIN) · 알림톡/문자 자동발송 ·\nT맵 코스 최적화 · 수납/세무/거래명세서 · 여러 기기 실시간 동기화\n따로 쓰던 프로그램을 하나로 합칠 수 있어요.'},
+  {keys:['알림톡','문자','sms','수수료','발송비'], t:'알림톡·문자 비용',
+   a:'발송 수수료 0원 — 알림톡·문자 발송 비용은 COSROAD가 부담합니다.\n출결·공지·알림장, 출발/도착 알림이 보호자에게 자동으로 나가요.'},
+  {keys:['설치','다운','앱스토어','플레이스토어','홈화면','아이폰','안드로이드'], t:'설치 방법 (설치 안 해도 돼요)',
+   a:'COSROAD는 웹앱이라 앱스토어에서 내려받지 않아도 됩니다.\ncosroad.com 으로 접속하면 그게 곧 앱이에요.\n· 아이폰(사파리): 하단 공유 ⬆️ → 「홈 화면에 추가」\n· 안드로이드(크롬): ⋮ 메뉴 → 공유 → 「홈 화면에 추가」 (「앱 설치」가 보이면 그걸로)\n업데이트도 자동이라 다시 설치할 일이 없어요.'},
+  {keys:['코스','경로','최적화','티맵','tmap','지리','길'], t:'코스 자동 만들기',
+   a:'태울 사람만 고르면 가장 빠른 순서로 도는 길을 앱이 짜서 T맵으로 안내해요.\nT맵 실시간 교통을 반영하기 때문에 지리를 몰라도 운행할 수 있어요.'},
+  {keys:['동기화','여러기기','실시간','컴퓨터에서'], t:'여러 기기 동기화',
+   a:'원장님 폰, 사무실 컴퓨터, 기사님 폰에서 같은 정보가 실시간으로 똑같이 보여요.\n자료를 따로 옮길 필요가 없습니다.'},
+  {keys:['결제','입금','계좌','카드','자동결제'], t:'결제·입금',
+   a:'카드 자동결제는 준비 중이라, 지금은 계좌 입금으로 도와드려요.\n농협은행 301-0354-8212-31 (예금주: 주식회사 프리존)\n30일 무료 체험 후 구독료가 발생하며, 입금하시면 담당자가 개통을 도와드립니다.'},
+  {keys:['약관','개인정보','처리방침','정보보호'], t:'약관·개인정보',
+   a:'· 이용약관: terms.html\n· 개인정보처리방침: privacy.html\n페이지 맨 아래에도 링크가 있어요. 개인정보 문의는 cosroad@cosroad.com'},
+  {keys:['문의','연락','전화','이메일','상담','고객센터'], t:'문의처',
+   a:'☎ 010-3660-3911\n📧 cosroad@cosroad.com\n주식회사 프리존 · 인천 연수구 용담로 111, 6537호\n아래 「✉ 문의 보내기」로 남기시면 확인 후 연락드려요.'},
+  {keys:['출결','근태','pin','출퇴근','핀번호'], t:'출결·근태',
+   a:'PIN 4자리만 누르면 출결이 자동으로 기록되고 알림이 바로 나가요.\n기사·직원 출퇴근도 날짜별로 기록해 월 단위로 집계합니다.'},
+  {keys:['수납','세무','명세서','거래명세','매출'], t:'수납·세무·명세서',
+   a:'수강료·운임 수납, 세무 정리, 거래명세서 발급까지 앱 하나로 됩니다.\n매입 입고가와 매출 출고가도 구분해서 계산해요.'}
+];
+function helperNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
+/* 키워드 매칭: 1건→답, 2건 이상→선택지, 0건→문의 유도 (index.html 과 같은 방식) */
+function helperAnswer(text){
+  var q=helperNorm(text);
+  var hits=HELP_QA.filter(function(item){
+    return item.keys.some(function(k){ return q.indexOf(helperNorm(k))>=0; });
+  });
+  if(hits.length===1) return {type:'answer', item:hits[0]};
+  if(hits.length>=2) return {type:'choices', items:hits.slice(0,4)};
+  return {type:'none'};
+}
+/* 안내 라벨은 이 기기에서 챗을 한 번 열면 다시 안 나옴 */
+var HELPER_SEEN_KEY='cosroad_home_helper_seen';
+function ensureHelperBtn(){
+  if(document.getElementById('helper-fab')) return;
+  var wrap=document.createElement('div');
+  wrap.id='helper-fab-wrap';
+  wrap.style.cssText='position:fixed;right:16px;bottom:20px;z-index:9997;display:flex;flex-direction:column;align-items:center;gap:5px;';
+  var b=document.createElement('button');
+  b.id='helper-fab';
+  b.innerHTML=cosFaceSvg(38);
+  b.setAttribute('aria-label','챗봇에게 물어보세요');
+  b.style.cssText='width:56px;height:56px;border-radius:50%;background:#fff;border:1px solid #FED7AA;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(234,88,12,.35);cursor:pointer;';
+  b.onclick=openHelperChat;
+  wrap.appendChild(b);
+  var seen=''; try{ seen=localStorage.getItem(HELPER_SEEN_KEY)||''; }catch(e){}
+  if(!seen){
+    var lb=document.createElement('div');
+    lb.id='helper-fab-label';
+    lb.textContent='챗봇에게 물어보세요';
+    lb.style.cssText='background:#fff;color:#C2410C;font-size:11px;font-weight:700;padding:4px 9px;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,.18);white-space:nowrap;pointer-events:none;';
+    wrap.appendChild(lb);
+  }
+  document.body.appendChild(wrap);
+}
+function hideHelperLabel(){
+  try{ localStorage.setItem(HELPER_SEEN_KEY,'1'); }catch(e){}
+  var lb=document.getElementById('helper-fab-label');
+  if(lb) lb.remove();
+}
+function helperPush(who, html){
+  var box=document.getElementById('helper-msgs');
+  if(!box) return;
+  box.insertAdjacentHTML('beforeend',
+    who==='me'
+      ? '<div style="text-align:right;margin:6px 0;"><span style="display:inline-block;background:#0E7090;color:#fff;padding:8px 12px;border-radius:14px 14px 2px 14px;font-size:13px;max-width:85%;text-align:left;">'+html+'</span></div>'
+      : '<div style="display:flex;align-items:flex-start;gap:6px;margin:6px 0;"><span style="flex-shrink:0;margin-top:2px;">'+cosFaceSvg(22)+'</span>'
+        +'<span style="display:inline-block;background:#F2F4F7;color:#1D2939;padding:8px 12px;border-radius:14px 14px 14px 2px;font-size:13px;max-width:90%;white-space:pre-line;">'+html+'</span></div>');
+  box.scrollTop=box.scrollHeight;
+}
+function helperInqBtnHtml(){
+  return '<div style="margin:4px 0 8px;"><button onclick="helperShowInquiry()" style="padding:7px 12px;background:#FFF7ED;color:#EA580C;border:1px solid #FED7AA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✉ 문의 보내기</button></div>';
+}
+function openHelperChat(){
+  hideHelperLabel();
+  var old=document.getElementById('helper-modal'); if(old){ old.remove(); return; }
+  var samples=['요금이 얼마예요?','30일 무료 체험','가입 방법','데모 둘러보기'];
+  var h='<div id="helper-modal" style="position:fixed;right:12px;bottom:12px;left:12px;max-width:400px;margin-left:auto;z-index:9998;background:white;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.25);display:flex;flex-direction:column;max-height:72vh;overflow:hidden;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0E7090;color:#fff;">'
+    +'<span style="display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;"><span style="background:#fff;border-radius:50%;padding:2px;display:flex;">'+cosFaceSvg(22)+'</span>코스로드 도우미</span>'
+    +'<button onclick="document.getElementById(\'helper-modal\').remove()" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;font-weight:700;">✕</button></div>'
+    +'<div id="helper-msgs" style="flex:1;overflow-y:auto;padding:10px 12px;min-height:180px;"></div>'
+    +'<div id="helper-input-row" style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid #EAECF0;">'
+    +'<input id="helper-input" type="text" placeholder="무엇이든 물어보세요" onkeydown="if(event.key===\'Enter\')helperSend();" style="flex:1;padding:10px;border:1.5px solid #EAECF0;border-radius:10px;font-size:13px;min-width:0;"/>'
+    +'<button onclick="helperSend()" style="padding:10px 14px;background:#0E7090;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">전송</button></div>'
+    +'</div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+  helperPush('bot','안녕하세요! 코스로드 도우미예요.\n무엇이든 물어보세요 😊 예시를 눌러도 돼요 👇');
+  var box=document.getElementById('helper-msgs');
+  box.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
+    +samples.map(function(s){ return '<button onclick="helperAsk(\''+s+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+s+'</button>'; }).join('')
+    +'</div>');
+}
+function helperSend(){
+  var el=document.getElementById('helper-input');
+  if(!el || !el.value.trim()) return;
+  var t=el.value.trim(); el.value='';
+  helperAsk(t);
+}
+function helperAsk(text){
+  helperPush('me', String(text).replace(/</g,'&lt;'));
+  var r=helperAnswer(text);
+  if(r.type==='answer'){
+    helperPush('bot','【'+r.item.t+'】\n'+r.item.a);
+    var box=document.getElementById('helper-msgs');
+    if(box) box.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+  } else if(r.type==='choices'){
+    helperPush('bot','어떤 내용이 궁금하세요? 골라주세요 👇');
+    var box2=document.getElementById('helper-msgs');
+    if(box2) box2.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
+      +r.items.map(function(it){ return '<button onclick="helperAsk(\''+it.t+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+it.t+'</button>'; }).join('')+'</div>');
+  } else {
+    helperPush('bot','그 내용은 준비된 안내에 없네요. 문의를 남겨주시면 프리존에서 직접 답해드릴게요!\n급하시면 ☎ 010-3660-3911');
+    var box3=document.getElementById('helper-msgs');
+    if(box3) box3.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+  }
+}
+function helperShowInquiry(){
+  var box=document.getElementById('helper-msgs');
+  if(!box || document.getElementById('inq-text')) return;
+  box.insertAdjacentHTML('beforeend',
+    '<div id="inq-form" style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin:6px 0;background:#F9FAFB;">'
+    +'<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:6px;">✉ 문의 보내기</div>'
+    +'<select id="inq-type" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;">'
+    +'<option value="요금·구독">요금·구독 문의</option><option value="기능">기능 문의</option><option value="가입">가입·설치 문의</option><option value="기타">기타</option></select>'
+    +'<textarea id="inq-text" rows="3" placeholder="궁금한 점을 적어주세요" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;resize:none;"></textarea>'
+    +'<input id="inq-org" type="text" placeholder="상호 / 기관명 (선택)" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>'
+    +'<input id="inq-contact" type="tel" placeholder="회신 받을 연락처" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>'
+    +'<label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;color:#475467;line-height:1.5;margin-bottom:8px;cursor:pointer;">'
+    +'<input type="checkbox" id="inq-agree" style="margin-top:2px;flex:none;width:14px;height:14px;accent-color:#EA580C;"/>'
+    +'<span>상담 회신을 위한 개인정보(연락처·문의 내용) 수집·이용에 동의합니다. (필수) '
+    +'<a href="javascript:void(0)" onclick="showPrivacy()" style="color:#EA580C;text-decoration:underline;">내용 보기</a></span></label>'
+    +'<button onclick="sendInquiry()" style="width:100%;padding:9px;background:#EA580C;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">보내기</button></div>');
+  box.scrollTop=box.scrollHeight;
+}
+function sendInquiry(){
+  var type=(document.getElementById('inq-type')||{}).value||'기타';
+  var text=((document.getElementById('inq-text')||{}).value||'').trim();
+  var org=((document.getElementById('inq-org')||{}).value||'').trim();
+  var contact=((document.getElementById('inq-contact')||{}).value||'').trim();
+  var agree=(document.getElementById('inq-agree')||{}).checked;
+  if(!text){ alert('문의 내용을 입력해주세요.'); return; }
+  if(!/^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(contact.replace(/\s/g,''))){ alert('회신 받을 연락처를 정확히 입력해주세요.'); return; }
+  if(!agree){ alert('개인정보 수집·이용에 동의해 주세요. (필수)'); return; }
+  /* 기기 기준 하루 3건 제한 */
+  var limKey='cosroad_home_inq_'+new Date().toISOString().slice(0,10);
+  var cnt=0; try{ cnt=parseInt(localStorage.getItem(limKey)||'0'); }catch(e){}
+  if(cnt>=3){ alert('문의는 하루 3건까지 보낼 수 있어요. ☎ 010-3660-3911 로 연락 주세요.'); return; }
+  /* 저장: 이 페이지는 Firebase 가 이미 연결돼 있어(window._applyDb) 앱과 같은
+     inquiries 컬렉션에 남긴다. 규칙 등으로 저장이 막혀도 아래 문자는 그대로 나가
+     문의가 유실되지 않는다. */
+  try{
+    if(window._applyDb){
+      var d=window._applyDb;
+      d.addDoc(d.collection(d.db,'inquiries'),{
+        source:'home', type:type, text:text, orgName:org, contact:contact,
+        date:new Date().toISOString(), createdAt:Date.now(), status:'new',
+        privacyAgreed:true, privacyAgreedAt:Date.now()
+      });
+    }
+  }catch(e){}
+  /* 프리존 문자 알림 (api/send-sms — 허용 출처에 cosroad.com 포함) */
+  try{
+    fetch('https://cosroad.vercel.app/api/send-sms', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ receiver:'010-3660-3911',
+        msg:'[코스로드 홈문의] '+type+(org?' ('+org+')':'')+' — '+text.slice(0,60)+' / 회신 '+contact })
+    });
+  }catch(e){}
+  try{ localStorage.setItem(limKey, String(cnt+1)); }catch(e){}
+  var f=document.getElementById('inq-form'); if(f) f.remove();
+  helperPush('bot','✅ 문의가 접수됐어요! 확인 후 '+contact+'(으)로 연락드릴게요.');
+}
+document.addEventListener('DOMContentLoaded', ensureHelperBtn);
+</script>
 </body>
 </html>

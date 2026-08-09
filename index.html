@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 177;
+const APP_VERSION = 178;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1536,15 +1536,50 @@ function helperAnswer(text){
   if(hits.length>=2) return {type:'choices', items:hits.slice(0,4)};
   return {type:'none'};
 }
+/* 도우미 캐릭터 '코스' — 떠 있는 버튼·챗 제목·봇 말풍선에 공용으로 쓰는 인라인 SVG */
+function cosFaceSvg(size){
+  return '<svg viewBox="0 0 64 64" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg" style="display:block;">'
+    +'<circle cx="32" cy="34" r="26" fill="#EA580C"/>'
+    +'<circle cx="32" cy="34" r="21" fill="#FFF7ED"/>'
+    +'<line x1="32" y1="4" x2="32" y2="10" stroke="#EA580C" stroke-width="3" stroke-linecap="round"/>'
+    +'<circle cx="32" cy="4" r="3" fill="#F59E0B"/>'
+    +'<circle cx="24" cy="31" r="3.5" fill="#1D2939"/>'
+    +'<circle cx="40" cy="31" r="3.5" fill="#1D2939"/>'
+    +'<circle cx="25.2" cy="29.8" r="1.2" fill="white"/>'
+    +'<circle cx="41.2" cy="29.8" r="1.2" fill="white"/>'
+    +'<path d="M24 41 Q32 48 40 41" stroke="#EA580C" stroke-width="3" fill="none" stroke-linecap="round"/>'
+    +'<circle cx="18" cy="37" r="2.5" fill="#FDBA74"/>'
+    +'<circle cx="46" cy="37" r="2.5" fill="#FDBA74"/>'
+    +'</svg>';
+}
+/* 안내 라벨은 이 기기에서 챗을 한 번 열면 다시 안 나옴 (기관 무관 — 기기 기준) */
+var HELPER_SEEN_KEY='cosroad_helper_seen';
 function ensureHelperBtn(){
   if(document.getElementById('helper-fab')) return;
+  /* 데모 투어 버튼(bottom:80px)·운행 하단 바와 안 겹치게 bottom:150px */
+  var wrap=document.createElement('div');
+  wrap.id='helper-fab-wrap';
+  wrap.style.cssText='position:fixed;right:16px;bottom:150px;z-index:9997;display:flex;flex-direction:column;align-items:center;gap:5px;';
   var b=document.createElement('button');
   b.id='helper-fab';
-  b.textContent='💬';
-  /* 데모 투어 버튼(bottom:80px)·운행 하단 바와 안 겹치게 bottom:150px */
-  b.style.cssText='position:fixed;right:16px;bottom:150px;z-index:9997;width:52px;height:52px;border-radius:50%;background:#0E7090;color:#fff;border:none;font-size:22px;box-shadow:0 6px 20px rgba(14,112,144,.4);cursor:pointer;';
+  b.innerHTML=cosFaceSvg(38);
+  b.style.cssText='width:56px;height:56px;border-radius:50%;background:#fff;border:1px solid #FED7AA;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(234,88,12,.35);cursor:pointer;';
   b.onclick=openHelperChat;
-  document.body.appendChild(b);
+  wrap.appendChild(b);
+  var seen=''; try{ seen=localStorage.getItem(HELPER_SEEN_KEY)||''; }catch(e){}
+  if(!seen){
+    var lb=document.createElement('div');
+    lb.id='helper-fab-label';
+    lb.textContent='챗봇에게 물어보세요';
+    lb.style.cssText='background:#fff;color:#C2410C;font-size:11px;font-weight:700;padding:4px 9px;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,.18);white-space:nowrap;pointer-events:none;';
+    wrap.appendChild(lb);
+  }
+  document.body.appendChild(wrap);
+}
+function hideHelperLabel(){
+  try{ localStorage.setItem(HELPER_SEEN_KEY,'1'); }catch(e){}
+  var lb=document.getElementById('helper-fab-label');
+  if(lb) lb.remove();
 }
 function helperPush(who, html){
   var box=document.getElementById('helper-msgs');
@@ -1552,13 +1587,15 @@ function helperPush(who, html){
   box.insertAdjacentHTML('beforeend',
     who==='me'
       ? '<div style="text-align:right;margin:6px 0;"><span style="display:inline-block;background:#0E7090;color:#fff;padding:8px 12px;border-radius:14px 14px 2px 14px;font-size:13px;max-width:85%;text-align:left;">'+html+'</span></div>'
-      : '<div style="margin:6px 0;"><span style="display:inline-block;background:#F2F4F7;color:#1D2939;padding:8px 12px;border-radius:14px 14px 14px 2px;font-size:13px;max-width:90%;white-space:pre-line;">'+html+'</span></div>');
+      : '<div style="display:flex;align-items:flex-start;gap:6px;margin:6px 0;"><span style="flex-shrink:0;margin-top:2px;">'+cosFaceSvg(22)+'</span>'
+        +'<span style="display:inline-block;background:#F2F4F7;color:#1D2939;padding:8px 12px;border-radius:14px 14px 14px 2px;font-size:13px;max-width:90%;white-space:pre-line;">'+html+'</span></div>');
   box.scrollTop=box.scrollHeight;
 }
 function helperInqBtnHtml(){
   return '<div style="margin:4px 0 8px;"><button onclick="helperShowInquiry()" style="padding:7px 12px;background:#FFF7ED;color:#EA580C;border:1px solid #FED7AA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✉ 문의 보내기</button></div>';
 }
 function openHelperChat(){
+  hideHelperLabel();
   var old=document.getElementById('helper-modal'); if(old){ old.remove(); return; }
   var role=(currentMode==='driver')?'driver':'admin';
   var samples=(role==='driver')
@@ -1566,7 +1603,7 @@ function openHelperChat(){
     : ['엑셀 업로드 방법','주소 검색 요령','거래명세서 영수증 인쇄','운행기록부 내보내기'];
   var h='<div id="helper-modal" style="position:fixed;right:12px;bottom:12px;left:12px;max-width:400px;margin-left:auto;z-index:9998;background:white;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.25);display:flex;flex-direction:column;max-height:72vh;overflow:hidden;">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0E7090;color:#fff;">'
-    +'<span style="font-size:14px;font-weight:800;">💬 코스로드 도우미</span>'
+    +'<span style="display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;"><span style="background:#fff;border-radius:50%;padding:2px;display:flex;">'+cosFaceSvg(22)+'</span>코스로드 도우미</span>'
     +'<button onclick="document.getElementById(\'helper-modal\').remove()" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;font-weight:700;">✕</button></div>'
     +'<div id="helper-msgs" style="flex:1;overflow-y:auto;padding:10px 12px;min-height:180px;"></div>'
     +'<div id="helper-input-row" style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid #EAECF0;">'
@@ -1663,7 +1700,7 @@ function initApp(){
     return;
   }
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
-  ensureHelperBtn();   /* 💬 도우미 — 모든 화면·두 모드 공통 */
+  ensureHelperBtn();   /* 도우미 '코스' 버튼+안내 라벨 — 모든 화면·두 모드 공통 */
   // Firebase 동기화 (비동기)
   setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
