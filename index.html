@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 183;
+const APP_VERSION = 184;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1500,9 +1500,9 @@ function copyMasterUrl(orgId){
 // ══════════════════════
 var HELP_QA=[
   {role:'admin', keys:['회원','거래처','등록','추가'], t:'회원/거래처 등록',
-   a:'1. 관리 → 회원(거래처) 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
+   a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
   {role:'admin', keys:['엑셀','업로드','일괄','양식'], t:'엑셀 일괄 업로드',
-   a:'1. 관리 → 회원 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록'},
+   a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록'},
   {role:'admin', keys:['주소','검색','좌표','위치'], t:'주소 검색 요령',
    a:'1. 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동)\n2. 기관에서 가까운 곳이 먼저 나와요\n3. 카카오 지도에 없는 곳은 네이버 결과로 보조 검색돼요'},
   {role:'all', keys:['최적화','코스','경로','순서'], t:'코스 최적화',
@@ -1516,7 +1516,7 @@ var HELP_QA=[
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
    a:'1. 명세서 작성에서 「📷 바코드 스캔」(안드로이드 크롬) 또는 입력창에 찍고 Enter\n2. 품목의 「코드」와 일치하면 줄 추가, 같은 코드 반복이면 수량 +1\n3. 미등록 숫자 바코드는 「＋ 새 품목 등록」으로 상품정보 자동 조회 후 등록'},
   {role:'admin', keys:['수납','납부','미납','수강료'], t:'수납 관리',
-   a:'1. 수납 탭에서 연·월 선택\n2. 회원별 「납부처리」(방법·날짜)\n3. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
+   a:'1. 수납 탭에서 연·월 선택\n2. «회원»별 「납부처리」(방법·날짜)\n3. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
   {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
    a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
   {role:'all', keys:['차계부','주유','정비'], t:'차계부',
@@ -1534,9 +1534,15 @@ var HELP_QA=[
   {role:'driver', keys:['pin','출근','퇴근','출퇴근','계기판'], t:'PIN 출퇴근 체크',
    a:'1. 운행 화면 → 「🔢 기사 PIN 출퇴근 체크」\n2. 본인 PIN 4자리 입력 — 처음은 출근, 다음은 퇴근\n3. 퇴근 때 「계기판 km」를 넣으면 운행기록부에 자동으로 쌓여요'},
   {role:'driver', keys:['곧도착','문자','납품완료','배송완료','완료'], t:'운행 중 완료·알림',
-   a:'1. 지점 카드의 「🚐 곧도착」으로 보호자/거래처에 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'}
+   a:'1. 지점 카드의 「🚐 곧도착」으로 «학부모»에게 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'}
 ];
 var helperOpen=false, helperInqOpen=false;
+/* HELP_QA 는 스크립트 로드 시점에 만들어져 T()를 직접 못 쓴다.
+   답변 안에 «회원»·«학부모» 같은 토큰을 넣어 두고, 표시 시점에 현재 업종 용어로 바꾼다.
+   BIZ_TERMS 에 없는 키는 T()가 키 자체를 돌려주므로 토큰 이름이 그대로 남는다(안전). */
+function helperTerm(s){
+  return String(s||'').replace(/«([^»]+)»/g, function(_, key){ return T(key); });
+}
 function helperNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
 /* 키워드 매칭: 1건→답, 2건 이상→선택지, 0건→문의 유도.
    추후 Claude API로 바꿀 땐 이 함수만 교체하면 됨 */
@@ -1646,7 +1652,7 @@ function helperAsk(text){
   helperPush('me', String(text).replace(/</g,'&lt;'));
   var r=helperAnswer(text);
   if(r.type==='answer'){
-    helperPush('bot','【'+r.item.t+'】\n'+r.item.a);
+    helperPush('bot','【'+r.item.t+'】\n'+helperTerm(r.item.a));
     var box=document.getElementById('helper-msgs');
     if(box) box.insertAdjacentHTML('beforeend', helperInqBtnHtml());
   } else if(r.type==='choices'){
@@ -9225,7 +9231,7 @@ function getDriverTourSteps(biz){
       body:'관리에서 '+whoReg+'을(를) 등록하고 차량에 배정하면, 운행 화면에 오늘 코스가 표시돼요. 배정이 끝나야 아래 운행 버튼들이 실제로 동작합니다. "다음"을 누르세요.' },
     { screen:'driver', selector:'.btn-share', title:'③ 공유',
       preAction:function(){ try{ if(currentMode!=='driver'&&typeof loginDriver==='function') loginDriver(); if(typeof switchTab==='function') switchTab('drive'); }catch(e){} },
-      body:'"📍 공유"를 누르면 오늘 코스와 위치를 기사·학부모에게 공유할 수 있어요. 이 버튼이에요. "다음"을 누르세요.' },
+      body:'"📍 공유"를 누르면 오늘 코스와 위치를 기사·'+T('학부모')+'에게 공유할 수 있어요. 이 버튼이에요. "다음"을 누르세요.' },
     { screen:'driver', selector:'#optimize-btn', title:'④ 노선 최적화',
       preAction:function(){ try{ if(typeof switchTab==='function') switchTab('drive'); }catch(e){} },
       body:'"🔀 최적화"를 누르면 등록된 '+whoReg+' 위치를 기준으로 가장 효율적인 운행 순서로 자동 정렬돼요. 지역을 몰라도 최적 코스가 나옵니다. 이 버튼이에요. "다음"을 누르세요.' },
