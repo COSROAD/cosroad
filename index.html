@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 180;
+const APP_VERSION = 181;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -632,10 +632,11 @@ let orgSettings=loadOrgSettings();
 // ── 업종별 용어 사전 ──
 // 업종 코드: academy(학원,기본) / logistics(물류) / public(공공) / delivery(택배)
 var BIZ_TERMS = {
-  academy:   { 회원:'회원', 출석:'출석', 출결:'출결', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림' },
-  logistics: { 회원:'거래처', 출석:'납품완료', 출결:'납품', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림' },
-  public:    { 회원:'이용자', 출석:'출석', 출결:'출결', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림' },
-  delivery:  { 회원:'배송지', 출석:'배송완료', 출결:'배송', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림' }
+  academy:   { 회원:'회원', 출석:'출석', 출결:'출결', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장' },
+  logistics: { 회원:'거래처', 출석:'납품완료', 출결:'납품', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지' },
+  public:    { 회원:'이용자', 출석:'출석', 출결:'출결', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장' },
+  /* 택배는 알림장 탭 자체가 숨김(getOrderedAdminTabs) — 표 모양만 맞춰 fallback과 같은 값 */
+  delivery:  { 회원:'배송지', 출석:'배송완료', 출결:'배송', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장' }
 };
 var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
 
@@ -666,6 +667,12 @@ function getBizType(){
 function T(key){
   var t = BIZ_TERMS[getBizType()] || BIZ_TERMS.academy;
   return t[key] || BIZ_TERMS.academy[key] || key;
+}
+/* 세는 단위 — 물류·택배는 사람이 아니라 거래처·배송지라서 '곳'
+   (관리자 회원목록의 선택 삭제 unit 관례와 동일) */
+function TUnit(){
+  var b = getBizType();
+  return (b==='logistics'||b==='delivery') ? '곳' : '명';
 }
 
 // ── 코스 설정 ──
@@ -2264,7 +2271,7 @@ var ADMIN_TABS=[
   {id:'dashboard',ico:'📊',label:'현황'},
   {id:'members',ico:'👥',label:'회원관리',term:'회원',suffix:'관리'},
   {id:'attendance',ico:'📋',label:'출결관리',term:'출결',suffix:'관리'},
-  {id:'notice',ico:'📝',label:'알림장'},
+  {id:'notice',ico:'📝',label:'알림장',term:'알림장'},
   {id:'shop',ico:'🛒',label:'파트너'},
   {id:'cars',ico:'🚐',label:'차량관리'},
   {id:'schedule',ico:'📅',label:'스케줄'},
@@ -2410,7 +2417,7 @@ function renderNotice(){
   // 작성 영역
   h += '<div style="padding:14px;">';
   h += '<div style="background:white;border-radius:12px;border:1px solid '+(editing?'#FEC84B':'#EAECF0')+';padding:14px;margin-bottom:12px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">'+(editing?'✏️ 알림장 수정':'📝 알림장 작성')+'</div>';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">'+(editing?'✏️ '+T('알림장')+' 수정':'📝 '+T('알림장')+' 작성')+'</div>';
 
   // 대상 선택 (체크박스 목록)
   var selectedSet = {};
@@ -2426,11 +2433,11 @@ function renderNotice(){
   var selCount = Object.keys(selectedSet).length;
   var allChecked = members.length>0 && selCount===members.length;
 
-  h += '<div style="font-size:11px;color:#667085;margin-bottom:4px;">받는 대상 <span id="notice-sel-count" style="color:#12B76A;font-weight:700;">'+(selCount>0?'('+selCount+'명 선택)':'')+'</span></div>';
-  // 회원 선택 토글 버튼 (선택된 사람이 있으면 처음부터 펼침)
+  h += '<div style="font-size:11px;color:#667085;margin-bottom:4px;">받는 대상 <span id="notice-sel-count" style="color:#12B76A;font-weight:700;">'+(selCount>0?'('+selCount+TUnit()+' 선택)':'')+'</span></div>';
+  // 대상 선택 토글 버튼 (선택된 대상이 있으면 처음부터 펼침)
   var listOpen = selCount>0;
   h += '<button type="button" id="notice-list-toggle" onclick="toggleNoticeMemberList()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:white;border:1.5px solid #EAECF0;border-radius:8px;margin-bottom:6px;font-size:13px;font-weight:700;color:#344054;cursor:pointer;">';
-  h += '<span>👥 회원 선택</span><span id="notice-list-arrow">'+(listOpen?'▲':'▼')+'</span></button>';
+  h += '<span>👥 '+T('회원')+' 선택</span><span id="notice-list-arrow">'+(listOpen?'▲':'▼')+'</span></button>';
   // 펼쳐지는 패널 (검색창 + 전체선택 + 회원목록)
   h += '<div id="notice-select-panel" style="display:'+(listOpen?'block':'none')+';margin-bottom:8px;">';
   // 검색창
@@ -2456,7 +2463,7 @@ function renderNotice(){
 
   // 내용 입력
   var editVal = editing ? escapeNoticeHtml(editN.content) : '';
-  h += '<textarea id="notice-content" placeholder="알림장 내용을 입력하세요" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit;">'+editVal+'</textarea>';
+  h += '<textarea id="notice-content" placeholder="'+T('알림장')+' 내용을 입력하세요" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit;">'+editVal+'</textarea>';
 
   // 이미지 첨부
   h += '<div style="margin-top:8px;">';
@@ -2473,7 +2480,7 @@ function renderNotice(){
     h += '<button onclick="saveNoticeOnly()" style="flex:2;padding:11px;background:#F79009;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✏️ 수정 저장</button>';
     h += '</div>';
   } else {
-    h += '<button onclick="saveNoticeOnly()" style="width:100%;padding:11px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">💾 알림장 기록 저장</button>';
+    h += '<button onclick="saveNoticeOnly()" style="width:100%;padding:11px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">💾 '+T('알림장')+' 기록 저장</button>';
   }
   h += '</div>';
   if(!editing){
@@ -2482,9 +2489,10 @@ function renderNotice(){
   h += '</div>';
 
   // 기록 목록
-  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:8px;">📋 알림장 기록</div>';
+  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:8px;">📋 '+T('알림장')+' 기록</div>';
   if(notices.length === 0){
-    h += '<div style="text-align:center;color:#98A2B3;font-size:13px;padding:30px 0;">아직 작성된 알림장이 없습니다.</div>';
+    /* 조사(이/가)는 업종 용어의 받침에 따라 달라져 「공지이」가 되므로 조사 없는 표현으로 */
+    h += '<div style="text-align:center;color:#98A2B3;font-size:13px;padding:30px 0;">아직 작성된 '+T('알림장')+' 기록이 없습니다.</div>';
   } else {
     var sortedN = notices.slice().sort(function(a,b){ return b.ts - a.ts; });
     for(var j=0;j<sortedN.length;j++){
@@ -2494,7 +2502,7 @@ function renderNotice(){
       var targetLabel;
       if(n.targetLabel){ targetLabel = (n.targetLabel==='전체') ? '📢 전체' : '👥 '+n.targetLabel; }
       else if(n.target==='all'){ targetLabel = '📢 전체'; }
-      else { targetLabel = '👤 '+(n.targetName||'회원'); }
+      else { targetLabel = '👤 '+(n.targetName||T('회원')); }
       if(n.targetLabel && n.targets && n.targets.length===1){ targetLabel = '👤 '+n.targetLabel; }
       var sentBadge = n.sent ? '<span style="font-size:10px;color:#12B76A;background:#ECFDF3;padding:2px 6px;border-radius:4px;">발송됨</span>' : '<span style="font-size:10px;color:#667085;background:#F2F4F7;padding:2px 6px;border-radius:4px;">기록</span>';
       h += '<div style="background:white;border-radius:10px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
@@ -2591,7 +2599,7 @@ function applyNoticeNameList(){
   openNoticeMemberList();
   updateNoticeSelCount();
   if(notFound.length){
-    alert(matchedCount+'명 선택됨.\n명단에 없는 이름: '+notFound.join(', '));
+    alert(matchedCount+TUnit()+' 선택됨.\n명단에 없는 이름: '+notFound.join(', '));
   }
 }
 
@@ -2612,7 +2620,7 @@ function updateNoticeSelCount(){
   var total = checks.length, sel = 0;
   checks.forEach(function(c){ if(c.checked) sel++; });
   var label = document.getElementById('notice-sel-count');
-  if(label) label.textContent = sel>0 ? '('+sel+'명 선택)' : '';
+  if(label) label.textContent = sel>0 ? '('+sel+TUnit()+' 선택)' : '';
   var allBox = document.getElementById('notice-check-all');
   if(allBox) allBox.checked = (total>0 && sel===total);
 }
@@ -2692,7 +2700,7 @@ function viewNoticeImage(noticeId, idx){
 
 function collectNoticeInput(){
   var content = document.getElementById('notice-content').value.trim();
-  if(!content){ alert('알림장 내용을 입력해주세요.'); return null; }
+  if(!content){ alert(T('알림장')+' 내용을 입력해주세요.'); return null; }
   var checks = document.querySelectorAll('.notice-member-check');
   var ids = [];
   checks.forEach(function(c){ if(c.checked) ids.push(parseInt(c.value,10)); });
@@ -2703,9 +2711,9 @@ function collectNoticeInput(){
   if(ids.length === members.length){ label = '전체'; }
   else if(ids.length === 1){
     var m = members.find(function(x){ return x.id===ids[0]; });
-    label = m ? m.name : '회원';
+    label = m ? m.name : T('회원');
   } else {
-    label = ids.length+'명';
+    label = ids.length+TUnit();
   }
   return { targets: ids, targetLabel: label, content: content, images: noticeImages.slice() };
 }
@@ -4840,7 +4848,7 @@ function renderPayment(){
   h += '</div>';
   }
   h += '</div>';
-  h += '<input type="text" id="pay-member-search" placeholder="🔍 회원 검색" oninput="filterPayMember(this.value)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
+  h += '<input type="text" id="pay-member-search" placeholder="🔍 '+T('회원')+' 검색" oninput="filterPayMember(this.value)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;outline:none;margin-top:6px;"/>';
   h += '</div>';
   h += '<div style="padding:0 16px;">';
 
@@ -5117,13 +5125,13 @@ function sendUnpaidAll(){
     var key = getPaymentKey(m.id, payViewYear, payViewMonth);
     return !(data[key] && data[key].paid);
   });
-  if(unpaid.length === 0){ showToast('✅ 미납 회원이 없습니다!'); return; }
+  if(unpaid.length === 0){ showToast('✅ 미납 '+T('회원')+' 없어요!'); return; }
   var phones = [];
   unpaid.forEach(function(m){
     if(m.phone) phones.push(m.phone);
     if(m.phone2) phones.push(m.phone2);
   });
-  if(phones.length === 0){ alert('미납 회원 중 연락처가 등록된 사람이 없습니다.'); return; }
+  if(phones.length === 0){ alert('미납 '+T('회원')+' 중 연락처가 등록된 곳이 없습니다.'); return; }
   var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
   var feeWord = T('수강료');
   var msg = '['+orgName+'] '+payViewYear+'년 '+payViewMonth+'월 '+feeWord+' 미납 안내\n'
@@ -7675,7 +7683,7 @@ function closeCertModal(id){ var el=document.getElementById(id); if(el) el.remov
 function openCertIssueModal(){
   var _ct = _certLabels(getBizType());
   var mem = (typeof members!=='undefined'&&members.length)?members:loadMembers();
-  if(!mem.length){ alert('등록된 '+_ct.subjectLabel+'가 없어요. 먼저 회원을 등록해주세요.'); return; }
+  if(!mem.length){ alert('등록된 '+_ct.subjectLabel+'가 없어요. 먼저 '+T('회원')+' 등록이 필요해요.'); return; }
   var nowY = new Date().getFullYear();
   var yearOpts = '';
   for(var y=nowY; y>=nowY-4; y--){ yearOpts += '<option value="'+y+'">'+y+'년</option>'; }
@@ -8763,7 +8771,7 @@ function saveCarsAndMembers(){
       if(cars[b].driverPin===dp){ showToast('⚠ 기사 PIN '+dp+' 이(가) 중복돼요 ('+(cars[a].driver||cars[a].name)+' ↔ '+(cars[b].driver||cars[b].name)+')'); return; }
     }
     var dupM=members.find(function(m){ return m.pin===dp; });
-    if(dupM){ showToast('⚠ 기사 PIN '+dp+' 은(는) 회원('+dupM.name+')이 사용 중이에요'); return; }
+    if(dupM){ showToast('⚠ 기사 PIN '+dp+' 은(는) '+T('회원')+'('+dupM.name+')에서 사용 중이에요'); return; }
   }
   saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
 function renderCars(){
@@ -8811,7 +8819,7 @@ function renderCars(){
   html+='</div>';
   html+='<div style="font-size:11px;color:#98A2B3;margin-top:4px;">이파인에서 무료 조회 후 체크하세요</div>';
   html+='<button onclick="saveCarsAndMembers()" style="width:100%;padding:10px;background:#EA580C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:10px;">💾 저장</button></div>';
-  html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">👥 배정된 '+T('회원')+' <span style="font-size:12px;font-weight:400;color:#98A2B3;">'+carMembers.length+'명</span></div>';
+  html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">👥 배정된 '+T('회원')+' <span style="font-size:12px;font-weight:400;color:#98A2B3;">'+carMembers.length+TUnit()+'</span></div>';
   if(carMembers.length===0) html+='<div style="font-size:12px;color:#98A2B3;padding:8px 0;">배정된 '+T('회원')+'이 없습니다.</div>';
   carMembers.forEach(function(m){
     html+='<div style="background:#F2F4F7;border-radius:8px;padding:9px 11px;margin-bottom:6px;">';
@@ -8968,10 +8976,10 @@ function showDashDetail(type){
   var todayAll=members.filter(function(m){return m.days.includes(currentDay);});
   var h='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
   if(type==='all'){
-    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">👥 전체 이용자 ('+members.length+'명)</div>';
+    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">👥 전체 '+T('회원')+' ('+members.length+TUnit()+')</div>';
     courses.forEach(function(cs){
       var cms=members.filter(function(m){return m.courseId===cs.id;});
-      h+='<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">'+cs.name+' ('+cms.length+'명)</div>';
+      h+='<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">'+cs.name+' ('+cms.length+TUnit()+')</div>';
       cms.forEach(function(m){
         var car=cars.find(function(c){return c.id===m.carId;});
         h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F2F4F7;border-radius:8px;margin-bottom:4px;">';
