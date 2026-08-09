@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 175;
+const APP_VERSION = 176;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1247,7 +1247,33 @@ async function renderMasterPanel(){
   // 업체 목록 로드
   await loadMasterCompanies();
   await loadSignupUsers();
+  await loadInquiries();
   drawMasterPanel();
+}
+
+/* ── 마스터 문의함 (전역 inquiries 컬렉션) ── */
+var masterInquiries=[];
+async function loadInquiries(){
+  masterInquiries=[];
+  try{
+    if(window._db && window._firestore){
+      var col=window._firestore.collection, gds=window._firestore.getDocs;
+      var snap=await gds(col(window._db, 'inquiries'));
+      snap.forEach(function(ds){ var v=ds.data(); v._id=ds.id; masterInquiries.push(v); });
+      masterInquiries.sort(function(a,b){ return (b.date||'')<(a.date||'')?-1:1; });
+    }
+  }catch(e){ console.log('문의함 로드 실패:', e.message); }
+}
+async function setInquiryStatus(id, status){
+  try{
+    var d=window._firestore.doc, sd=window._firestore.setDoc;
+    var it=masterInquiries.find(function(x){ return x._id===id; });
+    if(!it) return;
+    it.status=status;
+    var copy=Object.assign({}, it); delete copy._id;
+    await sd(d(window._db, 'inquiries', id), copy);
+    drawMasterPanel();
+  }catch(e){ alert('처리 실패: '+e.message); }
 }
 
 var signupUsers = [];
@@ -1314,6 +1340,33 @@ function drawMasterPanel(){
       h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span><div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
       h += '<button onclick="setUserApproval(\''+u._uid+'\',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;">승인취소</button>';
       h += '</div>';
+    });
+  }
+  h += '</div>';
+
+  // ── 📮 문의함 (도우미 챗 문의) ──
+  var inqNew=masterInquiries.filter(function(q){ return (q.status||'new')==='new'; }).length;
+  h += '<div style="background:#F0F9FF;border:1px solid #B9E6FE;border-radius:12px;padding:14px;margin-bottom:16px;">';
+  h += '<div style="font-size:14px;font-weight:800;color:#0E7090;margin-bottom:10px;">📮 문의함 ('+masterInquiries.length+')'
+    +(inqNew?' <span style="background:#F04438;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;">신규 '+inqNew+'</span>':'')+'</div>';
+  if(masterInquiries.length===0){
+    h += '<div style="font-size:12px;color:#98A2B3;">접수된 문의가 없습니다.</div>';
+  } else {
+    masterInquiries.forEach(function(q){
+      var st=q.status||'new';
+      var stLabel={new:'신규',working:'처리중',done:'완료'}[st]||st;
+      var stColor={new:'#F04438',working:'#F79009',done:'#12B76A'}[st]||'#667085';
+      var next={new:'working',working:'done',done:'new'}[st];
+      var nextLabel={new:'처리중으로',working:'완료로',done:'신규로'}[st];
+      h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:11px;margin-bottom:6px;'+(st==='done'?'opacity:0.6;':'')+'">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+      h += '<div style="font-size:12px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(q.orgName||q.orgId||'')+' <span style="font-size:10px;color:#98A2B3;font-weight:400;">'+(q.role==='driver'?'기사':'관리자')+' · '+escapeMasterHtml(q.type||'')+' · '+String(q.date||'').slice(0,10)+'</span></div>';
+      h += '<span style="font-size:10px;color:'+stColor+';font-weight:800;">'+stLabel+'</span></div>';
+      h += '<div style="font-size:12px;color:#475467;margin-top:5px;white-space:pre-line;">'+escapeMasterHtml(q.text||'')+'</div>';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">';
+      h += '<span style="font-size:11px;color:#667085;">☎ '+escapeMasterHtml(q.contact||'연락처 없음')+'</span>';
+      h += '<button onclick="setInquiryStatus(\''+q._id+'\',\''+next+'\')" style="font-size:11px;padding:4px 10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;cursor:pointer;font-weight:700;color:#475467;">→ '+nextLabel+'</button>';
+      h += '</div></div>';
     });
   }
   h += '</div>';
@@ -1420,6 +1473,189 @@ function copyMasterUrl(orgId){
 }
 
 
+// ══════════════════════
+// 코스로드 도우미 챗 — 내장 도움말 봇(비용 0) + 문의 창구
+// 문답은 실제 구현 기능 근거로 내장. 추후 Claude API 응답으로 교체 가능하도록
+// helperAnswer(text) 한 함수만 바꾸면 되는 구조.
+// 문의는 전역 컬렉션 inquiries (ORG_KEYS 제외 — 의도적 전역, 기관 백업 제외)
+// ══════════════════════
+var HELP_QA=[
+  {role:'admin', keys:['회원','거래처','등록','추가'], t:'회원/거래처 등록',
+   a:'1. 관리 → 회원(거래처) 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
+  {role:'admin', keys:['엑셀','업로드','일괄','양식'], t:'엑셀 일괄 업로드',
+   a:'1. 관리 → 회원 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록'},
+  {role:'admin', keys:['주소','검색','좌표','위치'], t:'주소 검색 요령',
+   a:'1. 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동)\n2. 기관에서 가까운 곳이 먼저 나와요\n3. 카카오 지도에 없는 곳은 네이버 결과로 보조 검색돼요'},
+  {role:'all', keys:['최적화','코스','경로','순서'], t:'코스 최적화',
+   a:'1. 운행 화면 → 「🔀 최적화」\n2. T맵 실시간 교통을 반영해 최적 순서로 정렬돼요\n3. 좌표 없는 지점이 있으면 이름이 안내돼요 — 그 지점 주소를 다시 검색 등록하세요'},
+  {role:'all', keys:['티맵','tmap','5곳','출발','내비'], t:'T맵 5곳씩 이어가기',
+   a:'1. 「T맵 출발 →」을 누르면 남은 순서의 앞 5곳만 안내돼요 (티맵 앱 제한)\n2. 도착할 때마다 완료 체크\n3. 다시 「T맵 출발」을 누르면 다음 5곳이 이어져요\n💡 경유지에 못 갔으면 "아리아, 경유지 취소"라고 말하면 다음 지점으로 넘어가요'},
+  {role:'admin', keys:['명세서','거래명세'], t:'거래명세서 작성',
+   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증'},
+  {role:'admin', keys:['영수증','감열','프린터','rawbt'], t:'영수증 인쇄 (감열 프린터)',
+   a:'1. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n2. 명세서 목록에서 「🧾 영수증」\n3. 용지 폭(58/80mm)은 목록 위에서 선택\n⚠ 한글이 깨지면 RawBT 설정에서 인쇄 방식을 그래픽(Graphics)으로'},
+  {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
+   a:'1. 명세서 작성에서 「📷 바코드 스캔」(안드로이드 크롬) 또는 입력창에 찍고 Enter\n2. 품목의 「코드」와 일치하면 줄 추가, 같은 코드 반복이면 수량 +1\n3. 미등록 숫자 바코드는 「＋ 새 품목 등록」으로 상품정보 자동 조회 후 등록'},
+  {role:'admin', keys:['수납','납부','미납','수강료'], t:'수납 관리',
+   a:'1. 수납 탭에서 연·월 선택\n2. 회원별 「납부처리」(방법·날짜)\n3. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
+  {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
+   a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
+  {role:'all', keys:['차계부','주유','정비'], t:'차계부',
+   a:'관리자: 차량 관리 → 「📒 차계부」 — 주유·정비·기타·계기판 기록, 연비 자동\n기사: 운행 화면 → 「⛽ 차계부」 — 배정 차량에 바로 기록\n같은 기록을 관리자·기사가 함께 봐요'},
+  {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
+   a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
+  {role:'admin', keys:['운행기록부','세무','증빙'], t:'운행기록부 내보내기',
+   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영'},
+  {role:'admin', keys:['급여','급여상세','시급','공제'], t:'급여상세 내보내기',
+   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📄 급여상세 내보내기」 → 월 선택\n3. 기본/잔업/특근 자동 분류 — 특근은 엑셀에서 시간만 넣어도 자동 계산\n4. 4대보험 요율은 설정 탭에서 매년 수정'},
+  {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
+   a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
+  {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
+   a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)'},
+  {role:'driver', keys:['pin','출근','퇴근','출퇴근','계기판'], t:'PIN 출퇴근 체크',
+   a:'1. 운행 화면 → 「🔢 기사 PIN 출퇴근 체크」\n2. 본인 PIN 4자리 입력 — 처음은 출근, 다음은 퇴근\n3. 퇴근 때 「계기판 km」를 넣으면 운행기록부에 자동으로 쌓여요'},
+  {role:'driver', keys:['곧도착','문자','납품완료','배송완료','완료'], t:'운행 중 완료·알림',
+   a:'1. 지점 카드의 「🚐 곧도착」으로 보호자/거래처에 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'}
+];
+var helperOpen=false, helperInqOpen=false;
+function helperNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
+/* 키워드 매칭: 1건→답, 2건 이상→선택지, 0건→문의 유도.
+   추후 Claude API로 바꿀 땐 이 함수만 교체하면 됨 */
+function helperAnswer(text){
+  var q=helperNorm(text);
+  var role=(currentMode==='driver')?'driver':'admin';
+  var hits=HELP_QA.filter(function(item){
+    if(item.role!=='all' && item.role!==role) return false;
+    return item.keys.some(function(k){ return q.indexOf(helperNorm(k))>=0; });
+  });
+  if(hits.length===0){
+    /* 반대 역할 문답도 한 번 더 (기사 질문을 관리자가 물을 수 있음) */
+    hits=HELP_QA.filter(function(item){ return item.keys.some(function(k){ return q.indexOf(helperNorm(k))>=0; }); });
+  }
+  if(hits.length===1) return {type:'answer', item:hits[0]};
+  if(hits.length>=2) return {type:'choices', items:hits.slice(0,4)};
+  return {type:'none'};
+}
+function ensureHelperBtn(){
+  if(document.getElementById('helper-fab')) return;
+  var b=document.createElement('button');
+  b.id='helper-fab';
+  b.textContent='💬';
+  /* 데모 투어 버튼(bottom:80px)·운행 하단 바와 안 겹치게 bottom:150px */
+  b.style.cssText='position:fixed;right:16px;bottom:150px;z-index:9997;width:52px;height:52px;border-radius:50%;background:#0E7090;color:#fff;border:none;font-size:22px;box-shadow:0 6px 20px rgba(14,112,144,.4);cursor:pointer;';
+  b.onclick=openHelperChat;
+  document.body.appendChild(b);
+}
+function helperPush(who, html){
+  var box=document.getElementById('helper-msgs');
+  if(!box) return;
+  box.insertAdjacentHTML('beforeend',
+    who==='me'
+      ? '<div style="text-align:right;margin:6px 0;"><span style="display:inline-block;background:#0E7090;color:#fff;padding:8px 12px;border-radius:14px 14px 2px 14px;font-size:13px;max-width:85%;text-align:left;">'+html+'</span></div>'
+      : '<div style="margin:6px 0;"><span style="display:inline-block;background:#F2F4F7;color:#1D2939;padding:8px 12px;border-radius:14px 14px 14px 2px;font-size:13px;max-width:90%;white-space:pre-line;">'+html+'</span></div>');
+  box.scrollTop=box.scrollHeight;
+}
+function helperInqBtnHtml(){
+  return '<div style="margin:4px 0 8px;"><button onclick="helperShowInquiry()" style="padding:7px 12px;background:#FFF7ED;color:#EA580C;border:1px solid #FED7AA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✉ 문의 보내기</button></div>';
+}
+function openHelperChat(){
+  var old=document.getElementById('helper-modal'); if(old){ old.remove(); return; }
+  var role=(currentMode==='driver')?'driver':'admin';
+  var samples=(role==='driver')
+    ? ['PIN 출퇴근 방법','차계부 입력 방법','T맵 5곳 이어가기','납품완료 체크']
+    : ['엑셀 업로드 방법','주소 검색 요령','거래명세서 영수증 인쇄','운행기록부 내보내기'];
+  var h='<div id="helper-modal" style="position:fixed;right:12px;bottom:12px;left:12px;max-width:400px;margin-left:auto;z-index:9998;background:white;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.25);display:flex;flex-direction:column;max-height:72vh;overflow:hidden;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0E7090;color:#fff;">'
+    +'<span style="font-size:14px;font-weight:800;">💬 코스로드 도우미</span>'
+    +'<button onclick="document.getElementById(\'helper-modal\').remove()" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;font-weight:700;">✕</button></div>'
+    +'<div id="helper-msgs" style="flex:1;overflow-y:auto;padding:10px 12px;min-height:180px;"></div>'
+    +'<div id="helper-input-row" style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid #EAECF0;">'
+    +'<input id="helper-input" type="text" placeholder="궁금한 걸 물어보세요" onkeydown="if(event.key===\'Enter\')helperSend();" style="flex:1;padding:10px;border:1.5px solid #EAECF0;border-radius:10px;font-size:13px;min-width:0;"/>'
+    +'<button onclick="helperSend()" style="padding:10px 14px;background:#0E7090;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">전송</button></div>'
+    +'</div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+  helperPush('bot','안녕하세요! 코스로드 도우미예요.\n사용법이 궁금하면 물어보세요. 예시를 눌러도 돼요 👇');
+  var box=document.getElementById('helper-msgs');
+  box.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
+    +samples.map(function(s){ return '<button onclick="helperAsk(\''+s+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+s+'</button>'; }).join('')
+    +'</div>');
+}
+function helperSend(){
+  var el=document.getElementById('helper-input');
+  if(!el || !el.value.trim()) return;
+  var t=el.value.trim(); el.value='';
+  helperAsk(t);
+}
+function helperAsk(text){
+  helperPush('me', String(text).replace(/</g,'&lt;'));
+  var r=helperAnswer(text);
+  if(r.type==='answer'){
+    helperPush('bot','【'+r.item.t+'】\n'+r.item.a);
+    var box=document.getElementById('helper-msgs');
+    if(box) box.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+  } else if(r.type==='choices'){
+    helperPush('bot','어떤 내용이 궁금하세요? 골라주세요 👇');
+    var box2=document.getElementById('helper-msgs');
+    if(box2) box2.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
+      +r.items.map(function(it){ return '<button onclick="helperAsk(\''+it.t+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+it.t+'</button>'; }).join('')+'</div>');
+  } else {
+    helperPush('bot','그 내용은 준비된 도움말에 없네요. 문의를 남겨주시면 프리존에서 직접 답해드릴게요!');
+    var box3=document.getElementById('helper-msgs');
+    if(box3) box3.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+  }
+}
+function helperShowInquiry(){
+  var box=document.getElementById('helper-msgs');
+  if(!box || document.getElementById('inq-text')) return;
+  var role=(currentMode==='driver')?'driver':'admin';
+  var car=cars.find(function(c){ return c.id===currentCarId; });
+  var contact=(role==='driver' && car && car.phone) ? car.phone : ((orgSettings&&orgSettings.tel)||'');
+  box.insertAdjacentHTML('beforeend',
+    '<div id="inq-form" style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin:6px 0;background:#F9FAFB;">'
+    +'<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:6px;">✉ 문의 보내기</div>'
+    +'<select id="inq-type" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;">'
+    +'<option value="사용법">사용법 질문</option><option value="개선">개선 요청</option><option value="오류">오류 신고</option></select>'
+    +'<textarea id="inq-text" rows="3" placeholder="내용을 적어주세요" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;resize:none;"></textarea>'
+    +'<input id="inq-contact" type="tel" value="'+contact+'" placeholder="회신 받을 연락처" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>'
+    +'<button onclick="sendInquiry()" style="width:100%;padding:9px;background:#EA580C;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">보내기</button></div>');
+  box.scrollTop=box.scrollHeight;
+}
+function sendInquiry(){
+  var type=(document.getElementById('inq-type')||{}).value||'사용법';
+  var text=((document.getElementById('inq-text')||{}).value||'').trim();
+  var contact=((document.getElementById('inq-contact')||{}).value||'').trim();
+  if(!text){ alert('내용을 입력해주세요.'); return; }
+  var orgId=getFbOrgId();
+  /* 기관당 하루 5건 제한 (기기 기준 카운트) */
+  var limKey='inquiry_cnt_'+orgId+'_'+todayStr();
+  var cnt=parseInt(localStorage.getItem(limKey)||'0');
+  if(cnt>=5){ alert('문의는 하루 5건까지 보낼 수 있어요. 내일 다시 시도해주세요.'); return; }
+  var role=(currentMode==='driver')?'driver':'admin';
+  var isDemo=/_demo$/.test(getUrlOrg()||'');
+  var rec={ orgId:orgId, orgName:(orgSettings&&orgSettings.name)||'', bizType:getBizType(),
+    role:role, type:type, text:text, contact:contact,
+    date:new Date().toISOString(), status:'new' };
+  try{
+    if(window._db && window._firestore){
+      var d=window._firestore.doc, sd=window._firestore.setDoc;
+      var id='iq'+Date.now()+Math.floor(Math.random()*1000);
+      sd(d(window._db, 'inquiries', id), rec);
+    }
+  }catch(e){}
+  /* 프리존 문자 알림 — 데모 기관은 생략 */
+  if(!isDemo){
+    try{
+      fetch('https://cosroad.vercel.app/api/send-sms', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ receiver:'010-3660-3911', msg:'[코스로드 문의] ('+rec.orgName+'/'+(role==='driver'?'기사':'관리자')+') '+type+' — '+text.slice(0,40) })
+      });
+    }catch(e){}
+  }
+  localStorage.setItem(limKey, String(cnt+1));
+  var f=document.getElementById('inq-form'); if(f) f.remove();
+  helperPush('bot','✅ 문의가 접수됐어요! 확인 후 '+(contact?contact+'(으)로':'남기신 연락처로')+' 연락드릴게요.');
+}
+
 function initApp(){
   // 마스터(전체 관리자) 모드: ?org=admin 이면 업체 관리 화면
   if(getUrlOrg()==='admin'){
@@ -1427,6 +1663,7 @@ function initApp(){
     return;
   }
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
+  ensureHelperBtn();   /* 💬 도우미 — 모든 화면·두 모드 공통 */
   // Firebase 동기화 (비동기)
   setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
