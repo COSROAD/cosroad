@@ -17,3 +17,6 @@ index_raw.html
 
 # Claude 로컬 설정
 .claude/
+
+# 로컬 실행용 바로가기 (배포 대상 아님)
+*.bat
