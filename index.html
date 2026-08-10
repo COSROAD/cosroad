@@ -517,7 +517,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 189;
+const APP_VERSION = 190;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -743,87 +743,237 @@ function fmtWorkMinutes(mins){
   return h+'시간'+(m>0?' '+m+'분':'');
 }
 
-/* ── 기사 급여상세내역 엑셀 내보내기 (근태 기반) ──
+// ══════════════════════
+// 급여상세 수기 입력 저장소 (4업종 공통)
+// 데이터: tkd_payroll_manual = {
+//   holidays: { [ym]: ['YYYY-MM-DD', ...] },                      // 임시공휴일(기관 공통, 월별)
+//   cars: { [carId]: { [ym]: {
+//     hours: { 심야:{[일]:시간}, 주휴수당:{[일]:시간}, 명절휴가비:{[일]:시간} },
+//     wages: { 심야:숫자, 명절휴가비:숫자 } } } } }
+// tkd_drivelog_manual(v188)과 동일 패턴: ORG_KEYS 기관분리 · backupData 백업 ·
+// Firebase('payrollManual') 동기화
+// ══════════════════════
+/* 수기 입력이 가능한 행 = 시간(3줄) · 시급(2줄). 나머지는 근태에서 자동 계산 */
+var PAY_ROWS=['기본','잔업','심야','주휴수당','명절휴가비','특근'];
+var PAY_MANUAL_HOUR_ROWS=['심야','주휴수당','명절휴가비'];
+var PAY_MANUAL_WAGE_ROWS=['심야','명절휴가비'];
+
+function loadPayrollManual(){
+  try{
+    var d=JSON.parse(localStorage.getItem('tkd_payroll_manual')||'{}');
+    if(!d || typeof d!=='object' || Array.isArray(d)) return { holidays:{}, cars:{} };
+    if(!d.holidays || typeof d.holidays!=='object') d.holidays={};
+    if(!d.cars || typeof d.cars!=='object') d.cars={};
+    return d;
+  }catch(e){ return { holidays:{}, cars:{} }; }
+}
+function savePayrollManual(d){
+  localStorage.setItem('tkd_payroll_manual', JSON.stringify(d));
+  saveToFirebase('payrollManual', d);
+}
+/* 임시공휴일 — 기관 공통·월별 */
+function payrollHolidays(ym){
+  var d=loadPayrollManual();
+  var a=d.holidays[ym];
+  return Array.isArray(a) ? a.slice().sort() : [];
+}
+function payrollAddHoliday(ym, date){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'') || date.slice(0,7)!==ym) return false;
+  var d=loadPayrollManual();
+  if(!Array.isArray(d.holidays[ym])) d.holidays[ym]=[];
+  if(d.holidays[ym].indexOf(date)<0) d.holidays[ym].push(date);
+  savePayrollManual(d);
+  return true;
+}
+function payrollRemoveHoliday(ym, date){
+  var d=loadPayrollManual();
+  if(!Array.isArray(d.holidays[ym])) return;
+  d.holidays[ym]=d.holidays[ym].filter(function(x){ return x!==date; });
+  if(!d.holidays[ym].length) delete d.holidays[ym];
+  savePayrollManual(d);
+}
+/* 차량+월 단위 수기값 — 차량·월이 섞이지 않도록 항상 두 단계로 접근 */
+function payrollManualGet(carId, ym){
+  var d=loadPayrollManual();
+  var c=(d.cars[carId] && typeof d.cars[carId]==='object') ? d.cars[carId] : {};
+  var m=(c[ym] && typeof c[ym]==='object') ? c[ym] : {};
+  var hours=(m.hours && typeof m.hours==='object') ? m.hours : {};
+  var wages=(m.wages && typeof m.wages==='object') ? m.wages : {};
+  var outH={};
+  PAY_MANUAL_HOUR_ROWS.forEach(function(k){ outH[k]=(hours[k] && typeof hours[k]==='object') ? hours[k] : {}; });
+  return { hours:outH, wages:{ '심야':Number(wages['심야'])||0, '명절휴가비':Number(wages['명절휴가비'])||0 } };
+}
+/* kind: 'hour'(row+day 필요) | 'wage'(row 필요). 빈 값이면 항목 제거 */
+function payrollManualSet(carId, ym, kind, row, day, val){
+  var d=loadPayrollManual();
+  if(!d.cars[carId] || typeof d.cars[carId]!=='object') d.cars[carId]={};
+  if(!d.cars[carId][ym] || typeof d.cars[carId][ym]!=='object') d.cars[carId][ym]={};
+  var t=d.cars[carId][ym];
+  var n=Number(String(val==null?'':val).replace(/[^0-9.]/g,''));
+  if(!isFinite(n)||n<=0) n=0;
+  if(kind==='wage'){
+    if(!t.wages || typeof t.wages!=='object') t.wages={};
+    if(n>0) t.wages[row]=n; else delete t.wages[row];
+    if(!Object.keys(t.wages).length) delete t.wages;
+  } else {
+    if(!t.hours || typeof t.hours!=='object') t.hours={};
+    if(!t.hours[row] || typeof t.hours[row]!=='object') t.hours[row]={};
+    if(n>0) t.hours[row][String(day)]=n; else delete t.hours[row][String(day)];
+    if(!Object.keys(t.hours[row]).length) delete t.hours[row];
+    if(!Object.keys(t.hours).length) delete t.hours;
+  }
+  if(!Object.keys(t).length) delete d.cars[carId][ym];
+  if(!Object.keys(d.cars[carId]).length) delete d.cars[carId];
+  savePayrollManual(d);
+}
+
+/* ── 급여상세 계산 공용 함수 (화면 양식 · 엑셀 내보내기 공용) ──
+   화면(openPayrollView)과 엑셀(exportPayrollDetail)이 같은 함수를 쓰므로 값이 어긋날 수 없다.
    근태(tkd_driver_att)에서 월별 시간을 자동 분류:
-   기본=평일 8h까지 / 잔업=평일 8h 초과 / 특근=토·일 전부(시급 1.5배)
-   심야·주휴수당·명절휴가비는 빈 줄(수기 보완). 공휴일 자동 판정 없음(주석 명시).
+     임시공휴일 = 그날 전부 특근 / 토·일 = 전부 특근 / 평일 = 8h까지 기본, 초과분 잔업
+   행별 시급: 기본=시급 · 잔업=시급×1.5 · 특근=시급×1.5 · 주휴수당=시급 ·
+             심야·명절휴가비=수기 입력(없으면 0 → 급여 빈칸)
    공제: free33=합계×3.3% / insure4=국민연금+건강+장기요양(건보료 대비)+고용
    (각 항목 원단위 반올림 후 합산). 값은 수식 아닌 계산된 숫자. */
-function exportPayrollDetail(ym){
-  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
+function buildPayrollData(ym){
+  if(!/^\d{4}-\d{2}$/.test(ym||'')) return null;
   var driverCars=cars.filter(function(c){ return c.driver && c.driver.trim(); });
-  if(driverCars.length===0){ alert('기사가 등록된 차량이 없습니다.'); return; }
-  var XLSX=window.XLSX;
   var att=loadDriverAtt();
   var year=Number(ym.slice(0,4)), mon=Number(ym.slice(5,7));
   var lastDay=new Date(year, mon, 0).getDate();
   var rates=getInsRates();
   var 요일=['일','월','화','수','목','금','토'];
-  var dayCols=[], dayDows=[];
+  var holidays=payrollHolidays(ym);
+  var holSet={}; holidays.forEach(function(x){ holSet[x]=1; });
+  var dayCols=[], dayDows=[], dayHol=[];
   for(var d=1; d<=lastDay; d++){
-    var _dw=new Date(ym+'-'+String(d).padStart(2,'0')+'T00:00:00').getDay();
+    var ds=ym+'-'+String(d).padStart(2,'0');
+    var _dw=new Date(ds+'T00:00:00').getDay();
     dayDows.push(_dw);
-    dayCols.push(d+'('+요일[_dw]+')');
+    dayHol.push(!!holSet[ds]);
+    /* 원본 양식대로 실제 날짜 표기 */
+    dayCols.push(mon+'/'+d+'('+요일[_dw]+')');
   }
   /* 공제 열 이름: 기사 전원이 같은 방식이면 그 이름으로 (원본 양식: "원천징수(3.3%)") */
   var _modes=driverCars.map(function(c){ return c.taxMode||'free33'; });
-  var dedName=_modes.every(function(m){ return m==='free33'; })?'원천징수(3.3%)':_modes.every(function(m){ return m==='insure4'; })?'4대보험':'공제';
-  var head=['NO','시급','식대','성명','구분'].concat(dayCols).concat(['근무시간','급여','합계',dedName,'공제후','실급여(식대포함)']);
-  var aoa=[
-    ['급여상세내역 ('+ym+')'],
-    ['※ 공휴일은 자동 판정하지 않습니다 — 평일로 계산되니 필요시 수기 조정하세요. 심야·주휴수당·명절휴가비는 수기 입력 칸입니다.'],
-    [],
-    head
-  ];
-  var blocks=[];   /* 수식용: 블록별 시작 행(0-기준)·모드 */
-  driverCars.forEach(function(car, ci){
+  var dedName=(_modes.length && _modes.every(function(m){ return m==='free33'; }))?'원천징수(3.3%)'
+    :(_modes.length && _modes.every(function(m){ return m==='insure4'; }))?'4대보험':'공제';
+
+  function hsum(obj){ var t=0; for(var k in obj){ t+=Number(obj[k])||0; } return Math.round(t*100)/100; }
+
+  var rows=driverCars.map(function(car, ci){
     var wage=Number(car.hourlyWage)||0;
     var meal=Number(car.mealAllow)||0;
     var mode=car.taxMode||'free33';
-    blocks.push({ r:aoa.length, mode:mode });
-    /* 날짜별 시간 분류 */
-    var base=[], over=[], spec=[];
+    var man=payrollManualGet(car.id, ym);
+    /* 행별 날짜 시간 — 인덱스 0..lastDay-1 (빈칸은 '') */
+    var hours={};
+    PAY_ROWS.forEach(function(k){ hours[k]=[]; for(var i=0;i<lastDay;i++) hours[k].push(''); });
     for(var d=1; d<=lastDay; d++){
       var ds=ym+'-'+String(d).padStart(2,'0');
       var rec=att[attKey(car.id, ds)]||{};
       var mins=calcWorkMinutes(rec.in, rec.out);   /* 퇴근 없으면 null → 빈칸 */
-      var b='', o='', s='';
       if(mins!=null){
         var hrs=Math.round(mins/60*100)/100;
-        var dow=new Date(ds+'T00:00:00').getDay();
-        if(dow===0||dow===6){ s=hrs; }
-        else { b=Math.min(8,hrs); o=hrs>8?Math.round((hrs-8)*100)/100:''; if(o===0)o=''; }
+        var dow=dayDows[d-1];
+        if(holSet[ds] || dow===0 || dow===6){
+          /* 임시공휴일·주말 근무는 전부 특근 */
+          hours['특근'][d-1]=hrs;
+        } else {
+          hours['기본'][d-1]=Math.min(8, hrs);
+          var ov=hrs>8?Math.round((hrs-8)*100)/100:0;
+          if(ov>0) hours['잔업'][d-1]=ov;
+        }
       }
-      base.push(b); over.push(o); spec.push(s);
+      /* 수기 입력 시간 (심야·주휴수당·명절휴가비) */
+      PAY_MANUAL_HOUR_ROWS.forEach(function(k){
+        var v=Number(man.hours[k][String(d)])||0;
+        if(v>0) hours[k][d-1]=v;
+      });
     }
-    function hsum(arr){ var t=0; arr.forEach(function(x){ t+=Number(x)||0; }); return Math.round(t*100)/100; }
-    var bh=hsum(base), oh=hsum(over), sh=hsum(spec);
-    var bPay=Math.round(bh*wage), oPay=Math.round(oh*wage), sPay=Math.round(sh*wage*1.5);
-    var total=bPay+oPay+sPay;
-    var ded, dedNote='';
+    /* 행별 시급 — 잔업은 이번 버전부터 ×1.5 (사장님 확정) */
+    var wages={
+      '기본': wage,
+      '잔업': wage?Math.round(wage*1.5):0,
+      '심야': Number(man.wages['심야'])||0,
+      '주휴수당': wage,
+      '명절휴가비': Number(man.wages['명절휴가비'])||0,
+      '특근': wage?Math.round(wage*1.5):0
+    };
+    var hsums={}, pay={}, total=0;
+    PAY_ROWS.forEach(function(k){
+      var hs=hsum(hours[k]);
+      hsums[k]=hs;
+      var p=(hs>0 && wages[k]>0) ? Math.round(hs*wages[k]) : 0;
+      pay[k]=p;
+      total+=p;
+    });
+    var ded, dedDetail=null;
     if(mode==='insure4'){
       var np=Math.round(total*rates.np/100);
       var hi=Math.round(total*rates.hi/100);
       var ltc=Math.round(hi*rates.ltc/100);
       var ei=Math.round(total*rates.ei/100);
       ded=np+hi+ltc+ei;
-      dedNote='※ 4대보험은 요율 기준 참고 계산 — 실제 고지액과 다를 수 있음 (국민연금 '+np.toLocaleString()+' · 건강 '+hi.toLocaleString()+' · 장기요양 '+ltc.toLocaleString()+' · 고용 '+ei.toLocaleString()+')';
+      dedDetail={np:np, hi:hi, ltc:ltc, ei:ei};
     } else {
       ded=Math.round(total*0.033);
     }
-    var after=total-ded;
-    var net=after+meal;
-    var empty=dayCols.map(function(){ return ''; });
-    aoa.push([ci+1, wage, meal, car.driver+' ('+mon+'월)', '기본'].concat(base).concat([bh||'', bPay, total, ded, after, net]));
-    aoa.push(['', '', '', '', '잔업'].concat(over).concat([oh||'', oPay, '', '', '', '']));
-    aoa.push(['', '', '', '', '심야'].concat(empty).concat(['', '', '', '', '', '']));
-    aoa.push(['', wage||'', '', '', '주휴수당'].concat(empty).concat(['', '', '', '', '', '']));
-    aoa.push(['', '', '', '', '명절휴가비'].concat(empty).concat(['', '', '', '', '', '']));
-    aoa.push(['', wage?Math.round(wage*1.5):'', '', '', '특근(1.5배)'].concat(spec).concat([sh||'', sPay, '', '', '', '']));
-    if(dedNote) aoa.push(['', '', '', '', dedNote]);
+    return { no:ci+1, car:car, wage:wage, meal:meal, mode:mode, wages:wages,
+      hours:hours, hsum:hsums, pay:pay, total:total, ded:ded, dedDetail:dedDetail,
+      after:total-ded, net:(total-ded)+meal };
+  });
+
+  return { ym:ym, year:year, mon:mon, lastDay:lastDay, rates:rates, dows:요일,
+    dayCols:dayCols, dayDows:dayDows, dayHol:dayHol, holidays:holidays,
+    dedName:dedName, rowNames:PAY_ROWS, cars:rows, driverCars:driverCars };
+}
+
+/* ── 기사 급여상세내역 엑셀 내보내기 (근태 기반) — 계산부는 buildPayrollData 공용 ── */
+function exportPayrollDetail(ym){
+  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
+  var D=buildPayrollData(ym);
+  if(!D || !D.cars.length){ alert('기사가 등록된 차량이 없습니다.'); return; }
+  var XLSX=window.XLSX;
+  var lastDay=D.lastDay, mon=D.mon, rates=D.rates, dayCols=D.dayCols, dayDows=D.dayDows;
+  var dedName=D.dedName;
+  var head=['NO','시급','식대','성명','구분'].concat(dayCols).concat(['근무시간','급여','합계',dedName,'공제후','실급여(식대포함)']);
+  var aoa=[
+    ['급여상세내역 ('+ym+')'],
+    ['※ 임시공휴일로 지정한 날은 특근으로 계산됩니다. 그 밖의 법정공휴일은 자동 판정하지 않으니 필요시 임시공휴일에 추가하세요. 심야·명절휴가비 시급과 심야·주휴수당·명절휴가비 시간은 수기 입력 칸입니다.'],
+    [],
+    head
+  ];
+  var blocks=[];   /* 수식용: 블록별 시작 행(0-기준)·모드 */
+  D.cars.forEach(function(P){
+    blocks.push({ r:aoa.length, mode:P.mode });
+    var modeLabel=(P.mode==='insure4')?'4대보험':'3.3%';
+    D.rowNames.forEach(function(rowName, li){
+      var isFirst=(li===0);
+      var label=(rowName==='잔업')?'잔업(1.5배)':(rowName==='특근')?'특근(1.5배)':rowName;
+      var rowWage=P.wages[rowName]||'';
+      /* 시급 열: 행마다 그 행의 시급을 적는다 (원본 양식과 동일) */
+      var line=[ isFirst?P.no:'', rowWage, isFirst?P.meal:'',
+        isFirst?(P.car.driver+' ('+mon+'월·'+modeLabel+')'):'', label ];
+      line=line.concat(P.hours[rowName].map(function(v){ return v===''?'':v; }));
+      line=line.concat([ P.hsum[rowName]||'', P.pay[rowName]||'',
+        isFirst?P.total:'', isFirst?P.ded:'', isFirst?P.after:'', isFirst?P.net:'' ]);
+      aoa.push(line);
+    });
+    if(P.dedDetail){
+      aoa.push(['', '', '', '', '※ 4대보험은 요율 기준 참고 계산 — 실제 고지액과 다를 수 있음 (국민연금 '
+        +P.dedDetail.np.toLocaleString()+' · 건강 '+P.dedDetail.hi.toLocaleString()
+        +' · 장기요양 '+P.dedDetail.ltc.toLocaleString()+' · 고용 '+P.dedDetail.ei.toLocaleString()+')']);
+    }
     aoa.push([]);
   });
-  aoa.push(['임시공휴일 메모', '']);   /* 원본 양식: 공휴일 수기 기재 칸 */
+  /* 원본 양식 하단: 4대보험 요율표 + 임시공휴일 날짜 칸 */
+  var rateRow=aoa.length;
+  aoa.push(['4대보험 요율표 (설정 탭에서 수정)']);
+  aoa.push(['국민연금(%)', rates.np, '건강보험(%)', rates.hi, '장기요양(건강보험료의 %)', rates.ltc, '고용보험(%)', rates.ei]);
+  aoa.push([]);
+  var holRow=aoa.length;
+  aoa.push(['임시공휴일', D.holidays.length ? D.holidays.join(', ') : '(지정 없음)']);
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   /* ── 수식 입히기 — 열: 시급 B(1)·식대 C(2)·날짜 5..5+lastDay-1·
@@ -832,15 +982,17 @@ function exportPayrollDetail(ym){
   blocks.forEach(function(b){
     var base=b.r;
     var wageC=xlsCell(base,1), mealC=xlsCell(base,2);
-    /* 주휴 행 시급 = 기본 시급, 특근 행 시급 = 기본 ×1.5 (원본 양식처럼 행에 표기, 수식 연동) */
+    /* 시급 열 수식 — 잔업·특근 = 기본×1.5 (이번 버전부터 잔업도 1.5배), 주휴 = 기본 시급.
+       심야·명절휴가비는 수기 입력값이라 수식 없이 그대로 둔다. */
+    xlsF(ws, base+1, 1, Number(aoa[base+1][1])||'', 'ROUND('+wageC+'*1.5,0)');
     xlsF(ws, base+3, 1, Number(aoa[base+3][1])||'', wageC);
     xlsF(ws, base+5, 1, Number(aoa[base+5][1])||'', 'ROUND('+wageC+'*1.5,0)');
     for(var li=0; li<6; li++){
       var r=base+li;
       var rng=xlsCell(r,5)+':'+xlsCell(r,5+lastDay-1);
       var htC=xlsCell(r,HT);
-      /* 급여 = 시간 × 그 줄의 시급 (주휴·특근은 자기 행 시급 셀, 나머지는 기본 시급) */
-      var wageRef=(li===3||li===5)?xlsCell(r,1):wageC;
+      /* 급여 = 시간 × 그 줄의 시급 (원본 양식대로 행마다 자기 시급 셀을 쓴다) */
+      var wageRef=xlsCell(r,1);
       var vHT=aoa[r][HT], vPAY=aoa[r][PAY];
       xlsF(ws, r, HT, vHT===''?'':Number(vHT)||0, 'IF(SUM('+rng+')=0,"",SUM('+rng+'))');
       xlsF(ws, r, PAY, vPAY===''?'':Number(vPAY)||0, 'IF('+htC+'="","",ROUND('+htC+'*'+wageRef+',0))');
@@ -859,8 +1011,8 @@ function exportPayrollDetail(ym){
     xlsF(ws, base, AFT, Number(aoa[base][AFT])||0, totC+'-'+dedC);
     xlsF(ws, base, NET, Number(aoa[base][NET])||0, aftC+'+'+mealC);
   });
-  var cols=[{wch:4},{wch:8},{wch:9},{wch:8},{wch:12}];
-  dayCols.forEach(function(){ cols.push({wch:5}); });
+  var cols=[{wch:4},{wch:8},{wch:9},{wch:14},{wch:12}];
+  dayCols.forEach(function(){ cols.push({wch:8}); });
   ['근무시간','급여','합계','공제','공제후','실급여'].forEach(function(){ cols.push({wch:10}); });
   ws['!cols']=cols;
   XLSX.utils.book_append_sheet(wb, ws, '급여상세');
@@ -870,16 +1022,242 @@ function exportPayrollDetail(ym){
   blocks.forEach(function(b){
     [0,2,3,TOT,DED,AFT,NET].forEach(function(c){ _pm.push({r1:b.r, c1:c, r2:b.r+5, c2:c}); });
   });
-  /* 날짜 헤더 요일 색: 토=파랑, 일=빨강 */
+  /* 날짜 헤더 요일 색: 토=파랑, 일=빨강. 임시공휴일은 일요일과 같은 빨강(우선) */
   var _hf=[];
   dayDows.forEach(function(dw, di){
-    if(dw===0) _hf.push({r:3, c:5+di, argb:'FFCC0000'});
+    if(D.dayHol[di]) _hf.push({r:3, c:5+di, argb:'FFCC0000'});
+    else if(dw===0) _hf.push({r:3, c:5+di, argb:'FFCC0000'});
     else if(dw===6) _hf.push({r:3, c:5+di, argb:'FF1A6BFF'});
   });
   finishExcelExport([
     { name:'급여상세', ws:ws, st:{ titleRow:0, headerRows:[3], bodyFrom:4, bodyTo:aoa.length-1,
-        moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm, cellFonts:_hf } }
+        sumRows:[rateRow, holRow], moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm, cellFonts:_hf } }
   ], '급여상세내역_'+ym+'.xlsx', wb);
+}
+
+/* ══════════════════════════════════════════════
+   급여상세 화면 양식 (4업종 공통 · 관리자)
+   배치는 사장님 원본 양식과 동일. 계산값은 buildPayrollData로 엑셀과 공용이라
+   화면과 엑셀이 어긋날 수 없다. 수기값은 tkd_payroll_manual.
+   ══════════════════════════════════════════════ */
+var pvYm='', pvEditKey=null, pvOpen=false;
+
+function openPayrollView(ym){
+  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
+  var D=buildPayrollData(ym);
+  if(!D || !D.cars.length){ alert('기사가 등록된 차량이 없습니다.'); return; }
+  pvYm=ym; pvEditKey=null; pvOpen=true;
+  renderPayrollView();
+}
+function closePayrollView(){
+  pvOpen=false;
+  var e=document.getElementById('pv-modal'); if(e) e.remove();
+  pvEditKey=null;
+  renderAdminTab('attendance');
+}
+/* 양식 HTML — mode:'screen'(수기 입력 가능) / 'print'(안내 문구 미출력) */
+function pvFormHtml(D, mode){
+  var scr=(mode!=='print');
+  var esc=dlvEsc;
+  var FS=scr?12:9, HS=scr?11:8;
+  var C='border:1px solid #B0B7C3;padding:'+(scr?'4px 6px':'2px 3px')+';font-size:'+FS+'px;color:#1D2939;white-space:nowrap;';
+  var H=C+'background:#F2F2F2;font-weight:700;text-align:center;font-size:'+HS+'px;color:#344054;';
+  var R=C+'text-align:right;';
+  var CT=C+'text-align:center;';
+  var mon=D.mon;
+  function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
+  function hr(v){ return (v===''||v==null||v===0) ? '' : String(v); }
+
+  var h='<div style="'+(scr?'min-width:1200px;':'width:100%;')+'font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
+  /* 상단: 월 선택 칸(▾) */
+  h+='<div style="margin-bottom:8px;font-size:'+(scr?15:12)+'px;font-weight:800;color:#1D2939;">급여상세내역 ';
+  if(scr && pvEditKey==='ym'){
+    h+='<input id="pv-inp" type="month" value="'+esc(D.ym)+'" onchange="pvSetYm(this.value)" style="border:1.5px solid #7C3AED;border-radius:4px;padding:2px 4px;font-size:13px;"/>';
+  } else if(scr){
+    h+='<span onclick="pvEditCell(&quot;ym&quot;,0,0)" style="cursor:pointer;color:#7C3AED;">('+esc(D.ym)+' ▾)</span>';
+  } else {
+    h+='('+esc(D.ym)+')';
+  }
+  h+='</div>';
+  h+='<table style="border-collapse:collapse;">';
+  /* 헤더 */
+  h+='<tr><td style="'+H+'">NO</td><td style="'+H+'">시급</td><td style="'+H+'">식대</td>'
+    +'<td style="'+H+'">성명</td><td style="'+H+'">일자(구분)</td>';
+  D.dayCols.forEach(function(lab, di){
+    var col = D.dayHol[di] ? 'color:#CC0000;' : (D.dayDows[di]===0 ? 'color:#CC0000;' : (D.dayDows[di]===6 ? 'color:#1A6BFF;' : ''));
+    h+='<td style="'+H+col+'">'+esc(lab)+(D.dayHol[di]?'<br/>공휴':'')+'</td>';
+  });
+  h+='<td style="'+H+'">근무시간</td><td style="'+H+'">급여</td><td style="'+H+'">합계</td>'
+    +'<td style="'+H+'">'+esc(D.dedName)+'</td><td style="'+H+'">공제후</td><td style="'+H+'">실급여<br/>(식대포함)</td></tr>';
+  /* 기사별 6행 블록 */
+  D.cars.forEach(function(P){
+    var modeLabel=(P.mode==='insure4')?'4대보험':'3.3%';
+    D.rowNames.forEach(function(rowName, li){
+      var first=(li===0);
+      var label=(rowName==='잔업')?'잔업(1.5배)':(rowName==='특근')?'특근(1.5배)':rowName;
+      h+='<tr>';
+      if(first){
+        h+='<td rowspan="6" style="'+CT+'">'+P.no+'</td>';
+      }
+      /* 시급 칸 — 심야·명절휴가비만 수기 */
+      h+=pvWageCell(P, rowName, scr, C, R);
+      if(first){
+        h+='<td rowspan="6" style="'+R+'">'+won(P.meal)+'</td>';
+        h+='<td rowspan="6" style="'+CT+'">'+esc(P.car.driver||'')+'<br/><span style="font-size:'+(FS-2)+'px;color:#667085;">('+mon+'월·'+modeLabel+')</span></td>';
+      }
+      h+='<td style="'+CT+'font-weight:700;">'+esc(label)+'</td>';
+      /* 날짜별 시간 */
+      for(var di=0; di<D.lastDay; di++){
+        h+=pvHourCell(P, rowName, di, scr, C, CT);
+      }
+      h+='<td style="'+R+'">'+hr(P.hsum[rowName])+'</td>';
+      h+='<td style="'+R+'">'+won(P.pay[rowName])+'</td>';
+      if(first){
+        var SUM=C+'text-align:right;background:#FFF9E6;font-weight:800;';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.total)+'</td>';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.ded)+'</td>';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.after)+'</td>';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.net)+'</td>';
+      }
+      h+='</tr>';
+    });
+    if(P.dedDetail){
+      h+='<tr><td colspan="'+(5+D.lastDay+6)+'" style="'+C+'font-size:'+(FS-1)+'px;color:#667085;white-space:normal;">'
+        +'※ 4대보험은 요율 기준 참고 계산 — 실제 고지액과 다를 수 있음 (국민연금 '+P.dedDetail.np.toLocaleString()
+        +' · 건강 '+P.dedDetail.hi.toLocaleString()+' · 장기요양 '+P.dedDetail.ltc.toLocaleString()
+        +' · 고용 '+P.dedDetail.ei.toLocaleString()+')</td></tr>';
+    }
+  });
+  h+='</table>';
+  /* 하단: 4대보험 요율표 (설정 탭 값 읽기 전용) */
+  h+='<div style="margin-top:14px;">';
+  h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:5px;">4대보험 요율표'
+    +'<span style="font-size:'+(FS-1)+'px;font-weight:400;color:#98A2B3;margin-left:6px;">수정은 설정 탭에서</span></div>';
+  h+='<table style="border-collapse:collapse;"><tr>'
+    +'<td style="'+H+'">국민연금</td><td style="'+CT+'">'+D.rates.np+'%</td>'
+    +'<td style="'+H+'">건강보험</td><td style="'+CT+'">'+D.rates.hi+'%</td>'
+    +'<td style="'+H+'">장기요양</td><td style="'+CT+'">'+D.rates.ltc+'% <span style="color:#667085;">(건강보험료의 '+D.rates.ltc+'%)</span></td>'
+    +'<td style="'+H+'">고용보험</td><td style="'+CT+'">'+D.rates.ei+'%</td></tr></table>';
+  h+='</div>';
+  /* 하단: 임시공휴일 */
+  h+='<div style="margin-top:14px;">';
+  h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:5px;">임시공휴일'
+    +(scr?'<span style="font-size:'+(FS-1)+'px;font-weight:400;color:#98A2B3;margin-left:6px;">지정한 날의 근무는 특근으로 계산돼요</span>':'')+'</div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
+  if(!D.holidays.length) h+='<span style="font-size:'+FS+'px;color:#98A2B3;">'+(scr?'지정한 날짜가 없어요':'(지정 없음)')+'</span>';
+  D.holidays.forEach(function(dt){
+    h+='<span style="display:inline-flex;align-items:center;gap:5px;border:1px solid #FDA29B;background:#FEF3F2;color:#B42318;border-radius:8px;padding:4px 9px;font-size:'+FS+'px;font-weight:700;">'+esc(dt)
+      +(scr?'<span onclick="pvRemoveHoliday(\''+esc(dt)+'\')" style="cursor:pointer;color:#F04438;font-weight:800;">×</span>':'')+'</span>';
+  });
+  if(scr){
+    h+='<input id="pv-hol" type="date" min="'+D.ym+'-01" max="'+D.ym+'-'+String(D.lastDay).padStart(2,'0')+'" style="padding:5px 8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"/>'
+      +'<button onclick="pvAddHoliday()" style="padding:5px 11px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">＋ 추가</button>';
+  }
+  h+='</div></div></div>';
+  return h;
+}
+/* 시급 칸 — 심야·명절휴가비만 수기 입력, 나머지는 자동(탭해도 반응 없음) */
+function pvWageCell(P, rowName, scr, C, R){
+  var esc=dlvEsc;
+  var v=P.wages[rowName]||0;
+  var manual=(PAY_MANUAL_WAGE_ROWS.indexOf(rowName)>=0);
+  if(!manual) return '<td style="'+R+'">'+(v?Number(v).toLocaleString():'')+'</td>';
+  if(!scr) return '<td style="'+R+'">'+(v?Number(v).toLocaleString():'')+'</td>';
+  var key='w_'+P.car.id+'_'+rowName;
+  if(pvEditKey===key){
+    return '<td style="'+C+'padding:2px;"><input id="pv-inp" type="text" inputmode="numeric" value="'+(v||'')+'" '
+      +'onblur="pvSaveCell(&quot;wage&quot;,&quot;'+esc(P.car.id)+'&quot;,&quot;'+esc(rowName)+'&quot;,0,this.value)" '
+      +'onkeydown="if(event.key===&quot;Enter&quot;){this.blur();}" '
+      +'style="width:70px;box-sizing:border-box;border:1.5px solid #7C3AED;border-radius:4px;padding:2px 3px;font-size:12px;"/></td>';
+  }
+  var click=' onclick="pvEditCell(&quot;wage&quot;,&quot;'+esc(P.car.id)+'&quot;,&quot;'+esc(rowName)+'&quot;,0)"';
+  if(v) return '<td style="'+R+'cursor:pointer;"'+click+'>'+Number(v).toLocaleString()+'</td>';
+  return '<td style="'+R+'cursor:pointer;background:#F2F4F7;color:#98A2B3;font-size:10px;"'+click+'>빈칸에 기재하세요</td>';
+}
+/* 날짜별 시간 칸 — 심야·주휴수당·명절휴가비만 수기 입력 */
+function pvHourCell(P, rowName, di, scr, C, CT){
+  var esc=dlvEsc;
+  var v=P.hours[rowName][di];
+  var manual=(PAY_MANUAL_HOUR_ROWS.indexOf(rowName)>=0);
+  if(!manual || !scr) return '<td style="'+CT+'">'+(v===''?'':v)+'</td>';
+  var day=di+1;
+  var key='h_'+P.car.id+'_'+rowName+'_'+day;
+  if(pvEditKey===key){
+    return '<td style="'+C+'padding:1px;"><input id="pv-inp" type="text" inputmode="decimal" value="'+(v===''?'':v)+'" '
+      +'onblur="pvSaveCell(&quot;hour&quot;,&quot;'+esc(P.car.id)+'&quot;,&quot;'+esc(rowName)+'&quot;,'+day+',this.value)" '
+      +'onkeydown="if(event.key===&quot;Enter&quot;){this.blur();}" '
+      +'style="width:38px;box-sizing:border-box;border:1.5px solid #7C3AED;border-radius:4px;padding:1px 2px;font-size:11px;"/></td>';
+  }
+  var click=' onclick="pvEditCell(&quot;hour&quot;,&quot;'+esc(P.car.id)+'&quot;,&quot;'+esc(rowName)+'&quot;,'+day+')"';
+  if(v!=='') return '<td style="'+CT+'cursor:pointer;"'+click+'>'+v+'</td>';
+  return '<td style="'+CT+'cursor:pointer;background:#F2F4F7;"'+click+'>&nbsp;</td>';
+}
+function renderPayrollView(){
+  if(!pvOpen) return;
+  var D=buildPayrollData(pvYm);
+  if(!D || !D.cars.length){ closePayrollView(); return; }
+  var btn='padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;';
+  var h='<div id="pv-modal" style="position:fixed;inset:0;background:white;z-index:9990;display:flex;flex-direction:column;">';
+  h+='<div style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #EAECF0;">'
+    +'<div style="font-size:15px;font-weight:800;color:#1A1A2E;flex:1;min-width:0;">📋 급여상세</div>'
+    +'<button onclick="pvPrint()" style="'+btn+'background:#475467;color:white;border:none;">🖨 인쇄/PDF</button>'
+    +'<button onclick="closePayrollView()" style="'+btn+'background:#F2F4F7;color:#475467;border:none;">닫기</button></div>';
+  h+='<div style="flex-shrink:0;padding:7px 12px;background:#F9FAFB;border-bottom:1px solid #EAECF0;font-size:11px;color:#667085;line-height:1.5;">'
+    +'계산 칸은 자동으로 채워져요. 출퇴근 기록이 다르면 근태에서 고치세요. '
+    +'<span style="color:#7C3AED;font-weight:700;">회색 칸(심야·주휴수당·명절휴가비)</span>만 눌러서 입력해요.</div>';
+  h+='<div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px;">'+pvFormHtml(D,'screen')+'</div>';
+  h+='</div>';
+  var ex=document.getElementById('pv-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+  var inp=document.getElementById('pv-inp');
+  if(inp){ try{ inp.focus(); if(inp.select && inp.type==='text') inp.select(); }catch(e){} }
+}
+/* 수기 칸·월 칸 탭 → 인라인 입력 (자동 칸은 핸들러가 없어 탭해도 반응 없음) */
+function pvEditCell(kind, carId, rowName, day){
+  if(kind==='ym') pvEditKey='ym';
+  else if(kind==='wage') pvEditKey='w_'+carId+'_'+rowName;
+  else pvEditKey='h_'+carId+'_'+rowName+'_'+day;
+  renderPayrollView();
+  if(pvEditKey==='ym'){
+    var i=document.getElementById('pv-inp');
+    if(i && i.showPicker){ try{ i.showPicker(); }catch(e){} }
+  }
+}
+/* 입력칸을 벗어나면 즉시 저장·재계산. 다시 그리기는 한 박자 미뤄서
+   다른 수기 칸을 바로 탭했을 때 그 탭이 정상적으로 떨어지게 한다. */
+function pvSaveCell(kind, carId, rowName, day, val){
+  pvEditKey=null;
+  payrollManualSet(carId, pvYm, kind, rowName, day, val);
+  setTimeout(renderPayrollView, 0);
+}
+function pvSetYm(v){
+  if(!/^\d{4}-\d{2}$/.test(v||'')){ pvEditKey=null; renderPayrollView(); return; }
+  pvYm=v; pvEditKey=null;
+  renderPayrollView();
+}
+function pvAddHoliday(){
+  var el=document.getElementById('pv-hol');
+  var v=el? String(el.value||'') : '';
+  if(!v){ showToast('날짜를 고르고 추가를 눌러주세요'); return; }
+  if(v.slice(0,7)!==pvYm){ showToast('이 달 안의 날짜만 넣을 수 있어요'); return; }
+  payrollAddHoliday(pvYm, v);
+  renderPayrollView();
+  showToast('✅ 임시공휴일로 지정했어요 (그날 근무는 특근)');
+}
+/* 삭제는 확인 모달 경유 */
+function pvRemoveHoliday(dt){
+  showConfirmModal(function(){
+    payrollRemoveHoliday(pvYm, dt);
+    renderPayrollView();
+    showToast('임시공휴일에서 뺐어요');
+  }, dt+' 을(를) 임시공휴일에서 뺄까요?');
+}
+/* 인쇄/PDF — v188과 동일하게 saveHtmlAsPdf 재사용 */
+function pvPrint(){
+  var D=buildPayrollData(pvYm);
+  if(!D) return;
+  var css='#pdf-target{padding:6mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;}';
+  saveHtmlAsPdf(pvFormHtml(D,'print'), '급여상세내역_'+pvYm+'.pdf', css);
 }
 
 // 기사 근태 화면에서 보는 날짜 (기본: 오늘)
@@ -905,6 +1283,7 @@ function buildDriverAttHtml(){
   if(_pym===0){ _pyy--; _pym=12; }
   h += '<div style="display:flex;gap:5px;margin-bottom:12px;">'
     +'<input id="pay-export-ym" type="month" value="'+_pyy+'-'+String(_pym).padStart(2,'0')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<button onclick="openPayrollView((document.getElementById(\'pay-export-ym\')||{}).value)" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📋 급여상세 보기</button>'
     +'<button onclick="exportPayrollDetail((document.getElementById(\'pay-export-ym\')||{}).value)" style="padding:8px 12px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📄 급여상세 내보내기</button></div>';
 
   // 날짜 이동
@@ -1527,8 +1906,8 @@ var HELP_QA=[
    a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 설정 탭 → 「지원사업 알림」에서 확인 주기(매일/매주/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요\n4. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
    a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)'},
-  {role:'admin', keys:['급여','급여상세','시급','공제'], t:'급여상세 내보내기',
-   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📄 급여상세 내보내기」 → 월 선택\n3. 기본/잔업/특근 자동 분류 — 특근은 엑셀에서 시간만 넣어도 자동 계산\n4. 4대보험 요율은 설정 탭에서 매년 수정'},
+  {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
+   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 설정 탭에서 매년 수정 (양식 하단엔 읽기 전용으로 보여요)'},
   {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
    a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
@@ -3722,7 +4101,7 @@ function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_me
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual','tkd_support_seen'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -3768,6 +4147,7 @@ function restoreData(ev){
       var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
       var clg = localStorage.getItem('tkd_carlog'); if(clg){ try{ saveToFirebase('carlog', JSON.parse(clg)); }catch(e8){} }
       var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
+      var pym = localStorage.getItem('tkd_payroll_manual'); if(pym){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
     }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
@@ -10365,6 +10745,8 @@ async function syncFromFirebase(){
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
   var fbDlManual = await loadFromFirebase('drivelogManual');
   if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
+  var fbPayManual = await loadFromFirebase('payrollManual');
+  if(fbPayManual){ localStorage.setItem('tkd_payroll_manual', JSON.stringify(fbPayManual)); }
   var fbDelivDone = await loadFromFirebase('deliveryDone');
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
@@ -10379,7 +10761,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -10397,6 +10779,7 @@ function startFirebaseListeners(){
       else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
       else if(key==='drivelogManual'){ localStorage.setItem('tkd_drivelog_manual',JSON.stringify(data)); }
+      else if(key==='payrollManual'){ localStorage.setItem('tkd_payroll_manual',JSON.stringify(data)); }
       renderByTab();
     });
   });
