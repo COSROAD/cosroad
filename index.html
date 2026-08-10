@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 193;
+const APP_VERSION = 194;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1075,19 +1075,25 @@ function closePayrollView(){
   renderAdminTab('attendance');
 }
 /* 양식 HTML — mode:'screen'(수기 입력 가능) / 'print'(안내 문구 미출력) */
-function pvFormHtml(D, mode){
+function pvFormHtml(D, mode, opts){
+  opts=opts||{};
   var scr=(mode!=='print');
   var esc=dlvEsc;
-  var FS=scr?12:9, HS=scr?11:8;
+  /* 인쇄(가로 A4)는 축소가 거의 없어 글자를 키울 수 있다. 날짜 칸만 좁아 9px 유지 */
+  var FS=scr?12:11, HS=scr?11:9;
+  var rowsList=opts.cars||D.cars;
+  var showFooter=scr?true:(opts.footer!==false);
   var C='border:1px solid #B0B7C3;padding:'+(scr?'4px 6px':'2px 3px')+';font-size:'+FS+'px;color:#1D2939;white-space:nowrap;';
   var H=C+'background:#F2F2F2;font-weight:700;text-align:center;font-size:'+HS+'px;color:#344054;';
   var R=C+'text-align:right;';
   var CT=C+'text-align:center;';
+  /* 인쇄 날짜 칸은 폭이 좀아(≈19.5px) 글자를 줄이고 넘치는 부분은 잘라낸다 */
+  var CTd=scr?CT:(CT+'font-size:9px;overflow:hidden;');
   var mon=D.mon;
   function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
   function hr(v){ return (v===''||v==null||v===0) ? '' : String(v); }
 
-  var h='<div style="'+(scr?'min-width:1200px;':'width:100%;')+'font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
+  var h='<div style="'+(scr?'min-width:1200px;':'width:1070px;max-width:100%;')+'font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
   /* 상단: 월 선택 칸(▾) */
   h+='<div style="margin-bottom:8px;font-size:'+(scr?15:12)+'px;font-weight:800;color:#1D2939;">급여상세내역 ';
   if(scr && pvEditKey==='ym'){
@@ -1098,7 +1104,13 @@ function pvFormHtml(D, mode){
     h+='('+esc(D.ym)+')';
   }
   h+='</div>';
-  h+='<table style="border-collapse:collapse;">';
+  h+='<table style="border-collapse:collapse;'+(scr?'':'width:100%;table-layout:fixed;')+'">';
+  if(!scr){
+    /* 42열 비율 — 합 100% (고정 5열 18.8 + 날짜 31열 56.4 + 오른쪽 6열 24.8) */
+    h+='<colgroup><col style="width:1.6%"/><col style="width:3.6%"/><col style="width:3.6%"/><col style="width:5.5%"/><col style="width:4.5%"/>';
+    for(var _ci=0;_ci<D.lastDay;_ci++) h+='<col style="width:'+(56.4/D.lastDay).toFixed(3)+'%"/>';
+    h+='<col style="width:3.6%"/><col style="width:4.2%"/><col style="width:4.5%"/><col style="width:3.8%"/><col style="width:4.2%"/><col style="width:4.5%"/></colgroup>';
+  }
   /* 헤더 */
   h+='<tr><td style="'+H+'">NO</td><td style="'+H+'">시급</td><td style="'+H+'">식대</td>'
     +'<td style="'+H+'">성명</td><td style="'+H+'">일자(구분)</td>';
@@ -1109,7 +1121,7 @@ function pvFormHtml(D, mode){
   h+='<td style="'+H+'">근무시간</td><td style="'+H+'">급여</td><td style="'+H+'">합계</td>'
     +'<td style="'+H+'">'+esc(D.dedName)+'</td><td style="'+H+'">공제후</td><td style="'+H+'">실급여<br/>(식대포함)</td></tr>';
   /* 기사별 6행 블록 */
-  D.cars.forEach(function(P){
+  rowsList.forEach(function(P){
     var modeLabel=(P.mode==='insure4')?'4대보험':'3.3%';
     D.rowNames.forEach(function(rowName, li){
       var first=(li===0);
@@ -1127,7 +1139,7 @@ function pvFormHtml(D, mode){
       h+='<td style="'+CT+'font-weight:700;">'+esc(label)+'</td>';
       /* 날짜별 시간 */
       for(var di=0; di<D.lastDay; di++){
-        h+=pvHourCell(P, rowName, di, scr, C, CT);
+        h+=pvHourCell(P, rowName, di, scr, C, CTd);
       }
       h+='<td style="'+R+'">'+hr(P.hsum[rowName])+'</td>';
       h+='<td style="'+R+'">'+won(P.pay[rowName])+'</td>';
@@ -1148,6 +1160,7 @@ function pvFormHtml(D, mode){
     }
   });
   h+='</table>';
+  if(showFooter){
   /* 하단: 4대보험 요율표 (근태 화면의 요율 칸 값을 읽기 전용으로 표시 — 이중 입력 금지) */
   h+='<div style="margin-top:14px;">';
   h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:5px;">4대보험 요율표'
@@ -1172,7 +1185,9 @@ function pvFormHtml(D, mode){
     h+='<input id="pv-hol" type="date" min="'+D.ym+'-01" max="'+D.ym+'-'+String(D.lastDay).padStart(2,'0')+'" style="padding:5px 8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;"/>'
       +'<button onclick="pvAddHoliday()" style="padding:5px 11px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">＋ 추가</button>';
   }
-  h+='</div></div></div>';
+  h+='</div></div>';
+  }
+  h+='</div>';
   return h;
 }
 /* 시급 칸 — 심야·명절휴가비만 수기 입력, 나머지는 자동(탭해도 반응 없음) */
@@ -1272,11 +1287,26 @@ function pvRemoveHoliday(dt){
   }, dt+' 을(를) 임시공휴일에서 뺄까요?');
 }
 /* 인쇄/PDF — v188과 동일하게 saveHtmlAsPdf 재사용 */
+/* 급여상세 인쇄 — 가로 A4.
+   폭 계산: 가로 A4 297mm − 좌우 여백 6mm×2 = 285mm ≈ 1077px(96dpi).
+   래퍼를 1070px 고정으로 잡아 축소 없이 거의 1:1로 앉히고, 그 안에서 42열
+   (고정 5 + 날짜 31 + 오른쪽 6)을 table-layout:fixed 비율로 나눈다.
+   날짜 열 = 1070px × 1.82% ≈ 19.5px 라 "10.5" 같은 값이 들어가도록 날짜 칸만 9px,
+   나머지는 11px. 세로 A4(210mm)로 축소되던 기존 대비 글자가 약 1.8배 커진다.
+   기사 블록은 PV_BLOCKS_PER_PAGE 단위로 쪽을 나눠 쪽 경계에서 잘리지 않게 한다. */
+var PV_BLOCKS_PER_PAGE=4;
 function pvPrint(){
   var D=buildPayrollData(pvYm);
   if(!D) return;
-  var css='#pdf-target{padding:6mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;}';
-  saveHtmlAsPdf(pvFormHtml(D,'print'), '급여상세내역_'+pvYm+'.pdf', css);
+  var css='.pdf-page{padding:6mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;}';
+  var groups=[];
+  for(var i=0;i<D.cars.length;i+=PV_BLOCKS_PER_PAGE) groups.push(D.cars.slice(i,i+PV_BLOCKS_PER_PAGE));
+  if(!groups.length) groups=[[]];
+  var html='';
+  groups.forEach(function(g, gi){
+    html+='<div class="pdf-page">'+pvFormHtml(D,'print',{cars:g, footer:(gi===groups.length-1)})+'</div>';
+  });
+  saveHtmlAsPdf(html, '급여상세내역_'+pvYm+'.pdf', css, {landscape:true});
 }
 
 // 기사 근태 화면에서 보는 날짜 (기본: 오늘)
@@ -2064,11 +2094,11 @@ var HELP_QA=[
   {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
    a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 설정 탭 → 「지원사업 알림」에서 확인 주기(매일/매주/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요\n4. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
-   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제'},
+   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
-   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제'},
+   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n9. 인쇄는 가로 A4로 나와요 (날짜가 31칸이라 세로에는 안 들어가요). 기사가 많으면 쪽이 나뉘고, 한 사람 블록이 쪽 경계에서 잘리지 않아요'},
   {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
    a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
@@ -8183,12 +8213,19 @@ function savePdfInvoice(id){
 }
 
 // 범용: HTML 문자열을 받아 PDF로 저장 (증명서 등 재사용)
-function saveHtmlAsPdf(innerHtml, fname, extraCss){
+/* opts: {landscape:true} — 가로 A4. 넘기지 않으면 기존과 같이 세로(증명서 등 호출부 불변).
+   여러 쪽으로 나누려면 innerHtml 안에 .pdf-page 요소를 여러 개 두면 된다.
+   ※ 이 함수는 html2canvas로 그림을 떠서 jsPDF에 넣는 방식이라 CSS page-break가 듣지 않는다.
+     그래서 .pdf-page 요소를 각각 따로 캡처해 addPage()로 넘긴다. */
+function saveHtmlAsPdf(innerHtml, fname, extraCss, opts){
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단됐어요. 팝업 허용 후 다시 시도해주세요.'); return; }
+  var land = !!(opts && opts.landscape);
+  var pw = land ? 297 : 210, ph = land ? 210 : 297;
   var css = '<style>'
     + 'body{margin:0;background:#fff;font-family:"Malgun Gothic","맑은 고딕",sans-serif;}'
-    + '#pdf-target{width:210mm;box-sizing:border-box;}'
+    + '#pdf-target{width:'+pw+'mm;box-sizing:border-box;}'
+    + '.pdf-page{width:100%;box-sizing:border-box;}'
     + (extraCss||'')
     + '</style>';
   var doc = '<html><head><meta charset="utf-8"><title>'+fname+'</title>'+css
@@ -8200,12 +8237,23 @@ function saveHtmlAsPdf(innerHtml, fname, extraCss){
     + '<scr'+'ipt>'
     + 'window.onload=function(){'
     + ' var el=document.getElementById("pdf-target");'
-    + ' html2canvas(el,{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
-    + '   var img=canvas.toDataURL("image/jpeg",0.95);'
-    + '   var pdf=new jspdf.jsPDF("p","mm","a4");'
-    + '   var pw=210, ph=297, iw=pw, ih=canvas.height*iw/canvas.width;'
-    + '   if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
-    + '   else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
+    + ' var pgs=el.querySelectorAll(".pdf-page");'
+    + ' var list=pgs.length?Array.prototype.slice.call(pgs):[el];'
+    + ' var pdf=new jspdf.jsPDF('+JSON.stringify(land?'l':'p')+',"mm","a4");'
+    + ' var pw='+pw+', ph='+ph+';'
+    + ' var i=0;'
+    + ' function step(){'
+    + '   if(i>=list.length){ done(); return; }'
+    + '   html2canvas(list[i],{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
+    + '     var img=canvas.toDataURL("image/jpeg",0.95);'
+    + '     var iw=pw, ih=canvas.height*iw/canvas.width;'
+    + '     if(i>0) pdf.addPage();'
+    + '     if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
+    + '     else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
+    + '     i++; step();'
+    + '   }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF failed: "+err; });'
+    + ' }'
+    + ' function done(){'
     + '   var fn='+JSON.stringify(fname)+';'
     + '   var st=document.getElementById("pdf-status");'
     + '   if(window.showSaveFilePicker){'
@@ -8219,7 +8267,8 @@ function saveHtmlAsPdf(innerHtml, fname, extraCss){
     + '     st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다.";'
     + '     setTimeout(function(){ try{window.close();}catch(e){} }, 1200);'
     + '   }'
-    + ' }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF 생성 실패: "+err; });'
+    + ' }'
+    + ' step();'
     + '};'
     + '</scr'+'ipt></body></html>';
   w.document.write(doc);
@@ -9258,7 +9307,18 @@ function buildDriveLogData(carId, ym){
   var eff = totalL>0 ? Math.round(totalKm/totalL*10)/10 : '';
   var avg = totalL>0 ? Math.round(fuelAmt/totalL) : '';
   var pct = totalKm>0 ? Math.round(totalBiz/totalKm*100)+'%' : '';
-  return { car:car, org:org, ym:ym, year:year, mon:mon, lastDay:lastDay, bizName:bizName,
+  /* 주유·정비 상세 (엑셀 둘째 시트 · 화면 표 · 인쇄 2쪽 공용) — 날짜순
+     행: [주유일자, 운행기록(km), 급유량(L), 단가(원/L), 주유금액, 정비내역, 정비금액] */
+  var expenseRows=[];
+  fuelRecs.forEach(function(r){
+    var L=Number(r.liters)||0, amt=Number(r.amount)||0;
+    expenseRows.push({date:r.date, row:[r.date, Number(r.odo)||'', L, L>0?Math.round(amt/L):'', amt, '', '']});
+  });
+  repRecs.forEach(function(r){
+    expenseRows.push({date:r.date, row:[r.date, Number(r.odo)||'', '', '', '', String(r.item||''), Number(r.amount)||0]});
+  });
+  expenseRows.sort(function(a,b){ return a.date<b.date?-1:1; });
+  return { car:car, org:org, ym:ym, year:year, mon:mon, lastDay:lastDay, bizName:bizName, expenseRows:expenseRows,
     dept:dept, manual:man, dows:요일, body:body, dayDows:dayDows, driveDays:driveDays,
     totalKm:totalKm, totalBiz:totalBiz, fuelRecs:fuelRecs, repRecs:repRecs,
     totalL:totalL, fuelAmt:fuelAmt, repAmt:repAmt, eff:eff, avg:avg, pct:pct };
@@ -9306,15 +9366,7 @@ function exportDriveLogbook(carId, ym){
   var s2=[['주유·지출 내역 — '+ym],
     [XLS_LOCK_GUIDE],
     ['주유일자','운행기록(km)','급유량(L)','단가(원/L)','주유금액','정비내역','정비금액']];
-  var dataRows=[];
-  fuelRecs.forEach(function(r){
-    var L=Number(r.liters)||0, amt=Number(r.amount)||0;
-    dataRows.push({date:r.date, row:[r.date, Number(r.odo)||'', L, L>0?Math.round(amt/L):'', amt, '', '']});
-  });
-  repRecs.forEach(function(r){
-    dataRows.push({date:r.date, row:[r.date, Number(r.odo)||'', '', '', '', String(r.item||''), Number(r.amount)||0]});
-  });
-  dataRows.sort(function(a,b){ return a.date<b.date?-1:1; });
+  var dataRows=D.expenseRows;                 /* 계산 공용 — 화면 표와 같은 데이터 */
   var DATA_N=Math.max(15, dataRows.length);   /* 기록 없어도 기본 15행 입력칸 */
   for(var ri=0; ri<DATA_N; ri++){
     s2.push(ri<dataRows.length ? dataRows[ri].row : ['', '', '', '', '', '', '']);
@@ -9465,7 +9517,9 @@ function uploadDriveLogPhoto(dataUrl, cb){
 }
 
 /* 양식 HTML — mode:'screen'(수기 입력 가능) / 'print'(안내 문구 미출력, 사진은 dataURL로 받음) */
-function dlvFormHtml(D, mode, photoSrc){
+/* part: 'all'(화면 기본) · 'page1'(본표만, 사진 없음) · 'page2'(주유·정비 표 + 계기판 사진) */
+function dlvFormHtml(D, mode, photoSrc, part){
+  part=part||'all';
   var scr=(mode!=='print');
   var esc=dlvEsc;
   var FS=scr?12:10, HS=scr?11:9;
@@ -9503,6 +9557,7 @@ function dlvFormHtml(D, mode, photoSrc){
   }
 
   var h='<div style="'+(scr?'min-width:900px;':'width:100%;')+'font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
+  if(part!=='page2'){
   h+='<table style="border-collapse:collapse;width:100%;table-layout:fixed;">';
   h+='<colgroup>'+['14%','8%','8%','11%','11%','9%','9%','9%','21%'].map(function(w){ return '<col style="width:'+w+'"/>'; }).join('')+'</colgroup>';
   /* 상단: 과세기간 · 제목 · 상호명 · 사업자등록번호 */
@@ -9550,12 +9605,17 @@ function dlvFormHtml(D, mode, photoSrc){
     +'<td style="'+SUM+'">업무용 사용비율</td><td style="'+SUM+'text-align:right;">'+esc(D.pct||'')+'</td>'
     +'<td colspan="3" style="border:none;"></td></tr>';
   h+='</table>';
+  }
+  if(part!=='page1'){
+  /* 주유·정비 내역 (엑셀 둘째 시트와 같은 표) — 전부 자동 칸 */
+  h+=dlvExpenseTableHtml(D, scr, FS, HS);
   /* 맨 아래: 월말 계기판 사진 */
   var ps = photoSrc || (scr ? ((typeof isDemoMode==='function' && isDemoMode() && dlvDemoPhoto) ? dlvDemoPhoto : (D.manual.odoPhoto||'')) : '');
   h+='<div style="margin-top:14px;">';
   h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:6px;">📷 월말 계기판 사진</div>';
   if(ps){
-    h+='<div style="border:1px solid #B0B7C3;padding:6px;display:inline-block;"><img src="'+esc(ps)+'" style="max-width:'+(scr?320:280)+'px;max-height:'+(scr?240:210)+'px;display:block;"/></div>';
+    /* 인쇄 2쪽에서는 사진이 주인공이라 가로 최대로 키운다 (세로는 쪽 안에 들어가게) */
+    h+='<div style="border:1px solid #B0B7C3;padding:6px;display:inline-block;"><img src="'+esc(ps)+'" style="max-width:'+(scr?'320px':'700px')+';max-height:'+(scr?'240px':'470px')+';display:block;"/></div>';
     if(scr){
       h+='<div style="display:flex;gap:6px;margin-top:6px;">'
         +'<button onclick="dlvPickPhoto()" style="padding:7px 12px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔄 사진 교체</button>'
@@ -9565,9 +9625,45 @@ function dlvFormHtml(D, mode, photoSrc){
     h+='<div onclick="dlvPickPhoto()" style="border:1px dashed #B0B7C3;background:#F2F4F7;color:#98A2B3;width:320px;max-width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;box-sizing:border-box;">여기를 눌러 계기판 사진을 넣으세요</div>';
   } else {
     /* 인쇄물: 안내 문구 없이 테두리만 빈 칸 */
-    h+='<div style="border:1px solid #B0B7C3;width:280px;height:200px;"></div>';
+    h+='<div style="border:1px solid #B0B7C3;width:700px;max-width:100%;height:400px;"></div>';
   }
-  h+='</div></div>';
+  h+='</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+/* 주유·정비 내역 표 — 화면·인쇄 2쪽 공용. 값은 buildDriveLogData에서 온다(자동 칸) */
+function dlvExpenseTableHtml(D, scr, FS, HS){
+  var esc=dlvEsc;
+  var C='border:1px solid #B0B7C3;padding:'+(scr?'5px 7px':'3px 4px')+';font-size:'+FS+'px;color:#1D2939;';
+  var H=C+'background:#F2F2F2;font-weight:700;text-align:center;font-size:'+HS+'px;color:#344054;';
+  var R=C+'text-align:right;';
+  var CT=C+'text-align:center;';
+  function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
+  var h='<div style="margin-top:16px;">';
+  h+='<div style="font-size:'+(scr?14:11)+'px;font-weight:800;color:#344054;margin-bottom:6px;">⛽ 주유·정비 내역 — '+esc(D.ym)+'</div>';
+  if(!D.expenseRows.length){
+    h+='<div style="font-size:'+FS+'px;color:#98A2B3;border:1px solid #B0B7C3;padding:'+(scr?'10px':'6px')+';">이번 달 주유·정비 기록이 없습니다.</div></div>';
+    return h;
+  }
+  h+='<table style="border-collapse:collapse;'+(scr?'':'width:100%;')+'">';
+  h+='<tr><td style="'+H+'">주유일자</td><td style="'+H+'">운행기록(km)</td><td style="'+H+'">급유량(L)</td>'
+    +'<td style="'+H+'">단가(원/L)</td><td style="'+H+'">주유금액</td><td style="'+H+'">정비내역</td><td style="'+H+'">정비금액</td></tr>';
+  D.expenseRows.forEach(function(e){
+    var r=e.row;
+    h+='<tr><td style="'+CT+'">'+esc(r[0])+'</td><td style="'+R+'">'+won(r[1])+'</td><td style="'+R+'">'+(r[2]===''?'':r[2])+'</td>'
+      +'<td style="'+R+'">'+won(r[3])+'</td><td style="'+R+'">'+won(r[4])+'</td>'
+      +'<td style="'+CT+'">'+esc(r[5]||'')+'</td><td style="'+R+'">'+won(r[6])+'</td></tr>';
+  });
+  var SUM=C+'background:#FFF9E6;font-weight:800;';
+  h+='<tr><td style="'+SUM+'text-align:center;">합계</td><td style="'+SUM+'"></td>'
+    +'<td style="'+SUM+'text-align:right;">'+(D.totalL||'')+'</td><td style="'+SUM+'"></td>'
+    +'<td style="'+SUM+'text-align:right;">'+won(D.fuelAmt)+'</td><td style="'+SUM+'"></td>'
+    +'<td style="'+SUM+'text-align:right;">'+won(D.repAmt)+'</td></tr>';
+  h+='<tr><td colspan="3" style="'+CT+'font-weight:700;">차량연비(km/L) '+(D.eff||'-')+'</td>'
+    +'<td colspan="4" style="'+CT+'font-weight:700;">주유평균(원/L) '+(D.avg?Number(D.avg).toLocaleString():'-')+'</td></tr>';
+  h+='</table></div>';
   return h;
 }
 
@@ -9665,8 +9761,13 @@ function dlvPrint(){
   var D=buildDriveLogData(dlvCarId, dlvYm);
   if(!D) return;
   var fname='운행기록부_'+(D.car.name||'차량')+'_'+dlvYm+'.pdf';
-  var css='#pdf-target{padding:8mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:break-all;}';
-  function go(src){ saveHtmlAsPdf(dlvFormHtml(D,'print',src||''), fname, css); }
+  var css='.pdf-page{padding:8mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:break-all;}';
+  /* 1쪽 = 본표(사진 없음) / 2쪽 = 주유·정비 표 + 계기판 사진 크게 */
+  function go(src){
+    var html='<div class="pdf-page">'+dlvFormHtml(D,'print','','page1')+'</div>'
+      +'<div class="pdf-page">'+dlvFormHtml(D,'print',src||'','page2')+'</div>';
+    saveHtmlAsPdf(html, fname, css);
+  }
   var url=D.manual.odoPhoto||'';
   if(!url){ go(''); return; }
   showToast('사진 준비 중...');
