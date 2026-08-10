@@ -153,6 +153,32 @@ async function loadBizinfo(biz, q) {
   return { ok: true, items: finalize(items, biz, q) };
 }
 
+/* 문자열 → 짧은 결정적 해시 (djb2). 같은 문자열이면 언제나 같은 값이라
+   NEW 판정 기준으로 쓸 수 있다. 단순 charCode 합산은 글자 순서가 다른 제목끼리
+   쉽게 겹쳐서, 순서를 반영하는 djb2로 충돌을 줄였다. */
+function shortHash(s) {
+  let h = 5381;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++) {
+    h = (((h << 5) + h) + str.charCodeAt(i)) | 0;   // h*33 + c
+  }
+  return (h >>> 0).toString(36);
+}
+
+/* 정부24 항목 식별자 — v3 실응답에 SVC_ID가 비어 있는 경우가 있어
+   SVC_ID → 서비스ID → (서비스명|소관기관명) 해시 순으로 떨어진다.
+   어떤 경우에도 항목마다 고유하고 매번 같은 값이어야 seen/NEW 판정이 맞는다. */
+function gov24Id(r) {
+  const svc = String(r['SVC_ID'] || '').trim();
+  if (svc) return svc;
+  const alt = String(r['서비스ID'] || '').trim();
+  if (alt) return alt;
+  const name = String(r['서비스명'] || '').trim();
+  const org = String(r['소관기관명'] || r['접수기관명'] || '').trim();
+  if (!name && !org) return '';
+  return 'h' + shortHash(name + '|' + org);
+}
+
 /* ── 정부24 (보조금24) ── */
 async function loadGov24(biz, q) {
   const KEY = (process.env.DATA_GO_KR_KEY || '').trim();
@@ -177,10 +203,13 @@ async function loadGov24(biz, q) {
       continue;
     }
     const rows = (j && Array.isArray(j.data)) ? j.data : [];
+    /* ⚠ 임시 진단 로그 — v3 실응답에 SVC_ID가 비어 있어 실제 식별자 필드명을 확인하는 중.
+       Vercel 로그에서 필드 이름을 확인한 뒤 다음 커밋에서 제거할 것. */
+    console.error('gov24 ' + versions[v] + ' 필드:', Object.keys(rows[0] || {}));
     const items = rows.map(function (r) {
       const period = String(r['신청기한'] || '').trim();
       return {
-        id:      'g24_' + String(r['SVC_ID'] || '').trim(),
+        id:      'g24_' + gov24Id(r),
         title:   String(r['서비스명'] || '').trim(),
         org:     String(r['소관기관명'] || r['접수기관명'] || '').trim(),
         period:  period,
