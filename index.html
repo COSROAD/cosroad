@@ -517,7 +517,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 188;
+const APP_VERSION = 189;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1523,6 +1523,8 @@ var HELP_QA=[
    a:'관리자: 차량 관리 → 「📒 차계부」 — 주유·정비·기타·계기판 기록, 연비 자동\n기사: 운행 화면 → 「⛽ 차계부」 — 배정 차량에 바로 기록\n같은 기록을 관리자·기사가 함께 봐요'},
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
    a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
+  {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
+   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 설정 탭 → 「지원사업 알림」에서 확인 주기(매일/매주/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요\n4. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
    a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)'},
   {role:'admin', keys:['급여','급여상세','시급','공제'], t:'급여상세 내보내기',
@@ -1783,6 +1785,8 @@ function switchTab(tab){
     renderAdminNav();
     renderAdminTab(currentAdminTab);
     try{ if(typeof maybeAutoStartTour==='function') maybeAutoStartTour(); }catch(e){}
+    /* 지원사업 자동 확인 — 설정한 주기가 도래했을 때만 호출 */
+    try{ if(typeof supportAutoCheck==='function') supportAutoCheck(); }catch(e){}
   }
 }
 function renderByTab(){switchTab(currentTab);}
@@ -2978,6 +2982,10 @@ function renderDashboard(){
         return`<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-600);margin-bottom:3px;"><span>${car.name}${car.driver?' ('+car.driver+')':''}</span><span>${on}/${total2}${_unit}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div></div>`;
       }).join('')}
     </div>
+    <div class="status-card" onclick="openSupportList()" style="cursor:pointer;">
+      <div class="status-card-title">💰 정부 지원사업 ${supportBadgeHtml()}</div>
+      <div style="font-size:12px;color:#667085;">기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요. <span style="color:var(--admin);font-weight:700;">▶ 보기</span></div>
+    </div>
     <div class="status-card">
       <div class="status-card-title">📑 서류·인증 도움</div>
       ${_docHtml}
@@ -3625,6 +3633,26 @@ function renderSettings(){
       <div style="font-size:11px;color:#98A2B3;margin-top:6px;">요율은 매년 변경됩니다. 연초에 확인 후 수정하세요. (산재는 사업주 전액 — 공제 없음)</div>
       <button onclick="saveInsRates()" style="width:100%;padding:9px;background:#344054;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;">요율 저장</button>
     </div>
+    <div class="setting-title" style="margin-top:16px;">지원사업 알림</div>
+    <div class="setting-card">
+      <div class="setting-row">
+        <div><div class="setting-row-label">확인 주기</div><div class="setting-row-sub">관리자 화면에 들어올 때 새 공고를 확인해요</div></div>
+        <select onchange="setSupportAlert(this.value,0)" style="padding:6px 10px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;font-weight:700;color:#344054;">
+          ${[['daily','매일'],['weekly','매주'],['off','끄기']].map(function(o){
+            return '<option value="'+o[0]+'"'+(supportAlertCfg().period===o[0]?' selected':'')+'>'+o[1]+'</option>';
+          }).join('')}
+        </select>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-row-label">마감 임박 기준</div><div class="setting-row-sub">신청 마감이 이 안에 들면 「⏰ 마감임박」 표시</div></div>
+        <select onchange="setSupportAlert('',Number(this.value))" style="padding:6px 10px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;font-weight:700;color:#344054;">
+          ${[3,7,14].map(function(d){
+            return '<option value="'+d+'"'+(supportAlertCfg().dday===d?' selected':'')+'>D-'+d+'</option>';
+          }).join('')}
+        </select>
+      </div>
+      <div style="font-size:11px;color:#98A2B3;margin-top:6px;">공고는 저장하지 않고 열 때마다 새로 받아와요. 자격·신청 방법은 원문에서 확인하세요.</div>
+    </div>
     <div class="setting-title" style="margin-top:16px;">데이터</div>
     <div class="setting-card">
       <div class="setting-row">
@@ -3679,7 +3707,9 @@ function saveOrgInfo(){
   var bizTypeVal = getUrlBizGroup() || (bizSel?bizSel.value:getBizType());
   var _prevStamp = (orgSettings&&orgSettings.stamp)||'';
   var _prevIns = (orgSettings&&orgSettings.insRates)||null;
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp,insRates:_prevIns};
+  /* 지원사업 알림 설정은 이 화면에 입력칸이 없으므로 저장 때 유실되지 않게 그대로 보존 */
+  var _prevSup = (orgSettings&&orgSettings.supportAlert)||null;
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp,insRates:_prevIns,supportAlert:_prevSup};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
   applyOrgNameFit();
@@ -3692,7 +3722,7 @@ function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_me
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual','tkd_support_seen'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -9059,6 +9089,195 @@ function dlvPrint(){
   showToast('사진 준비 중...');
   dlvFetchImageBase64(url).then(function(im){ go(im.dataUrl); })
     .catch(function(){ showToast('사진을 불러오지 못해 사진 없이 인쇄해요'); go(''); });
+}
+
+/* ══════════════════════════════════════════════
+   정부 지원사업 알림 (4업종 공통 · 관리자 화면)
+   공고 데이터는 저장하지 않는다 — 항상 api/support-info 에서 받아온다.
+   '본 공고(seen)'만 tkd_support_seen 에 저장(ORG_KEYS로 기관 분리),
+   알림 설정은 orgSettings.supportAlert (백업·동기화 자동).
+   ══════════════════════════════════════════════ */
+var SUPPORT_API='https://cosroad.vercel.app/api/support-info';
+var supportItems=[], supportLoading=false, supportErr='', supportQ='';
+var supportNewCount=0, supportOpen=false;
+
+function loadSupportSeen(){
+  try{
+    var d=JSON.parse(localStorage.getItem('tkd_support_seen')||'{}');
+    return (d && typeof d==='object' && !Array.isArray(d)) ? d : {};
+  }catch(e){ return {}; }
+}
+/* 데모(_demo)는 ORG_KEYS 규칙에 따라 setItem이 무시된다 — 조회는 되고 저장만 안 됨 */
+function saveSupportSeen(d){ localStorage.setItem('tkd_support_seen', JSON.stringify(d)); }
+function supportMarkSeen(items){
+  var d=loadSupportSeen(), changed=false;
+  (items||[]).forEach(function(it){ if(it && it.id && !d[it.id]){ d[it.id]=1; changed=true; } });
+  if(changed) saveSupportSeen(d);
+}
+function supportIsNew(it){ return !loadSupportSeen()[it.id]; }
+
+/* 알림 설정 — 기본: 매일 확인 · D-7 마감임박 */
+function supportAlertCfg(){
+  var c=(orgSettings&&orgSettings.supportAlert)||{};
+  var period=(c.period==='weekly'||c.period==='off')?c.period:'daily';
+  var dday=(c.dday===3||c.dday===14)?c.dday:7;
+  return { period:period, dday:dday };
+}
+function setSupportAlert(period, dday){
+  var c=supportAlertCfg();
+  orgSettings=orgSettings||{};
+  orgSettings.supportAlert={ period:(period||c.period), dday:(dday||c.dday) };
+  saveOrgSettings(orgSettings);
+  showToast('✅ 지원사업 알림 설정이 저장됐어요');
+  renderAdminTab('settings');
+}
+
+/* 마감임박 판정 — 오늘부터 설정한 D-기준 이내 */
+function supportDdayLeft(endDate){
+  if(!endDate) return null;
+  var t=todayStr();
+  if(endDate<t) return null;
+  var a=new Date(t+'T00:00:00'), b=new Date(endDate+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+function supportBadgeHtml(){
+  if(!supportNewCount) return '';
+  return '<span style="font-size:10px;background:#F04438;color:white;padding:2px 7px;border-radius:10px;font-weight:800;margin-left:4px;">'+supportNewCount+'건</span>';
+}
+
+/* 두 소스를 함께 호출해 합친다. 한쪽이 실패해도 다른 쪽은 보여준다. */
+function supportFetch(cb){
+  var biz=getBizType();
+  var qs='&biz='+encodeURIComponent(biz)+(supportQ?('&q='+encodeURIComponent(supportQ)):'');
+  var srcs=['bizinfo','gov24'], done=0, all=[], errs=[];
+  srcs.forEach(function(s){
+    fetch(SUPPORT_API+'?src='+s+qs)
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j && j.ok && Array.isArray(j.items)) all=all.concat(j.items);
+        else if(j && j.message) errs.push(j.message);
+      })
+      .catch(function(e){ errs.push('연결 실패'); })
+      .then(function(){
+        done++;
+        if(done===srcs.length){
+          /* 마감 임박한 것부터, 종료일 없는 건 뒤로 */
+          all.sort(function(a,b){
+            if(a.endDate && b.endDate) return a.endDate<b.endDate?-1:1;
+            if(a.endDate) return -1;
+            if(b.endDate) return 1;
+            return 0;
+          });
+          cb(all, errs);
+        }
+      });
+  });
+}
+
+function openSupportList(){
+  supportOpen=true; supportQ=''; supportItems=[]; supportErr='';
+  renderSupportList();
+  supportReload();
+}
+function closeSupportList(){
+  supportOpen=false;
+  var e=document.getElementById('sup-modal'); if(e) e.remove();
+  renderAdminTab('dashboard');
+}
+function supportReload(){
+  supportLoading=true; supportErr='';
+  renderSupportList();
+  supportFetch(function(items, errs){
+    supportLoading=false;
+    supportItems=items;
+    supportErr=(!items.length && errs.length) ? errs.join(' / ') : '';
+    supportNewCount=items.filter(supportIsNew).length;
+    renderSupportList();
+    /* 목록을 연 시점에 표시된 항목 id들을 seen에 추가 */
+    supportMarkSeen(items);
+  });
+}
+function supportSearch(){
+  var el=document.getElementById('sup-q');
+  supportQ=el? String(el.value||'').trim() : '';
+  supportReload();
+}
+function renderSupportList(){
+  if(!supportOpen) return;
+  var cfg=supportAlertCfg();
+  var btn='padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;';
+  var h='<div id="sup-modal" style="position:fixed;inset:0;background:white;z-index:9990;display:flex;flex-direction:column;">';
+  h+='<div style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #EAECF0;">'
+    +'<div style="font-size:15px;font-weight:800;color:#1A1A2E;flex:1;min-width:0;">💰 정부 지원사업</div>'
+    +'<button onclick="supportReload()" style="'+btn+'background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;">🔄 새로고침</button>'
+    +'<button onclick="closeSupportList()" style="'+btn+'background:#F2F4F7;color:#475467;border:none;">닫기</button></div>';
+  h+='<div style="flex-shrink:0;padding:8px 12px;border-bottom:1px solid #EAECF0;display:flex;gap:6px;">'
+    +'<input id="sup-q" type="text" value="'+dlvEsc(supportQ)+'" placeholder="검색어 (비우면 업종에 맞는 공고)" '
+    +'onkeydown="if(event.key===&quot;Enter&quot;){supportSearch();}" style="flex:1;min-width:0;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/>'
+    +'<button onclick="supportSearch()" style="'+btn+'background:#1A6BFF;color:white;border:none;">검색</button></div>';
+  h+='<div style="flex-shrink:0;padding:6px 12px;background:#F9FAFB;border-bottom:1px solid #EAECF0;font-size:11px;color:#667085;">'
+    +'기업마당 · 보조금24 통합 목록 · 마감임박 기준 D-'+cfg.dday+'</div>';
+  h+='<div style="flex:1;overflow-y:auto;padding:12px;">';
+  if(supportLoading){
+    h+='<div style="text-align:center;padding:30px;font-size:13px;color:#98A2B3;">공고를 불러오는 중이에요…</div>';
+  } else if(!supportItems.length){
+    h+='<div style="text-align:center;padding:26px;font-size:13px;color:#98A2B3;line-height:1.6;">'
+      +(supportErr? dlvEsc(supportErr) : '지금은 업종에 맞는 공고가 없어요.')
+      +'<div style="font-size:11px;margin-top:8px;">검색어를 바꾸거나 잠시 후 새로고침해 보세요.</div></div>';
+  } else {
+    supportItems.forEach(function(it){
+      var isNew=supportIsNew(it);
+      var left=supportDdayLeft(it.endDate);
+      var soon=(left!=null && left<=cfg.dday);
+      h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:11px 12px;margin-bottom:8px;">';
+      h+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;">';
+      if(isNew) h+='<span style="font-size:10px;background:#FEF3F2;color:#F04438;padding:2px 7px;border-radius:8px;font-weight:800;">NEW</span>';
+      if(soon) h+='<span style="font-size:10px;background:#FFFAEB;color:#B54708;padding:2px 7px;border-radius:8px;font-weight:800;">⏰ 마감임박'+(left===0?' (오늘)':' (D-'+left+')')+'</span>';
+      h+='<span style="font-size:10px;background:#F2F4F7;color:#475467;padding:2px 7px;border-radius:8px;font-weight:700;">'+(it.src==='bizinfo'?'기업마당':'보조금24')+'</span>';
+      h+='</div>';
+      h+='<div style="font-size:13px;font-weight:700;color:#1D2939;line-height:1.45;margin-bottom:4px;">'+dlvEsc(it.title)+'</div>';
+      if(it.org) h+='<div style="font-size:11px;color:#667085;">🏛 '+dlvEsc(it.org)+'</div>';
+      if(it.period) h+='<div style="font-size:11px;color:#667085;">🗓 '+dlvEsc(it.period)+'</div>';
+      if(it.field) h+='<div style="font-size:11px;color:#667085;">🏷 '+dlvEsc(it.field)+'</div>';
+      if(it.url){
+        h+='<button onclick="window.open(\''+dlvEsc(it.url)+'\',\'_blank\')" style="margin-top:7px;padding:6px 11px;background:white;border:1px solid #1A6BFF;color:#1A6BFF;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">원문 보기 ↗</button>';
+      } else {
+        h+='<button onclick="window.open(\'https://www.gov.kr\',\'_blank\')" style="margin-top:7px;padding:6px 11px;background:white;border:1px solid #98A2B3;color:#667085;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">정부24에서 찾기 ↗</button>';
+      }
+      h+='</div>';
+    });
+  }
+  h+='</div>';
+  /* 앱은 판단하지 않는다 — 하단 고정 안내 */
+  h+='<div style="flex-shrink:0;padding:9px 12px;border-top:1px solid #EAECF0;background:#F9FAFB;font-size:11px;color:#667085;text-align:center;">'
+    +'자세한 자격·신청 방법은 원문 공고에서 확인하세요.</div>';
+  h+='</div>';
+  var ex=document.getElementById('sup-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+
+/* 자동 확인 — 관리자 화면 진입 시 주기가 도래했으면 1회 호출.
+   마지막 확인 시각은 기기별 localStorage (ORG_KEYS 제외 키라 기관 접미사가 붙지 않음) */
+function supportDueNow(){
+  var cfg=supportAlertCfg();
+  if(cfg.period==='off') return false;
+  var last=0;
+  try{ last=Number(localStorage.getItem('tkd_support_lastcheck')||0)||0; }catch(e){}
+  if(!last) return true;
+  var gap=(cfg.period==='weekly') ? 7*86400000 : 86400000;
+  return (Date.now()-last) >= gap;
+}
+function supportAutoCheck(){
+  if(!supportDueNow()) return;
+  try{ localStorage.setItem('tkd_support_lastcheck', String(Date.now())); }catch(e){}
+  supportFetch(function(items){
+    var fresh=items.filter(supportIsNew).length;
+    supportNewCount=fresh;
+    if(fresh>0){
+      showToast('💰 새 지원사업 '+fresh+'건이 있어요');
+      if(typeof renderAdminTab==='function' && currentAdminTab==='dashboard') renderAdminTab('dashboard');
+    }
+  });
 }
 
 // ── 기사(운전자) 차계부 — 본인 배정 차량 고정, 조회만(수정·삭제 없음) ──
