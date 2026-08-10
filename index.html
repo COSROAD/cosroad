@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 190;
+const APP_VERSION = 191;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -969,7 +969,7 @@ function exportPayrollDetail(ym){
   });
   /* 원본 양식 하단: 4대보험 요율표 + 임시공휴일 날짜 칸 */
   var rateRow=aoa.length;
-  aoa.push(['4대보험 요율표 (설정 탭에서 수정)']);
+  aoa.push(['4대보험 요율표 (근태 화면에서 수정)']);
   aoa.push(['국민연금(%)', rates.np, '건강보험(%)', rates.hi, '장기요양(건강보험료의 %)', rates.ltc, '고용보험(%)', rates.ei]);
   aoa.push([]);
   var holRow=aoa.length;
@@ -1129,10 +1129,10 @@ function pvFormHtml(D, mode){
     }
   });
   h+='</table>';
-  /* 하단: 4대보험 요율표 (설정 탭 값 읽기 전용) */
+  /* 하단: 4대보험 요율표 (근태 화면의 요율 칸 값을 읽기 전용으로 표시 — 이중 입력 금지) */
   h+='<div style="margin-top:14px;">';
   h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:5px;">4대보험 요율표'
-    +'<span style="font-size:'+(FS-1)+'px;font-weight:400;color:#98A2B3;margin-left:6px;">수정은 설정 탭에서</span></div>';
+    +'<span style="font-size:'+(FS-1)+'px;font-weight:400;color:#98A2B3;margin-left:6px;">수정은 위 요율 칸에서</span></div>';
   h+='<table style="border-collapse:collapse;"><tr>'
     +'<td style="'+H+'">국민연금</td><td style="'+CT+'">'+D.rates.np+'%</td>'
     +'<td style="'+H+'">건강보험</td><td style="'+CT+'">'+D.rates.hi+'%</td>'
@@ -1285,6 +1285,20 @@ function buildDriverAttHtml(){
     +'<input id="pay-export-ym" type="month" value="'+_pyy+'-'+String(_pym).padStart(2,'0')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
     +'<button onclick="openPayrollView((document.getElementById(\'pay-export-ym\')||{}).value)" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📋 급여상세 보기</button>'
     +'<button onclick="exportPayrollDetail((document.getElementById(\'pay-export-ym\')||{}).value)" style="padding:8px 12px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📄 급여상세 내보내기</button></div>';
+  /* 4대보험 근로자 부담 요율 — 급여 계산에 쓰이는 값이라 급여상세 버튼 바로 아래에 둔다.
+     저장은 기존과 동일하게 orgSettings.insRates (saveInsRates) */
+  var _ir=getInsRates();
+  h += '<div style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:12px;background:#F9FAFB;">';
+  h += '<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:6px;">💼 4대보험 근로자 부담 요율 (%)</div>';
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+  [['ins-np','국민연금',_ir.np],['ins-hi','건강보험',_ir.hi],['ins-ltc','장기요양(건보료 대비)',_ir.ltc],['ins-ei','고용보험',_ir.ei]].forEach(function(f){
+    h += '<div style="flex:1;min-width:100px;"><label style="font-size:11px;color:#667085;">'+f[1]+'</label>'
+      +'<input id="'+f[0]+'" type="number" step="0.001" value="'+f[2]+'" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;"/></div>';
+  });
+  h += '</div>';
+  h += '<div style="font-size:11px;color:#98A2B3;margin-top:6px;">요율은 매년 변경됩니다. 연초에 확인 후 수정하세요. (산재는 사업주 전액 — 공제 없음)</div>';
+  h += '<button onclick="saveInsRates()" style="width:100%;padding:9px;background:#344054;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;">요율 저장</button>';
+  h += '</div>';
 
   // 날짜 이동
   h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;">';
@@ -1907,7 +1921,7 @@ var HELP_QA=[
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
    a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
-   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 설정 탭에서 매년 수정 (양식 하단엔 읽기 전용으로 보여요)'},
+   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)'},
   {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
    a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
@@ -4001,17 +4015,6 @@ function renderSettings(){
       </div>
     </div>
     ` : ''}
-    <div class="setting-title" style="margin-top:16px;">💼 4대보험 근로자 부담 요율 (%)</div>
-    <div class="setting-card">
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:100px;"><label style="font-size:11px;color:#667085;">국민연금</label><input class="setting-input" id="ins-np" type="number" step="0.001" value="${getInsRates().np}" style="width:100%;box-sizing:border-box;"/></div>
-        <div style="flex:1;min-width:100px;"><label style="font-size:11px;color:#667085;">건강보험</label><input class="setting-input" id="ins-hi" type="number" step="0.001" value="${getInsRates().hi}" style="width:100%;box-sizing:border-box;"/></div>
-        <div style="flex:1;min-width:100px;"><label style="font-size:11px;color:#667085;">장기요양(건보료 대비)</label><input class="setting-input" id="ins-ltc" type="number" step="0.001" value="${getInsRates().ltc}" style="width:100%;box-sizing:border-box;"/></div>
-        <div style="flex:1;min-width:100px;"><label style="font-size:11px;color:#667085;">고용보험</label><input class="setting-input" id="ins-ei" type="number" step="0.001" value="${getInsRates().ei}" style="width:100%;box-sizing:border-box;"/></div>
-      </div>
-      <div style="font-size:11px;color:#98A2B3;margin-top:6px;">요율은 매년 변경됩니다. 연초에 확인 후 수정하세요. (산재는 사업주 전액 — 공제 없음)</div>
-      <button onclick="saveInsRates()" style="width:100%;padding:9px;background:#344054;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;">요율 저장</button>
-    </div>
     <div class="setting-title" style="margin-top:16px;">지원사업 알림</div>
     <div class="setting-card">
       <div class="setting-row">
