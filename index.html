@@ -517,7 +517,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 187;
+const APP_VERSION = 188;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1523,8 +1523,8 @@ var HELP_QA=[
    a:'관리자: 차량 관리 → 「📒 차계부」 — 주유·정비·기타·계기판 기록, 연비 자동\n기사: 운행 화면 → 「⛽ 차계부」 — 배정 차량에 바로 기록\n같은 기록을 관리자·기사가 함께 봐요'},
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
    a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
-  {role:'admin', keys:['운행기록부','세무','증빙'], t:'운행기록부 내보내기',
-   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영'},
+  {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
+   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)'},
   {role:'admin', keys:['급여','급여상세','시급','공제'], t:'급여상세 내보내기',
    a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📄 급여상세 내보내기」 → 월 선택\n3. 기본/잔업/특근 자동 분류 — 특근은 엑셀에서 시간만 넣어도 자동 계산\n4. 4대보험 요율은 설정 탭에서 매년 수정'},
   {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
@@ -3692,7 +3692,7 @@ function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_me
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -3737,6 +3737,7 @@ function restoreData(ev){
       var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
       var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
       var clg = localStorage.getItem('tkd_carlog'); if(clg){ try{ saveToFirebase('carlog', JSON.parse(clg)); }catch(e8){} }
+      var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
     }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
@@ -8203,6 +8204,52 @@ function carlogBadgeHtml(carId){
   return '';
 }
 
+// ══════════════════════
+// 운행기록부 수기 입력·계기판 사진 저장소 (4업종 공통)
+// 데이터: tkd_drivelog_manual = { [carId]: { [ym]: { visit:{ [일]:'방문지' }, dept:'부서', odoPhoto:'사진URL' } } }
+// tkd_carlog와 동일 방식: ORG_KEYS 기관분리 · backupData 백업 · Firebase('drivelogManual') 동기화
+// ══════════════════════
+function loadDriveLogManual(){
+  try{
+    var d=JSON.parse(localStorage.getItem('tkd_drivelog_manual')||'{}');
+    return (d && typeof d==='object' && !Array.isArray(d)) ? d : {};
+  }catch(e){ return {}; }
+}
+/* 공용 저장 함수 — 화면 입력은 이 경로로만 저장 (Firebase 포함) */
+function saveDriveLogManual(d){
+  localStorage.setItem('tkd_drivelog_manual', JSON.stringify(d));
+  saveToFirebase('drivelogManual', d);
+}
+/* 차량+월 단위로 꺼내기 — 없으면 빈 값 (차량·월이 섞이지 않도록 항상 두 단계로 접근) */
+function driveLogManualGet(carId, ym){
+  var d=loadDriveLogManual();
+  var c=(d[carId] && typeof d[carId]==='object') ? d[carId] : {};
+  var m=(c[ym] && typeof c[ym]==='object') ? c[ym] : {};
+  return {
+    visit:(m.visit && typeof m.visit==='object') ? m.visit : {},
+    dept:m.dept||'',
+    odoPhoto:m.odoPhoto||''
+  };
+}
+/* 차량+월 단위 저장 — kind: 'dept' | 'visit'(day 필요) | 'photo'. 빈 값이면 항목 제거 */
+function driveLogManualSet(carId, ym, kind, val, day){
+  var d=loadDriveLogManual();
+  if(!d[carId] || typeof d[carId]!=='object') d[carId]={};
+  if(!d[carId][ym] || typeof d[carId][ym]!=='object') d[carId][ym]={};
+  var t=d[carId][ym];
+  var s=String(val==null?'':val).trim();
+  if(kind==='dept'){ if(s) t.dept=s; else delete t.dept; }
+  else if(kind==='photo'){ if(s) t.odoPhoto=s; else delete t.odoPhoto; }
+  else {
+    if(!t.visit || typeof t.visit!=='object') t.visit={};
+    if(s) t.visit[String(day)]=s; else delete t.visit[String(day)];
+    if(!Object.keys(t.visit).length) delete t.visit;
+  }
+  if(!Object.keys(t).length) delete d[carId][ym];
+  if(!Object.keys(d[carId]).length) delete d[carId];
+  saveDriveLogManual(d);
+}
+
 // ── 관리자 차계부 화면 ──
 var carlogSelCar=null, carlogType='fuel', carlogEditId=null;
 function openCarlog(){
@@ -8241,6 +8288,7 @@ function renderCarlogModal(){
   var _lm=_lmy+'-'+String(_lmm).padStart(2,'0');
   h+='<div style="display:flex;gap:5px;margin-bottom:8px;">'
     +'<input id="cl-export-ym" type="month" value="'+_lm+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
+    +'<button onclick="openDriveLogView(carlogSelCar,(document.getElementById(\'cl-export-ym\')||{}).value)" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📋 운행기록부 보기</button>'
     +'<button onclick="exportDriveLogbook(carlogSelCar,(document.getElementById(\'cl-export-ym\')||{}).value)" style="padding:8px 12px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">📄 운행기록부 내보내기</button></div>';
   // 입력 폼
   h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:12px;background:#F9FAFB;">';
@@ -8521,11 +8569,21 @@ function xlsStyleSheet(wbx, name, ws, st){
   return wsx;
 }
 
-/* 서식 내보내기 공용: ExcelJS 성공 → 꾸민 파일 / 실패(오프라인 등) → 기존 SheetJS 그대로 */
-function finishExcelExport(sheetDefs, fname, sheetJsWb){
+/* 서식 내보내기 공용: ExcelJS 성공 → 꾸민 파일 / 실패(오프라인 등) → 기존 SheetJS 그대로
+   sd.images: [{base64, ext, range}] — ExcelJS 경로에서만 삽입 (SheetJS는 이미지 미지원)
+   onFallback: SheetJS 경로로 떨어질 때만 실행 (이미지 대신 텍스트 넣기 등) */
+function finishExcelExport(sheetDefs, fname, sheetJsWb, onFallback){
   loadExcelJS().then(function(E){
     var wbx=new E.Workbook();
-    sheetDefs.forEach(function(sd){ xlsStyleSheet(wbx, sd.name, sd.ws, sd.st); });
+    sheetDefs.forEach(function(sd){
+      var wsx=xlsStyleSheet(wbx, sd.name, sd.ws, sd.st);
+      (sd.images||[]).forEach(function(im){
+        try{
+          var id=wbx.addImage({ base64:im.base64, extension:im.ext||'jpeg' });
+          wsx.addImage(id, im.range);
+        }catch(e){}
+      });
+    });
     return wbx.xlsx.writeBuffer().then(function(buf){
       var blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
       var url=URL.createObjectURL(blob);
@@ -8535,21 +8593,21 @@ function finishExcelExport(sheetDefs, fname, sheetJsWb){
       setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} }, 1500);
     });
   }).catch(function(){
+    try{ if(onFallback) onFallback(); }catch(e0){}
     try{ XLSX.writeFile(sheetJsWb, fname); }catch(e){}
     if(typeof showToast==='function') showToast('서식 없이 내보냈어요 (인터넷 연결 확인)');
   });
 }
 
-/* ── 운행기록부 엑셀 내보내기 (세무 증빙용, 2시트) ──
-   기존 엑셀 방식(XLSX.utils.aoa_to_sheet + writeFile) 그대로 재사용.
-   값은 수식이 아닌 계산된 숫자로 넣는다.
+/* ── 운행기록부 계산 공용 함수 (화면 양식 · 엑셀 내보내기 공용) ──
+   화면(openDriveLogView)과 엑셀(exportDriveLogbook)이 같은 함수를 쓰므로 값이 어긋날 수 없다.
    날짜별 계기판 = 그날 기록(계기판·주유·정비)의 odo 최대값,
-   주행 전 = 직전 기록일의 계기판 값(월 이전 포함), odo 없는 날은 빈칸. */
-function exportDriveLogbook(carId, ym){
+   주행 전 = 직전 기록일의 계기판 값(월 이전 포함), odo 없는 날은 빈칸.
+   body 각 행 = [사용일자(요일), 부서, 성명, 주행전, 주행후, 주행거리, 출퇴근용, 업무용, 방문지] */
+function buildDriveLogData(carId, ym){
   var car=cars.find(function(c){ return c.id===carId; });
-  if(!car){ alert('차량을 선택해주세요.'); return; }
-  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
-  var XLSX=window.XLSX;
+  if(!car) return null;
+  if(!/^\d{4}-\d{2}$/.test(ym||'')) return null;
   var all=loadCarlog().records.filter(function(r){ return r.carId===carId; });
   var odoByDate={};
   all.forEach(function(r){
@@ -8562,6 +8620,9 @@ function exportDriveLogbook(carId, ym){
   var bizName={academy:'학원',logistics:'물류',public:'공공',delivery:'택배'}[getBizType()]||'';
   var commute=Number(car.commuteKm)||0;
   var org=orgSettings||{};
+  /* 수기 입력(부서·방문지) — 없으면 부서는 업종명 기본값, 방문지는 빈칸 */
+  var man=driveLogManualGet(carId, ym);
+  var dept=man.dept||bizName;
 
   var 요일=['일','월','화','수','목','금','토'];
   var body=[], totalKm=0, totalBiz=0, driveDays=[], dayDows=[];
@@ -8583,7 +8644,7 @@ function exportDriveLogbook(carId, ym){
         driveDays.push({day:d, drive:drive, bizKm:bizKm});
       }
     }
-    body.push([ds+' ('+요일[dow]+')', bizName, car.driver||'', (after&&before!=null)?before:'', after||'', drive, cm, bizKm, '']);
+    body.push([ds+' ('+요일[dow]+')', dept, car.driver||'', (after&&before!=null)?before:'', after||'', drive, cm, bizKm, man.visit[String(d)]||'']);
   }
   var monthRecs=all.filter(function(r){ return String(r.date||'').slice(0,7)===ym; });
   var fuelRecs=monthRecs.filter(function(r){ return r.type==='fuel'; });
@@ -8594,6 +8655,25 @@ function exportDriveLogbook(carId, ym){
   var eff = totalL>0 ? Math.round(totalKm/totalL*10)/10 : '';
   var avg = totalL>0 ? Math.round(fuelAmt/totalL) : '';
   var pct = totalKm>0 ? Math.round(totalBiz/totalKm*100)+'%' : '';
+  return { car:car, org:org, ym:ym, year:year, mon:mon, lastDay:lastDay, bizName:bizName,
+    dept:dept, manual:man, dows:요일, body:body, dayDows:dayDows, driveDays:driveDays,
+    totalKm:totalKm, totalBiz:totalBiz, fuelRecs:fuelRecs, repRecs:repRecs,
+    totalL:totalL, fuelAmt:fuelAmt, repAmt:repAmt, eff:eff, avg:avg, pct:pct };
+}
+
+/* ── 운행기록부 엑셀 내보내기 (세무 증빙용, 2시트) ──
+   기존 엑셀 방식(XLSX.utils.aoa_to_sheet + writeFile) 그대로 재사용.
+   값은 수식이 아닌 계산된 숫자로 넣는다. 계산부는 buildDriveLogData 공용. */
+function exportDriveLogbook(carId, ym){
+  var car=cars.find(function(c){ return c.id===carId; });
+  if(!car){ alert('차량을 선택해주세요.'); return; }
+  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
+  var D=buildDriveLogData(carId, ym);
+  if(!D) return;
+  var XLSX=window.XLSX;
+  var org=D.org, lastDay=D.lastDay, body=D.body, dayDows=D.dayDows, driveDays=D.driveDays;
+  var totalKm=D.totalKm, totalBiz=D.totalBiz, fuelRecs=D.fuelRecs, repRecs=D.repRecs;
+  var totalL=D.totalL, fuelAmt=D.fuelAmt, repAmt=D.repAmt, eff=D.eff, avg=D.avg, pct=D.pct;
 
   /* ── 시트1: 원본 양식 배치 — 상단 박스(기본정보/주유·지출) + 2단 헤더 ──
      0 제목줄(과세기간·제목·상호) · 1 사업자 · 3 박스제목 · 4 라벨 · 5 값 ·
@@ -8612,6 +8692,12 @@ function exportDriveLogbook(carId, ym){
     [],
     ['과세기간 총주행거리(km)', totalKm, '업무용 사용거리(km)', totalBiz, '업무용 사용비율', pct]
   ]);
+
+  /* 월말 계기판 사진: 있을 때만 라벨 행을 붙이고 바로 아래에 이미지를 앉힌다.
+     (사진이 없으면 행을 늘리지 않아 기존 양식 그대로) */
+  var photoUrl=D.manual.odoPhoto||'';
+  var photoRow=-1;
+  if(photoUrl){ s1.push([]); s1.push(['📷 월말 계기판 사진']); photoRow=s1.length; }
 
   /* ── 시트2: 주유·정비 통합 표 + 기본 15행 입력칸 ── */
   var s2=[['주유·지출 내역 — '+ym],
@@ -8678,8 +8764,9 @@ function exportDriveLogbook(carId, ym){
     if(dow===0) dateFonts.push({r:B0+di, c:0, argb:'FFCC0000'});
     else if(dow===6) dateFonts.push({r:B0+di, c:0, argb:'FF1A6BFF'});
   });
-  finishExcelExport([
-    { name:'운행기록부', ws:ws1, st:{ titleRow:null, headerRows:[3,4,7,8], bodyFrom:B0, bodyTo:BE,
+  /* 사진은 URL fetch → base64 변환 후 ExcelJS addImage. 실패하면 사진 없이 내보내고 안내 */
+  function doExport(img){
+    var sheet1={ name:'운행기록부', ws:ws1, st:{ titleRow:null, headerRows:[3,4,7,8], bodyFrom:B0, bodyTo:BE,
         sumRows:[BOT], borderRows:[5], moneyCols:[3,4,5,6,7], cellFonts:dateFonts,
         merges:[ {r1:0,c1:3,r2:0,c2:5},              /* 제목 */
                  {r1:0,c1:1,r2:0,c2:2},              /* 과세기간 값 */
@@ -8689,10 +8776,289 @@ function exportDriveLogbook(carId, ym){
                  {r1:7,c1:1,r2:7,c2:2},              /* 사용자 */
                  {r1:7,c1:3,r2:7,c2:7},              /* 운행내역 묶음 */
                  {r1:7,c1:8,r2:8,c2:8} ],            /* 방문지 세로 */
-        titleCells:[{r:0,c:3}] } },
-    { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:F0, bodyTo:F0+DATA_N-1,
-        sumRows:[T, ST], moneyCols:[1,2,3,4,6] } }
-  ], '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx', wb);
+        titleCells:[{r:0,c:3}] } };
+    if(img && photoRow>=0){
+      sheet1.images=[{ base64:img.dataUrl, ext:img.ext,
+        range:{ tl:{col:0, row:photoRow}, ext:{width:400, height:300} } }];
+    }
+    /* SheetJS 대체 경로(ExcelJS 로드 실패)는 이미지 미지원 → 마지막 행에 사진 URL 텍스트 */
+    var onFallback = photoUrl ? function(){
+      try{ XLSX.utils.sheet_add_aoa(ws1, [['📷 계기판 사진 URL', photoUrl]], {origin:-1}); }catch(e){}
+      if(typeof showToast==='function') showToast('사진은 넣지 못해 URL로 넣었어요');
+    } : null;
+    finishExcelExport([
+      sheet1,
+      { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:F0, bodyTo:F0+DATA_N-1,
+          sumRows:[T, ST], moneyCols:[1,2,3,4,6] } }
+    ], '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx', wb, onFallback);
+  }
+  if(!photoUrl){ doExport(null); return; }
+  dlvFetchImageBase64(photoUrl).then(function(img){ doExport(img); })
+    .catch(function(){
+      if(typeof showToast==='function') showToast('계기판 사진을 불러오지 못해 사진 없이 내보냈어요');
+      doExport(null);
+    });
+}
+
+/* ══════════════════════════════════════════════
+   운행기록부 화면 양식 (4업종 공통 · 관리자)
+   배치는 엑셀 시트1(원본 양식)과 동일. 계산값은 buildDriveLogData로 엑셀과 공용이라
+   화면과 엑셀이 어긋날 수 없다. 수기값(부서·방문지·계기판 사진)은 tkd_drivelog_manual.
+   ══════════════════════════════════════════════ */
+var dlvCarId=null, dlvYm='', dlvEditKey=null, dlvDemoPhoto='', dlvOpen=false;
+
+/* 속성값에도 넣을 수 있게 따옴표까지 이스케이프 (escapeMasterHtml은 따옴표 미처리) */
+function dlvEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* 사진 URL → base64 dataURL (엑셀 addImage · 인쇄 PDF 공용). 실패 시 reject */
+function dlvFetchImageBase64(url){
+  return fetch(url).then(function(r){
+    if(!r.ok) throw new Error('사진 응답 오류 '+r.status);
+    return r.blob();
+  }).then(function(b){
+    return new Promise(function(res, rej){
+      var fr=new FileReader();
+      fr.onload=function(){
+        var du=String(fr.result||'');
+        if(!du){ rej(new Error('빈 사진')); return; }
+        res({ dataUrl:du, ext:(String(b.type||'').indexOf('png')>=0 ? 'png' : 'jpeg') });
+      };
+      fr.onerror=function(){ rej(new Error('사진 읽기 실패')); };
+      fr.readAsDataURL(b);
+    });
+  });
+}
+
+/* 계기판 사진 업로드 — 알림장 사진 업로드(uploadNoticeImages)와 같은 방식, 저장 경로만 분리 */
+function uploadDriveLogPhoto(dataUrl, cb){
+  if(!window._storage || !window._storageFns){
+    console.log('[운행기록부] Storage 준비 안 됨');
+    cb(null); return;
+  }
+  var fns=window._storageFns;
+  var bizId=(typeof getBizType==='function') ? getBizType() : 'org';
+  var rnd=Math.random().toString(36).slice(2,8);
+  var path='drivelog-photos/'+bizId+'_'+Date.now()+'_'+rnd+'.jpg';
+  var sref=fns.storageRef(window._storage, path);
+  fns.uploadString(sref, dataUrl, 'data_url').then(function(snap){
+    return fns.getDownloadURL(snap.ref);
+  }).then(function(url){ cb(url); }).catch(function(e){
+    console.log('[운행기록부] 사진 업로드 실패', e && e.code, e && e.message);
+    cb(null);
+  });
+}
+
+/* 양식 HTML — mode:'screen'(수기 입력 가능) / 'print'(안내 문구 미출력, 사진은 dataURL로 받음) */
+function dlvFormHtml(D, mode, photoSrc){
+  var scr=(mode!=='print');
+  var esc=dlvEsc;
+  var FS=scr?12:10, HS=scr?11:9;
+  var C='border:1px solid #B0B7C3;padding:'+(scr?'5px 7px':'3px 4px')+';font-size:'+FS+'px;color:#1D2939;';
+  var H=C+'background:#F2F2F2;font-weight:700;text-align:center;font-size:'+HS+'px;color:#344054;';
+  var R=C+'text-align:right;';
+  var CT=C+'text-align:center;';
+  var NB='border:none;padding:0;height:'+(scr?'10px':'6px')+';';
+  var ym=D.ym, car=D.car, org=D.org;
+  var period=ym+'-01 ~ '+ym+'-'+String(D.lastDay).padStart(2,'0');
+  function num(v){ return (v===''||v==null) ? '' : (typeof v==='number' ? Number(v).toLocaleString() : esc(v)); }
+  /* 수기 칸 — 값 없으면 연회색 + 안내(인쇄물에는 빈칸) */
+  function man(kind, day, val){
+    if(!scr) return '<td style="'+C+'">'+esc(val||'')+'</td>';
+    var key=(kind==='dept')?'dept':('v'+day);
+    if(dlvEditKey===key){
+      return '<td style="'+C+'padding:2px;"><input id="dlv-inp" type="text" value="'+esc(val||'')+'" '
+        +'onblur="dlvSaveCell(&quot;'+kind+'&quot;,'+(day||0)+',this.value)" '
+        +'onkeydown="if(event.key===&quot;Enter&quot;){this.blur();}" '
+        +'style="width:100%;box-sizing:border-box;border:1.5px solid #7C3AED;border-radius:4px;padding:3px 4px;font-size:'+FS+'px;"/></td>';
+    }
+    var click=' onclick="dlvEditCell(&quot;'+kind+'&quot;,'+(day||0)+')"';
+    if(val) return '<td style="'+C+'cursor:pointer;"'+click+'>'+esc(val)+'</td>';
+    return '<td style="'+C+'cursor:pointer;background:#F2F4F7;color:#98A2B3;"'+click+'>여기에 입력하세요</td>';
+  }
+  /* 과세기간 칸 = 월 선택기 (화면에서만 ▾) */
+  var periodCell;
+  if(scr && dlvEditKey==='ym'){
+    periodCell='<td colspan="2" style="'+C+'padding:2px;"><input id="dlv-inp" type="month" value="'+esc(ym)+'" '
+      +'onchange="dlvSetYm(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid #7C3AED;border-radius:4px;padding:3px 4px;font-size:'+FS+'px;"/></td>';
+  } else if(scr){
+    periodCell='<td colspan="2" style="'+CT+'cursor:pointer;color:#7C3AED;font-weight:700;" onclick="dlvEditCell(&quot;ym&quot;,0)">'+esc(period)+' ▾</td>';
+  } else {
+    periodCell='<td colspan="2" style="'+CT+'">'+esc(period)+'</td>';
+  }
+
+  var h='<div style="'+(scr?'min-width:900px;':'width:100%;')+'font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
+  h+='<table style="border-collapse:collapse;width:100%;table-layout:fixed;">';
+  h+='<colgroup>'+['14%','8%','8%','11%','11%','9%','9%','9%','21%'].map(function(w){ return '<col style="width:'+w+'"/>'; }).join('')+'</colgroup>';
+  /* 상단: 과세기간 · 제목 · 상호명 · 사업자등록번호 */
+  h+='<tr><td style="'+H+'">과세기간</td>'+periodCell
+    +'<td colspan="3" style="'+C+'text-align:center;font-size:'+(scr?18:15)+'px;font-weight:800;">업무용 차량 운행기록부</td>'
+    +'<td style="border:none;"></td>'
+    +'<td style="'+H+'">상호명</td><td style="'+C+'">'+esc(org.name||'')+'</td></tr>';
+  h+='<tr><td colspan="7" style="border:none;"></td>'
+    +'<td style="'+H+'">사업자등록번호</td><td style="'+C+'">'+esc(org.bizNo||'')+'</td></tr>';
+  h+='<tr><td colspan="9" style="'+NB+'"></td></tr>';
+  /* 기본정보 · 주유 및 지출내역 박스 */
+  h+='<tr><td colspan="2" style="'+H+'">기본정보</td><td style="border:none;"></td>'
+    +'<td colspan="5" style="'+H+'">주유 및 지출내역</td><td style="border:none;"></td></tr>';
+  h+='<tr><td style="'+H+'">차종</td><td style="'+H+'">자동차등록번호</td><td style="border:none;"></td>'
+    +'<td style="'+H+'">운행기록(km)</td><td style="'+H+'">차량연비(km/L)</td><td style="'+H+'">주유평균(원/L)</td>'
+    +'<td style="'+H+'">주유금액</td><td style="'+H+'">정비금액</td><td style="border:none;"></td></tr>';
+  h+='<tr><td style="'+CT+'">'+esc(car.model||car.name||'')+'</td><td style="'+CT+'">'+esc(car.plate||'')+'</td><td style="border:none;"></td>'
+    +'<td style="'+R+'">'+num(D.totalKm)+'</td><td style="'+R+'">'+num(D.eff)+'</td><td style="'+R+'">'+num(D.avg)+'</td>'
+    +'<td style="'+R+'">'+num(D.fuelAmt)+'</td><td style="'+R+'">'+num(D.repAmt)+'</td><td style="border:none;"></td></tr>';
+  h+='<tr><td colspan="9" style="'+NB+'"></td></tr>';
+  /* 2단 헤더 */
+  h+='<tr><td rowspan="2" style="'+H+'">사용일자(요일)</td><td colspan="2" style="'+H+'">사용자</td>'
+    +'<td colspan="5" style="'+H+'">운  행  내  역</td>'
+    +'<td rowspan="2" style="'+H+'">운행내역(방문지)</td></tr>';
+  h+='<tr><td style="'+H+'">부서</td><td style="'+H+'">성명</td>'
+    +'<td style="'+H+'">주행 전 계기판(km)</td><td style="'+H+'">주행 후 계기판(km)</td><td style="'+H+'">주행거리(km)</td>'
+    +'<td style="'+H+'">출·퇴근용(km)</td><td style="'+H+'">업무용(km)</td></tr>';
+  /* 날짜별 본문 — 요일 색은 엑셀과 동일 (일=빨강, 토=파랑) */
+  D.body.forEach(function(row, idx){
+    var dow=D.dayDows[idx];
+    var dcol = dow===0 ? 'color:#CC0000;' : (dow===6 ? 'color:#1A6BFF;' : '');
+    h+='<tr><td style="'+CT+dcol+'">'+esc(row[0])+'</td>';
+    h+=man('dept', idx+1, row[1]);
+    h+='<td style="'+CT+'">'+esc(row[2]||'')+'</td>';
+    h+='<td style="'+R+'">'+num(row[3])+'</td><td style="'+R+'">'+num(row[4])+'</td><td style="'+R+'">'+num(row[5])+'</td>'
+      +'<td style="'+R+'">'+num(row[6])+'</td><td style="'+R+'">'+num(row[7])+'</td>';
+    h+=man('visit', idx+1, row[8]);
+    h+='</tr>';
+  });
+  h+='<tr><td colspan="9" style="'+NB+'"></td></tr>';
+  /* 하단 합계 */
+  var SUM=C+'background:#FFF9E6;font-weight:800;';
+  h+='<tr><td style="'+SUM+'">과세기간 총주행거리(km)</td><td style="'+SUM+'text-align:right;">'+num(D.totalKm)+'</td>'
+    +'<td style="'+SUM+'">업무용 사용거리(km)</td><td style="'+SUM+'text-align:right;">'+num(D.totalBiz)+'</td>'
+    +'<td style="'+SUM+'">업무용 사용비율</td><td style="'+SUM+'text-align:right;">'+esc(D.pct||'')+'</td>'
+    +'<td colspan="3" style="border:none;"></td></tr>';
+  h+='</table>';
+  /* 맨 아래: 월말 계기판 사진 */
+  var ps = photoSrc || (scr ? ((typeof isDemoMode==='function' && isDemoMode() && dlvDemoPhoto) ? dlvDemoPhoto : (D.manual.odoPhoto||'')) : '');
+  h+='<div style="margin-top:14px;">';
+  h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:6px;">📷 월말 계기판 사진</div>';
+  if(ps){
+    h+='<div style="border:1px solid #B0B7C3;padding:6px;display:inline-block;"><img src="'+esc(ps)+'" style="max-width:'+(scr?320:280)+'px;max-height:'+(scr?240:210)+'px;display:block;"/></div>';
+    if(scr){
+      h+='<div style="display:flex;gap:6px;margin-top:6px;">'
+        +'<button onclick="dlvPickPhoto()" style="padding:7px 12px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔄 사진 교체</button>'
+        +'<button onclick="dlvDeletePhoto()" style="padding:7px 12px;background:white;color:#F04438;border:1px solid #F04438;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🗑 사진 삭제</button></div>';
+    }
+  } else if(scr){
+    h+='<div onclick="dlvPickPhoto()" style="border:1px dashed #B0B7C3;background:#F2F4F7;color:#98A2B3;width:320px;max-width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;box-sizing:border-box;">여기를 눌러 계기판 사진을 넣으세요</div>';
+  } else {
+    /* 인쇄물: 안내 문구 없이 테두리만 빈 칸 */
+    h+='<div style="border:1px solid #B0B7C3;width:280px;height:200px;"></div>';
+  }
+  h+='</div></div>';
+  return h;
+}
+
+function openDriveLogView(carId, ym){
+  var car=cars.find(function(c){ return c.id===carId; });
+  if(!car){ alert('차량을 선택해주세요.'); return; }
+  if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
+  dlvCarId=carId; dlvYm=ym; dlvEditKey=null; dlvDemoPhoto=''; dlvOpen=true;
+  /* 전체 화면 뷰라 차계부 모달은 잠시 닫고, 닫기 누르면 되돌아간다 */
+  var cm=document.getElementById('carlog-modal'); if(cm) cm.remove();
+  renderDriveLogView();
+}
+function closeDriveLogView(){
+  dlvOpen=false;
+  var e=document.getElementById('dlv-modal'); if(e) e.remove();
+  dlvEditKey=null; dlvDemoPhoto='';
+  if(typeof renderCarlogModal==='function') renderCarlogModal();
+}
+function renderDriveLogView(){
+  if(!dlvOpen) return;   /* 닫은 뒤 늦게 도착한 갱신 요청은 무시 */
+  var D=buildDriveLogData(dlvCarId, dlvYm);
+  if(!D){ closeDriveLogView(); return; }
+  var btn='padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;';
+  /* z-index 9990 — 확인 모달(9999)이 위로 올라오게 */
+  var h='<div id="dlv-modal" style="position:fixed;inset:0;background:white;z-index:9990;display:flex;flex-direction:column;">';
+  h+='<div style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #EAECF0;">'
+    +'<div style="font-size:15px;font-weight:800;color:#1A1A2E;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📋 운행기록부 — '+dlvEsc(D.car.name||'')+'</div>'
+    +'<button onclick="dlvPrint()" style="'+btn+'background:#475467;color:white;border:none;">🖨 인쇄/PDF</button>'
+    +'<button onclick="closeDriveLogView()" style="'+btn+'background:#F2F4F7;color:#475467;border:none;">닫기</button></div>';
+  h+='<div style="flex-shrink:0;padding:7px 12px;background:#F9FAFB;border-bottom:1px solid #EAECF0;font-size:11px;color:#667085;line-height:1.5;">'
+    +'계산 칸은 자동으로 채워져요. 계기판 숫자가 다르면 차계부 기록에서 고치세요. '
+    +'<span style="color:#7C3AED;font-weight:700;">회색 칸(부서·방문지)</span>만 눌러서 입력해요. (부서는 그 달 전체에 적용)</div>';
+  /* 모바일: 양식 폭 유지 + 가로 스크롤 */
+  h+='<div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px;">'+dlvFormHtml(D,'screen','')+'</div>';
+  h+='<input type="file" id="dlv-photo-input" accept="image/*" style="display:none;" onchange="dlvOnPhotoPick(this)"/>';
+  h+='</div>';
+  var ex=document.getElementById('dlv-modal'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+  var inp=document.getElementById('dlv-inp');
+  if(inp){ try{ inp.focus(); if(inp.type==='text' && inp.select) inp.select(); }catch(e){} }
+}
+/* 수기 칸·과세기간 칸 탭 → 인라인 입력 (자동 칸은 핸들러 자체가 없어 탭해도 반응 없음) */
+function dlvEditCell(kind, day){
+  dlvEditKey=(kind==='dept')?'dept':(kind==='ym'?'ym':('v'+day));
+  renderDriveLogView();
+  if(dlvEditKey==='ym'){
+    var i=document.getElementById('dlv-inp');
+    if(i && i.showPicker){ try{ i.showPicker(); }catch(e){} }
+  }
+}
+/* 입력칸 벗어나면 즉시 저장. 다시 그리기는 한 박자 미뤄서, 다른 수기 칸을 바로 탭했을 때
+   그 탭(click)이 사라진 화면 대신 원래 칸에 정상적으로 떨어지도록 한다. */
+function dlvSaveCell(kind, day, val){
+  dlvEditKey=null;
+  driveLogManualSet(dlvCarId, dlvYm, (kind==='dept'?'dept':'visit'), val, day);
+  setTimeout(renderDriveLogView, 0);
+}
+/* 월 선택 → 과세기간·사용일자·모든 자동 계산을 그 달로 다시 채움 */
+function dlvSetYm(v){
+  if(!/^\d{4}-\d{2}$/.test(v||'')){ dlvEditKey=null; renderDriveLogView(); return; }
+  dlvYm=v; dlvEditKey=null; dlvDemoPhoto='';
+  renderDriveLogView();
+}
+function dlvPickPhoto(){ var el=document.getElementById('dlv-photo-input'); if(el) el.click(); }
+function dlvOnPhotoPick(el){
+  var f=el.files && el.files[0];
+  el.value='';
+  if(!f) return;
+  compressNoticeImage(f, function(dataUrl){
+    if(!dataUrl){ showToast('사진을 읽지 못했어요'); return; }
+    /* 데모(읽기전용): 업로드·저장 없이 미리보기만 */
+    if(typeof isDemoMode==='function' && isDemoMode()){
+      dlvDemoPhoto=dataUrl; demoBlockNotice(); renderDriveLogView(); return;
+    }
+    showToast('사진 업로드 중...');
+    uploadDriveLogPhoto(dataUrl, function(url){
+      if(!url){ showToast('사진을 저장하지 못했어요 (인터넷 연결 확인)'); return; }
+      driveLogManualSet(dlvCarId, dlvYm, 'photo', url);
+      renderDriveLogView();
+      showToast('✅ 계기판 사진이 저장됐어요');
+    });
+  });
+}
+/* 삭제는 확인 모달 경유 */
+function dlvDeletePhoto(){
+  showConfirmModal(function(){
+    if(typeof isDemoMode==='function' && isDemoMode()){ dlvDemoPhoto=''; renderDriveLogView(); return; }
+    driveLogManualSet(dlvCarId, dlvYm, 'photo', '');
+    renderDriveLogView();
+    showToast('계기판 사진을 삭제했어요');
+  }, '월말 계기판 사진을 삭제할까요?');
+}
+/* 인쇄/PDF — 증명서에서 쓰는 saveHtmlAsPdf 재사용. 사진은 base64로 바꿔 포함 */
+function dlvPrint(){
+  var D=buildDriveLogData(dlvCarId, dlvYm);
+  if(!D) return;
+  var fname='운행기록부_'+(D.car.name||'차량')+'_'+dlvYm+'.pdf';
+  var css='#pdf-target{padding:8mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:break-all;}';
+  function go(src){ saveHtmlAsPdf(dlvFormHtml(D,'print',src||''), fname, css); }
+  var url=D.manual.odoPhoto||'';
+  if(!url){ go(''); return; }
+  showToast('사진 준비 중...');
+  dlvFetchImageBase64(url).then(function(im){ go(im.dataUrl); })
+    .catch(function(){ showToast('사진을 불러오지 못해 사진 없이 인쇄해요'); go(''); });
 }
 
 // ── 기사(운전자) 차계부 — 본인 배정 차량 고정, 조회만(수정·삭제 없음) ──
@@ -9778,6 +10144,8 @@ async function syncFromFirebase(){
   if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
   var fbCarlog = await loadFromFirebase('carlog');
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
+  var fbDlManual = await loadFromFirebase('drivelogManual');
+  if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
   var fbDelivDone = await loadFromFirebase('deliveryDone');
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
@@ -9792,7 +10160,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -9809,6 +10177,7 @@ function startFirebaseListeners(){
       else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
       else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
+      else if(key==='drivelogManual'){ localStorage.setItem('tkd_drivelog_manual',JSON.stringify(data)); }
       renderByTab();
     });
   });
