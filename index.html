@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 192;
+const APP_VERSION = 193;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -940,7 +940,7 @@ function exportPayrollDetail(ym){
   var head=['NO','시급','식대','성명','구분'].concat(dayCols).concat(['근무시간','급여','합계',dedName,'공제후','실급여(식대포함)']);
   var aoa=[
     ['급여상세내역 ('+ym+')'],
-    ['※ 임시공휴일로 지정한 날은 특근으로 계산됩니다. 그 밖의 법정공휴일은 자동 판정하지 않으니 필요시 임시공휴일에 추가하세요. 심야·명절휴가비 시급과 심야·주휴수당·명절휴가비 시간은 수기 입력 칸입니다.'],
+    ['※ 임시공휴일로 지정한 날은 특근으로 계산됩니다. 그 밖의 법정공휴일은 자동 판정하지 않으니 필요시 임시공휴일에 추가하세요.　'+XLS_LOCK_GUIDE],
     [],
     head
   ];
@@ -1029,9 +1029,28 @@ function exportPayrollDetail(ym){
     else if(dw===0) _hf.push({r:3, c:5+di, argb:'FFCC0000'});
     else if(dw===6) _hf.push({r:3, c:5+di, argb:'FF1A6BFF'});
   });
+  /* 수기 칸만 열기 — 블록 구조(rowNames 순서: 기본0·잔업1·심야2·주휴수당3·명절휴가비4·특근5)
+     · 심야·주휴수당·명절휴가비 행의 날짜 칸 (col 5..5+lastDay-1)
+     · 심야(base+2)·명절휴가비(base+4) 시급 칸 (col 1)   ※ 잔업·주휴·특근 시급은 수식이라 잠금
+     · 임시공휴일 날짜 칸 (holRow, col 1) */
+  var _unlock=[];
+  blocks.forEach(function(b){
+    [2,3,4].forEach(function(li){ _unlock.push({r1:b.r+li, c1:5, r2:b.r+li, c2:5+lastDay-1}); });
+    _unlock.push({r1:b.r+2, c1:1, r2:b.r+2, c2:1});
+    _unlock.push({r1:b.r+4, c1:1, r2:b.r+4, c2:1});
+  });
+  _unlock.push({r1:holRow, c1:1, r2:holRow, c2:1});
+  var _b0=blocks.length?blocks[0].r:4;   /* 메모는 첫 기사 블록에만 (반복하면 지저분) */
+  var _notes=[
+    {r:_b0, c:DED, text:'공제방식은 차량 정보에서 기사별 설정 (3.3% 또는 4대보험)'},
+    {r:_b0+1, c:1, text:'기본시급의 1.5배 자동 계산'},
+    {r:_b0+5, c:1, text:'기본시급의 1.5배 자동 계산'},
+    {r:holRow, c:1, text:'날짜를 넣으면 그날 근무가 특근으로 분류돼요 (앱에서)'}
+  ];
   finishExcelExport([
     { name:'급여상세', ws:ws, st:{ titleRow:0, headerRows:[3], bodyFrom:4, bodyTo:aoa.length-1,
-        sumRows:[rateRow, holRow], moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm, cellFonts:_hf } }
+        sumRows:[rateRow, holRow], moneyCols:[1,2,PAY,TOT,DED,AFT,NET], merges:_pm, cellFonts:_hf,
+        unlock:_unlock, lockFill:true, protect:true, notes:_notes } }
   ], '급여상세내역_'+ym+'.xlsx', wb);
 }
 
@@ -2045,11 +2064,11 @@ var HELP_QA=[
   {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
    a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 설정 탭 → 「지원사업 알림」에서 확인 주기(매일/매주/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요\n4. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
-   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)'},
+   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
-   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)'},
+   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제'},
   {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
    a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
@@ -8995,6 +9014,9 @@ function removeCarlogPlan(item){
   }, '「'+item+'」 교체 주기를 삭제할까요?');
 }
 
+/* 잠금 안내 문구 — 내보내기 시트 상단에 한 번만 (셀 메모마다 반복하지 않는다) */
+var XLS_LOCK_GUIDE='회색 칸은 자동 계산이라 잠겨 있어요. 흰 칸에만 입력하세요. (잠금 해제: 검토 → 시트 보호 해제 · 이 안내와 셀 메모는 지우셔도 됩니다)';
+
 /* 엑셀 셀 주소 (r,c 0-기준 → "A1") — 수식 적용 4종 공용 */
 function xlsCell(r, c){
   var s='';
@@ -9107,8 +9129,43 @@ function xlsStyleSheet(wbx, name, ws, st){
     var cell=wsx.getRow(cf.r+1).getCell(cf.c+1);
     cell.font=Object.assign({}, cell.font||{}, {color:{argb:cf.argb}});
   });
+  /* ── 시트 보호용 칸 구분 (수식·자동 계산 칸은 잠금+연회색, 수기 칸만 열기) ──
+     st.unlock: [{r1,c1,r2,c2}] 0-기준 — 수기 입력 칸 (protection.locked=false, 흰색 유지)
+     st.lockFill: true — 채움 없는 잠금 칸에만 연회색.
+       이미 색이 있는 칸(헤더 회색 F2F2F2·합계 노랑 FFF9E6)은 그대로 둔다.
+     대상 행은 이 함수가 테두리를 그린 '표' 영역으로 한정해 표 밖까지 회색이 되지 않게 함 */
+  function _inUnlock(r, c){
+    var u=st.unlock||[];
+    for(var i=0;i<u.length;i++){
+      if(r>=u[i].r1 && r<=u[i].r2 && c>=u[i].c1 && c<=u[i].c2) return true;
+    }
+    return false;
+  }
+  if((st.unlock&&st.unlock.length) || st.lockFill){
+    var tableRows={};
+    (st.headerRows||[]).forEach(function(r){ tableRows[r]=1; });
+    (st.sumRows||[]).forEach(function(r){ tableRows[r]=1; });
+    (st.borderRows||[]).forEach(function(r){ tableRows[r]=1; });
+    if(st.bodyFrom!=null && st.bodyTo!=null){ for(var tr=st.bodyFrom; tr<=st.bodyTo; tr++) tableRows[tr]=1; }
+    Object.keys(tableRows).forEach(function(rk){
+      var r=Number(rk);
+      for(var c=range.s.c; c<=range.e.c; c++){
+        var cl=wsx.getRow(r+1).getCell(c+1);
+        if(_inUnlock(r, c)){ cl.protection={locked:false}; }        /* 수기 칸 — 흰색 그대로 */
+        else if(st.lockFill && !cl.fill){ cl.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FFF2F4F7'}}; }
+      }
+    });
+  }
+  /* 셀 메모 (헷갈리기 쉬운 칸에만 짧게) */
+  (st.notes||[]).forEach(function(nt){
+    try{ wsx.getRow(nt.r+1).getCell(nt.c+1).note=nt.text; }catch(e){}
+  });
   return wsx;
 }
+/* 시트 보호 옵션 — 비밀번호 없이(사고 방지용, 보안용 아님).
+   ExcelJS는 옵션 true = "그 동작 허용". 셀 선택·서식 변경은 허용하고 내용 수정만 막는다. */
+var XLS_PROTECT_OPTS={ selectLockedCells:true, selectUnlockedCells:true,
+  formatCells:true, formatColumns:true, formatRows:true, autoFilter:true, sort:true };
 
 /* 서식 내보내기 공용: ExcelJS 성공 → 꾸민 파일 / 실패(오프라인 등) → 기존 SheetJS 그대로
    sd.images: [{base64, ext, range}] — ExcelJS 경로에서만 삽입 (SheetJS는 이미지 미지원)
@@ -9116,6 +9173,7 @@ function xlsStyleSheet(wbx, name, ws, st){
 function finishExcelExport(sheetDefs, fname, sheetJsWb, onFallback){
   loadExcelJS().then(function(E){
     var wbx=new E.Workbook();
+    var protects=[];
     sheetDefs.forEach(function(sd){
       var wsx=xlsStyleSheet(wbx, sd.name, sd.ws, sd.st);
       (sd.images||[]).forEach(function(im){
@@ -9124,8 +9182,12 @@ function finishExcelExport(sheetDefs, fname, sheetJsWb, onFallback){
           wsx.addImage(id, im.range);
         }catch(e){}
       });
+      /* ws.protect는 Promise를 돌려준다 — writeBuffer 전에 반드시 기다린다 */
+      if(sd.st && sd.st.protect){
+        try{ protects.push(wsx.protect('', XLS_PROTECT_OPTS)); }catch(e){}
+      }
     });
-    return wbx.xlsx.writeBuffer().then(function(buf){
+    return Promise.all(protects).then(function(){ return wbx.xlsx.writeBuffer(); }).then(function(buf){
       var blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
       var url=URL.createObjectURL(blob);
       var a=document.createElement('a');
@@ -9136,7 +9198,7 @@ function finishExcelExport(sheetDefs, fname, sheetJsWb, onFallback){
   }).catch(function(){
     try{ if(onFallback) onFallback(); }catch(e0){}
     try{ XLSX.writeFile(sheetJsWb, fname); }catch(e){}
-    if(typeof showToast==='function') showToast('서식 없이 내보냈어요 (인터넷 연결 확인)');
+    if(typeof showToast==='function') showToast('서식·잠금 없이 내보냈어요 (인터넷 연결 확인)');
   });
 }
 
@@ -9222,7 +9284,7 @@ function exportDriveLogbook(carId, ym){
   var s1=[
     ['과세기간', ym+'-01 ~ '+ym+'-'+String(lastDay).padStart(2,'0'), '', '업무용 차량 운행기록부', '', '', '', '상호명', org.name||''],
     ['', '', '', '', '', '', '', '사업자등록번호', org.bizNo||''],
-    [],
+    [XLS_LOCK_GUIDE],   /* 상단 안내 (원래 비어 있던 줄 — 배치는 그대로) */
     ['기본정보', '', '', '주유 및 지출내역'],
     ['차종', '자동차등록번호', '', '운행기록(km)', '차량연비(km/L)', '주유평균(원/L)', '주유금액', '정비금액'],
     [car.model||car.name||'', car.plate||'', '', totalKm, eff, avg, fuelAmt, repAmt],
@@ -9242,6 +9304,7 @@ function exportDriveLogbook(carId, ym){
 
   /* ── 시트2: 주유·정비 통합 표 + 기본 15행 입력칸 ── */
   var s2=[['주유·지출 내역 — '+ym],
+    [XLS_LOCK_GUIDE],
     ['주유일자','운행기록(km)','급유량(L)','단가(원/L)','주유금액','정비내역','정비금액']];
   var dataRows=[];
   fuelRecs.forEach(function(r){
@@ -9266,7 +9329,7 @@ function exportDriveLogbook(carId, ym){
 
   /* ── 수식 입히기 (0-기준 행) ── */
   var B0=9, BE=9+lastDay-1, BOT=BE+2;
-  var F0=2, T=2+DATA_N+1, ST=T+1;   /* s2: 데이터 시작·합계·통계 */
+  var F0=3, T=F0+DATA_N+1, ST=T+1;   /* s2: 데이터 시작·합계·통계 (안내 행 1줄 추가로 F0=3) */
   driveDays.forEach(function(dd){
     var r=B0+dd.day-1;
     xlsF(ws1, r, 5, dd.drive, xlsCell(r,4)+'-'+xlsCell(r,3));
@@ -9317,7 +9380,12 @@ function exportDriveLogbook(carId, ym){
                  {r1:7,c1:1,r2:7,c2:2},              /* 사용자 */
                  {r1:7,c1:3,r2:7,c2:7},              /* 운행내역 묶음 */
                  {r1:7,c1:8,r2:8,c2:8} ],            /* 방문지 세로 */
-        titleCells:[{r:0,c:3}] } };
+        titleCells:[{r:0,c:3}],
+        /* 수기 칸만 열기: 부서(col1)·방문지(col8) — 나머지는 잠금+연회색 */
+        unlock:[ {r1:B0,c1:1,r2:BE,c2:1}, {r1:B0,c1:8,r2:BE,c2:8} ],
+        lockFill:true, protect:true,
+        notes:[ {r:8, c:4, text:'계기판 값은 앱의 차계부 기록에서 자동으로 와요'},
+                {r:7, c:8, text:'직접 입력하는 칸이에요 (앱 화면에서 넣으면 함께 나와요)'} ] } };
     if(img && photoRow>=0){
       sheet1.images=[{ base64:img.dataUrl, ext:img.ext,
         range:{ tl:{col:0, row:photoRow}, ext:{width:400, height:300} } }];
@@ -9329,8 +9397,12 @@ function exportDriveLogbook(carId, ym){
     } : null;
     finishExcelExport([
       sheet1,
-      { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[1], bodyFrom:F0, bodyTo:F0+DATA_N-1,
-          sumRows:[T, ST], moneyCols:[1,2,3,4,6] } }
+      { name:'주유지출내역', ws:ws2, st:{ titleRow:0, headerRows:[2], bodyFrom:F0, bodyTo:F0+DATA_N-1,
+          sumRows:[T, ST], moneyCols:[1,2,3,4,6],
+          /* 수기 칸: 입력 행의 단가(col3, 수식)만 빼고 열기 */
+          unlock:[ {r1:F0,c1:0,r2:F0+DATA_N-1,c2:2}, {r1:F0,c1:4,r2:F0+DATA_N-1,c2:6} ],
+          lockFill:true, protect:true,
+          notes:[ {r:2, c:3, text:'단가는 주유금액 ÷ 급유량으로 자동 계산돼요'} ] } }
     ], '운행기록부_'+(car.name||'차량')+'_'+ym+'.xlsx', wb, onFallback);
   }
   if(!photoUrl){ doExport(null); return; }
