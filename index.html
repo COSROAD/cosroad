@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 191;
+const APP_VERSION = 192;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1278,6 +1278,17 @@ function buildDriverAttHtml(){
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
   h += '<span style="font-size:15px;font-weight:800;color:#344054;">🚚 기사 근태관리</span>';
   h += '</div>';
+  // ── 근태 달력 (상단) — 수납·수입지출 달력과 같은 모양, 접힘 상태는 기기별 ──
+  h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">';
+  h += navArrowBtn('attCalMoveMonth(-1)','◀');
+  h += '<span style="font-size:15px;font-weight:800;color:#344054;">'+attCalYear+'년 '+attCalMonth+'월</span>';
+  h += navArrowBtn('attCalMoveMonth(1)','▶');
+  h += '<button onclick="attCalToggle()" style="min-height:40px;padding:6px 12px;background:'+(attCalOpen?'#F3EEFF':'white')+';border:1.5px solid '+(attCalOpen?'#7C3AED':'#D0D5DD')+';border-radius:10px;font-size:12px;font-weight:700;color:'+(attCalOpen?'#7C3AED':'#344054')+';cursor:pointer;flex-shrink:0;white-space:nowrap;">📅 달력 '+(attCalOpen?'▲':'▼')+'</button>';
+  h += '</div>';
+  if(attCalOpen){
+    h += renderAttCalendar(attCalYear, attCalMonth);
+    if(attCalSelDate) h += attCalDetailHtml(attCalSelDate);
+  }
   // 급여상세 내보내기 (기본: 지난달)
   var _pyn=new Date(); var _pyy=_pyn.getFullYear(), _pym=_pyn.getMonth();
   if(_pym===0){ _pyy--; _pym=12; }
@@ -1349,6 +1360,121 @@ function buildDriverAttHtml(){
   }
 
   h += '</div>';
+  return h;
+}
+
+/* ── 근태 달력 (4업종 공통 · 관리자) ──
+   tkd_driver_att 읽기 전용. 데이터 신설 없음 —
+   접힘 상태만 기기별 localStorage('att_cal_open', ORG_KEYS 제외라 기관 접미사 안 붙음) */
+var attCalYear=(function(){ return Number(String(driverAttViewDate).slice(0,4))||new Date().getFullYear(); })();
+var attCalMonth=(function(){ return Number(String(driverAttViewDate).slice(5,7))||(new Date().getMonth()+1); })();
+var attCalOpen=(function(){ try{ return localStorage.getItem('att_cal_open')!=='0'; }catch(e){ return true; } })();  /* 기본 펼침 */
+var attCalSelDate=null;
+
+function attCalToggle(){
+  attCalOpen=!attCalOpen;
+  try{ localStorage.setItem('att_cal_open', attCalOpen?'1':'0'); }catch(e){}
+  renderDriverAttendance();
+}
+function attCalMoveMonth(delta){
+  attCalMonth+=delta;
+  if(attCalMonth<1){ attCalMonth=12; attCalYear--; }
+  else if(attCalMonth>12){ attCalMonth=1; attCalYear++; }
+  attCalSelDate=null;   /* 달을 옮기면 상세 패널은 닫는다 */
+  renderDriverAttendance();
+}
+/* 같은 날짜를 다시 누르면 닫힘, 다른 날짜면 교체 */
+function attCalSelectDate(ds){
+  attCalSelDate=(attCalSelDate===ds)?null:ds;
+  renderDriverAttendance();
+}
+/* 날짜별 출근 인원·미퇴근 여부 (기사 배정된 차량만) */
+function attCalStats(y, mo){
+  var att=loadDriverAtt();
+  var driverCars=cars.filter(function(c){ return c.driver && c.driver.trim(); });
+  var days=new Date(y, mo, 0).getDate();
+  var out={};
+  for(var d=1; d<=days; d++){
+    var ds=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var cnt=0, warn=false;
+    driverCars.forEach(function(c){
+      var r=att[attKey(c.id, ds)];
+      if(!r || !r.in) return;
+      cnt++;
+      if(!r.out) warn=true;            /* 출근은 있는데 퇴근 체크가 없음 */
+    });
+    if(cnt>0) out[ds]={count:cnt, warn:warn};
+  }
+  return out;
+}
+function renderAttCalendar(y, mo){
+  var stats=attCalStats(y, mo);
+  var startDow=new Date(y, mo-1, 1).getDay();
+  var daysInMonth=new Date(y, mo, 0).getDate();
+  var dows=['일','월','화','수','목','금','토'];
+  var today=todayStr();
+  var c='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:8px;margin-bottom:10px;">';
+  c+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">';
+  dows.forEach(function(d,i){ c+='<div style="text-align:center;font-size:10px;font-weight:700;color:'+(i===0?'#F04438':(i===6?'#1570EF':'#98A2B3'))+';padding:3px 0;">'+d+'</div>'; });
+  c+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">';
+  for(var i=0;i<startDow;i++){ c+='<div></div>'; }
+  for(var d=1; d<=daysInMonth; d++){
+    var ds=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var st=stats[ds];
+    var dow=(startDow+d-1)%7;
+    var isSel=(attCalSelDate===ds);
+    var isToday=(ds===today);
+    var bg=isSel?'#7C3AED':(st?'#F9FAFB':'white');
+    var fg=isSel?'white':(dow===0?'#F04438':(dow===6?'#1570EF':'#344054'));
+    var bc=isSel?'#7C3AED':(isToday?'#12B76A':'#F2F4F7');
+    var bw=(!isSel&&isToday)?'2px':'1px';
+    c+='<div onclick="attCalSelectDate(\''+ds+'\')" style="min-height:52px;display:flex;flex-direction:column;border:'+bw+' solid '+bc+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';overflow:hidden;">';
+    c+='<div style="font-size:13px;font-weight:700;color:'+fg+';flex-shrink:0;">'+d+(isToday&&!isSel?' <span style="font-size:9px;color:#12B76A;">오늘</span>':'')+'</div>';
+    if(st){
+      c+='<div style="font-size:11px;font-weight:800;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.3;">'+st.count+'명</div>';
+      if(st.warn) c+='<div style="font-size:10px;font-weight:800;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.2;">⚠</div>';
+    }
+    c+='</div>';
+  }
+  c+='</div></div>';
+  return c;
+}
+/* 날짜 상세 패널 — 기사별 출근·퇴근·근무시간·계기판 km */
+function attCalDetailHtml(ds){
+  var att=loadDriverAtt();
+  var driverCars=cars.filter(function(c){ return c.driver && c.driver.trim(); });
+  /* 계기판 km은 차계부(tkd_carlog)의 그날 odo 기록에서 읽는다 (퇴근 체크 때 저장되는 곳) */
+  var odoBy={};
+  try{
+    loadCarlog().records.forEach(function(r){
+      if(r.date===ds && Number(r.odo)>0 && (!odoBy[r.carId] || Number(r.odo)>odoBy[r.carId])) odoBy[r.carId]=Number(r.odo);
+    });
+  }catch(e){}
+  var rows=[];
+  driverCars.forEach(function(c){
+    var r=att[attKey(c.id, ds)];
+    if(!r || !r.in) return;
+    rows.push({car:c, rec:r, odo:odoBy[c.id]||0});
+  });
+  var h='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:11px 12px;margin-bottom:10px;">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(rows.length?'8px':'0')+';">';
+  h+='<span style="font-size:13px;font-weight:800;color:#344054;">📅 '+ds+' 출근 내역</span>';
+  h+='<span onclick="attCalSelectDate(\''+ds+'\')" style="font-size:11px;color:#98A2B3;cursor:pointer;font-weight:700;">닫기</span></div>';
+  if(!rows.length){
+    h+='<div style="font-size:12px;color:#98A2B3;padding:6px 0;">이 날은 출근 기록이 없어요.</div>';
+  }
+  rows.forEach(function(x){
+    var mins=calcWorkMinutes(x.rec.in, x.rec.out);
+    h+='<div style="background:white;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">';
+    h+='<div style="font-size:13px;font-weight:700;color:#1D2939;margin-bottom:3px;">'+escapeMasterHtml(x.car.driver||'')+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+escapeMasterHtml(x.car.name||'')+'</span></div>';
+    h+='<div style="font-size:11px;color:#475467;line-height:1.6;">';
+    h+='출근 <b>'+escapeMasterHtml(x.rec.in)+'</b> · 퇴근 '
+      +(x.rec.out ? '<b>'+escapeMasterHtml(x.rec.out)+'</b>' : '<b style="color:#F04438;">미체크</b>');
+    if(mins!=null) h+=' · 근무 <b>'+fmtWorkMinutes(mins)+'</b>';
+    if(x.odo>0) h+=' · 📏 '+x.odo.toLocaleString()+'km';
+    h+='</div></div>';
+  });
+  h+='</div>';
   return h;
 }
 
@@ -1920,6 +2046,8 @@ var HELP_QA=[
    a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 설정 탭 → 「지원사업 알림」에서 확인 주기(매일/매주/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요\n4. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
    a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)'},
+  {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
+   a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
    a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)'},
   {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
