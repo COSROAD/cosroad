@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 200;
+const APP_VERSION = 201;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -7800,12 +7800,50 @@ function renderReceiptCanvas(lines, dots){
   var PAD=4, GAP=12;
   var usable=dots-PAD*2;
   function font(sz, bold){ return (bold?'bold ':'')+sz+'px sans-serif'; }
+  /* 왼쪽 정렬 줄이 폭을 넘으면 공백(단어 경계)에서 나눈다.
+     "입금계좌: 농협 301-… (주)프리존" 처럼 상호가 글자 중간에서 잘리던 것을 막는다.
+     공백 없는 긴 연속 문자열(계좌번호 등)만 글자 단위로 떨어뜨린다.
+     라벨("…: ")이 있으면 이어지는 줄을 라벨 폭만큼 들여써 읽기 좋게 한다. */
+  function wrapLeft(s, maxW){
+    s=String(s==null?'':s);
+    if(!s || ctx.measureText(s).width<=maxW) return [{s:s, x:0}];
+    var indent=0, ci=s.indexOf(': ');
+    if(ci>0){
+      var lw=ctx.measureText(s.slice(0, ci+2)).width;
+      if(lw<=maxW*0.4) indent=lw;          /* 라벨이 너무 길면 들여쓰기 생략 */
+    }
+    var out=[], cur='', first=true;
+    function avail(){ return first ? maxW : maxW-indent; }
+    function flush(){ out.push({s:cur, x:first?0:indent}); cur=''; first=false; }
+    var toks=s.split(' ');
+    for(var i=0; i<toks.length; i++){
+      var t=toks[i];
+      var trial=cur?(cur+' '+t):t;
+      if(ctx.measureText(trial).width<=avail()){ cur=trial; continue; }
+      if(cur) flush();
+      /* 토큰 하나가 한 줄보다 길면 그 토큰만 글자 단위로 자른다 */
+      while(ctx.measureText(t).width>avail()){
+        var k=1;
+        while(k<t.length && ctx.measureText(t.slice(0,k+1)).width<=avail()) k++;
+        cur=t.slice(0,k); flush();
+        t=t.slice(k);
+      }
+      cur=t;
+    }
+    if(cur) flush();
+    return out;
+  }
   /* 1차: 줄 배치·전체 높이 계산 */
   var plan=[], y=0;
   lines.forEach(function(L){
     if(L.t==='hr'){ plan.push({t:'hr', y:y+4}); y+=10; return; }
     var sz=Math.round(base*(L.size||1)), lh=Math.round(sz*1.35);
     ctx.font=font(sz, L.bold);
+    function addLeft(str){
+      wrapLeft(str, usable).forEach(function(pt){
+        plan.push({t:'left', s:pt.s, x:pt.x, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
+      });
+    }
     if(L.t==='lr'){
       var lw=ctx.measureText(String(L.l||'')).width;
       var rw=ctx.measureText(String(L.r||'')).width;
@@ -7813,11 +7851,12 @@ function renderReceiptCanvas(lines, dots){
         plan.push({t:'lr', l:L.l, r:L.r, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
       } else {
         /* 한 줄에 안 들어가면 품명 줄 + 금액(오른쪽) 줄로 나눔 */
-        plan.push({t:'left', s:L.l, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
+        addLeft(L.l);
         plan.push({t:'right', s:L.r, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
       }
       return;
     }
+    if(L.t==='left'){ addLeft(L.s); return; }
     plan.push({t:L.t, s:L.s, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
   });
   /* 2차: 실제 그리기 (height를 바꾸면 컨텍스트 상태가 초기화되므로 다시 설정) */
@@ -7835,7 +7874,7 @@ function renderReceiptCanvas(lines, dots){
       ctx.textAlign='left';  ctx.fillText(String(p.l), PAD, p.y);
       ctx.textAlign='right'; ctx.fillText(String(p.r), dots-PAD, p.y);
     }
-    else { ctx.textAlign='left'; ctx.fillText(String(p.s), PAD, p.y); }
+    else { ctx.textAlign='left'; ctx.fillText(String(p.s), PAD+(p.x||0), p.y); }
   });
   return cv;
 }
