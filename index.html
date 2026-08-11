@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 201;
+const APP_VERSION = 202;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1114,9 +1114,12 @@ function pvFormHtml(D, mode, opts){
   /* 헤더 */
   h+='<tr><td style="'+H+'">NO</td><td style="'+H+'">시급</td><td style="'+H+'">식대</td>'
     +'<td style="'+H+'">성명</td><td style="'+H+'">일자(구분)</td>';
+  /* 날짜 헤더는 일자만 ("1"~"31") — 칸이 좁아 "7/10" 형태는 인쇄에서 잘렸다.
+     연월은 위 제목(급여상세내역 YYYY-MM)에 이미 있고, 주말 색·공휴 표시는 그대로 둔다.
+     엑셀은 칸 폭을 늘릴 수 있어 D.dayCols(실제 날짜)를 그대로 쓴다 — 여기만 바꾼다. */
   D.dayCols.forEach(function(lab, di){
     var col = D.dayHol[di] ? 'color:#CC0000;' : (D.dayDows[di]===0 ? 'color:#CC0000;' : (D.dayDows[di]===6 ? 'color:#1A6BFF;' : ''));
-    h+='<td style="'+H+col+'">'+esc(lab)+(D.dayHol[di]?'<br/>공휴':'')+'</td>';
+    h+='<td style="'+H+col+'">'+(di+1)+(D.dayHol[di]?'<br/>공휴':'')+'</td>';
   });
   h+='<td style="'+H+'">근무시간</td><td style="'+H+'">급여</td><td style="'+H+'">합계</td>'
     +'<td style="'+H+'">'+esc(D.dedName)+'</td><td style="'+H+'">공제후</td><td style="'+H+'">실급여<br/>(식대포함)</td></tr>';
