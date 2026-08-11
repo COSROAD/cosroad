@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 199;
+const APP_VERSION = 200;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2093,7 +2093,7 @@ var HELP_QA=[
   {role:'admin', keys:['명세서','거래명세'], t:'거래명세서 작성',
    a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증'},
   {role:'admin', keys:['영수증','감열','프린터','rawbt','구매'], t:'영수증 인쇄 (감열 프린터)',
-   a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n6. 다른 프린터로 성공하셨다면 알려주세요 — 확인된 모델 목록에 추가할게요!'},
+   a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. RawBT에서 막히는 두 곳: 기기 목록이 비어 있으면 「GRANT PERMISSION」으로 근처 기기 검색을 허용하고, 연결 뒤에는 「Your printers」에서 내 프린터에 체크하세요 (처음엔 Emulator에 체크돼 있어 종이로 안 나가요)\n6. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n7. 다른 프린터로 성공하셨다면 알려주세요 — 목록에 추가할게요!'},
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
    a:'1. 명세서 작성에서 「📷 바코드 스캔」(안드로이드 크롬) 또는 입력창에 찍고 Enter\n2. 품목의 「코드」와 일치하면 줄 추가, 같은 코드 반복이면 수량 +1\n3. 미등록 숫자 바코드는 「＋ 새 품목 등록」으로 상품정보 자동 조회 후 등록'},
   {role:'admin', keys:['수납','납부','미납','수강료'], t:'수납 관리',
@@ -7697,23 +7697,26 @@ function openPrinterGuide(){
   h+='<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:6px;">어떤 프린터를 사면 되나요?</div>';
   h+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:8px;font-size:12px;color:#475467;line-height:1.7;">'
     +'· 블루투스 지원<br/>· 감열(영수증) 방식<br/>· 용지 폭 58mm 또는 80mm<br/>· ESC/POS 지원 (영수증 프린터 대부분 지원)</div>';
-  h+='<div style="font-size:11px;color:#667085;margin-bottom:10px;line-height:1.6;">이 조건이면 대부분의 제품이 됩니다. 이미 갖고 계신 영수증 프린터도 블루투스만 되면 먼저 연결해 보세요.</div>';
-  h+='<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:5px;">✅ 확인된 모델</div>';
+  h+='<div style="font-size:11px;color:#667085;margin-bottom:6px;line-height:1.6;">이 조건이면 대부분의 제품이 됩니다. 이미 갖고 계신 영수증 프린터도 블루투스만 되면 먼저 연결해 보세요.</div>';
+  h+='<div style="font-size:11px;color:#067647;background:#F6FEF9;border-radius:8px;padding:7px 10px;margin-bottom:10px;line-height:1.6;">조건만 맞으면 목록에 없는 제품도 똑같이 연결됩니다.</div>';
+  h+='<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:5px;">참고 — 사용자들이 확인한 모델</div>';
   VERIFIED_PRINTERS.forEach(function(p){
     h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #ABEFC6;background:#F6FEF9;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
       +'<span style="font-size:12px;font-weight:700;color:#067647;">'+escapeMasterHtml(p.name)+' <span style="font-size:10px;color:#12B76A;font-weight:400;">'+escapeMasterHtml(p.width)+'</span></span>'
       +'<span style="font-size:10px;color:#12B76A;">'+escapeMasterHtml(p.note||'확인됨')+'</span></div>';
   });
   h+='<div style="font-size:11px;color:#667085;margin:6px 0 14px;">다른 모델로 성공하셨다면 도우미 챗으로 알려주세요 — 목록에 추가할게요!</div>';
-  h+='<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:6px;">연결 순서 — 6단계</div>';
   var steps=[
     '(새 프린터면) 배터리의 절연 테이프를 제거하고 감열지 롤을 넣어요',
     '전원 버튼을 3초 길게 눌러 켜요',
     '폰의 블루투스를 켜요 (설정에서 페어링까지 할 필요는 없어요)',
-    'Play 스토어에서 <b>RawBT</b> 설치 → RawBT 설정 → 프린터 → Bluetooth → 목록에서 내 프린터 선택 (비밀번호를 물으면 0000 또는 1234)',
+    'Play 스토어에서 <b>RawBT</b> 설치 → RawBT 설정 → <b>ADD PRINTER</b> → Bluetooth printer의 빨간 「not selected」 줄을 탭 → 목록에서 내 프린터 선택 → <b>CONNECT</b> (비밀번호를 물으면 0000 또는 1234)',
+    '기기 목록이 비어 있으면 아래 <b>「GRANT PERMISSION」</b>(권한 허용) 버튼을 누르고 근처 기기 검색을 허용하세요 — 허용해야 목록이 보여요',
+    'RawBT 설정의 <b>Your printers</b> 목록에서 내 프린터 왼쪽 동그라미에 체크 (처음엔 Emulator(가상)에 체크돼 있어요 — 안 옮기면 종이 대신 미리보기로만 나가요)',
     'RawBT의 테스트 인쇄로 확인해요',
     '코스로드 명세서 목록에서 「🧾 영수증」 → 인쇄. 용지 폭은 목록 위에서 내 프린터에 맞게(58/80mm) 선택'
   ];
+  h+='<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:6px;">연결 순서 — '+steps.length+'단계</div>';
   h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:4px 10px;">';
   steps.forEach(function(s, i){
     h+='<div style="display:flex;gap:8px;padding:8px 0;'+(i<steps.length-1?'border-bottom:1px solid #F2F4F7;':'')+'">'
