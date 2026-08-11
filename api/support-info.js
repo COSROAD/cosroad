@@ -35,7 +35,20 @@
 //       온라인신청사이트URL · 수정일시 · 소관기관명 · 행정규칙 · 자치법규 · 법령
 //     버전: 공지 NOTICE_0000000002221(2021) = v1 의 serviceList/serviceDetail/supportConditions,
 //           공지 NOTICE_0000000004156(2025.06.13) = v3/serviceDetail 에 구비서류 2개 추가.
-//       → v3 를 먼저 호출하고 실패하면 v1 로 재시도한다. 필드는 위 공식 이름으로만 읽는다.
+//       → v3 를 먼저 호출하고 실패하면 v1 로 재시도한다. 필드는 아래 확인된 이름으로만 읽는다.
+//
+//     ★ v3 실응답 필드 20개 (2026-08 Vercel 로그로 실제 확인 — 로그인 없이는 명세를
+//       볼 수 없어 미확인으로 남겨뒀던 항목. 이제 확정):
+//         공무원확인구비서류 · 구비서류 · 문의처 · 법령 · 본인확인필요구비서류 ·
+//         서비스ID · 서비스명 · 서비스목적 · 선정기준 · 소관기관명 · 수정일시 ·
+//         신청기한 · 신청방법 · 온라인신청사이트URL · 자치법규 · 접수기관명 ·
+//         지원내용 · 지원대상 · 지원유형 · 행정규칙
+//     v1 OAS 대비 차이:
+//       · SVC_ID 없음 → v3 의 식별자는 서비스ID (v195에서 id가 전부 'g24_'로 뭉친 원인)
+//       · 문의처전화번호 → 문의처 로 이름이 바뀜 (이 코드는 쓰지 않음)
+//       · 구비서류 2종(공무원확인·본인확인필요) 추가 — 공지 내용과 일치
+//     이 코드가 읽는 서비스명·소관기관명·접수기관명·신청기한·지원유형·지원대상·
+//     온라인신청사이트URL 은 위 목록에 모두 있어 그대로 유효.
 //
 // 키는 Vercel 환경변수에만 둔다: DATA_GO_KR_KEY (정부24) / BIZINFO_KEY (기업마당)
 // ────────────────────────────────────────────────────────────────────────────
@@ -165,13 +178,13 @@ function shortHash(s) {
   return (h >>> 0).toString(36);
 }
 
-/* 정부24 항목 식별자 — v3 실응답에 SVC_ID가 비어 있는 경우가 있어
-   SVC_ID → 서비스ID → (서비스명|소관기관명) 해시 순으로 떨어진다.
+/* 정부24 항목 식별자 — v3 의 식별자는 '서비스ID' (실응답으로 확인, SVC_ID는 없음).
+   v1 로 떨어졌을 때를 위해 SVC_ID 도 받아두고, 둘 다 없을 때만 해시로 내려간다.
    어떤 경우에도 항목마다 고유하고 매번 같은 값이어야 seen/NEW 판정이 맞는다. */
 function gov24Id(r) {
-  const svc = String(r['SVC_ID'] || '').trim();
+  const svc = String(r['서비스ID'] || '').trim();
   if (svc) return svc;
-  const alt = String(r['서비스ID'] || '').trim();
+  const alt = String(r['SVC_ID'] || '').trim();
   if (alt) return alt;
   const name = String(r['서비스명'] || '').trim();
   const org = String(r['소관기관명'] || r['접수기관명'] || '').trim();
@@ -203,9 +216,6 @@ async function loadGov24(biz, q) {
       continue;
     }
     const rows = (j && Array.isArray(j.data)) ? j.data : [];
-    /* ⚠ 임시 진단 로그 — v3 실응답에 SVC_ID가 비어 있어 실제 식별자 필드명을 확인하는 중.
-       Vercel 로그에서 필드 이름을 확인한 뒤 다음 커밋에서 제거할 것. */
-    console.error('gov24 ' + versions[v] + ' 필드:', Object.keys(rows[0] || {}));
     const items = rows.map(function (r) {
       const period = String(r['신청기한'] || '').trim();
       return {
