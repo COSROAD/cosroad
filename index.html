@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 197;
+const APP_VERSION = 199;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2092,8 +2092,8 @@ var HELP_QA=[
    a:'1. 「T맵 출발 →」을 누르면 남은 순서의 앞 5곳만 안내돼요 (티맵 앱 제한)\n2. 도착할 때마다 완료 체크\n3. 다시 「T맵 출발」을 누르면 다음 5곳이 이어져요\n💡 경유지에 못 갔으면 "아리아, 경유지 취소"라고 말하면 다음 지점으로 넘어가요'},
   {role:'admin', keys:['명세서','거래명세'], t:'거래명세서 작성',
    a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증'},
-  {role:'admin', keys:['영수증','감열','프린터','rawbt'], t:'영수증 인쇄 (감열 프린터)',
-   a:'1. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n2. 명세서 목록에서 「🧾 영수증」\n3. 용지 폭(58/80mm)은 목록 위에서 선택\n⚠ 한글이 깨지면 RawBT 설정에서 인쇄 방식을 그래픽(Graphics)으로'},
+  {role:'admin', keys:['영수증','감열','프린터','rawbt','구매'], t:'영수증 인쇄 (감열 프린터)',
+   a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n6. 다른 프린터로 성공하셨다면 알려주세요 — 확인된 모델 목록에 추가할게요!'},
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
    a:'1. 명세서 작성에서 「📷 바코드 스캔」(안드로이드 크롬) 또는 입력창에 찍고 Enter\n2. 품목의 「코드」와 일치하면 줄 추가, 같은 코드 반복이면 수량 +1\n3. 미등록 숫자 바코드는 「＋ 새 품목 등록」으로 상품정보 자동 조회 후 등록'},
   {role:'admin', keys:['수납','납부','미납','수강료'], t:'수납 관리',
@@ -7167,7 +7167,8 @@ function renderInvoice(){
     +'<span style="font-size:11px;color:#667085;font-weight:700;">🧾 영수증 용지</span>'
     +'<select onchange="localStorage.setItem(\'receipt_width\',this.value)" style="padding:5px 8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;">'
     +'<option value="58"'+(_rw==='58'?' selected':'')+'>58mm</option>'
-    +'<option value="80"'+(_rw==='80'?' selected':'')+'>80mm</option></select></div>';
+    +'<option value="80"'+(_rw==='80'?' selected':'')+'>80mm</option></select>'
+    +'<button onclick="openPrinterGuide()" style="padding:5px 10px;background:#EFF8FF;color:#1570EF;border:1px solid #B2DDFF;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🖨 프린터 연결 안내</button></div>';
   h += '<div style="font-size:10px;color:#98A2B3;margin-bottom:10px;">무료 앱 RawBT 설치 + 블루투스 프린터 연결 필요 (앱이 없으면 자동으로 설치 화면이 열려요)</div>';
   h += '<div style="font-size:13px;font-weight:800;color:#1D2939;margin-bottom:10px;">📁 저장된 거래명세서 ('+saved.length+')</div>';
   if(saved.length===0){
@@ -7682,13 +7683,74 @@ function calcInvoiceBalance(baseInv){
   return { prevBalance: prevBalance, basePaid: basePaid };
 }
 
+/* 코스로드에서 실제 확인된 프린터 — 사용자 제보로 추가해 간다 */
+var VERIFIED_PRINTERS=[
+  { name:'GOOJPRT PT-210', width:'58mm', note:'2026-08 실테스트 확인' }
+];
+/* 프린터 연결 안내 — 어떤 제품을 사면 되는지 + 연결 6단계 */
+function openPrinterGuide(){
+  var h='<div id="prn-guide" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;">'
+    +'<div style="background:white;border-radius:16px;padding:18px;max-width:420px;width:100%;box-sizing:border-box;max-height:88vh;overflow-y:auto;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;">🖨 프린터 연결 안내</div>'
+    +'<button onclick="document.getElementById(\'prn-guide\').remove();" style="padding:6px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">닫기</button></div>';
+  h+='<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:6px;">어떤 프린터를 사면 되나요?</div>';
+  h+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:8px;font-size:12px;color:#475467;line-height:1.7;">'
+    +'· 블루투스 지원<br/>· 감열(영수증) 방식<br/>· 용지 폭 58mm 또는 80mm<br/>· ESC/POS 지원 (영수증 프린터 대부분 지원)</div>';
+  h+='<div style="font-size:11px;color:#667085;margin-bottom:10px;line-height:1.6;">이 조건이면 대부분의 제품이 됩니다. 이미 갖고 계신 영수증 프린터도 블루투스만 되면 먼저 연결해 보세요.</div>';
+  h+='<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:5px;">✅ 확인된 모델</div>';
+  VERIFIED_PRINTERS.forEach(function(p){
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #ABEFC6;background:#F6FEF9;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
+      +'<span style="font-size:12px;font-weight:700;color:#067647;">'+escapeMasterHtml(p.name)+' <span style="font-size:10px;color:#12B76A;font-weight:400;">'+escapeMasterHtml(p.width)+'</span></span>'
+      +'<span style="font-size:10px;color:#12B76A;">'+escapeMasterHtml(p.note||'확인됨')+'</span></div>';
+  });
+  h+='<div style="font-size:11px;color:#667085;margin:6px 0 14px;">다른 모델로 성공하셨다면 도우미 챗으로 알려주세요 — 목록에 추가할게요!</div>';
+  h+='<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:6px;">연결 순서 — 6단계</div>';
+  var steps=[
+    '(새 프린터면) 배터리의 절연 테이프를 제거하고 감열지 롤을 넣어요',
+    '전원 버튼을 3초 길게 눌러 켜요',
+    '폰의 블루투스를 켜요 (설정에서 페어링까지 할 필요는 없어요)',
+    'Play 스토어에서 <b>RawBT</b> 설치 → RawBT 설정 → 프린터 → Bluetooth → 목록에서 내 프린터 선택 (비밀번호를 물으면 0000 또는 1234)',
+    'RawBT의 테스트 인쇄로 확인해요',
+    '코스로드 명세서 목록에서 「🧾 영수증」 → 인쇄. 용지 폭은 목록 위에서 내 프린터에 맞게(58/80mm) 선택'
+  ];
+  h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:4px 10px;">';
+  steps.forEach(function(s, i){
+    h+='<div style="display:flex;gap:8px;padding:8px 0;'+(i<steps.length-1?'border-bottom:1px solid #F2F4F7;':'')+'">'
+      +'<span style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:#1A6BFF;color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(i+1)+'</span>'
+      +'<span style="font-size:12px;color:#475467;line-height:1.6;">'+s+'</span></div>';
+  });
+  h+='</div>';
+  h+='<div style="font-size:11px;color:#12B76A;background:#F6FEF9;border-radius:8px;padding:8px 10px;margin-top:10px;line-height:1.6;">한글은 앱이 알아서 처리해요 — 프린터에 한글 글꼴이 없어도 그대로 나옵니다.</div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin-top:8px;">영수증 인쇄는 현재 안드로이드(RawBT) 기준입니다.</div>';
+  h+='</div></div>';
+  var ex=document.getElementById('prn-guide'); if(ex) ex.remove();
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+
 // ── 거래명세서 영수증 인쇄 (감열 롤 프린터 · RawBT 중계) ──
 // 데이터 추출은 printInvoice와 동일 (새 계산식 금지).
-// RawBT 명세: 텍스트 UTF-8 → base64, intent:base64,(b64)#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;
-// 58mm ≈ 32칸 / 80mm ≈ 48칸 (한글·전각 2칸)
-function buildReceiptText(id, width){
+//
+// ── ESC/POS 래스터 인쇄로 전환한 이유 (2026-08-11 PT-210 실기 확인) ──
+// 프린터 내장 글꼴에 한글이 없어(중국어 펌웨어) 텍스트 전송으로는 한글이 깨진다.
+// 그래서 앱이 폰의 한글 글꼴로 캔버스에 그린 뒤 1비트 이미지로 바꿔 보낸다.
+// 프린터 글꼴을 쓰지 않으므로 어떤 프린터에서도 한글이 그대로 나온다.
+//
+// ── ESC/POS 명세 대조 (검증 원칙 A) ──
+//   ESC @      : 0x1B 0x40                            초기화
+//   GS v 0     : 0x1D 0x76 0x30 m xL xH yL yH d1..dk  래스터 비트 이미지
+//     m=0 등배 / xL+xH*256 = 행당 '바이트' 수 / yL+yH*256 = 세로 '도트' 수
+//     k = (xL+xH*256) * (yL+yH*256), 각 바이트의 MSB가 왼쪽 픽셀
+//   LF         : 0x0A                                 급지(끝 여백·절취용)
+//   큰 이미지는 버퍼가 넘칠 수 있어 세로 128도트씩 잘라 GS v 0을 반복 전송한다.
+// 용지폭: 58mm=384도트(행당 48바이트) / 80mm=576도트(행당 72바이트)
+// RawBT 전달: 바이트 → base64 → intent:base64,(b64)#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;
+
+/* 영수증 내용 — 구조화된 줄 목록. 캔버스 렌더러가 이 목록을 그린다.
+   t: 'center'(가운데) · 'left'(왼쪽) · 'right'(오른쪽) · 'lr'(품명 왼쪽+금액 오른쪽) · 'hr'(구분선) */
+function buildReceiptLines(id){
   var inv = loadInvoices().find(function(x){ return x.id===id; });
-  if(!inv) return '';
+  if(!inv) return null;
   var sel = members.find(function(m){ return String(m.id)===String(inv.memberId); }) || {};
   var org = orgSettings || {};
   var supply = inv.supply!=null ? inv.supply : (inv.total||0);
@@ -7697,54 +7759,140 @@ function buildReceiptText(id, width){
   var _bal = calcInvoiceBalance(inv);
   var prevBal=_bal.prevBalance||0, paidAmt=_bal.basePaid||0;
   var curBal = prevBal + grand - paidAmt;
-  var W = String(width)==='80' ? 48 : 32;
-  function dw(s){ s=String(s); var w=0; for(var i=0;i<s.length;i++){ w += (s.charCodeAt(i)>0x1100)?2:1; } return w; }
-  function cut(s, max){ s=String(s); var w=0,out=''; for(var i=0;i<s.length;i++){ var cw=(s.charCodeAt(i)>0x1100)?2:1; if(w+cw>max-1){ return out+'…'; } w+=cw; out+=s[i]; } return s; }
-  function padR(label, val){ var l=String(label), v=String(val); var sp=W-dw(l)-dw(v); if(sp<1) sp=1; return l+Array(sp+1).join(' ')+v; }
-  function center(s){ var sp=Math.max(0, Math.floor((W-dw(s))/2)); return Array(sp+1).join(' ')+s; }
-  var line=Array(Math.floor(W/2)+1).join('─');
-  var out=[];
-  out.push(center('거 래 명 세 표'));
-  out.push(line);
-  out.push('발행일: '+(inv.date||''));
-  out.push('공급자: '+(org.name||''));
-  if(org.bizNo) out.push('사업자: '+org.bizNo);
-  out.push('공급받는자: '+(sel.name||inv.memberName||''));
-  out.push(line);
+  var L=[];
+  L.push({t:'center', s:'거 래 명 세 표', size:1.45, bold:true});
+  L.push({t:'hr'});
+  L.push({t:'left', s:'발행일: '+(inv.date||'')});
+  L.push({t:'left', s:'공급자: '+(org.name||'')});
+  if(org.bizNo) L.push({t:'left', s:'사업자: '+org.bizNo});
+  L.push({t:'left', s:'공급받는자: '+(sel.name||inv.memberName||'')});
+  L.push({t:'hr'});
   (inv.items||[]).forEach(function(it){
     var qty=Number(it.qty)||0, price=Number(it.price)||0, amt=qty*price;
     var nm=String(it.name||'')+(it.spec?' '+it.spec:'');
-    if(W>=48){
-      /* 80mm: 한 줄 — 품명(길면 말줄임) + 수량 × 단가 = 금액 오른쪽 정렬 */
-      var right=qty.toLocaleString()+' × '+price.toLocaleString()+' = '+amt.toLocaleString();
-      out.push(padR(cut(nm, W-dw(right)-1), right));
-    } else {
-      /* 58mm: 2단 — 품명 줄 + 계산 줄 */
-      out.push(nm);
-      out.push('  '+qty.toLocaleString()+' × '+price.toLocaleString()+' = '+amt.toLocaleString());
-    }
+    /* 폭이 모자라면 렌더러가 두 줄로 나눈다 (58mm에서 기존 2단 배치와 같은 모양) */
+    L.push({t:'lr', l:nm, r:qty.toLocaleString()+' × '+price.toLocaleString()+' = '+amt.toLocaleString()});
   });
-  out.push(line);
-  out.push(padR('공급가액', supply.toLocaleString()));
-  out.push(padR('세액', vat.toLocaleString()));
-  out.push(padR('합계', grand.toLocaleString()));
-  if(prevBal) out.push(padR('전잔액', prevBal.toLocaleString()));
-  if(paidAmt) out.push(padR('입금', paidAmt.toLocaleString()));
-  out.push(padR('현잔액', curBal.toLocaleString()));
-  out.push(line);
-  if(org.bankAccount) out.push('입금계좌: '+org.bankAccount);
-  out.push((org.name||'')+(org.phone?' ☎ '+org.phone:''));
-  return out.join('\n');
+  L.push({t:'hr'});
+  L.push({t:'lr', l:'공급가액', r:supply.toLocaleString()});
+  L.push({t:'lr', l:'세액', r:vat.toLocaleString()});
+  L.push({t:'lr', l:'합계', r:grand.toLocaleString(), bold:true});
+  if(prevBal) L.push({t:'lr', l:'전잔액', r:prevBal.toLocaleString()});
+  if(paidAmt) L.push({t:'lr', l:'입금', r:paidAmt.toLocaleString()});
+  L.push({t:'lr', l:'현잔액', r:curBal.toLocaleString(), bold:true});
+  L.push({t:'hr'});
+  if(org.bankAccount) L.push({t:'left', s:'입금계좌: '+org.bankAccount});
+  L.push({t:'left', s:(org.name||'')+(org.phone?' ☎ '+org.phone:'')});
+  return L;
 }
+
+/* 줄 목록 → 캔버스 (가로 = 용지 도트 수). 폰의 한글 글꼴로 그린다.
+   감열 인쇄라 회색 없이 흰 바탕·검은 글자만 쓴다. */
+function renderReceiptCanvas(lines, dots){
+  var cv=document.createElement('canvas');
+  cv.width=dots;
+  cv.height=10;                       /* 측정용 임시 높이 */
+  var ctx=cv.getContext('2d');
+  var base = dots>=576 ? 26 : 22;     /* 80mm는 조금 더 크게 */
+  var PAD=4, GAP=12;
+  var usable=dots-PAD*2;
+  function font(sz, bold){ return (bold?'bold ':'')+sz+'px sans-serif'; }
+  /* 1차: 줄 배치·전체 높이 계산 */
+  var plan=[], y=0;
+  lines.forEach(function(L){
+    if(L.t==='hr'){ plan.push({t:'hr', y:y+4}); y+=10; return; }
+    var sz=Math.round(base*(L.size||1)), lh=Math.round(sz*1.35);
+    ctx.font=font(sz, L.bold);
+    if(L.t==='lr'){
+      var lw=ctx.measureText(String(L.l||'')).width;
+      var rw=ctx.measureText(String(L.r||'')).width;
+      if(lw+rw+GAP<=usable){
+        plan.push({t:'lr', l:L.l, r:L.r, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
+      } else {
+        /* 한 줄에 안 들어가면 품명 줄 + 금액(오른쪽) 줄로 나눔 */
+        plan.push({t:'left', s:L.l, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
+        plan.push({t:'right', s:L.r, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
+      }
+      return;
+    }
+    plan.push({t:L.t, s:L.s, sz:sz, bold:L.bold, y:y+sz}); y+=lh;
+  });
+  /* 2차: 실제 그리기 (height를 바꾸면 컨텍스트 상태가 초기화되므로 다시 설정) */
+  cv.height=y+8;
+  ctx=cv.getContext('2d');
+  ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#000000';
+  ctx.textBaseline='alphabetic';
+  plan.forEach(function(p){
+    if(p.t==='hr'){ ctx.fillRect(PAD, p.y, usable, 2); return; }
+    ctx.font=font(p.sz, p.bold);
+    if(p.t==='center'){ ctx.textAlign='center'; ctx.fillText(String(p.s), dots/2, p.y); }
+    else if(p.t==='right'){ ctx.textAlign='right'; ctx.fillText(String(p.s), dots-PAD, p.y); }
+    else if(p.t==='lr'){
+      ctx.textAlign='left';  ctx.fillText(String(p.l), PAD, p.y);
+      ctx.textAlign='right'; ctx.fillText(String(p.r), dots-PAD, p.y);
+    }
+    else { ctx.textAlign='left'; ctx.fillText(String(p.s), PAD, p.y); }
+  });
+  return cv;
+}
+
+/* 캔버스 → ESC/POS 바이트 (ESC @ + GS v 0 조각들 + 급지)
+   밝기 threshold 미만이면 검정(1). 투명 픽셀은 흰색으로 본다. */
+function escposRasterFromCanvas(cv, threshold, chunkRows){
+  var dots=cv.width, H=cv.height;
+  var bpr=dots>>3;                    /* 행당 바이트 수 (384→48, 576→72) */
+  var TH=threshold||160;
+  var CH=chunkRows||128;
+  var img=cv.getContext('2d').getImageData(0,0,dots,H).data;
+  var out=[0x1B,0x40];                /* ESC @ 초기화 */
+  for(var y0=0; y0<H; y0+=CH){
+    var rows=Math.min(CH, H-y0);
+    out.push(0x1D,0x76,0x30,0x00, bpr&0xFF,(bpr>>8)&0xFF, rows&0xFF,(rows>>8)&0xFF);
+    for(var y=0; y<rows; y++){
+      var rowBase=(y0+y)*dots;
+      for(var bx=0; bx<bpr; bx++){
+        var b=0;
+        for(var bit=0; bit<8; bit++){
+          var i=(rowBase+bx*8+bit)*4;
+          var a=img[i+3];
+          var lum = (a<128) ? 255 : (img[i]*0.299 + img[i+1]*0.587 + img[i+2]*0.114);
+          if(lum<TH) b |= (0x80>>bit);   /* MSB가 왼쪽 픽셀 */
+        }
+        out.push(b);
+      }
+    }
+  }
+  out.push(0x0A,0x0A,0x0A,0x0A);      /* 끝 여백(절취) */
+  return new Uint8Array(out);
+}
+
+/* 바이트 배열 → base64 (바이너리 안전).
+   btoa(unescape(encodeURIComponent(...)))는 UTF-8 텍스트용이라 래스터 바이트에 쓰면 깨진다. */
+function bytesToBase64(bytes){
+  var s='', CH=0x8000;
+  for(var i=0; i<bytes.length; i+=CH){
+    s += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i+CH, bytes.length)));
+  }
+  return btoa(s);
+}
+
 function receiptPrintInvoice(id){
   if(!/android/i.test((navigator.userAgent||''))){
     alert('영수증 인쇄는 안드로이드 폰에서 사용할 수 있어요');
     return;
   }
-  var text=buildReceiptText(id, localStorage.getItem('receipt_width')||'58');
-  if(!text) return;
-  var b64=btoa(unescape(encodeURIComponent(text+'\n\n\n')));   /* 끝 여백 3줄(절취) */
-  location.href='intent:base64,'+b64+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+  var lines=buildReceiptLines(id);
+  if(!lines || !lines.length) return;
+  var dots = String(localStorage.getItem('receipt_width')||'58')==='80' ? 576 : 384;
+  try{
+    var cv=renderReceiptCanvas(lines, dots);
+    var b64=bytesToBase64(escposRasterFromCanvas(cv));
+    location.href='intent:base64,'+b64+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+  }catch(e){
+    console.error('영수증 이미지 생성 실패:', e && e.message);
+    alert('영수증을 만들지 못했어요. 다시 시도해 주세요.');
+  }
 }
 
 /* ── 월말 정산 리포트 (물류: 거래처별 매출·입금·미수·매입) ──
