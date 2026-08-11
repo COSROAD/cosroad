@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 196;
+const APP_VERSION = 197;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1316,7 +1316,17 @@ var driverAttViewDate = todayStr();
 function renderDriverAttendance(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
-  cont.innerHTML = buildDriverAttHtml();
+  cont.innerHTML = '<div id="driver-att-host">'+buildDriverAttHtml()+'</div>';
+}
+/* 근태 블록만 다시 그린다.
+   학원·공공은 이 블록이 차량관리 화면(renderCars) 안에 들어가 있어서,
+   admin-content 전체를 갈아끼우면 위쪽 차량·배정 회원 영역까지 날아간다.
+   그래서 고정 래퍼(#driver-att-host) 안쪽만 교체한다. 스크롤 위치도 안 튄다.
+   래퍼가 없는 예외 상황에서만 기존 전체 렌더로 낙하. */
+function refreshDriverAttHost(){
+  var host = document.getElementById('driver-att-host');
+  if(host){ host.innerHTML = buildDriverAttHtml(); return; }
+  renderDriverAttendance();
 }
 function buildDriverAttHtml(){
   var att = loadDriverAtt();
@@ -1423,19 +1433,22 @@ var attCalSelDate=null;
 function attCalToggle(){
   attCalOpen=!attCalOpen;
   try{ localStorage.setItem('att_cal_open', attCalOpen?'1':'0'); }catch(e){}
-  renderDriverAttendance();
+  refreshDriverAttHost();
 }
 function attCalMoveMonth(delta){
   attCalMonth+=delta;
   if(attCalMonth<1){ attCalMonth=12; attCalYear--; }
   else if(attCalMonth>12){ attCalMonth=1; attCalYear++; }
   attCalSelDate=null;   /* 달을 옮기면 상세 패널은 닫는다 */
-  renderDriverAttendance();
+  refreshDriverAttHost();
 }
 /* 같은 날짜를 다시 누르면 닫힘, 다른 날짜면 교체 */
 function attCalSelectDate(ds){
   attCalSelDate=(attCalSelDate===ds)?null:ds;
-  renderDriverAttendance();
+  /* 달력에서 고른 날짜로 아래 일별 출퇴근 편집 영역도 같이 이동
+     (하루씩 옮기는 ◀ ▶ 화살표와 역할을 나눈다) */
+  driverAttViewDate=ds;
+  refreshDriverAttHost();
 }
 /* 날짜별 출근 인원·미퇴근 여부 (기사 배정된 차량만) */
 function attCalStats(y, mo){
@@ -1528,12 +1541,12 @@ function attCalDetailHtml(ds){
 }
 
 // 날짜 이동
-function setAttDate(v){ driverAttViewDate=v; renderDriverAttendance(); }
+function setAttDate(v){ driverAttViewDate=v; refreshDriverAttHost(); }
 function moveAttDate(delta){
   var d=new Date(driverAttViewDate+'T00:00:00');
   d.setDate(d.getDate()+delta);
   driverAttViewDate=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  renderDriverAttendance();
+  refreshDriverAttHost();
 }
 // 관리자가 출근/퇴근 토글 (있으면 지우고, 없으면 현재 시각 기록)
 function toggleDriverAtt(carId, type){
@@ -1545,7 +1558,7 @@ function toggleDriverAtt(carId, type){
   if(!att[k].in && !att[k].out) delete att[k];
   saveDriverAtt(att);
   var sc=document.getElementById('admin-content'); var pos=sc?sc.scrollTop:0;
-  renderDriverAttendance();
+  refreshDriverAttHost();
   if(sc){ requestAnimationFrame(function(){ sc.scrollTop=pos; }); }
 }
 let cars=loadCars();
@@ -10141,7 +10154,7 @@ function renderCars(){
   // 학원·공공: 차량관리 안에 기사 근태관리 함께 표시
   if(getBizType()==='academy'||getBizType()==='public'){
     html+='<div style="border-top:8px solid #F2F4F7;margin-top:16px;padding-top:4px;">';
-    html+=buildDriverAttHtml();
+    html+='<div id="driver-att-host">'+buildDriverAttHtml()+'</div>';
     html+='</div>';
   }
   html+='</div></div>';
