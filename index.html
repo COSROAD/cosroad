@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 206;
+const APP_VERSION = 207;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -632,11 +632,11 @@ let orgSettings=loadOrgSettings();
 // ── 업종별 용어 사전 ──
 // 업종 코드: academy(학원,기본) / logistics(물류) / public(공공) / delivery(택배)
 var BIZ_TERMS = {
-  academy:   { 회원:'회원', 출석:'출석', 결석:'결석', 출결:'출결', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장' },
-  logistics: { 회원:'거래처', 출석:'납품완료', 결석:'미납품', 출결:'납품', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지' },
-  public:    { 회원:'이용자', 출석:'출석', 결석:'결석', 출결:'출결', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장' },
+  academy:   { 회원:'회원', 출석:'출석', 결석:'결석', 출결:'출결', 출석률:'출석률', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장' },
+  logistics: { 회원:'거래처', 출석:'납품완료', 결석:'미납품', 출결:'납품', 출석률:'납품률', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지' },
+  public:    { 회원:'이용자', 출석:'출석', 결석:'결석', 출결:'출결', 출석률:'출석률', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장' },
   /* 택배는 알림장 탭 자체가 숨김(getOrderedAdminTabs) — 표 모양만 맞춰 fallback과 같은 값 */
-  delivery:  { 회원:'배송지', 출석:'배송완료', 결석:'미배송', 출결:'배송', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장' }
+  delivery:  { 회원:'배송지', 출석:'배송완료', 결석:'미배송', 출결:'배송', 출석률:'배송률', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장' }
 };
 var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
 
@@ -2229,7 +2229,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — 이름 검색(쉼표로 여러 명: 강하은,문소율) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석»률」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. 기사 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에 넣은 「기사 PIN 4자리」를 누르면 기사 출퇴근으로 처리돼요. «회원» PIN과 기사 PIN은 서로 다른 번호로 정하세요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. 기사 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에 넣은 「기사 PIN 4자리」를 누르면 기사 출퇴근으로 처리돼요. «회원» PIN과 기사 PIN은 서로 다른 번호로 정하세요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -2258,7 +2258,7 @@ var HELP_QA=[
 var helperOpen=false, helperInqOpen=false;
 /* HELP_QA 답변 속 «토큰»을 업종 용어로 치환 — 표시 시점에만 적용 */
 function helperTerm(s){ return String(s||'').replace(/«회원»/g,T('회원')).replace(/«학부모»/g,T('학부모')).replace(/«알림장»/g,T('알림장'))
-  .replace(/«출결»/g,T('출결')).replace(/«출석»/g,T('출석')).replace(/«결석»/g,T('결석')).replace(/«수강료»/g,T('수강료')); }
+  .replace(/«출결»/g,T('출결')).replace(/«출석»/g,T('출석')).replace(/«결석»/g,T('결석')).replace(/«출석률»/g,T('출석률')).replace(/«수강료»/g,T('수강료')); }
 function helperNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
 /* 키워드 매칭: 1건→답, 2건 이상→선택지, 0건→문의 유도.
    추후 Claude API로 바꿀 땐 이 함수만 교체하면 됨 */
@@ -10515,7 +10515,7 @@ function renderAttSummary(){
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
   h+='<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#12B76A;">'+totalPresent+'</div><div style="font-size:10px;color:#12B76A;">총 '+T('출석')+'</div></div>';
   h+='<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#F04438;">'+totalAbsent+'</div><div style="font-size:10px;color:#F04438;">총 '+T('결석')+'</div></div>';
-  h+='<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#7C3AED;">'+pct+'%</div><div style="font-size:10px;color:#7C3AED;">'+T('출석')+'률</div></div>';
+  h+='<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;color:#7C3AED;">'+pct+'%</div><div style="font-size:10px;color:#7C3AED;">'+T('출석률')+'</div></div>';
   h+='</div></div>';
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;margin-bottom:10px;">';
   h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:8px;">📋 '+T('출결')+' 엑셀 다운로드</div>';
@@ -10571,7 +10571,7 @@ function exportAttendanceExcel(){
   var data=loadAttendance(); var now=new Date(); var year=now.getFullYear(); var month=now.getMonth()+1;
   var daysInMonth=new Date(year,month,0).getDate();
   var headers=['이름','코스']; for(var d=1;d<=daysInMonth;d++) headers.push(d+'일');
-  headers.push(T('출석'),T('결석'),T('출석')+'률');
+  headers.push(T('출석'),T('결석'),T('출석률'));
   var rows=[headers];
   members.forEach(function(m){
     var course=courses.find(function(c){return c.id===m.courseId;});
