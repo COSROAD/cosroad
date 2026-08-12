@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 202;
+const APP_VERSION = 203;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1290,6 +1290,108 @@ function pvRemoveHoliday(dt){
   }, dt+' 을(를) 임시공휴일에서 뺄까요?');
 }
 /* 인쇄/PDF — v188과 동일하게 saveHtmlAsPdf 재사용 */
+/* ── 급여상세 인쇄 전용 레이아웃 (기사 블록마다 2단) ──
+   31일을 한 줄에 늘어놓으면 칸이 너무 좁아 글자가 잘려서, 인쇄만 반으로 나눈다.
+     표1: 시급 · 식대 · 성명 · 일자(구분) + 1~15일
+     표2: 일자(구분) + 16~말일 + 근무시간 · 급여 · 합계 · 공제 · 공제후 · 실급여
+   근무시간~실급여는 월 전체 값이라 표2에만 둔다. 구분 6행 순서는 두 표가 같다.
+   셀 렌더는 화면과 같은 pvWageCell/pvHourCell 을 쓴다(중복 금지). 화면 양식은 그대로. */
+function pvPrintHtml(D, cars, footer){
+  var esc=dlvEsc;
+  var FS=13, HS=11, DFS=12;      /* 칸이 넓어진 만큼 11px → 13px (날짜 칸은 12px) */
+  var C='border:1px solid #B0B7C3;padding:3px 4px;font-size:'+FS+'px;color:#1D2939;white-space:nowrap;';
+  var H=C+'background:#F2F2F2;font-weight:700;text-align:center;font-size:'+HS+'px;color:#344054;';
+  var R=C+'text-align:right;';
+  var CT=C+'text-align:center;';
+  var CTd=CT+'font-size:'+DFS+'px;overflow:hidden;';
+  var SUM=C+'text-align:right;background:#FFF9E6;font-weight:800;';
+  var HALF=15;                                   /* 표1에 넣는 마지막 일자 */
+  var back=D.lastDay-HALF;                       /* 표2의 날짜 칸 수 */
+  function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
+  function hr(v){ return (v===''||v==null||v===0) ? '' : String(v); }
+  /* 날짜 머리 — 일자만, 주말 색·임시공휴일 표시는 화면과 동일 */
+  function dayHead(di){
+    var col = D.dayHol[di] ? 'color:#CC0000;' : (D.dayDows[di]===0 ? 'color:#CC0000;' : (D.dayDows[di]===6 ? 'color:#1A6BFF;' : ''));
+    return '<td style="'+H+col+'">'+(di+1)+(D.dayHol[di]?'<br/>공휴':'')+'</td>';
+  }
+  var h='<div style="width:100%;font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
+  h+='<div style="font-size:15px;font-weight:800;color:#1D2939;margin-bottom:8px;">급여상세내역 ('+esc(D.ym)+')</div>';
+
+  (cars||D.cars).forEach(function(P){
+    var modeLabel=(P.mode==='insure4')?'4대보험':'3.3%';
+    h+='<div style="margin-bottom:10px;">';
+    /* ── 표1: 앞 15일 ── */
+    h+='<table style="border-collapse:collapse;width:100%;table-layout:fixed;">';
+    h+='<colgroup><col style="width:8%"/><col style="width:8%"/><col style="width:11%"/><col style="width:7%"/>';
+    for(var a=0;a<HALF;a++) h+='<col style="width:'+(66/HALF).toFixed(3)+'%"/>';
+    h+='</colgroup>';
+    h+='<tr><td style="'+H+'">시급</td><td style="'+H+'">식대</td><td style="'+H+'">성명</td><td style="'+H+'">일자(구분)</td>';
+    for(var d1=0; d1<HALF; d1++) h+=dayHead(d1);
+    h+='</tr>';
+    D.rowNames.forEach(function(rowName, li){
+      var first=(li===0);
+      var label=(rowName==='잔업')?'잔업(1.5배)':(rowName==='특근')?'특근(1.5배)':rowName;
+      h+='<tr>';
+      h+=pvWageCell(P, rowName, false, C, R);
+      if(first){
+        h+='<td rowspan="6" style="'+R+'">'+won(P.meal)+'</td>';
+        h+='<td rowspan="6" style="'+CT+'">'+esc(P.car.driver||'')+'<br/><span style="font-size:'+(FS-3)+'px;color:#667085;">('+D.mon+'월·'+modeLabel+')</span></td>';
+      }
+      h+='<td style="'+CT+'font-weight:700;">'+esc(label)+'</td>';
+      for(var di=0; di<HALF; di++) h+=pvHourCell(P, rowName, di, false, C, CTd);
+      h+='</tr>';
+    });
+    h+='</table>';
+    /* ── 표2: 16일~말일 + 집계 ── */
+    h+='<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin-top:3px;">';
+    h+='<colgroup><col style="width:6%"/>';
+    for(var b=0;b<back;b++) h+='<col style="width:'+(48.5/back).toFixed(3)+'%"/>';
+    h+='<col style="width:6%"/><col style="width:7.5%"/><col style="width:8.5%"/><col style="width:7%"/><col style="width:8%"/><col style="width:8.5%"/></colgroup>';
+    h+='<tr><td style="'+H+'">일자(구분)</td>';
+    for(var d2=HALF; d2<D.lastDay; d2++) h+=dayHead(d2);
+    h+='<td style="'+H+'">근무시간</td><td style="'+H+'">급여</td><td style="'+H+'">합계</td>'
+      +'<td style="'+H+'">'+esc(D.dedName)+'</td><td style="'+H+'">공제후</td><td style="'+H+'">실급여<br/>(식대포함)</td></tr>';
+    D.rowNames.forEach(function(rowName, li){
+      var first=(li===0);
+      var label=(rowName==='잔업')?'잔업(1.5배)':(rowName==='특근')?'특근(1.5배)':rowName;
+      h+='<tr><td style="'+CT+'font-weight:700;">'+esc(label)+'</td>';
+      for(var di2=HALF; di2<D.lastDay; di2++) h+=pvHourCell(P, rowName, di2, false, C, CTd);
+      h+='<td style="'+R+'">'+hr(P.hsum[rowName])+'</td><td style="'+R+'">'+won(P.pay[rowName])+'</td>';
+      if(first){
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.total)+'</td>';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.ded)+'</td>';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.after)+'</td>';
+        h+='<td rowspan="6" style="'+SUM+'">'+won(P.net)+'</td>';
+      }
+      h+='</tr>';
+    });
+    h+='</table>';
+    if(P.dedDetail){
+      h+='<div style="font-size:'+(FS-2)+'px;color:#667085;padding:3px 2px;">※ 4대보험은 요율 기준 참고 계산 — 실제 고지액과 다를 수 있음 (국민연금 '
+        +P.dedDetail.np.toLocaleString()+' · 건강 '+P.dedDetail.hi.toLocaleString()
+        +' · 장기요양 '+P.dedDetail.ltc.toLocaleString()+' · 고용 '+P.dedDetail.ei.toLocaleString()+')</div>';
+    }
+    h+='</div>';
+  });
+
+  if(footer!==false){
+    h+='<div style="margin-top:10px;">';
+    h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin-bottom:4px;">4대보험 요율표'
+      +'<span style="font-size:'+(FS-2)+'px;font-weight:400;color:#98A2B3;margin-left:6px;">수정은 근태 화면의 요율 칸에서</span></div>';
+    h+='<table style="border-collapse:collapse;"><tr>'
+      +'<td style="'+H+'">국민연금</td><td style="'+CT+'">'+D.rates.np+'%</td>'
+      +'<td style="'+H+'">건강보험</td><td style="'+CT+'">'+D.rates.hi+'%</td>'
+      +'<td style="'+H+'">장기요양</td><td style="'+CT+'">'+D.rates.ltc+'% (건강보험료의 '+D.rates.ltc+'%)</td>'
+      +'<td style="'+H+'">고용보험</td><td style="'+CT+'">'+D.rates.ei+'%</td></tr></table>';
+    h+='<div style="font-size:'+FS+'px;font-weight:800;color:#344054;margin:8px 0 4px;">임시공휴일</div>';
+    h+='<div style="font-size:'+FS+'px;color:'+(D.holidays.length?'#B42318':'#98A2B3')+';">'
+      +(D.holidays.length ? esc(D.holidays.join(', ')) : '(지정 없음)')+'</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
 /* 급여상세 인쇄 — 가로 A4.
    폭 계산: 가로 A4 297mm − 좌우 여백 6mm×2 = 285mm ≈ 1077px(96dpi).
    래퍼를 1070px 고정으로 잡아 축소 없이 거의 1:1로 앉히고, 그 안에서 42열
@@ -1297,17 +1399,21 @@ function pvRemoveHoliday(dt){
    날짜 열 = 1070px × 1.82% ≈ 19.5px 라 "10.5" 같은 값이 들어가도록 날짜 칸만 9px,
    나머지는 11px. 세로 A4(210mm)로 축소되던 기존 대비 글자가 약 1.8배 커진다.
    기사 블록은 PV_BLOCKS_PER_PAGE 단위로 쪽을 나눠 쪽 경계에서 잘리지 않게 한다. */
-var PV_BLOCKS_PER_PAGE=4;
+/* 기사 1명 = 표 2개(각 머리 1줄 + 6줄) ≈ 13px 기준 약 86mm.
+   가로 A4 세로 210mm − 위아래 여백 16mm − 제목 12mm ≈ 182mm 이므로 쪽당 2명. */
+var PV_BLOCKS_PER_PAGE=2;
 function pvPrint(){
   var D=buildPayrollData(pvYm);
   if(!D) return;
-  var css='.pdf-page{padding:6mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;}';
+  /* 좌우 여백 12mm — 6mm는 프린터가 못 찍는 영역(보통 4~5mm)에 걸려 제목·시급 열·
+     요율표 앞머리가 종이 왼쪽에서 잘렸다. 위아래는 8mm면 충분. */
+  var css='.pdf-page{padding:8mm 12mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;}';
   var groups=[];
   for(var i=0;i<D.cars.length;i+=PV_BLOCKS_PER_PAGE) groups.push(D.cars.slice(i,i+PV_BLOCKS_PER_PAGE));
   if(!groups.length) groups=[[]];
   var html='';
   groups.forEach(function(g, gi){
-    html+='<div class="pdf-page">'+pvFormHtml(D,'print',{cars:g, footer:(gi===groups.length-1)})+'</div>';
+    html+='<div class="pdf-page">'+pvPrintHtml(D, g, (gi===groups.length-1))+'</div>';
   });
   saveHtmlAsPdf(html, '급여상세내역_'+pvYm+'.pdf', css, {landscape:true});
 }
