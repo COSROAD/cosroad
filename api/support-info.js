@@ -63,6 +63,86 @@ const BIZ_KEYWORDS = {
 
 const MAX_ITEMS = 50;
 
+/* ── 지역 필터 (v211) ──────────────────────────────────────────────────────
+   17개 시도 표. official = 정식 명칭, alias = 짧은 별칭·옛 명칭.
+   ★ 동명 지명 함정: '광주'는 광주광역시와 경기 광주시가 겹친다(고성·강서구 등도 유사).
+     그래서 "타 지역이므로 제외" 판정에는 official 만 쓰고, alias 는 "우리 지역이므로
+     통과" 판정에만 쓴다. 제외는 확실할 때만 한다.
+   ※ '강원도'·'전라북도'·'제주도' 같은 옛 명칭은 지시문대로 alias 로만 두었다 —
+     타 지역 제외에는 쓰이지 않으므로 그 표기의 공고는 전국 공고처럼 통과한다. */
+const SIDO_LIST = [
+  { key: '서울', official: '서울특별시',     alias: ['서울', '서울시'] },
+  { key: '부산', official: '부산광역시',     alias: ['부산', '부산시'] },
+  { key: '대구', official: '대구광역시',     alias: ['대구', '대구시'] },
+  { key: '인천', official: '인천광역시',     alias: ['인천', '인천시'] },
+  { key: '광주', official: '광주광역시',     alias: ['광주', '광주시'] },
+  { key: '대전', official: '대전광역시',     alias: ['대전', '대전시'] },
+  { key: '울산', official: '울산광역시',     alias: ['울산', '울산시'] },
+  { key: '세종', official: '세종특별자치시', alias: ['세종', '세종시'] },
+  { key: '경기', official: '경기도',         alias: ['경기'] },
+  { key: '강원', official: '강원특별자치도', alias: ['강원', '강원도'] },
+  { key: '충북', official: '충청북도',       alias: ['충북'] },
+  { key: '충남', official: '충청남도',       alias: ['충남'] },
+  { key: '전북', official: '전북특별자치도', alias: ['전북', '전라북도'] },
+  { key: '전남', official: '전라남도',       alias: ['전남'] },
+  { key: '경북', official: '경상북도',       alias: ['경북'] },
+  { key: '경남', official: '경상남도',       alias: ['경남'] },
+  { key: '제주', official: '제주특별자치도', alias: ['제주', '제주도'] }
+];
+
+/* 사용자가 보낸 sido 값(짧은 키 '인천' 또는 정식 명칭 '인천광역시') → 표의 항목 */
+function findSido(v) {
+  const s = String(v || '').trim();
+  if (!s) return null;
+  for (let i = 0; i < SIDO_LIST.length; i++) {
+    const e = SIDO_LIST[i];
+    if (s === e.key || s === e.official) return e;
+  }
+  for (let i = 0; i < SIDO_LIST.length; i++) {
+    const e = SIDO_LIST[i];
+    if (e.alias.indexOf(s) >= 0) return e;
+  }
+  return null;
+}
+
+/* 지역 판정 — 우리 지역 + 지역 표기 없는 전국·정부 공고만 통과.
+   판정 순서 (강한 신호 우선):
+     1) 우리 시군구가 있으면        → 통과 (사용자가 직접 지정한 값)
+     2) 우리 시도 정식 명칭이 있으면 → 통과 (타 시도와 공동 공고여도 우리 것)
+     3) 다른 시도 정식 명칭이 있으면 → 제외 (확실한 타 지역)
+     4) 우리 시도 짧은 별칭이 있으면 → 통과
+     5) 어느 시도도 없으면          → 통과 (전국·정부 공고로 간주)
+   ※ 2)가 3)보다 앞서고 4)가 3)보다 뒤인 이유: 정식 명칭은 강한 신호, 짧은 별칭은
+     약한 신호다. 그래서 광주광역시 사용자에게 "경기도 광주시 …"는 3)에서 제외된다
+     (별칭 '광주'가 4)에 있으므로 3)을 넘지 못한다). */
+function regionPass(hay, sidoEntry, sigungu) {
+  if (!sidoEntry && !sigungu) return true;          /* 필터 미설정 — 기존과 동일 */
+  const s = String(hay || '');
+  if (sigungu && s.indexOf(sigungu) >= 0) return true;
+  if (sidoEntry) {
+    if (s.indexOf(sidoEntry.official) >= 0) return true;
+    for (let i = 0; i < SIDO_LIST.length; i++) {
+      const e = SIDO_LIST[i];
+      if (e.key === sidoEntry.key) continue;
+      if (s.indexOf(e.official) >= 0) return false;  /* 다른 시도 정식 명칭 → 타 지역 */
+    }
+    for (let i = 0; i < sidoEntry.alias.length; i++) {
+      if (s.indexOf(sidoEntry.alias[i]) >= 0) return true;
+    }
+  } else {
+    /* 시도 없이 시군구만 지정된 경우 — 다른 시도 정식 명칭이 있으면 타 지역 */
+    for (let i = 0; i < SIDO_LIST.length; i++) {
+      if (s.indexOf(SIDO_LIST[i].official) >= 0) return false;
+    }
+  }
+  return true;
+}
+
+/* 지역 판정 대상 문자열 — 공통 변환된 항목의 제목 + 기관명(소관·수행) + 분야(해시태그) */
+function regionHay(it) {
+  return String(it.title || '') + ' ' + String(it.org || '') + ' ' + String(it.field || '');
+}
+
 /* 오늘(한국시간) YYYY-MM-DD — Vercel 서버는 UTC라 KST로 맞춘다 */
 function todayKST() {
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -101,15 +181,20 @@ function matchFilter(item, biz, q) {
   return false;
 }
 
-/* 공통 마무리: 필터 → 마감 지난 공고 제외 → 50건 제한 */
-function finalize(items, biz, q) {
+/* 공통 마무리: 키워드 필터 → 마감 지난 공고 제외 → 지역 필터 → 50건 제한.
+   ★ 50건 제한은 반드시 지역 필터 '뒤'에 온다 — 앞에 두면 타 지역 공고가 50칸을
+     채워 우리 지역 공고가 잘려나간다. */
+function finalize(items, biz, q, region) {
   const today = todayKST();
+  const sidoEntry = region ? findSido(region.sido) : null;
+  const sigungu = region ? String(region.sigungu || '').trim() : '';
   const out = [];
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     if (!it || !it.title) continue;
     if (!matchFilter(it, biz, q)) continue;
     if (it.endDate && it.endDate < today) continue;   /* 종료일이 오늘 이전이면 제외 */
+    if (!regionPass(regionHay(it), sidoEntry, sigungu)) continue;
     out.push(it);
     if (out.length >= MAX_ITEMS) break;
   }
@@ -129,7 +214,7 @@ async function fetchJson(url, label, headers) {
 }
 
 /* ── 기업마당 ── */
-async function loadBizinfo(biz, q) {
+async function loadBizinfo(biz, q, region) {
   const KEY = (process.env.BIZINFO_KEY || '').trim();
   if (!KEY) {
     return { ok: false, message: '서버에 기업마당 키(BIZINFO_KEY)가 없습니다. 기업마당에서 API 사용신청 후 발급받아 넣어주세요.' };
@@ -163,7 +248,7 @@ async function loadBizinfo(biz, q) {
       src:     'bizinfo'
     };
   });
-  return { ok: true, items: finalize(items, biz, q) };
+  return { ok: true, items: finalize(items, biz, q, region) };
 }
 
 /* 문자열 → 짧은 결정적 해시 (djb2). 같은 문자열이면 언제나 같은 값이라
@@ -193,7 +278,7 @@ function gov24Id(r) {
 }
 
 /* ── 정부24 (보조금24) ── */
-async function loadGov24(biz, q) {
+async function loadGov24(biz, q, region) {
   const KEY = (process.env.DATA_GO_KR_KEY || '').trim();
   if (!KEY) {
     return { ok: false, message: '서버에 공공데이터포털 키(DATA_GO_KR_KEY)가 없습니다.' };
@@ -229,7 +314,7 @@ async function loadGov24(biz, q) {
         src:     'gov24'
       };
     });
-    return { ok: true, items: finalize(items, biz, q) };
+    return { ok: true, items: finalize(items, biz, q, region) };
   }
   return { ok: false, message: lastMsg || '정부24 조회 실패' };
 }
@@ -243,6 +328,11 @@ export default async function handler(req, res) {
   const src = String((req.query && req.query.src) || '').trim();
   const biz = String((req.query && req.query.biz) || '').trim();
   const q = String((req.query && req.query.q) || '').trim().slice(0, 40);
+  /* 지역 필터 (선택) — 없으면 필터하지 않아 기존과 완전히 동일하게 동작한다 */
+  const region = {
+    sido:    String((req.query && req.query.sido) || '').trim().slice(0, 20),
+    sigungu: String((req.query && req.query.sigungu) || '').trim().slice(0, 20)
+  };
 
   if (src !== 'bizinfo' && src !== 'gov24') {
     return res.status(400).json({ ok: false, message: 'src는 bizinfo 또는 gov24여야 합니다.' });
@@ -252,7 +342,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const out = (src === 'bizinfo') ? await loadBizinfo(biz, q) : await loadGov24(biz, q);
+    const out = (src === 'bizinfo') ? await loadBizinfo(biz, q, region) : await loadGov24(biz, q, region);
     if (!out.ok) return res.status(200).json({ ok: false, message: out.message });
     return res.status(200).json({ ok: true, items: out.items });
   } catch (e) {
