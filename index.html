@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 208;
+const APP_VERSION = 209;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2235,13 +2235,13 @@ var HELP_QA=[
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
    a:'1. 학원·공공 업종에서만 쓰는 기능이에요 (물류·택배에는 없어요)\n2. 관리자 → 수납 탭을 아래로 내리면 「📄 교육비 납입증명서」(공공은 「장기요양급여비 납부확인서」) 칸이 있어요\n3. 「증명서 발급」(공공은 「납부확인서 발급」) → 대상 연도·대상자, 주민등록번호(또는 생년월일), 신청인 성명·관계를 넣어요\n4. 「👁 미리보기」로 확인한 뒤 「PDF 발급」 — 그해 납부 완료 내역이 자동으로 집계돼요\n5. 「재원증명서」는 재원(재학) 사실 증명서, 「납부 영수증」은 납부 건별 영수증이에요\n6. 상호·사업자번호·대표자·도장은 설정 탭에 넣어 둔 값을 가져다 써요 — 발급 전에 미리 채워 두세요\n7. 발급한 내역은 그 아래에 이력으로 남아요'},
   {role:'all', keys:['차계부','주유','정비'], t:'차계부',
-   a:'관리자: 차량 관리 → 「📒 차계부」 — 주유·정비·기타·계기판 기록, 연비 자동\n기사: 운행 화면 → 「⛽ 차계부」 — 배정 차량에 바로 기록\n같은 기록을 관리자·기사가 함께 봐요'},
+   a:'관리자: 차량 관리 → 「📒 차계부」 — 주유·정비·기타·계기판 기록, 연비 자동\n기사: 운행 화면 → 「⛽ 차계부」 — 배정 차량에 바로 기록\n📏 계기판은 「🌅 출근 시(주행 전) / 🌆 퇴근 시(주행 후)」를 골라 넣어요 (기본은 퇴근 시) — 같은 날 둘 다 넣으면 한 줄에 나란히 보여요\n같은 기록을 관리자·기사가 함께 봐요'},
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
    a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
   {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
    a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 설정 탭 → 「지원사업 알림」에서 확인 주기(매일/매주/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요\n4. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
-   a:'1. 기사 퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
+   a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
@@ -2251,7 +2251,7 @@ var HELP_QA=[
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)'},
   {role:'driver', keys:['pin','출근','퇴근','출퇴근','계기판'], t:'PIN 출퇴근 체크',
-   a:'1. 운행 화면 → 「🔢 기사 PIN 출퇴근 체크」\n2. 본인 PIN 4자리 입력 — 처음은 출근, 다음은 퇴근\n3. 퇴근 때 「계기판 km」를 넣으면 운행기록부에 자동으로 쌓여요'},
+   a:'1. 운행 화면 → 「🔢 기사 PIN 출퇴근 체크」\n2. 본인 PIN 4자리 입력 — 처음은 출근, 다음은 퇴근\n3. 출근·퇴근 때 각각 「계기판 km」 칸이 떠요 (선택 — 안 넣어도 출퇴근 기록은 그대로 남아요)\n4. 출근 때 넣은 값이 운행기록부의 「주행 전」으로 실측 기록돼요 (안 넣으면 전날 마지막 값을 자동으로 써요)\n5. 퇴근 때 넣은 값은 「주행 후」가 돼요'},
   {role:'driver', keys:['곧도착','문자','납품완료','배송완료','완료'], t:'운행 중 완료·알림',
    a:'1. 지점 카드의 「🚐 곧도착」으로 «학부모»에게 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'}
 ];
@@ -5008,17 +5008,18 @@ function handleDriverPinCheckin(car){
   var today=todayStr();
   var k=attKey(car.id, today);
   if(!att[k]) att[k]={};
-  var msg, color, odoAsk=false;
+  var msg, color, odoAsk='';   /* '' 없음 · 'start' 출근 계기판 · 'end' 퇴근 계기판 (둘 다 선택 입력) */
   if(!att[k].in){
     att[k].in=nowTimeStr();
     msg='✅ '+car.driver+' 기사님 출근 ('+att[k].in+')';
     color='#12B76A';
+    odoAsk='start'; /* 출근 시 계기판 km 입력 (선택) — 운행기록부 「주행 전」 실측값 */
   } else if(!att[k].out){
     att[k].out=nowTimeStr();
     var mins=calcWorkMinutes(att[k].in, att[k].out);
     msg='🏁 '+car.driver+' 기사님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins);
     color='#F04438';
-    odoAsk=true;   /* 퇴근 시 계기판 km 입력 (선택) — 운행기록부용 */
+    odoAsk='end';   /* 퇴근 시 계기판 km 입력 (선택) — 운행기록부용 */
   } else {
     msg='이미 출퇴근이 모두 기록되었습니다.';
     color='#F79009';
@@ -5027,8 +5028,8 @@ function handleDriverPinCheckin(car){
   var r=document.getElementById('pin-result');
   if(r) r.innerHTML='<div style="color:'+color+';font-size:15px;font-weight:700;text-align:center;padding:14px;">'+msg+'</div>'
     +(odoAsk?'<div style="display:flex;gap:6px;justify-content:center;padding:0 14px 10px;">'
-      +'<input id="pin-odo" type="number" inputmode="numeric" placeholder="계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
-      +'<button onclick="savePinOdo(\''+car.id+'\')" style="padding:9px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button></div>':'');
+      +'<input id="pin-odo" type="number" inputmode="numeric" placeholder="'+(odoAsk==='start'?'출근':'퇴근')+' 계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
+      +'<button onclick="savePinOdo(\''+car.id+'\',\''+odoAsk+'\')" style="padding:9px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button></div>':'');
   pinInput='';
   setTimeout(function(){
     var rr=document.getElementById('pin-result');
@@ -5043,14 +5044,17 @@ function handleDriverPinCheckin(car){
     }, 20000);
   }
 }
-/* 퇴근 시 계기판 저장 — 같은 차량·같은 날짜는 덮어쓰기(최신값) */
-function savePinOdo(carId){
+/* 출퇴근 시 계기판 저장 — 같은 차량·같은 날짜는 덮어쓰기(최신값)
+   when: 'start' 출근(주행 전) · 그 외/생략은 기존과 같은 퇴근(주행 후) */
+function savePinOdo(carId, when){
   var el=document.getElementById('pin-odo');
   var v=el?Number(el.value):0;
   var r=document.getElementById('pin-result');
   if(!(v>0)){ if(r) r.innerHTML=''; renderPinDisplay(); return; }
-  carlogSetDailyOdo(carId, todayStr(), v, 'driver');
-  if(r) r.innerHTML='<div style="color:#12B76A;font-size:14px;font-weight:700;text-align:center;padding:12px;">📏 계기판 '+v.toLocaleString()+'km 저장!</div>';
+  var isStart = when==='start';
+  if(isStart) carlogSetDailyOdoStart(carId, todayStr(), v, 'driver');
+  else carlogSetDailyOdo(carId, todayStr(), v, 'driver');
+  if(r) r.innerHTML='<div style="color:#12B76A;font-size:14px;font-weight:700;text-align:center;padding:12px;">📏 '+(isStart?'출근':'퇴근')+' 계기판 '+v.toLocaleString()+'km 저장!</div>';
   setTimeout(function(){ var rr=document.getElementById('pin-result'); if(rr)rr.innerHTML=''; }, 2000);
 }
 
@@ -9078,7 +9082,8 @@ var currentCarTab = 0;
 function setCarTab(idx){ currentCarTab=idx; renderAdminTab('cars'); }
 // ══════════════════════
 // 차계부 (4업종 공통, 관리자+기사 공유)
-// 데이터: tkd_carlog = { records:[{id,carId,type:'fuel'|'repair'|'etc',date,amount,liters,odo,item,memo,by}], plans:{carId:{항목:다음교체km}} }
+// 데이터: tkd_carlog = { records:[{id,carId,type:'fuel'|'repair'|'etc'|'odo',date,amount,liters,odo,odoStart,item,memo,by}], plans:{carId:{항목:다음교체km}} }
+//   type:'odo' 일일 기록 — odoStart=출근 시 계기판(주행 전), odo=퇴근 시 계기판(주행 후). 둘 다 선택 입력
 // ORG_KEYS 편입으로 기관별 분리·데모 저장 차단 자동, Firebase 'carlog' 동기화
 // ══════════════════════
 function loadCarlog(){
@@ -9115,6 +9120,16 @@ function carlogSetDailyOdo(carId, date, odo, by){
   var ex=d.records.find(function(r){ return r.type==='odo' && r.carId===carId && r.date===date; });
   if(ex){ ex.odo=Number(odo); ex.by=by||ex.by; }
   else d.records.push({id:'cl'+Date.now()+Math.floor(Math.random()*1000), carId:carId, type:'odo', date:date, odo:Number(odo), by:by||'driver'});
+  saveCarlog(d);
+}
+/* 출근 시 계기판(odoStart) — 운행기록부 「주행 전」 실측값.
+   퇴근값(odo)과 같은 일일 기록에 필드만 나눠 담는다(같은 차량·같은 날짜 덮어쓰기).
+   odo는 건드리지 않는다 — 섞이면 퇴근 미입력 날 「주행 후」가 출근값으로 잘못 찍힌다. */
+function carlogSetDailyOdoStart(carId, date, odo, by){
+  var d=loadCarlog();
+  var ex=d.records.find(function(r){ return r.type==='odo' && r.carId===carId && r.date===date; });
+  if(ex){ ex.odoStart=Number(odo); ex.by=by||ex.by; }
+  else d.records.push({id:'cl'+Date.now()+Math.floor(Math.random()*1000), carId:carId, type:'odo', date:date, odoStart:Number(odo), by:by||'driver'});
   saveCarlog(d);
 }
 
@@ -9211,12 +9226,15 @@ function driveLogManualSet(carId, ym, kind, val, day){
 
 // ── 관리자 차계부 화면 ──
 var carlogSelCar=null, carlogType='fuel', carlogEditId=null;
+/* 📏 계기판 입력 시점: 'end' 퇴근(기본 — 기존 동작) · 'start' 출근(주행 전) */
+var carlogOdoWhen='end';
 function openCarlog(){
   if(!carlogSelCar || !cars.find(function(c){return c.id===carlogSelCar;})) carlogSelCar=(cars[0]||{}).id||'';
-  carlogType='fuel'; carlogEditId=null;
+  carlogType='fuel'; carlogEditId=null; carlogOdoWhen='end';
   renderCarlogModal();
 }
 function setCarlogType(t){ carlogType=t; renderCarlogModal(); }
+function setCarlogOdoWhen(w){ carlogOdoWhen=w; renderCarlogModal(); }
 function renderCarlogModal(){
   var editRec=null;
   if(carlogEditId){ editRec=loadCarlog().records.find(function(r){ return r.id===carlogEditId; })||null; if(!editRec) carlogEditId=null; }
@@ -9259,6 +9277,15 @@ function renderCarlogModal(){
   });
   h+='</div>';
   h+='<input id="cl-date" type="date" value="'+(editRec?editRec.date:todayStr())+'" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
+  if(carlogType==='odo'){
+    /* 출근(주행 전) / 퇴근(주행 후) 구분 — 기본은 퇴근(기존 동작 보존) */
+    h+='<div style="display:flex;gap:5px;margin-bottom:6px;">';
+    [['start','🌅 출근 시 (주행 전)'],['end','🌆 퇴근 시 (주행 후)']].forEach(function(w){
+      var on=carlogOdoWhen===w[0];
+      h+='<button onclick="setCarlogOdoWhen(\''+w[0]+'\')" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid '+(on?'#0E7090':'#EAECF0')+';background:'+(on?'#E0F2FE':'white')+';color:'+(on?'#0E7090':'#667085')+';font-size:11px;font-weight:700;cursor:pointer;">'+w[1]+'</button>';
+    });
+    h+='</div>';
+  }
   if(carlogType==='repair'){
     var _it=editRec?String(editRec.item||''):'';
     var _std=['엔진오일','타이어','배터리'].indexOf(_it)>=0;
@@ -9279,7 +9306,9 @@ function renderCarlogModal(){
     h+='<input id="cl-liters" type="number" step="0.01" placeholder="리터(L)" value="'+(editRec&&editRec.liters?editRec.liters:'')+'" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
   if(carlogType!=='etc'){
-    h+='<input id="cl-odo" type="number" placeholder="'+(carlogType==='odo'?'계기판 km':'계기판km(선택)')+'" value="'+(editRec&&editRec.odo?editRec.odo:'')+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+    /* 계기판 유형일 때는 고른 시점(출근/퇴근)의 값을 채워 넣는다 */
+    var _odoVal = (carlogType==='odo' && carlogOdoWhen==='start') ? (editRec&&editRec.odoStart?editRec.odoStart:'') : (editRec&&editRec.odo?editRec.odo:'');
+    h+='<input id="cl-odo" type="number" placeholder="'+(carlogType==='odo'?((carlogOdoWhen==='start'?'출근':'퇴근')+' 계기판 km'):'계기판km(선택)')+'" value="'+_odoVal+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
   h+='<button onclick="saveCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">'+(editRec?'수정':'저장')+'</button>';
   h+='</div></div>';
@@ -9303,9 +9332,13 @@ function renderCarlogModal(){
         +'<span style="font-size:10px;color:#475467;font-weight:700;">⛽'+s.fuel.toLocaleString()+' · 🔧'+s.repair.toLocaleString()+' · 💳'+s.etc.toLocaleString()+'원</span></div>';
     }
     if(r.type==='odo'){
-      /* 계기판 기록 — 지출 아님(합계 미포함), 작은 줄로만 표시 */
+      /* 계기판 기록 — 지출 아님(합계 미포함), 작은 줄로만 표시.
+         출근(odoStart)·퇴근(odo) 둘 다 있으면 나란히, 하나만 있으면 그것만 */
+      var _os=Number(r.odoStart)||0, _oe=Number(r.odo)||0;
+      var _odoTxt = (_os>0&&_oe>0) ? ('출근 '+_os.toLocaleString()+' · 퇴근 '+_oe.toLocaleString()+'km')
+                  : (_os>0 ? ('출근 '+_os.toLocaleString()+'km') : (_oe||0).toLocaleString()+'km');
       h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px dashed #EAECF0;border-radius:8px;padding:5px 10px;margin-bottom:5px;">'
-        +'<span style="font-size:11px;color:#475467;">📏 계기판 '+(Number(r.odo)||0).toLocaleString()+'km'+(r.by==='driver'?' <span style="font-size:9px;color:#98A2B3;">기사</span>':'')+'</span>'
+        +'<span style="font-size:11px;color:#475467;">📏 계기판 '+_odoTxt+(r.by==='driver'?' <span style="font-size:9px;color:#98A2B3;">기사</span>':'')+'</span>'
         +'<span style="font-size:10px;color:#98A2B3;">'+r.date
         +' <span onclick="editCarlogEntry(\''+r.id+'\')" style="color:#7C3AED;cursor:pointer;font-weight:700;">수정</span>'
         +' <span onclick="carlogDeleteRecord(\''+r.id+'\', renderCarlogModal)" style="color:#F04438;cursor:pointer;font-weight:700;">삭제</span></span></div>';
@@ -9351,13 +9384,23 @@ function saveCarlogEntry(){
   if(carlogType==='odo'){
     var ov=Number((document.getElementById('cl-odo')||{}).value)||0;
     if(!(ov>0)){ alert('계기판 km를 입력해주세요.'); return; }
+    /* 수정은 기존 기록을 지우고 다시 넣는 방식이라, 손대지 않은 반대쪽 값(출근↔퇴근)을 챙겨 뒀다 복원한다 */
+    var keepOdo=null, keepStart=null;
     if(carlogEditId){
       var d0=loadCarlog();
+      var old0=d0.records.find(function(r){ return r.id===carlogEditId; });
+      if(old0){ if(Number(old0.odo)>0) keepOdo=Number(old0.odo); if(Number(old0.odoStart)>0) keepStart=Number(old0.odoStart); }
       d0.records=d0.records.filter(function(r){ return r.id!==carlogEditId; });
       saveCarlog(d0);
       carlogEditId=null;
     }
-    carlogSetDailyOdo(carlogSelCar, date, ov, 'admin');
+    if(carlogOdoWhen==='start'){
+      carlogSetDailyOdoStart(carlogSelCar, date, ov, 'admin');
+      if(keepOdo!=null) carlogSetDailyOdo(carlogSelCar, date, keepOdo, 'admin');
+    } else {
+      carlogSetDailyOdo(carlogSelCar, date, ov, 'admin');
+      if(keepStart!=null) carlogSetDailyOdoStart(carlogSelCar, date, keepStart, 'admin');
+    }
     renderCarlogModal();
     return;
   }
@@ -9392,6 +9435,8 @@ function editCarlogEntry(id){
   var r=loadCarlog().records.find(function(x){ return x.id===id; });
   if(!r) return;
   carlogEditId=id; carlogType=r.type; carlogSelCar=r.carId;
+  /* 계기판 기록: 출근값만 있는 기록이면 출근 시로 열어 준다 (그 외는 기존대로 퇴근 시) */
+  if(r.type==='odo') carlogOdoWhen=(Number(r.odoStart)>0 && !(Number(r.odo)>0))?'start':'end';
   renderCarlogModal();
 }
 function addCarlogPlan(){
@@ -9603,20 +9648,29 @@ function finishExcelExport(sheetDefs, fname, sheetJsWb, onFallback){
 
 /* ── 운행기록부 계산 공용 함수 (화면 양식 · 엑셀 내보내기 공용) ──
    화면(openDriveLogView)과 엑셀(exportDriveLogbook)이 같은 함수를 쓰므로 값이 어긋날 수 없다.
-   날짜별 계기판 = 그날 기록(계기판·주유·정비)의 odo 최대값,
-   주행 전 = 직전 기록일의 계기판 값(월 이전 포함), odo 없는 날은 빈칸.
+   날짜별 주행 후 = 그날 기록(계기판·주유·정비)의 odo 최대값 (odoStart는 절대 섞지 않는다 —
+   섞으면 퇴근 미입력 날의 주행 후가 출근값으로 잘못 찍힌다),
+   주행 전 = ① 그날 출근 계기판(odoStart) 실측값, 없으면 ② 직전 기록일의 값(월 이전 포함).
+   둘 다 없으면 빈칸.
    body 각 행 = [사용일자(요일), 부서, 성명, 주행전, 주행후, 주행거리, 출퇴근용, 업무용, 방문지] */
 function buildDriveLogData(carId, ym){
   var car=cars.find(function(c){ return c.id===carId; });
   if(!car) return null;
   if(!/^\d{4}-\d{2}$/.test(ym||'')) return null;
   var all=loadCarlog().records.filter(function(r){ return r.carId===carId; });
-  var odoByDate={};
+  /* 주행 후(endByDate)는 기존 odo만, 주행 전(startByDate)은 출근 계기판만 — 두 통을 절대 섞지 않는다 */
+  var endByDate={}, startByDate={};
   all.forEach(function(r){
     var o=Number(r.odo)||0;
-    if(o>0 && (!odoByDate[r.date] || o>odoByDate[r.date])) odoByDate[r.date]=o;
+    if(o>0 && (!endByDate[r.date] || o>endByDate[r.date])) endByDate[r.date]=o;
+    var s=Number(r.odoStart)||0;
+    if(s>0 && (!startByDate[r.date] || s>startByDate[r.date])) startByDate[r.date]=s;
   });
-  var odoDates=Object.keys(odoByDate).sort();
+  /* 직전 기록일 후보값: 그날 퇴근값, 퇴근값이 없으면 출근값 */
+  var prevByDate={};
+  Object.keys(endByDate).forEach(function(k){ prevByDate[k]=endByDate[k]; });
+  Object.keys(startByDate).forEach(function(k){ if(prevByDate[k]==null) prevByDate[k]=startByDate[k]; });
+  var odoDates=Object.keys(prevByDate).sort();
   var year=Number(ym.slice(0,4)), mon=Number(ym.slice(5,7));
   var lastDay=new Date(year, mon, 0).getDate();
   var bizName={academy:'학원',logistics:'물류',public:'공공',delivery:'택배'}[getBizType()]||'';
@@ -9632,10 +9686,13 @@ function buildDriveLogData(carId, ym){
     var ds=ym+'-'+String(d).padStart(2,'0');
     var dow=new Date(ds+'T00:00:00').getDay();
     dayDows.push(dow);
-    var after=odoByDate[ds]||null;
+    var after=endByDate[ds]||null;
+    var start=startByDate[ds]||null;
     var before=null, drive='', cm='', bizKm='';
+    /* 주행 전: 그날 출근 실측값이 있으면 그것, 없으면 기존 방식(직전 기록일 값) */
+    if(start!=null) before=start;
+    else { for(var i=odoDates.length-1;i>=0;i--){ if(odoDates[i]<ds){ before=prevByDate[odoDates[i]]; break; } } }
     if(after){
-      for(var i=odoDates.length-1;i>=0;i--){ if(odoDates[i]<ds){ before=odoByDate[odoDates[i]]; break; } }
       if(before!=null && after>=before){
         drive=after-before;
         totalKm+=drive;
@@ -9646,7 +9703,8 @@ function buildDriveLogData(carId, ym){
         driveDays.push({day:d, drive:drive, bizKm:bizKm});
       }
     }
-    body.push([ds+' ('+요일[dow]+')', dept, car.driver||'', (after&&before!=null)?before:'', after||'', drive, cm, bizKm, man.visit[String(d)]||'']);
+    /* 주행 전은 그날 기록(출근·퇴근 중 하나라도)이 있는 날에만 채운다 — 출근만 있으면 후·주행거리는 빈칸 */
+    body.push([ds+' ('+요일[dow]+')', dept, car.driver||'', ((after||start!=null)&&before!=null)?before:'', after||'', drive, cm, bizKm, man.visit[String(d)]||'']);
   }
   var monthRecs=all.filter(function(r){ return String(r.date||'').slice(0,7)===ym; });
   var fuelRecs=monthRecs.filter(function(r){ return r.type==='fuel'; });
