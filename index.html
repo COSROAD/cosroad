@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 213;
+const APP_VERSION = 214;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -10637,8 +10637,13 @@ function renderDriverCarlog(){
   if(recs.length===0){ h+='<div style="font-size:12px;color:#98A2B3;text-align:center;padding:12px;">기록이 없습니다.</div>'; }
   recs.forEach(function(r){
     if(r.type==='odo'){
+      /* 계기판 표기는 관리자 차계부 목록(v209)과 같은 규칙 —
+         출근(odoStart)·퇴근(odo) 둘 다 있으면 나란히, 하나만 있으면 그것만 */
+      var _os=Number(r.odoStart)||0, _oe=Number(r.odo)||0;
+      var _odoTxt = (_os>0&&_oe>0) ? ('출근 '+_os.toLocaleString()+' · 퇴근 '+_oe.toLocaleString()+'km')
+                  : (_os>0 ? ('출근 '+_os.toLocaleString()+'km') : (_oe||0).toLocaleString()+'km');
       h+='<div style="border:1px dashed #EAECF0;border-radius:8px;padding:5px 10px;margin-bottom:5px;display:flex;justify-content:space-between;">'
-        +'<span style="font-size:11px;color:#475467;">📏 계기판 '+(Number(r.odo)||0).toLocaleString()+'km</span>'
+        +'<span style="font-size:11px;color:#475467;">📏 계기판 '+_odoTxt+'</span>'
         +'<span style="font-size:10px;color:#98A2B3;">'+r.date+'</span></div>';
       return;
     }
