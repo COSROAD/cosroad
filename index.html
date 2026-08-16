@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 211;
+const APP_VERSION = 212;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2198,13 +2198,14 @@ function copyMasterUrl(orgId){
 
 
 // ══════════════════════
-// 코스로드 도우미 챗 — 내장 도움말 봇(비용 0) + 문의 창구
+// 코스로드 도우미 '코스' 챗 — 내장 도움말 봇(비용 0) + 문의 창구
 // 문답은 실제 구현 기능 근거로 내장. 추후 Claude API 응답으로 교체 가능하도록
 // helperAnswer(text) 한 함수만 바꾸면 되는 구조.
 // 문의는 전역 컬렉션 inquiries (ORG_KEYS 제외 — 의도적 전역, 기관 백업 제외)
 // ══════════════════════
 var HELP_QA=[
-  {role:'admin', keys:['회원','거래처','등록','추가'], t:'회원/거래처 등록',
+  /* keys에 맨 '등록'·'추가'를 두면 「도장 등록」·「아이콘 추가」 같은 질문까지 끌어와서 뺐다 */
+  {role:'admin', keys:['회원','거래처','회원등록','거래처등록'], t:'회원/거래처 등록',
    a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
   {role:'admin', keys:['엑셀','업로드','일괄','양식','다운','내려받기'], t:'엑셀 일괄 업로드·데이터 다운',
    a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록\n5. 「⬇ 데이터 다운」은 지금 «회원» 목록을 샘플 양식과 같은 칸으로 내려받아요 — 고쳐서 그대로 다시 업로드할 수 있어요'},
@@ -2244,16 +2245,67 @@ var HELP_QA=[
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
-  {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업'], t:'급여상세 내보내기',
+  {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업','4대보험','요율','국민연금','건강보험'], t:'급여상세 내보내기',
    a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n9. 인쇄는 가로 A4로 나와요 (날짜가 31칸이라 세로에는 안 들어가요). 기사 한 명당 한 장씩 나오니까 각자에게 그대로 떼어 주시면 돼요 (4대보험 요율표·임시공휴일은 맨 마지막 장에)\n10. 인쇄본은 한 사람을 위아래 2단(앞 15일 / 나머지)으로 나눠 칸을 넓게 쓰고, 날짜는 「1(목)」처럼 요일까지 나와요 (토 파랑·일 빨강, 임시공휴일은 빨강+공휴)'},
-  {role:'admin', keys:['체험','무료','구독','요금'], t:'30일 무료 체험·구독',
-   a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
+  {role:'admin', keys:['체험','무료','구독','요금','만료','결제'], t:'30일 무료 체험·구독',
+   a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 만료되면 화면이 잠기고 구독 안내가 나와요 — 넣어 두신 데이터는 지워지지 않아요\n4. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)'},
   {role:'driver', keys:['pin','출근','퇴근','출퇴근','계기판'], t:'PIN 출퇴근 체크',
    a:'1. 운행 화면 → 「🔢 기사 PIN 출퇴근 체크」\n2. 본인 PIN 4자리 입력 — 처음은 출근, 다음은 퇴근\n3. 출근·퇴근 때 각각 「계기판 km」 칸이 떠요 (선택 — 안 넣어도 출퇴근 기록은 그대로 남아요)\n4. 출근 때 넣은 값이 운행기록부의 「주행 전」으로 실측 기록돼요 (안 넣으면 전날 마지막 값을 자동으로 써요)\n5. 퇴근 때 넣은 값은 「주행 후」가 돼요'},
   {role:'driver', keys:['곧도착','문자','납품완료','배송완료','완료'], t:'운행 중 완료·알림',
-   a:'1. 지점 카드의 「🚐 곧도착」으로 «학부모»에게 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'}
+   a:'1. 지점 카드의 「🚐 곧도착」으로 «학부모»에게 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'},
+  /* ── v212에서 추가: 앱 전 기능 기준 확장 (각 항목 실코드 대조 완료) ── */
+  {role:'all', keys:['코스야','너는누구','도우미','챗봇','이름'], t:'저는 코스예요',
+   a:'1. 저는 코스로드 도우미 「코스」예요 🧭\n2. 앱 사용법을 물어보면 어느 화면에서 어떤 순서로 하는지 알려드려요\n3. 궁금한 낱말만 쳐도 돼요 — 「엑셀」, 「계기판」, 「미납」처럼요\n4. 제가 모르는 건 「✉ 문의 보내기」로 남겨 주세요 — 프리존이 직접 답해드려요'},
+  {role:'admin', keys:['탭','메뉴','화면구성','업종'], t:'관리자 탭 구성 (업종별 차이)',
+   a:'1. 업종에 따라 탭 구성이 달라요\n2. 학원·공공: 현황 · «회원»관리 · «출결»관리 · 차량/근태관리 · 스케줄 · 수납관리 · 세무관리 · «알림장» · 파트너 · 이용안내 · 설정\n3. 물류: 여기에 「거래명세서」가 더 있고, 스케줄은 「배송현황」, «출결»관리는 「근태관리」로 보여요\n4. 택배: 수납관리 · 세무관리 · «알림장» 탭이 아예 없어요\n5. 탭이 많으면 탭 줄의 토글 버튼으로 아이콘 격자 보기와 가로 스크롤 보기를 바꿀 수 있어요'},
+  {role:'admin', keys:['현황','대시보드','통계'], t:'현황(대시보드) 보는 법',
+   a:'1. 관리자 → 「📊 현황」 탭\n2. 위 카드: 전체 «회원» · 오늘 «출석» · 차량별 오늘 인원 — 카드를 누르면 명단이 아래에 펼쳐져요\n3. 「오늘 «출석률»」 막대와 차량별 진행 막대로 한눈에 확인해요\n4. 「💰 정부 지원사업」 카드를 누르면 공고 목록이 열려요\n5. 「📑 서류·인증 도움」에는 자주 쓰는 정부 사이트 바로가기가 있어요'},
+  {role:'admin', keys:['차량','호차','기사','배정','차량번호','차종'], t:'차량 등록·기사 배정',
+   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 기사 PIN 4자리 · 출퇴근 거리(km/일)를 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 기사 PIN은 기사 출퇴근 체크에 쓰여요\n5. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n6. 기사 PIN은 차량마다 달라야 해요 — 겹치면 경고가 떠요'},
+  {role:'admin', keys:['노선','운행시각','출발시간','도착시간'], t:'코스(노선) 추가·운행 시각',
+   a:'1. 관리자 → 스케줄 탭 (물류·택배는 이 자리가 「배송현황」이라 화면이 달라요)\n2. 「코스 운행 시각」에서 코스마다 출발·도착 시각을 넣어요\n3. 「코스 추가/삭제」로 코스를 늘리거나 줄여요\n4. «회원» 등록 화면에서 각자 어느 코스인지 골라 주면 돼요'},
+  {role:'admin', keys:['배송현황','요일별','배송지목록'], t:'배송현황 (물류·택배)',
+   a:'1. 물류·택배는 스케줄 탭이 「📦 요일별 배송 거래처(배송지)」예요\n2. ◀ ▶ 로 날짜를 옮기거나 날짜 칸을 눌러 바꿔요\n3. 그날 요일에 해당하는 «회원»만 모아서 보여줘요 — 요일은 «회원» 등록에서 정한 값이에요'},
+  {role:'admin', keys:['미수금','미지급','매출매입','받을돈','줄돈'], t:'물류 수납 — 매출/매입 달력',
+   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요'},
+  {role:'admin', keys:['거래내역','기간','pdf','거래처별'], t:'거래처별 기간 거래내역 PDF',
+   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요'},
+  {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
+   a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요'},
+  {role:'admin', keys:['파트너','제휴','추천업체'], t:'파트너(제휴 업체) 탭',
+   a:'1. 관리자 → 「🛒 파트너」 탭\n2. 우리 업종에 맞는 분야만 보여요 — 세무 · 차량 · IT는 공통이고, 물류·택배는 포장/화물, 학원은 스포츠/용품 같은 식이에요\n3. 카테고리를 눌러 업체를 고르고, 누르면 그 사이트가 새 창으로 열려요'},
+  {role:'admin', keys:['이용안내','흐름','전체과정'], t:'이용안내 탭 (전체 흐름 보기)',
+   a:'1. 관리자 → 「📖 이용안내」 탭\n2. 우리 업종의 일 흐름을 그림으로 보여줘요 (물류 예: 상차 → 배송 운행 → T맵 경로 최적화 → 거래처 도착 → 담당자 알림 발송 → 납품 완료)\n3. 각 단계에 코스로드의 어느 기능이 붙는지 함께 나와요 — 처음 쓰실 때 여기부터 훑어보세요'},
+  {role:'admin', keys:['서류','인증','면허','자동차검사','정부24'], t:'서류·인증 도움 링크',
+   a:'1. 관리자 → 현황 탭 아래 「📑 서류·인증 도움」\n2. 운전면허 진위확인(교통민원24) · 자동차 검사 예약(자동차365) · 정부24 바로가기가 있어요\n3. 물류·택배는 화물운송종사자격(TS국가자격시험)이, 학원·공공은 통학버스 관련 링크가 더 나와요\n4. 누르면 해당 사이트가 새 창으로 열려요 — 코스로드가 대신 조회해 주지는 않아요'},
+  {role:'admin', keys:['사업자','상호','대표자','도장','계좌'], t:'사업장 정보·도장 등록',
+   a:'1. 관리자 → 설정 탭 → 「사용자 정보」\n2. 상호 · 사업자등록번호 · 대표자 · 업태 · 종목 · 주소 · 연락처 · 계좌를 넣어요\n3. 도장 이미지를 올려 두면 거래명세서·증명서에 자동으로 찍혀요\n4. 여기 주소는 지원사업 「우리 지역만 보기」의 자동 인식에도 쓰여요 — 정확히 넣어 두세요'},
+  {role:'admin', keys:['비밀번호','암호'], t:'관리자 비밀번호 변경',
+   a:'1. 관리자 → 설정 탭에서 새 비밀번호를 두 번 넣고 변경하세요\n2. 이 기기의 관리자 잠금 번호예요\n3. «회원» 출석 PIN · 기사 PIN과는 서로 다른 것이에요'},
+  {role:'admin', keys:['회원수정','삭제','지우기'], t:'«회원» 수정·삭제',
+   a:'1. «회원» 목록에서 이름을 누르면 수정 창이 열려요\n2. 주소를 바꿀 땐 반드시 「📍 검색」으로 위치를 다시 잡아 주세요 (위치가 확정돼야 저장돼요)\n3. 삭제는 확인 창을 한 번 거쳐요 — 실수로 지워지지 않게 돼 있어요\n4. 여러 «회원»을 한 번에 지우려면 목록에서 선택한 뒤 삭제하세요'},
+  {role:'all', keys:['업데이트','버전','최신','새로고침'], t:'앱 업데이트 (새 버전 반영)',
+   a:'1. 새 버전이 올라오면 앱이 스스로 알아채고 한 번 새로고침해요\n2. 화면이 예전 그대로면 브라우저를 완전히 닫았다 다시 열어 보세요\n3. 홈 화면 아이콘으로 쓰실 때도 같아요 — 껐다 켜면 최신으로 맞춰져요'},
+  {role:'all', keys:['설치','홈화면','아이콘','앱으로'], t:'홈 화면에 아이콘 추가 (앱처럼 쓰기)',
+   a:'1. 설치가 아니라 홈 화면에 아이콘을 만드는 방식이에요\n2. 아이폰: 사파리 아래 공유 ⬆️ → 「홈 화면에 추가」 → 「추가」\n3. 안드로이드: 크롬 오른쪽 위 메뉴 ⋮ → 「홈 화면에 추가」(또는 「앱 설치」) → 「추가」\n4. 추가하면 앱처럼 전체 화면으로 열려요'},
+  {role:'all', keys:['데모','샘플','둘러보기','체험판'], t:'데모(샘플) 계정',
+   a:'1. 데모는 둘러보기 전용이라 «회원»·기록이 저장되지 않아요\n2. 무엇을 눌러도 안전해요 — 새로고침하면 원래 샘플로 돌아와요\n3. 실제로 쓰시려면 가입해서 본 계정으로 들어오세요 (30일 무료)'},
+  {role:'all', keys:['투어','사용법','따라하기'], t:'사용법 투어 (따라 하기)',
+   a:'1. 처음 들어오면 화면을 하나씩 짚어 주는 안내가 자동으로 시작돼요\n2. 다시 보고 싶으면 「📖 사용법 보기」를 누르세요\n3. 「다음」으로 넘기고, 중간에 닫아도 괜찮아요'},
+  {role:'all', keys:['문의','건의','오류','신고','개선'], t:'문의 보내기',
+   a:'1. 저(코스)에게 물어봐도 답이 없으면 「✉ 문의 보내기」를 눌러 주세요\n2. 사용법 질문 · 개선 요청 · 오류 신고 중에서 고르고 내용을 적으면 돼요\n3. 프리존이 직접 확인하고 답해 드려요 (📧 cosroad@cosroad.com)'},
+  {role:'all', keys:['연비','km/l','기름','리터'], t:'연비는 어떻게 계산되나요',
+   a:'1. 이번 주유와 「직전 주유」의 계기판 차이 ÷ 이번에 넣은 리터로 계산해요\n2. 그래서 주유 기록에 계기판 km와 리터를 함께 넣어야 나와요\n3. 둘 중 하나라도 빠지면 연비를 아예 표시하지 않아요 — 틀린 값을 보여드리지 않으려고요\n4. 계기판만 적는 「📏 계기판」 기록은 연비 계산에 쓰이지 않아요 (운행기록부용이에요)'},
+  {role:'all', keys:['몇키로','키로수','미터기','주행거리','계기판'], t:'계기판 km는 어디에 넣나요',
+   a:'1. 기사: 운행 화면 「🔢 기사 PIN 출퇴근 체크」에서 출근·퇴근 때 각각 넣어요 (선택)\n2. 관리자: 차량관리 → 「📒 차계부」 → 「📏 계기판」에서 「🌅 출근 시 / 🌆 퇴근 시」를 골라 넣어요\n3. 출근 값은 운행기록부의 「주행 전」, 퇴근 값은 「주행 후」가 돼요\n4. 주유·정비를 적을 때 넣는 계기판 km는 연비·정비 이력용이에요'},
+  {role:'admin', keys:['알림톡','카카오','sms','lms','문자언제'], t:'알림톡·문자는 언제 나가나요',
+   a:'1. 카카오 알림톡: 하차 완료 · 납품 완료 · PIN 체크인 알림에 나가요 — 실패하면 문자로 자동 재발송돼요\n2. 문자(LMS): «알림장» 발송, 미납 알림, 「🚐 곧도착」 안내에 쓰여요\n3. 발송 설정은 서버에만 있어서 앱에는 키가 저장되지 않아요\n4. 안 나갈 땐 받는 분 연락처가 등록돼 있는지 먼저 확인해 주세요'},
+  {role:'driver', keys:['기사화면','내화면','오늘운행'], t:'기사 운행 화면 사용법',
+   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드를 누르면 오늘 «출석» 여부를 바꿀 수 있어요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료로 보여요)\n3. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다루고, 아래 「🔢 기사 PIN 출퇴근 체크」·「⛽ 차계부」를 써요\n4. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
+  {role:'driver', keys:['기사차계부','내차계부','주유기록'], t:'기사 차계부 (내 차량 기록)',
+   a:'1. 운행 화면 → 「⛽ 차계부」 — 배정된 내 차량에 바로 기록돼요\n2. 주유 · 정비 · 기타를 넣을 수 있어요\n3. 잘못 넣었으면 관리자에게 요청하세요 — 기사 화면에서는 수정·삭제가 안 돼요\n4. 관리자와 같은 기록을 함께 봐요'}
 ];
 var helperOpen=false, helperInqOpen=false;
 /* HELP_QA 답변 속 «토큰»을 업종 용어로 치환 — 표시 시점에만 적용 */
@@ -2304,6 +2356,9 @@ function ensureHelperBtn(){
   var b=document.createElement('button');
   b.id='helper-fab';
   b.innerHTML=cosFaceSvg(38);
+  /* 그림뿐이라 이름이 안 읽힌다 — 스크린리더·길게 누름에 '코스'가 드러나게 */
+  b.setAttribute('aria-label','코스 · 코스로드 도우미에게 물어보기');
+  b.title='코스에게 물어보기';
   b.style.cssText='width:56px;height:56px;border-radius:50%;background:#fff;border:1px solid #FED7AA;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(234,88,12,.35);cursor:pointer;';
   b.onclick=openHelperChat;
   wrap.appendChild(b);
@@ -2311,7 +2366,7 @@ function ensureHelperBtn(){
   if(!seen){
     var lb=document.createElement('div');
     lb.id='helper-fab-label';
-    lb.textContent='챗봇에게 물어보세요';
+    lb.textContent='코스에게 물어보세요';
     lb.style.cssText='background:#fff;color:#C2410C;font-size:11px;font-weight:700;padding:4px 9px;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,.18);white-space:nowrap;pointer-events:none;';
     wrap.appendChild(lb);
   }
@@ -2341,18 +2396,18 @@ function openHelperChat(){
   var role=(currentMode==='driver')?'driver':'admin';
   var samples=(role==='driver')
     ? ['PIN 출퇴근 방법','차계부 입력 방법','T맵 5곳 이어가기','납품완료 체크']
-    : ['엑셀 업로드 방법','주소 검색 요령','거래명세서 영수증 인쇄','운행기록부 내보내기'];
+    : ['엑셀 업로드 방법','주소 검색 요령','거래명세서 작성','급여상세 보기'];
   var h='<div id="helper-modal" style="position:fixed;right:12px;bottom:12px;left:12px;max-width:400px;margin-left:auto;z-index:9998;background:white;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.25);display:flex;flex-direction:column;max-height:72vh;overflow:hidden;">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0E7090;color:#fff;">'
-    +'<span style="display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;"><span style="background:#fff;border-radius:50%;padding:2px;display:flex;">'+cosFaceSvg(22)+'</span>코스로드 도우미</span>'
+    +'<span style="display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;"><span style="background:#fff;border-radius:50%;padding:2px;display:flex;">'+cosFaceSvg(22)+'</span>코스 <span style="font-size:11px;font-weight:600;opacity:.85;">· 코스로드 도우미</span></span>'
     +'<button onclick="document.getElementById(\'helper-modal\').remove()" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;font-weight:700;">✕</button></div>'
     +'<div id="helper-msgs" style="flex:1;overflow-y:auto;padding:10px 12px;min-height:180px;"></div>'
     +'<div id="helper-input-row" style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid #EAECF0;">'
-    +'<input id="helper-input" type="text" placeholder="무엇이든 물어보세요" onkeydown="if(event.key===\'Enter\')helperSend();" style="flex:1;padding:10px;border:1.5px solid #EAECF0;border-radius:10px;font-size:13px;min-width:0;"/>'
+    +'<input id="helper-input" type="text" placeholder="코스에게 물어보세요" onkeydown="if(event.key===\'Enter\')helperSend();" style="flex:1;padding:10px;border:1.5px solid #EAECF0;border-radius:10px;font-size:13px;min-width:0;"/>'
     +'<button onclick="helperSend()" style="padding:10px 14px;background:#0E7090;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">전송</button></div>'
     +'</div>';
   document.body.insertAdjacentHTML('beforeend', h);
-  helperPush('bot','안녕하세요! 코스로드 도우미예요.\n무엇이든 물어보세요 😊 예시를 눌러도 돼요 👇');
+  helperPush('bot','안녕하세요! 저는 코스예요 🧭\n코스로드 사용법, 무엇이든 물어보세요 😊 예시를 눌러도 돼요 👇');
   var box=document.getElementById('helper-msgs');
   box.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
     +samples.map(function(s){ return '<button onclick="helperAsk(\''+s+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+s+'</button>'; }).join('')
@@ -2378,7 +2433,7 @@ function helperAsk(text){
     if(box2) box2.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
       +r.items.map(function(it){ var _t=helperTerm(it.t); return '<button onclick="helperAsk(\''+_t+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+_t+'</button>'; }).join('')+'</div>');
   } else {
-    helperPush('bot','그 내용은 준비된 도움말에 없네요. 문의를 남겨주시면 프리존에서 직접 답해드릴게요!');
+    helperPush('bot','그건 아직 코스가 배우지 못했어요 🙏\n문의를 남겨주시면 프리존에서 직접 답해드릴게요!');
     var box3=document.getElementById('helper-msgs');
     if(box3) box3.insertAdjacentHTML('beforeend', helperInqBtnHtml());
   }
@@ -7882,7 +7937,7 @@ function openPrinterGuide(){
       +'<span style="font-size:12px;font-weight:700;color:#067647;">'+escapeMasterHtml(p.name)+' <span style="font-size:10px;color:#12B76A;font-weight:400;">'+escapeMasterHtml(p.width)+'</span></span>'
       +'<span style="font-size:10px;color:#12B76A;">'+escapeMasterHtml(p.note||'확인됨')+'</span></div>';
   });
-  h+='<div style="font-size:11px;color:#667085;margin:6px 0 14px;">다른 모델로 성공하셨다면 도우미 챗으로 알려주세요 — 목록에 추가할게요!</div>';
+  h+='<div style="font-size:11px;color:#667085;margin:6px 0 14px;">다른 모델로 성공하셨다면 도우미 챗 「코스」에게 알려주세요 — 목록에 추가할게요!</div>';
   var steps=[
     '(새 프린터면) 배터리의 절연 테이프를 제거하고 감열지 롤을 넣어요',
     '전원 버튼을 3초 길게 눌러 켜요',
