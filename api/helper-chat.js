@@ -31,8 +31,9 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 /* 발송·과금 API 보호 — 허용 목록 밖 출처(주소 없음 = curl 등 포함)는 거부한다.
-   send-sms.js 와 같은 목록. 형제 앱으로 복사할 때는 이 줄만 바꾼다. */
-const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
+   send-sms.js 와 달리 코스로드 3개만 둔다 (돈 나가는 API는 최소 권한,
+   로드잡은 자기 엔드포인트를 부른다). */
+const ALLOWED = ['https://cosroad.com', 'https://www.cosroad.com', 'https://cosroad.vercel.app'];
 
 const MODEL = 'claude-haiku-4-5';
 const MAX_TOKENS = 500;
