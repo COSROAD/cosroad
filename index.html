@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 214;
+const APP_VERSION = 215;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2267,7 +2267,7 @@ var HELP_QA=[
    a:'1. 지점 카드의 「🚐 곧도착」으로 «학부모»에게 문자\n2. 도착하면 「🚚 납품완료(배송완료)」 또는 하차완료 체크\n3. 완료하면 목록에서 ✓ 처리되고, T맵 출발을 다시 누르면 다음 5곳이 이어져요'},
   /* ── v212에서 추가: 앱 전 기능 기준 확장 (각 항목 실코드 대조 완료) ── */
   {role:'all', keys:['코스야','너는누구','도우미','챗봇','이름'], t:'저는 코스예요',
-   a:'1. 저는 코스로드 도우미 「코스」예요 🧭\n2. 앱 사용법을 물어보면 어느 화면에서 어떤 순서로 하는지 알려드려요\n3. 궁금한 낱말만 쳐도 돼요 — 「엑셀」, 「계기판」, 「미납」처럼요\n4. 제가 모르는 건 「✉ 문의 보내기」로 남겨 주세요 — 프리존이 직접 답해드려요'},
+   a:'1. 저는 코스로드 도우미 「코스」예요 🧭\n2. 앱 사용법을 물어보면 어느 화면에서 어떤 순서로 하는지 알려드려요\n3. 궁금한 낱말만 쳐도 돼요 — 「엑셀」, 「계기판」, 「미납」처럼요\n4. 준비된 문답에 없는 질문이면 AI로 직접 답해드려요 (앱 사용법 범위 안에서만이고, 하루 사용 횟수에 제한이 있어요)\n5. AI 답변이 화면과 다르거나 제가 모르는 건 「✉ 문의 보내기」로 남겨 주세요 — 프리존이 직접 답해드려요'},
   {role:'admin', keys:['탭','메뉴','화면구성','업종'], t:'관리자 탭 구성 (업종별 차이)',
    a:'1. 업종에 따라 탭 구성이 달라요\n2. 학원·공공: 현황 · «회원»관리 · «출결»관리 · 차량/근태관리 · 스케줄 · 수납관리 · 세무관리 · «알림장» · 파트너 · 이용안내 · 설정\n3. 물류: 여기에 「거래명세서」가 더 있고, 스케줄은 「배송현황」, «출결»관리는 「근태관리」로 보여요\n4. 택배: 수납관리 · 세무관리 · «알림장» 탭이 아예 없어요\n5. 탭이 많으면 탭 줄의 토글 버튼으로 아이콘 격자 보기와 가로 스크롤 보기를 바꿀 수 있어요'},
   {role:'admin', keys:['현황','대시보드','통계'], t:'현황(대시보드) 보는 법',
@@ -2322,6 +2322,82 @@ var helperOpen=false, helperInqOpen=false;
 function helperTerm(s){ return String(s||'').replace(/«회원»/g,T('회원')).replace(/«학부모»/g,T('학부모')).replace(/«알림장»/g,T('알림장'))
   .replace(/«출결»/g,T('출결')).replace(/«출석»/g,T('출석')).replace(/«결석»/g,T('결석')).replace(/«출석률»/g,T('출석률')).replace(/«수강료»/g,T('수강료')); }
 function helperNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
+/* ── 코스 AI (문답표에 없을 때만 호출 — 평소 매칭은 무료) ────────────────
+   지식 문서 = HELP_QA 전체를 «토큰» 치환해 이어붙인 것. 업종별로 용어가
+   달라지므로 업종을 키로 캐시한다(세션 중 1회 생성). */
+var _helperKnowCache = null, _helperKnowBiz = '';
+function helperKnowledge(){
+  var biz = getBizType();
+  if(_helperKnowCache && _helperKnowBiz===biz) return _helperKnowCache;
+  var head = 'COSROAD(코스로드)는 학원·공공·물류·택배 4업종의 차량 운행을 관리하는 웹앱이다. '
+    + '지금 질문한 사람은 「'+(BIZ_LABELS[biz]||'학원')+'」 업종 화면을 쓰고 있다.\n\n';
+  var body = HELP_QA.map(function(item){
+    var who = item.role==='admin' ? '관리자' : (item.role==='driver' ? '기사' : '관리자·기사 공용');
+    return '['+who+'] 질문: '+helperTerm(item.t)+'\n답: '+helperTerm(item.a);
+  }).join('\n\n');
+  _helperKnowBiz = biz;
+  _helperKnowCache = head + body;
+  return _helperKnowCache;
+}
+/* AI 사용량 가드 — 기기별·날짜별. ORG_KEYS에 넣지 않는다:
+   기관 데이터가 아니라 '이 기기에서 오늘 몇 번 썼나' 하는 요금 가드라
+   기관 분리·백업·동기화가 필요 없고, 기관을 바꿔 가며 한도를 우회할 이유도 없다. */
+var HELPER_AI_KEY='cosroad_ai_used';
+function helperAiLimit(){
+  var o='';
+  try{ o=(new URLSearchParams(window.location.search)).get('org')||''; }catch(e){}
+  return /_(demo|test)$/.test(o) ? 5 : 30;   /* 데모·테스트 기관은 하루 5건 */
+}
+function helperAiUsed(){
+  try{
+    var d=JSON.parse(localStorage.getItem(HELPER_AI_KEY)||'{}');
+    if(d && d.d===todayStr()) return Number(d.n)||0;   /* 날짜가 바뀌면 0부터 */
+  }catch(e){}
+  return 0;
+}
+function helperAiBump(){
+  try{ localStorage.setItem(HELPER_AI_KEY, JSON.stringify({d:todayStr(), n:helperAiUsed()+1})); }catch(e){}
+}
+/* 문답표에 없을 때만 호출. 실패하면 false를 돌려 기존 「문의 남기기」 흐름으로 내려간다. */
+function helperAskAI(text){
+  if(helperAiUsed() >= helperAiLimit()){
+    helperPush('bot','오늘은 AI 답변 한도를 다 썼어요 🙏\n문의를 남겨주시면 프리존에서 직접 답해드릴게요!');
+    var bx=document.getElementById('helper-msgs');
+    if(bx) bx.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+    return;
+  }
+  helperPush('bot','<span id="helper-ai-wait">코스가 답을 찾고 있어요… 🤔</span>');
+  var role=(currentMode==='driver')?'driver':'admin';
+  function fallback(){
+    var w=document.getElementById('helper-ai-wait');
+    if(w && w.parentNode && w.parentNode.parentNode) w.parentNode.parentNode.remove();
+    helperPush('bot','그건 아직 코스가 배우지 못했어요 🙏\n문의를 남겨주시면 프리존에서 직접 답해드릴게요!');
+    var b1=document.getElementById('helper-msgs');
+    if(b1) b1.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+  }
+  /* 다른 api/ 호출과 같은 절대주소 — 앱은 cosroad.com(GitHub Pages),
+     api는 cosroad.vercel.app 이라 상대경로로는 닿지 않는다 */
+  fetch('https://cosroad.vercel.app/api/helper-chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ q:String(text||'').slice(0,500), role:role,
+      app:'COSROAD(코스로드)', name:'코스', knowledge:helperKnowledge() })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j || !j.ok || !j.answer){ fallback(); return; }
+      helperAiBump();
+      var w=document.getElementById('helper-ai-wait');
+      if(w && w.parentNode && w.parentNode.parentNode) w.parentNode.parentNode.remove();
+      helperPush('bot', String(j.answer).replace(/</g,'&lt;'));
+      var b2=document.getElementById('helper-msgs');
+      if(b2){
+        b2.insertAdjacentHTML('beforeend','<div style="font-size:10px;color:#98A2B3;margin:2px 0 6px 28px;">AI 답변이에요 — 화면과 다르면 문의로 알려주세요</div>');
+        b2.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+        b2.scrollTop=b2.scrollHeight;
+      }
+    })
+    .catch(function(){ fallback(); });
+}
 /* 키워드 매칭: 1건→답, 2건 이상→선택지, 0건→문의 유도.
    추후 Claude API로 바꿀 땐 이 함수만 교체하면 됨 */
 function helperAnswer(text){
@@ -2441,11 +2517,13 @@ function helperAsk(text){
     helperPush('bot','어떤 내용이 궁금하세요? 골라주세요 👇');
     var box2=document.getElementById('helper-msgs');
     if(box2) box2.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
-      +r.items.map(function(it){ var _t=helperTerm(it.t); return '<button onclick="helperAsk(\''+_t+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+_t+'</button>'; }).join('')+'</div>');
+      +r.items.map(function(it){ var _t=helperTerm(it.t); return '<button onclick="helperAsk(\''+_t+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+_t+'</button>'; }).join('')
+      /* 고를 게 없으면 물어본 그대로 AI에게 넘기는 보조 버튼 */
+      +'<button onclick="helperAskAI(this.dataset.q)" data-q="'+String(text).replace(/"/g,'&quot;').replace(/</g,'&lt;')+'" style="padding:7px 11px;background:#FFF7ED;color:#EA580C;border:1px solid #FED7AA;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">🤖 코스에게 그대로 물어보기</button>'
+      +'</div>');
   } else {
-    helperPush('bot','그건 아직 코스가 배우지 못했어요 🙏\n문의를 남겨주시면 프리존에서 직접 답해드릴게요!');
-    var box3=document.getElementById('helper-msgs');
-    if(box3) box3.insertAdjacentHTML('beforeend', helperInqBtnHtml());
+    /* 문답표에 없을 때만 AI 호출 — 실패하면 helperAskAI 안에서 기존 문의 흐름으로 내려간다 */
+    helperAskAI(text);
   }
 }
 function helperShowInquiry(){
