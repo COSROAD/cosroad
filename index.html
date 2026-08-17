@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 216;
+const APP_VERSION = 217;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2250,7 +2250,7 @@ var HELP_QA=[
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
    a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
   {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
-   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 자동으로 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
+   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n3-1. 팝업 아래 「7일 동안 알림 팝업 보지 않기」에 체크하고 닫으면 일주일 동안 팝업이 쉬어요 (그 사이에도 대시보드 「💰 정부 지원사업」 카드로 들어가면 목록은 볼 수 있어요)\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 자동으로 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
@@ -10629,9 +10629,20 @@ function renderSupportList(){
 
 /* 자동 확인 — 관리자 화면 진입 시 주기가 도래했으면 1회 호출.
    마지막 확인 시각은 기기별 localStorage (ORG_KEYS 제외 키라 기관 접미사가 붙지 않음) */
+/* 팝업 「7일 동안 보지 않기」 — 값은 '다시 보여줄 시각'(ms).
+   ORG_KEYS에 넣지 않는다: 기관 데이터가 아니라 이 기기에서 팝업을 잠시 쉬게 하는
+   표시 취향이라 기관 분리·백업·동기화가 필요 없다. */
+var SUPPORT_SNOOZE_KEY='cosroad_sup_snooze';
+function supportSnoozed(){
+  try{ return Number(localStorage.getItem(SUPPORT_SNOOZE_KEY)||0) > Date.now(); }catch(e){ return false; }
+}
+function supportSnooze7(){
+  try{ localStorage.setItem(SUPPORT_SNOOZE_KEY, String(Date.now()+7*86400000)); }catch(e){}
+}
 function supportDueNow(){
   var cfg=supportAlertCfg();
   if(cfg.period==='off') return false;
+  if(supportSnoozed()) return false;   /* 「7일 동안 보지 않기」 기간 — 팝업·자동 확인 모두 쉼 */
   var last=0;
   try{ last=Number(localStorage.getItem('tkd_support_lastcheck')||0)||0; }catch(e){}
   if(!last) return true;
@@ -10653,11 +10664,15 @@ function supportAutoCheck(){
 /* 새 공고 알림 팝업 — 전체 목록(sup-modal)을 여는 작은 알림창.
    목록 기능은 openSupportList가 이미 갖고 있으므로 여기서 다시 만들지 않는다.
    닫기만 해도 다음 주기까지 다시 안 뜬다 (마지막 확인 시각은 위에서 이미 기록) */
-function closeSupportAlert(){
+/* saveSnooze=true 로 닫을 때만(=[닫기]·배경 탭) 체크박스를 반영한다.
+   팝업을 새로 띄우기 전 정리 호출은 인자 없이 부르므로 저장되지 않는다. */
+function closeSupportAlert(saveSnooze){
+  var cb=document.getElementById('sup-snooze');
+  if(saveSnooze && cb && cb.checked) supportSnooze7();
   var e=document.getElementById('sup-alert-modal'); if(e) e.remove();
 }
 function supportAlertOpenList(){
-  closeSupportAlert();
+  closeSupportAlert(false);   /* 보러 가는 것이므로 체크 여부와 무관하게 저장하지 않는다 */
   openSupportList();
 }
 function showSupportAlertModal(freshItems){
@@ -10667,7 +10682,7 @@ function showSupportAlertModal(freshItems){
   /* z는 떠 있는 코스 버튼(helper-fab-wrap 9997)과 챗 패널(helper-modal 9998)보다 위여야
      어두운 배경이 그것들을 덮어 [닫기]·[목록 보기]가 온전히 눌린다. 10000 이상은
      차계부·설치안내(100001)·증명서(100002) 모달 영역이라 침범하지 않는다. */
-  var h='<div id="sup-alert-modal" onclick="if(event.target===this)closeSupportAlert();" '
+  var h='<div id="sup-alert-modal" onclick="if(event.target===this)closeSupportAlert(true);" '
     +'style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">'
     +'<div style="background:white;border-radius:16px;padding:18px;max-width:360px;width:100%;box-sizing:border-box;max-height:80vh;display:flex;flex-direction:column;">'
     +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;margin-bottom:2px;">💰 새 정부 지원사업 '+list.length+'건</div>'
@@ -10682,9 +10697,15 @@ function showSupportAlertModal(freshItems){
   });
   if(rest>0) h+='<div style="font-size:11px;color:#667085;text-align:center;padding:2px 0 4px;">외 '+rest+'건</div>';
   h+='</div>';
-  h+='<div style="display:flex;gap:6px;margin-top:12px;flex-shrink:0;">'
+  /* 「7일 동안 보지 않기」 + 설정 위치 안내 — 버튼 줄 바로 위 */
+  h+='<div style="flex-shrink:0;margin-top:10px;">'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475467;cursor:pointer;">'
+    +'<input id="sup-snooze" type="checkbox" style="width:15px;height:15px;accent-color:#1A6BFF;cursor:pointer;flex-shrink:0;"/>'
+    +'7일 동안 알림 팝업 보지 않기</label>'
+    +'<div style="font-size:10px;color:#98A2B3;line-height:1.5;margin-top:4px;">알림 주기·지역 설정은 💰 지원사업 화면 위 ⚙에서 바꿀 수 있어요</div></div>';
+  h+='<div style="display:flex;gap:6px;margin-top:10px;flex-shrink:0;">'
     +'<button onclick="supportAlertOpenList()" style="flex:1;padding:11px;background:#1A6BFF;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📋 목록 보기</button>'
-    +'<button onclick="closeSupportAlert()" style="padding:11px 16px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">닫기</button></div>';
+    +'<button onclick="closeSupportAlert(true)" style="padding:11px 16px;background:#F2F4F7;color:#475467;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">닫기</button></div>';
   h+='</div></div>';
   closeSupportAlert();
   document.body.insertAdjacentHTML('beforeend', h);
