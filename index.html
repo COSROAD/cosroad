@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 218;
+const APP_VERSION = 219;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2281,7 +2281,7 @@ var HELP_QA=[
   {role:'admin', keys:['미수금','미지급','매출매입','받을돈','줄돈'], t:'물류 수납 — 매출/매입 달력',
    a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요'},
   {role:'admin', keys:['거래내역','기간','pdf','거래처별'], t:'거래처별 기간 거래내역 PDF',
-   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요'},
+   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
    a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요'},
   {role:'admin', keys:['파트너','제휴','추천업체'], t:'파트너(제휴 업체) 탭',
@@ -8553,27 +8553,54 @@ function printClientRange(){
     var grand = iv.total!=null ? iv.total : (supply+vat);
     var paid = invCollected(iv);
     var kindTxt = (iv.kind||'sale')==='purchase'?'매입':'매출';
-    // 품목 요약 (첫 품목명 + 외 N건)
-    var itemSummary = '';
-    if(iv.items && iv.items.length){
-      itemSummary = iv.items.map(function(it){
-        var nm = esc(it.name||'');
-        if(it.spec) nm += ' '+esc(it.spec);
-        var q = Number(it.qty)||0;
-        return nm + (q?' ×'+q.toLocaleString():'');
-      }).join(', ');
+    // 품목 한 줄 표기 (품명 규격 ×수량)
+    var its = (iv.items && iv.items.length) ? iv.items : [];
+    function itemLabel(it){
+      var nm = esc(it.name||'');
+      if(it.spec) nm += ' '+esc(it.spec);
+      var q = Number(it.qty)||0;
+      return nm + (q?' ×'+q.toLocaleString():'');
     }
     totSupply+=supply; totVat+=vat; totGrand+=grand; totPaid+=paid;
-    sumRows += '<tr>'
-      +'<td class="ctr">'+esc(iv.date)+'</td>'
-      +'<td class="ctr">'+kindTxt+'</td>'
-      +'<td class="item">'+itemSummary+'</td>'
-      +'<td class="rgt">'+supply.toLocaleString()+'</td>'
-      +'<td class="rgt">'+vat.toLocaleString()+'</td>'
-      +'<td class="rgt">'+grand.toLocaleString()+'</td>'
-      +'<td class="rgt">'+paid.toLocaleString()+'</td>'
-      +'<td class="rgt">'+(grand-paid).toLocaleString()+'</td>'
-      +'</tr>';
+    // 한 쪽에 들어갈 크기(실측: 쪽당 38행)일 때만 거래를 통째로 묶어 쪽 경계에서
+    // 갈라지지 않게 한다. 품목이 아주 많은 거래까지 묶으면 앞 쪽이 통째로 비어버림.
+    sumRows += (its.length<=20) ? '<tbody class="txgrp">' : '<tbody>';
+    if(its.length>=2){
+      // 품목마다 한 행 — 거래일자·구분은 첫 행에서 세로 병합(소계 행까지)
+      var span = its.length+1;
+      its.forEach(function(it,ii){
+        var _p = itemAmounts(it);
+        sumRows += '<tr>'
+          +(ii===0 ? '<td class="ctr" rowspan="'+span+'">'+esc(iv.date)+'</td><td class="ctr" rowspan="'+span+'">'+kindTxt+'</td>' : '')
+          +'<td class="item">'+itemLabel(it)+'</td>'
+          +'<td class="rgt">'+_p.supply.toLocaleString()+'</td>'
+          +'<td class="rgt">'+_p.vat.toLocaleString()+'</td>'
+          +'<td class="rgt">'+(_p.supply+_p.vat).toLocaleString()+'</td>'
+          +'<td></td><td></td>'
+          +'</tr>';
+      });
+      // 소계는 저장된 거래 값이 정본 (품목별 반올림 합과 1~2원 다를 수 있음)
+      sumRows += '<tr class="subt">'
+        +'<td class="rgt">소계</td>'
+        +'<td class="rgt">'+supply.toLocaleString()+'</td>'
+        +'<td class="rgt">'+vat.toLocaleString()+'</td>'
+        +'<td class="rgt">'+grand.toLocaleString()+'</td>'
+        +'<td class="rgt">'+paid.toLocaleString()+'</td>'
+        +'<td class="rgt">'+(grand-paid).toLocaleString()+'</td>'
+        +'</tr>';
+    } else {
+      sumRows += '<tr>'
+        +'<td class="ctr">'+esc(iv.date)+'</td>'
+        +'<td class="ctr">'+kindTxt+'</td>'
+        +'<td class="item">'+(its.length?itemLabel(its[0]):'')+'</td>'
+        +'<td class="rgt">'+supply.toLocaleString()+'</td>'
+        +'<td class="rgt">'+vat.toLocaleString()+'</td>'
+        +'<td class="rgt">'+grand.toLocaleString()+'</td>'
+        +'<td class="rgt">'+paid.toLocaleString()+'</td>'
+        +'<td class="rgt">'+(grand-paid).toLocaleString()+'</td>'
+        +'</tr>';
+    }
+    sumRows += '</tbody>';
   });
   var summarySheet = '<div class="inv-sheet range-summary">'
     +'<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
@@ -8581,7 +8608,7 @@ function printClientRange(){
     +'<div class="inv-date">공급자 : '+esc(org.name||'')+'　|　거래처 : '+esc(sel.name||'')+'　|　건수 : '+list.length+'건</div>'
     +'<table class="range-tbl"><colgroup><col class="rc-date"><col class="rc-kind"><col class="rc-item"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"></colgroup><thead><tr>'
     +'<th>거래일자</th><th>구분</th><th>품목</th><th>공급가액</th><th>세액</th><th>합계</th><th>수금/결제</th><th>미수/미결</th>'
-    +'</tr></thead><tbody>'+sumRows+'</tbody>'
+    +'</tr></thead>'+sumRows
     +'<tfoot><tr><td colspan="3" class="rgt">합 계</td>'
     +'<td class="rgt">'+totSupply.toLocaleString()+'</td>'
     +'<td class="rgt">'+totVat.toLocaleString()+'</td>'
@@ -8635,6 +8662,9 @@ function printClientRange(){
     +'.range-tbl td.item{text-align:left;white-space:normal;line-height:1.4;}'
     +'.range-tbl th{background:#FEF2F2;color:#C00;}'
     +'.range-tbl td.lft{text-align:left;}.range-tbl td.rgt{text-align:right;}'
+    +'.range-tbl tr.subt td{background:#FFF8F8;font-weight:700;}'
+    +'.range-tbl tbody.txgrp{page-break-inside:avoid;}'
+    +'.range-tbl thead{display:table-header-group;}'
     +'.range-tbl tfoot td{background:#FFF7F7;font-weight:800;color:#C00;}'
     +'.page-break{page-break-before:always;}'
     +'@media print{.no-print{display:none !important;}}'
