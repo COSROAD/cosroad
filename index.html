@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 217;
+const APP_VERSION = 218;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2228,7 +2228,7 @@ var HELP_QA=[
   {role:'all', keys:['공유','위치공유','카톡공유'], t:'오늘 코스·위치 공유',
    a:'1. 운행 화면 위쪽 「📍 공유」\n2. 오늘 운행할 순서와 «회원» 목록이 글로 정리돼 미리보기로 떠요\n3. 「📋 운행 정보 복사 → 카카오톡 붙여넣기」로 복사한 뒤 카톡 방에 붙여넣으면 돼요\n4. 「📱 문자 보내기」를 누르면 «학부모» 연락처로 문자앱이 열려요\n5. 「🗺 네이버지도로 경로 확인」·「🗺 T맵으로 경로 확인」으로 경로를 지도에서 볼 수 있어요\n6. 실시간 GPS 위치 공유는 아직 준비 중이라, 지금은 운행 정보를 글로 보내는 방식이에요'},
   {role:'admin', keys:['명세서','거래명세'], t:'거래명세서 작성',
-   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 품목을 고르면 명세서 종류에 맞는 단가만 자동으로 들어와요 — 매입은 「입고가」, 매출은 「출고가」 (0원이면 단가는 비어 있어요)\n4. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증\n5. 저장 목록 위 「날짜로 보기」 달력을 열면 날짜마다 거래처·매출/매입·금액이 색으로 표시되고, 날짜를 누르면 그날 명세서만 모아 볼 수 있어요.'},
+   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 품목을 고르면 명세서 종류에 맞는 단가만 자동으로 들어와요 — 매입은 「입고가」, 매출은 「출고가」 (0원이면 단가는 비어 있어요)\n4. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증\n5. 저장 목록 위 「날짜로 보기」 달력을 열면 날짜마다 거래처·매출/매입·금액이 색으로 표시되고, 날짜를 누르면 그날 명세서만 모아 볼 수 있어요.\n6. 품목이 많으면 인쇄·PDF가 자동으로 여러 장으로 나뉘어요 (합계는 마지막 장에).'},
   {role:'admin', keys:['영수증','감열','프린터','rawbt','구매'], t:'영수증 인쇄 (감열 프린터)',
    a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. RawBT에서 막히는 두 곳: 기기 목록이 비어 있으면 「GRANT PERMISSION」으로 근처 기기 검색을 허용하고, 연결 뒤에는 「Your printers」에서 내 프린터에 체크하세요 (처음엔 Emulator에 체크돼 있어 종이로 안 나가요)\n6. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n7. 다른 프린터로 성공하셨다면 알려주세요 — 목록에 추가할게요!'},
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
@@ -8369,24 +8369,37 @@ function printInvoice(id){
   var paidAmt = _bal.basePaid||0;
   var curBal = prevBal + grand - paidAmt;
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  // 품목 행 (최소 6줄 채움)
-  var rowsHtml = '';
-  var n = inv.items.length;
-  for(var i=0;i<Math.max(n,8);i++){
-    var it = inv.items[i];
-    if(it){
-      var _p=itemAmounts(it);
-      var amt=_p.supply;
-      var iv=_p.vat;
-      rowsHtml += '<tr><td>'+(i+1)+'</td><td class="lft"><span class="fitspan">'+esc(it.name)+(it.spec?' '+esc(it.spec):'')+'</span></td><td><span class="fitspan">'+esc(it.unit||'')+'</span></td><td class="rgt"><span class="fitspan">'+(Number(it.qty)||0).toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+(Number(it.price)||0).toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+amt.toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+iv.toLocaleString()+'</span></td></tr>';
-    } else {
-      rowsHtml += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+  // 품목이 많으면 장을 나눈다 — 반쪽(131.5mm) 안에 들어가는 행 수 실측값
+  // 고정부 84.93mm(주소 1줄) ~ 89.43mm(주소 2줄), 품목 1행 4.50mm
+  // → 9행이면 129.91mm ≤ 131.5mm (주소가 2줄로 접혀도 안 잘림)
+  var ROWS_PER_SHEET = 9;
+  var itemsAll = inv.items || [];
+  var chunks = [];
+  for(var ci=0; ci<itemsAll.length; ci+=ROWS_PER_SHEET) chunks.push(itemsAll.slice(ci, ci+ROWS_PER_SHEET));
+  if(!chunks.length) chunks.push([]);
+  var sheetCount = chunks.length;
+  // 품목 행 (마지막 장은 최소 8줄 채움, 앞 장은 chunk 가득이라 채움 불필요)
+  function itemRows(chunk, startNo, isLast){
+    var html = '';
+    var cnt = isLast ? Math.max(chunk.length, 8) : chunk.length;
+    for(var i=0;i<cnt;i++){
+      var it = chunk[i];
+      if(it){
+        var _p=itemAmounts(it);
+        var amt=_p.supply;
+        var iv=_p.vat;
+        html += '<tr><td>'+(startNo+i+1)+'</td><td class="lft"><span class="fitspan">'+esc(it.name)+(it.spec?' '+esc(it.spec):'')+'</span></td><td><span class="fitspan">'+esc(it.unit||'')+'</span></td><td class="rgt"><span class="fitspan">'+(Number(it.qty)||0).toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+(Number(it.price)||0).toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+amt.toLocaleString()+'</span></td><td class="rgt"><span class="fitspan">'+iv.toLocaleString()+'</span></td></tr>';
+      } else {
+        html += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+      }
     }
+    return html;
   }
-  function sheet(title, cls){
+  function sheet(title, cls, chunk, startNo, pageIdx){
+    var isLast = (pageIdx === sheetCount-1);
     return '<div class="inv-sheet '+(cls||'')+'">'
       +'<div class="inv-head"><div class="inv-title">거 래 명 세 서</div><div class="inv-sub">('+title+')</div></div>'
-      +'<div class="inv-date">거래일자 : '+esc(inv.date)+'</div>'
+      +'<div class="inv-date">거래일자 : '+esc(inv.date)+(sheetCount>1?' ('+(pageIdx+1)+'/'+sheetCount+' 장)':'')+'</div>'
       +'<table class="inv-party"><tr>'
       +'<td class="ph">공급자</td>'
       +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(org.bizNo||'')+'</td></tr>'
@@ -8400,18 +8413,22 @@ function printInvoice(id){
       +'<tr><td class="k">업태</td><td>'+esc(sel.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(sel.bizItem||'')+'</td></tr></table></td>'
       +'</tr></table>'
       +'<table class="inv-items"><colgroup><col class="c-no"><col class="c-nm"><col class="c-un"><col class="c-qt"><col class="c-pr"><col class="c-am"><col class="c-vt"></colgroup><thead><tr><th>No</th><th>품명 · 규격</th><th>단위</th><th>수량</th><th>단가</th><th>공급가액</th><th>세액</th></tr></thead>'
-      +'<tbody>'+rowsHtml+'</tbody>'
-      +'<tfoot><tr><td colspan="5" class="rgt">합계</td><td class="rgt">'+supply.toLocaleString()+'</td><td class="rgt">'+vat.toLocaleString()+'</td></tr></tfoot></table>'
-      +'<div class="inv-foot"><div>거래해 주셔서 감사합니다.</div><div class="inv-grand">합계금액 : '+grand.toLocaleString()+' 원</div></div>'
-      +'<table class="inv-bal"><tr>'
-      +'<td class="bk">입금 계좌</td><td class="bv">'+esc(org.bankAccount||'')+'</td>'
-      +'<td class="bk">입금액</td><td class="bv rgt">'+paidAmt.toLocaleString()+'</td>'
-      +'<td class="bk">합계액</td><td class="bv rgt">'+grand.toLocaleString()+'</td>'
-      +'</tr><tr>'
-      +'<td class="bk">전잔액</td><td class="bv rgt">'+prevBal.toLocaleString()+'</td>'
-      +'<td class="bk">인수자</td><td class="bv rgt" style="padding-right:14px;">(인)</td>'
-      +'<td class="bk">현잔액</td><td class="bv rgt">'+curBal.toLocaleString()+'</td>'
-      +'</tr></table>'
+      +'<tbody>'+itemRows(chunk, startNo, isLast)+'</tbody>'
+      +'<tfoot>'+(isLast
+        ? '<tr><td colspan="5" class="rgt">합계</td><td class="rgt">'+supply.toLocaleString()+'</td><td class="rgt">'+vat.toLocaleString()+'</td></tr>'
+        : '<tr><td colspan="7">— 다음 장에 계속 —</td></tr>')+'</tfoot></table>'
+      +(isLast
+        ? '<div class="inv-foot"><div>거래해 주셔서 감사합니다.</div><div class="inv-grand">합계금액 : '+grand.toLocaleString()+' 원</div></div>'
+          +'<table class="inv-bal"><tr>'
+          +'<td class="bk">입금 계좌</td><td class="bv">'+esc(org.bankAccount||'')+'</td>'
+          +'<td class="bk">입금액</td><td class="bv rgt">'+paidAmt.toLocaleString()+'</td>'
+          +'<td class="bk">합계액</td><td class="bv rgt">'+grand.toLocaleString()+'</td>'
+          +'</tr><tr>'
+          +'<td class="bk">전잔액</td><td class="bv rgt">'+prevBal.toLocaleString()+'</td>'
+          +'<td class="bk">인수자</td><td class="bv rgt" style="padding-right:14px;">(인)</td>'
+          +'<td class="bk">현잔액</td><td class="bv rgt">'+curBal.toLocaleString()+'</td>'
+          +'</tr></table>'
+        : '')
       +'</div>';
   }
   var css = '<style>'
@@ -8447,7 +8464,7 @@ function printInvoice(id){
     +'.inv-bal .bk{background:#FFF0F0;color:#C00;font-weight:700;width:60px;white-space:nowrap;}'
     +'.inv-bal .bv{min-width:80px;} .inv-bal .rgt{text-align:right;font-weight:700;}'
     +'@page{size:A4;margin:12mm;}'
-    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{margin:5mm auto;width:185mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:185mm;max-width:100%;margin-left:5mm;margin-right:auto;}.inv-page{display:block;padding-top:12.5mm;}.inv-top{height:131.5mm;box-sizing:border-box;overflow:hidden;}.inv-cut{width:185mm;margin:0 auto 0 5mm;border:none;}.inv-wrap{margin:0;width:100%;display:block;}}'
+    +'.inv-wrap{page-break-inside:avoid;}.inv-cut{margin:5mm auto;width:185mm;max-width:100%;}@media print{.no-print{display:none;}body{padding:0;}.inv-sheet{width:185mm;max-width:100%;margin-left:5mm;margin-right:auto;}.inv-page{display:block;padding-top:12.5mm;}.inv-page+.inv-page{page-break-before:always;}.inv-top{height:131.5mm;box-sizing:border-box;overflow:hidden;}.inv-cut{width:185mm;margin:0 auto 0 5mm;border:none;}.inv-wrap{margin:0;width:100%;display:block;}}'
     +'.blue.inv-sheet{border-color:#0046C0;}'
     +'.blue .inv-title,.blue .inv-sub{color:#0046C0;}'
     +'.blue .inv-party>tbody>tr>td{border-color:#0046C0;}'
@@ -8463,11 +8480,14 @@ function printInvoice(id){
     +'.blue .inv-bal td{border-color:#9DB8E8;}'
     +'.blue .inv-bal .bk{background:#EFF4FF;color:#0046C0;}'
     +'</style>';
-  var bodyHtml = '<div class="inv-page">'
-    + '<div class="inv-wrap inv-top">' + sheet('공급자 보관용') + '</div>'
-    + '<div class="inv-cut"></div>'
-    + '<div class="inv-wrap inv-bot">' + sheet('공급받는자 보관용','blue') + '</div>'
-    + '</div>';
+  var bodyHtml = '';
+  for(var pi=0; pi<sheetCount; pi++){
+    bodyHtml += '<div class="inv-page">'
+      + '<div class="inv-wrap inv-top">' + sheet('공급자 보관용','',chunks[pi],pi*ROWS_PER_SHEET,pi) + '</div>'
+      + '<div class="inv-cut"></div>'
+      + '<div class="inv-wrap inv-bot">' + sheet('공급받는자 보관용','blue',chunks[pi],pi*ROWS_PER_SHEET,pi) + '</div>'
+      + '</div>';
+  }
   window._invPrintCache = { css: css, body: bodyHtml, date: inv.date, name: (sel&&sel.name)||inv.memberName||'' };
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
@@ -8668,12 +8688,23 @@ function savePdfInvoice(id){
     + '<scr'+'ipt>'
     + 'window.onload=function(){'
     + ' var el=document.getElementById("pdf-target");'
-    + ' html2canvas(el,{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
-    + '   var img=canvas.toDataURL("image/jpeg",0.95);'
-    + '   var pdf=new jspdf.jsPDF("p","mm","a4");'
-    + '   var pw=210, ph=297, iw=pw, ih=canvas.height*iw/canvas.width;'
-    + '   if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
-    + '   else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
+    + ' var pgs=el.querySelectorAll(".inv-page");'
+    + ' var list=pgs.length?Array.prototype.slice.call(pgs):[el];'
+    + ' var pdf=new jspdf.jsPDF("p","mm","a4");'
+    + ' var pw=210, ph=297;'
+    + ' var i=0;'
+    + ' function step(){'
+    + '   if(i>=list.length){ done(); return; }'
+    + '   html2canvas(list[i],{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
+    + '     var img=canvas.toDataURL("image/jpeg",0.95);'
+    + '     var iw=pw, ih=canvas.height*iw/canvas.width;'
+    + '     if(i>0) pdf.addPage();'
+    + '     if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
+    + '     else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
+    + '     i++; step();'
+    + '   }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF 생성 실패: "+err; });'
+    + ' }'
+    + ' function done(){'
     + '   var fn='+JSON.stringify(fname)+';'
     + '   var st=document.getElementById("pdf-status");'
     + '   if(window.showSaveFilePicker){'
@@ -8687,7 +8718,8 @@ function savePdfInvoice(id){
     + '     st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다.";'
     + '     setTimeout(function(){ try{window.close();}catch(e){} }, 1200);'
     + '   }'
-    + ' }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF 생성 실패: "+err; });'
+    + ' }'
+    + ' step();'
     + '};'
     + '</scr'+'ipt></body></html>';
   w.document.write(doc);
