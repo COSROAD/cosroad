@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 219;
+const APP_VERSION = 220;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2233,8 +2233,8 @@ var HELP_QA=[
    a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. RawBT에서 막히는 두 곳: 기기 목록이 비어 있으면 「GRANT PERMISSION」으로 근처 기기 검색을 허용하고, 연결 뒤에는 「Your printers」에서 내 프린터에 체크하세요 (처음엔 Emulator에 체크돼 있어 종이로 안 나가요)\n6. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n7. 다른 프린터로 성공하셨다면 알려주세요 — 목록에 추가할게요!'},
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
    a:'1. 명세서 작성에서 「📷 바코드 스캔」(안드로이드 크롬) 또는 입력창에 찍고 Enter\n2. 품목의 「코드」와 일치하면 줄 추가, 같은 코드 반복이면 수량 +1\n3. 미등록 숫자 바코드는 「＋ 새 품목 등록」으로 상품정보 자동 조회 후 등록'},
-  {role:'admin', keys:['수납','납부','미납','수강료'], t:'수납 관리',
-   a:'1. 수납 탭에서 연·월 선택\n2. «회원»별 「납부처리」(방법·날짜)\n3. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
+  {role:'admin', keys:['수납','납부','미납','수강료','납부일','납부날짜'], t:'수납 관리',
+   a:'1. 수납 탭에서 연·월 선택\n2. «회원»별 「납부처리」(방법·날짜)\n3. 날짜 칸은 오늘로 채워져 있어요 — 늦게 받았다면 실제로 받은 날짜로 바꾼 뒤 「납부처리」를 누르면 그 날짜로 기록돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
   {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
    a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
@@ -2279,7 +2279,9 @@ var HELP_QA=[
   {role:'admin', keys:['배송현황','요일별','배송지목록'], t:'배송현황 (물류·택배)',
    a:'1. 물류·택배는 스케줄 탭이 「📦 요일별 배송 거래처(배송지)」예요\n2. ◀ ▶ 로 날짜를 옮기거나 날짜 칸을 눌러 바꿔요\n3. 그날 요일에 해당하는 «회원»만 모아서 보여줘요 — 요일은 «회원» 등록에서 정한 값이에요'},
   {role:'admin', keys:['미수금','미지급','매출매입','받을돈','줄돈'], t:'물류 수납 — 매출/매입 달력',
-   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요'},
+   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요\n5. 거래처 카드의 「수금일(매입은 결제일)」 칸에서 날짜를 고른 뒤 수금하면 그 날짜로 기록돼요 — 옛날 거래를 뒤늦게 받을 때 쓰세요'},
+  {role:'admin', keys:['수금일','수금날짜','결제일','수금처리','선수금','선급금','초과'], t:'물류 수금 — 날짜 고르기·초과 금액',
+   a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요'},
   {role:'admin', keys:['거래내역','기간','pdf','거래처별'], t:'거래처별 기간 거래내역 PDF',
    a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
@@ -5461,12 +5463,17 @@ function renderLogiInvoiceCard(iv){
     // 입력칸 자동값 = 이 거래처의 누적 미지급(매입)/미수(매출) 잔액 (다른 거래처는 섞이지 않음)
     var prefill = isPur ? purU : saleU;
     if(prefill<=0) prefill = unpaid;
+    // 수금일 선택 — 기본값은 오늘(로컬 날짜). 옛 거래를 뒤늦게 수금할 때 그 날짜로 기록한다.
+    c += '<div style="display:flex;gap:5px;align-items:center;margin-bottom:5px;">';
+    c += '<span style="font-size:11px;font-weight:700;color:#475467;white-space:nowrap;">'+wColl+'일</span>';
+    c += '<input type="date" id="ldate-'+iv.id+'" value="'+todayStr()+'" style="flex:1;padding:7px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    c += '</div>';
     c += '<div style="display:flex;gap:5px;align-items:center;">';
     c += '<input type="text" inputmode="numeric" id="lcoll-'+iv.id+'" value="'+prefill.toLocaleString()+'" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     c += '<select id="lmeth-'+iv.id+'" style="width:70px;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;"><option>현금</option><option>계좌이체</option><option>카드</option><option>기타</option></select>';
     c += '<button onclick="logiCollect(\''+iv.id+'\')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">'+wColl+'</button>';
     c += '</div>';
-    c += '<div style="font-size:10px;color:#98A2B3;margin-top:4px;">이 거래처 '+(isPur?'미지급':'미수')+' 전체에서 오래된 건부터 자동 차감돼요. 적게 넣으면 부분'+wColl+'이에요.</div>';
+    c += '<div style="font-size:10px;color:#98A2B3;margin-top:4px;">이 거래처 '+(isPur?'미지급':'미수')+' 전체에서 오래된 건부터 자동 차감돼요. 적게 넣으면 부분'+wColl+'이에요. '+(isPur?'미지급':'미수')+' 합계보다 많이 넣으면 초과분은 '+(isPur?'선급금':'선수금')+'으로 기록돼요. 세무 기록도 '+wColl+'일 기준으로 잡혀요.</div>';
   }
   c += '</div>';
   return c;
@@ -5494,12 +5501,21 @@ function logiCollect(invId){
     return (a.createdAt||0)-(b.createdAt||0);
   });
 
-  var totalUnpaid = targets.reduce(function(s,iv){ return s+invUnpaid(iv); }, 0);
-  if(amt>totalUnpaid){
-    if(!confirm('이 거래처 전체 '+(isPur?'미지급':'미수')+'('+totalUnpaid.toLocaleString()+'원)보다 큰 금액이에요. 그대로 '+(isPur?'결제':'수금')+'할까요?')) return;
+  // 수금일 — 입력칸에서 고른 날짜, 비면 오늘(로컬). 미래 날짜는 한 번 되물음.
+  var dEl = document.getElementById('ldate-'+invId);
+  var pdate = (dEl && dEl.value) ? dEl.value : todayStr();
+  if(pdate > todayStr()){
+    if(!confirm((isPur?'결제':'수금')+'일이 미래예요. 그대로 기록할까요?')) return;
   }
 
-  var pdate = new Date().toISOString().slice(0,10);
+  var totalUnpaid = targets.reduce(function(s,iv){ return s+invUnpaid(iv); }, 0);
+  if(amt>totalUnpaid){
+    var over = amt - totalUnpaid;
+    var _wUn = isPur?'미지급':'미수';
+    var _wAdv = isPur?'선급금':'선수금';
+    if(!confirm(_wUn+' 전체('+totalUnpaid.toLocaleString()+'원)보다 '+over.toLocaleString()+'원 많아요.\n\n초과분 '+over.toLocaleString()+'원은 '+_wAdv+'으로 기록돼요.\n그대로 '+(isPur?'결제':'수금')+'할까요?')) return;
+  }
+
   var remain = amt;
   var distributed = 0;
   // 오래된 명세서부터 차감 분배
@@ -5511,14 +5527,14 @@ function logiCollect(invId){
     if(!iv.payments) iv.payments=[];
     iv.payments.push({date:pdate, method:method, amount:put});
     var pi = iv.payments.length-1;
-    // 세무 기록 (거래일자 기준)
-    var _td = (iv.date||pdate).split('-');
+    // 세무 기록 (수금일 기준 — 귀속 연·월도 수금일로. 돈이 실제 들어온 달에 잡힌다)
+    var _td = pdate.split('-');
     var _ty = parseInt(_td[0]), _tm = parseInt(_td[1]);
     var mname = (iv.memberName||'')+' ('+method+')';
     if(isPur){
-      addExpenseRecord(_ty, _tm, mname, put, '매입 대금', {invId:iv.id, payIdx:pi, memberId:memberId}, null, iv.date||pdate);
+      addExpenseRecord(_ty, _tm, mname, put, '매입 대금', {invId:iv.id, payIdx:pi, memberId:memberId}, null, pdate);
     } else {
-      addIncomeRecord(_ty, _tm, mname, put, '매출 대금', {invId:iv.id, payIdx:pi, memberId:memberId}, null, iv.date||pdate);
+      addIncomeRecord(_ty, _tm, mname, put, '매출 대금', {invId:iv.id, payIdx:pi, memberId:memberId}, null, pdate);
     }
     remain -= put;
     distributed += put;
@@ -5528,12 +5544,13 @@ function logiCollect(invId){
     if(!baseIv.payments) baseIv.payments=[];
     baseIv.payments.push({date:pdate, method:method, amount:remain});
     var bpi = baseIv.payments.length-1;
-    var _bd = (baseIv.date||pdate).split('-');
+    // 초과분(선수금/선급금)도 세무 귀속은 수금일 기준
+    var _bd = pdate.split('-');
     var mname2 = (baseIv.memberName||'')+' ('+method+')';
     if(isPur){
-      addExpenseRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매입 대금', {invId:baseIv.id, payIdx:bpi, memberId:memberId}, null, baseIv.date||pdate);
+      addExpenseRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매입 대금', {invId:baseIv.id, payIdx:bpi, memberId:memberId}, null, pdate);
     } else {
-      addIncomeRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매출 대금', {invId:baseIv.id, payIdx:bpi, memberId:memberId}, null, baseIv.date||pdate);
+      addIncomeRecord(parseInt(_bd[0]), parseInt(_bd[1]), mname2, remain, '매출 대금', {invId:baseIv.id, payIdx:bpi, memberId:memberId}, null, pdate);
     }
     distributed += remain;
   }
@@ -5807,7 +5824,7 @@ function renderPayment(){
         h += '<select id="pay-method-'+m.id+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;">';
         h += '<option value="현금">현금</option><option value="카드">카드</option><option value="계좌이체">계좌이체</option>';
         h += '</select>';
-        h += '<input type="date" id="pay-date-'+m.id+'" value="'+new Date().toISOString().slice(0,10)+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;"/>';
+        h += '<input type="date" id="pay-date-'+m.id+'" value="'+todayStr()+'" style="flex:1;padding:6px;border:1px solid #EAECF0;border-radius:6px;font-size:12px;"/>';
         h += '<button onclick="confirmPayment('+m.id+')" style="padding:6px 12px;background:#7C3AED;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">'+W_doIt+'</button>';
         h += '</div>';
         if(m.phone){
@@ -5977,10 +5994,15 @@ function confirmPayment(memberId){
     alert('수금액을 입력해주세요. (전 미수금 버튼을 누르거나 직접 입력)');
     return;
   }
+  // 납부일 — 고른 날짜, 비면 오늘(로컬). 미래 날짜는 한 번 되물음.
+  var payDate = (date && date.value) ? date.value : todayStr();
+  if(payDate > todayStr()){
+    if(!confirm('납부일이 미래예요. 그대로 기록할까요?')) return;
+  }
   data[key] = {
     paid: true,
     method: method?method.value:'현금',
-    date: date?date.value:new Date().toISOString().slice(0,10),
+    date: payDate,
     memo: '',
     amount: prevAmount,
     collected: collected
@@ -5991,9 +6013,10 @@ function confirmPayment(memberId){
   if(m){
     var _mn = _payMethod ? '('+_payMethod+')' : '';
     if(getBizType()==='logistics'){
-      if(collected) addIncomeRecord(payViewYear, payViewMonth, m.name+' '+_mn, collected, '결제 대금', {memberId:memberId, year:payViewYear, month:payViewMonth});
+      // 귀속 연·월은 수납 화면이 보고 있는 청구월 그대로, 기록 날짜만 고른 납부일로
+      if(collected) addIncomeRecord(payViewYear, payViewMonth, m.name+' '+_mn, collected, '결제 대금', {memberId:memberId, year:payViewYear, month:payViewMonth}, null, payDate);
     } else if(m.monthly){
-      addIncomeRecord(payViewYear, payViewMonth, m.name+' '+T('수강료')+_mn, m.monthly, T('수강료'), {memberId:memberId, year:payViewYear, month:payViewMonth});
+      addIncomeRecord(payViewYear, payViewMonth, m.name+' '+T('수강료')+_mn, m.monthly, T('수강료'), {memberId:memberId, year:payViewYear, month:payViewMonth}, null, payDate);
     }
   }
   renderPayment();
@@ -6083,7 +6106,7 @@ function addIncomeRecord(year, month, name, amount, category, link, method, date
   var data = loadTaxData();
   var key = year+'_'+String(month).padStart(2,'0');
   if(!data[key]) data[key]={income:[],expense:[]};
-  var rec = {name:name, amount:amount, category:category, date:(dateStr||new Date().toISOString().slice(0,10)), taxType:'과세'};
+  var rec = {name:name, amount:amount, category:category, date:(dateStr||todayStr()), taxType:'과세'};
   if(method) rec.method=method;
   if(link){ rec.source='payment'; rec.linkMemberId=link.memberId; rec.linkYear=link.year; rec.linkMonth=link.month; if(link.invId!=null){ rec.linkInvId=link.invId; rec.linkPayIdx=link.payIdx; } }
   data[key].income.push(rec);
@@ -6095,7 +6118,7 @@ function addExpenseRecord(year, month, name, amount, category, link, method, dat
   var data = loadTaxData();
   var key = year+'_'+String(month).padStart(2,'0');
   if(!data[key]) data[key]={income:[],expense:[]};
-  var rec = {name:name, amount:amount, category:category, date:(dateStr||new Date().toISOString().slice(0,10))};
+  var rec = {name:name, amount:amount, category:category, date:(dateStr||todayStr())};
   if(method) rec.method=method;
   if(link){ rec.source='payment'; if(link.invId!=null){ rec.linkInvId=link.invId; rec.linkPayIdx=link.payIdx; } }
   data[key].expense.push(rec);
@@ -6152,8 +6175,8 @@ function syncInvoicesToTax(){
       if(existing[refKey]) return; // 이미 세무에 있음 → 건너뜀
       var amt = Number(p.amount)||0;
       if(amt<=0) return;
-      var pdate = p.date || iv.date || new Date().toISOString().slice(0,10);
-      var useDate = iv.date || pdate; // 거래일자 기준
+      var pdate = p.date || iv.date || todayStr();
+      var useDate = pdate; // 수금일 기준 (logiCollect와 같은 기준)
       var td = useDate.split('-');
       var ty = parseInt(td[0]), tm = parseInt(td[1]);
       var mname = (iv.memberName||'') + ' (' + (p.method||'현금') + ')';
@@ -11997,7 +12020,10 @@ function selectPayMethod(method){
   if(!memberId) return;
   var data = loadPayments();
   var key = getPaymentKey(memberId, payViewYear, payViewMonth);
-  data[key] = {paid:true, method:method, date:new Date().toISOString().slice(0,10), memo:''};
+  // 납부일 — 목록에 있는 날짜 입력칸을 그대로 쓰고, 없으면 오늘(로컬)
+  var _dEl = document.getElementById('pay-date-'+memberId);
+  var payDate = (_dEl && _dEl.value) ? _dEl.value : todayStr();
+  data[key] = {paid:true, method:method, date:payDate, memo:''};
   savePayments(data);
   // 세무 데이터에도 자동 기록
   var m = members.find(function(x){return x.id===parseInt(memberId);});
@@ -12014,7 +12040,7 @@ function selectPayMethod(method){
       });
     }
     if(!taxData[taxKey]) taxData[taxKey] = {income:[],expense:[]};
-    taxData[taxKey].income.push({name:m.name+' '+feeWord+'('+method+')',amount:amount,category:feeWord,date:new Date().toISOString().slice(0,10),taxType:'과세'});
+    taxData[taxKey].income.push({name:m.name+' '+feeWord+'('+method+')',amount:amount,category:feeWord,date:payDate,taxType:'과세'});
     saveTaxData(taxData);
   }
   showToast('✅ '+method+' 납부 처리됐어요!');
