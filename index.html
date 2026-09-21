@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 220;
+const APP_VERSION = 221;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -729,6 +729,21 @@ function nowTimeStr(){ var n=new Date(); return String(n.getHours()).padStart(2,
 function navArrowBtn(onclickStr, ch){
   return '<button onclick="'+onclickStr+'" style="min-width:40px;min-height:40px;padding:6px 12px;background:white;border:1.5px solid #D0D5DD;border-radius:10px;font-size:18px;font-weight:800;color:#344054;cursor:pointer;flex-shrink:0;">'+ch+'</button>';
 }
+/* 날짜 칸 달력 열기 — 전 화면 공통. showPicker()를 못 쓰는 브라우저(구형 사파리 등)나
+   사용자 제스처 제약에 걸리면 조용히 기본 동작(달력 아이콘 누르기)으로 물러난다. */
+function openDatePicker(el){
+  try{ if(el && typeof el.showPicker==='function') el.showPicker(); }catch(e){}
+}
+/* 날짜 칸은 아무 곳이나 눌러도 달력이 뜬다 — 앱의 모든 type="date"·type="month" 칸에 한 번에 걸어둔다.
+   화면을 다시 그려도 다시 붙일 필요가 없고(위임), 캡처 단계라 중간에서 전파를 막아도 동작한다.
+   type이 'date'/'month'가 아니면(=브라우저가 날짜칸을 지원 안 해 text로 떨어진 경우) 손대지 않는다. */
+document.addEventListener('click', function(e){
+  var t = e.target;
+  if(!t || t.tagName!=='INPUT') return;
+  if(t.type!=='date' && t.type!=='month') return;
+  if(t.disabled || t.readOnly) return;
+  openDatePicker(t);
+}, true);
 // 근무시간 계산 (분 단위) → "9시간 30분" 형태
 function calcWorkMinutes(inT, outT){
   if(!inT || !outT) return null;
@@ -1256,8 +1271,7 @@ function pvEditCell(kind, carId, rowName, day){
   else pvEditKey='h_'+carId+'_'+rowName+'_'+day;
   renderPayrollView();
   if(pvEditKey==='ym'){
-    var i=document.getElementById('pv-inp');
-    if(i && i.showPicker){ try{ i.showPicker(); }catch(e){} }
+    openDatePicker(document.getElementById('pv-inp'));
   }
 }
 /* 입력칸을 벗어나면 즉시 저장·재계산. 다시 그리기는 한 박자 미뤄서
@@ -2234,7 +2248,7 @@ var HELP_QA=[
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
    a:'1. 명세서 작성에서 「📷 바코드 스캔」(안드로이드 크롬) 또는 입력창에 찍고 Enter\n2. 품목의 「코드」와 일치하면 줄 추가, 같은 코드 반복이면 수량 +1\n3. 미등록 숫자 바코드는 「＋ 새 품목 등록」으로 상품정보 자동 조회 후 등록'},
   {role:'admin', keys:['수납','납부','미납','수강료','납부일','납부날짜'], t:'수납 관리',
-   a:'1. 수납 탭에서 연·월 선택\n2. «회원»별 「납부처리」(방법·날짜)\n3. 날짜 칸은 오늘로 채워져 있어요 — 늦게 받았다면 실제로 받은 날짜로 바꾼 뒤 「납부처리」를 누르면 그 날짜로 기록돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
+   a:'1. 수납 탭에서 연·월 선택\n2. «회원»별 「납부처리」(방법·날짜)\n3. 날짜 칸은 오늘로 채워져 있어요 — 늦게 받았다면 실제로 받은 날짜로 바꾼 뒤 「납부처리」를 누르면 그 날짜로 기록돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요 (납부 방법 모달로 처리할 때도 똑같이 물어봐요)\n5. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요\n6. 미납자는 「📩 미납 알림 문자」로 일괄 안내'},
   {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
    a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
@@ -2279,9 +2293,9 @@ var HELP_QA=[
   {role:'admin', keys:['배송현황','요일별','배송지목록'], t:'배송현황 (물류·택배)',
    a:'1. 물류·택배는 스케줄 탭이 「📦 요일별 배송 거래처(배송지)」예요\n2. ◀ ▶ 로 날짜를 옮기거나 날짜 칸을 눌러 바꿔요\n3. 그날 요일에 해당하는 «회원»만 모아서 보여줘요 — 요일은 «회원» 등록에서 정한 값이에요'},
   {role:'admin', keys:['미수금','미지급','매출매입','받을돈','줄돈'], t:'물류 수납 — 매출/매입 달력',
-   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요\n5. 거래처 카드의 「수금일(매입은 결제일)」 칸에서 날짜를 고른 뒤 수금하면 그 날짜로 기록돼요 — 옛날 거래를 뒤늦게 받을 때 쓰세요'},
+   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요\n5. 거래처 카드의 「수금일(매입은 결제일)」 칸에서 날짜를 고른 뒤 수금하면 그 날짜로 기록돼요 — 옛날 거래를 뒤늦게 받을 때 쓰세요\n6. 수금(결제)한 날짜에는 달력에 초록색으로 「✓ 거래처 수금완료/부분수금 금액」이 함께 찍혀요 — 매출 달력엔 수금만, 매입 달력엔 결제만 나와요\n7. 그 날짜를 누르면 아래에 그날 거래와 함께 「수금 · 합계」 목록이 나오고, ✕ 로 잘못된 수금을 지울 수 있어요'},
   {role:'admin', keys:['수금일','수금날짜','결제일','수금처리','선수금','선급금','초과'], t:'물류 수금 — 날짜 고르기·초과 금액',
-   a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요'},
+   a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요 — 달력에서도 같이 사라져요\n8. 수금한 날짜에는 달력에도 초록색으로 표시돼요 — 그 수금으로 명세서가 다 채워지면 「수금완료(매입은 결제완료)」, 덜 채워지면 「부분수금 ○○원」으로 나와요\n9. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요 (앱의 모든 날짜 칸이 같아요)'},
   {role:'admin', keys:['거래내역','기간','pdf','거래처별'], t:'거래처별 기간 거래내역 PDF',
    a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
@@ -5584,7 +5598,38 @@ function memberColor(key){
   return 'hsl('+hue+','+sat+'%,'+lit+'%)';
 }
 
-function renderLogiCalendar(y, mo, byDate){
+/* 수금(결제) 내역을 '수금일' 기준으로 날짜별로 모은다 — 달력에 초록으로 찍기 위한 집계.
+   매출 달력에는 수금만, 매입 달력에는 결제만 담는다(kind로 걸러 종류를 섞지 않는다).
+   완납 판정은 payments 배열 순서(=입력 순서) 누적합 기준이다 —
+   "그 수금으로 명세서가 완납됐는가"를 그대로 보여주기 위함. */
+function logiPaymentsByDate(invoices, y, mo, kind){
+  var by = {};
+  invoices.forEach(function(iv){
+    if((iv.kind||'sale')!==kind) return;
+    if(!iv.payments || !iv.payments.length) return;
+    var total = Number(iv.total)||0;
+    var cum = 0;
+    iv.payments.forEach(function(p, pi){
+      var amt = Number(p.amount)||0;
+      cum += amt;
+      if(amt<=0) return;
+      var pd = p.date||'';
+      if(!pd) return;
+      var q = pd.split('-');
+      if(parseInt(q[0])!==y || parseInt(q[1])!==mo) return; // 달력에 보이는 달만
+      (by[pd]=by[pd]||[]).push({
+        invId: iv.id, payIdx: pi, invDate: iv.date||'',
+        memberId: iv.memberId, memberName: iv.memberName||'거래처',
+        amount: amt, method: p.method||'',
+        done: (total>0 && cum>=total),          // 이 수금으로 완납됨
+        remain: Math.max(0, total-cum)          // 이 수금 뒤 남은 미수(미지급)
+      });
+    });
+  });
+  return by;
+}
+
+function renderLogiCalendar(y, mo, byDate, payByDate){
   var first = new Date(y, mo-1, 1);
   var startDow = first.getDay();
   var daysInMonth = new Date(y, mo, 0).getDate();
@@ -5598,14 +5643,16 @@ function renderLogiCalendar(y, mo, byDate){
   for(var d=1; d<=daysInMonth; d++){
     var ds = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var invs = byDate[ds]||[];
+    var pays = (payByDate && payByDate[ds])||[];
     var hasInv = invs.length>0;
+    var hasPay = pays.length>0;
     var isSel = logiPaySelDate===ds;
-    var bg = isSel?'#7C3AED':(hasInv?'#F9FAFB':'white');
+    var bg = isSel?'#7C3AED':((hasInv||hasPay)?'#F9FAFB':'white');
     var fg = isSel?'white':'#344054';
     function _fmt(v){ return Number(v).toLocaleString(); }
     c += '<div onclick="logiPaySelectDate(\''+ds+'\')" style="min-height:58px;max-height:92px;display:flex;flex-direction:column;border:1px solid '+(isSel?'#7C3AED':'#F2F4F7')+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';overflow:hidden;">';
     c += '<div style="font-size:13px;font-weight:700;color:'+fg+';flex-shrink:0;">'+d+'</div>';
-    if(hasInv){
+    if(hasInv || hasPay){
       // 거래처별로 줄을 나눠 표시 + 거래처색 + 넘치면 칸 안에서 스크롤
       c += '<div style="flex:1;overflow-y:auto;min-height:0;">';
       invs.forEach(function(iv){
@@ -5616,6 +5663,13 @@ function renderLogiCalendar(y, mo, byDate){
         var clr = isSel ? 'white' : memberColor(iv.memberId!=null?('m'+iv.memberId):nm);
         var tag = isPur ? '매입' : '매출';
         c += '<div style="font-size:10px;font-weight:700;color:'+clr+';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeMasterHtml(nm)+' '+tag+' '+_fmt(amt)+'</div>';
+      });
+      // 수금(결제) 기록 — 거래 표시와 구분되게 초록 계열 + ✓ 로 찍는다
+      var _isPurCal = (logiPayKind==='purchase');
+      pays.forEach(function(p){
+        var pclr = isSel ? '#D1FADF' : '#027A48';
+        var w = p.done ? (_isPurCal?'결제완료':'수금완료') : (_isPurCal?'부분결제':'부분수금');
+        c += '<div style="font-size:10px;font-weight:700;color:'+pclr+';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">✓ '+escapeMasterHtml(p.memberName)+' '+w+' '+_fmt(p.amount)+'</div>';
       });
       c += '</div>';
     }
@@ -5645,6 +5699,8 @@ function renderLogiPayment(cont){
     if(parseInt(p[0])!==y || parseInt(p[1])!==mo) return;
     (calByDate[iv.date]=calByDate[iv.date]||[]).push(iv);
   });
+  // 달력용 수금(결제) 기록 — 보고 있는 탭 종류만 (매출 달력=수금, 매입 달력=결제)
+  var calPayByDate = logiPaymentsByDate(invoices, y, mo, logiPayKind);
   var sumTotal=0, sumPaid=0;
   monthInvs.forEach(function(iv){ sumTotal+=(Number(iv.total)||0); sumPaid+=invCollected(iv); });
   var sumUnpaid = sumTotal - sumPaid;
@@ -5676,16 +5732,43 @@ function renderLogiPayment(cont){
   h += '<span style="font-size:12px;color:#98A2B3;">'+(logiCalOpen?'▲ 닫기':'▼ 달력 열기')+'</span>';
   h += '</div>';
   if(logiCalOpen){
-    h += '<div style="margin-top:8px;">'+renderLogiCalendar(y, mo, calByDate)+'</div>';
+    h += '<div style="margin-top:8px;">'+renderLogiCalendar(y, mo, calByDate, calPayByDate)+'</div>';
     h += '<div onclick="logiToggleCal()" style="text-align:center;background:white;border:1px solid #EAECF0;border-radius:10px;padding:9px;cursor:pointer;margin-top:6px;font-size:12px;font-weight:700;color:#7C3AED;">▲ 달력 접기</div>';
   }
-  if(logiPaySelDate && calByDate[logiPaySelDate]){
+  // 고른 날짜 내역 — 그날 '거래(명세서)' + 그날 '수금(결제)' 을 함께 보여준다.
+  // 거래가 없는 날이라도 그날 받은 수금이 있으면 열린다(옛 거래를 뒤늦게 받은 경우).
+  var _selInvs = (logiPaySelDate && calByDate[logiPaySelDate]) || [];
+  var _selPays = (logiPaySelDate && calPayByDate[logiPaySelDate]) || [];
+  if(logiPaySelDate && (_selInvs.length || _selPays.length)){
     h += '<div style="margin-top:14px;">';
-    h += '<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:8px;">'+logiPaySelDate+' 거래</div>';
-    calByDate[logiPaySelDate].forEach(function(iv){ h += renderLogiInvoiceCard(iv); });
+    if(_selInvs.length){
+      h += '<div style="font-size:13px;font-weight:800;color:#344054;margin-bottom:8px;">'+logiPaySelDate+' 거래</div>';
+      _selInvs.forEach(function(iv){ h += renderLogiInvoiceCard(iv); });
+    }
+    if(_selPays.length){
+      var _isPurSel = (logiPayKind==='purchase');
+      var _wCollSel = _isPurSel?'결제':'수금';
+      var _sumPaySel = _selPays.reduce(function(s,p){ return s+p.amount; }, 0);
+      h += '<div style="font-size:13px;font-weight:800;color:#027A48;margin:'+(_selInvs.length?'14px':'0')+' 0 8px;">'+logiPaySelDate+' '+_wCollSel+' · 합계 '+_sumPaySel.toLocaleString()+'원</div>';
+      h += '<div style="background:white;border-radius:12px;border:1px solid #A6F4C5;padding:4px 12px;">';
+      _selPays.forEach(function(p, si){
+        var _w = p.done ? (_isPurSel?'결제완료':'수금완료') : ((_isPurSel?'부분결제':'부분수금')+' '+p.amount.toLocaleString()+'원');
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;'+(si<_selPays.length-1?'border-bottom:1px solid #F2F4F7;':'')+'">';
+        h += '<div style="min-width:0;">';
+        h += '<div style="font-size:13px;font-weight:800;color:#1D2939;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escapeMasterHtml(p.memberName)+'</div>';
+        h += '<div style="font-size:10px;color:#98A2B3;">'+escapeMasterHtml(p.method||'')+(p.invDate?(' · 거래일 '+p.invDate):'')+(p.done?'':(' · 남은 '+(_isPurSel?'미지급':'미수')+' '+p.remain.toLocaleString()+'원'))+'</div>';
+        h += '</div>';
+        h += '<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;">';
+        h += '<span style="font-size:10px;font-weight:700;color:#027A48;background:#ECFDF3;padding:3px 8px;border-radius:6px;">'+_w+'</span>';
+        h += '<b style="font-size:13px;color:#027A48;">'+p.amount.toLocaleString()+'원</b>';
+        h += '<span onclick="logiDelPayment(\''+p.invId+'\','+p.payIdx+')" style="color:#F04438;cursor:pointer;font-size:13px;">✕</span>';
+        h += '</div></div>';
+      });
+      h += '</div>';
+    }
     h += '</div>';
   } else {
-    h += '<div style="margin-top:14px;text-align:center;color:#98A2B3;font-size:12px;padding:20px;">날짜를 선택하면 그날 거래가 표시됩니다.</div>';
+    h += '<div style="margin-top:14px;text-align:center;color:#98A2B3;font-size:12px;padding:20px;">날짜를 선택하면 그날 거래와 '+(logiPayKind==='purchase'?'결제':'수금')+' 내역이 표시됩니다.</div>';
   }
   h += '</div></div>';
   cont.innerHTML = h;
@@ -10339,8 +10422,7 @@ function dlvEditCell(kind, day){
   dlvEditKey=(kind==='dept')?'dept':(kind==='ym'?'ym':('v'+day));
   renderDriveLogView();
   if(dlvEditKey==='ym'){
-    var i=document.getElementById('dlv-inp');
-    if(i && i.showPicker){ try{ i.showPicker(); }catch(e){} }
+    openDatePicker(document.getElementById('dlv-inp'));
   }
 }
 /* 입력칸 벗어나면 즉시 저장. 다시 그리기는 한 박자 미뤄서, 다른 수기 칸을 바로 탭했을 때
@@ -12023,6 +12105,10 @@ function selectPayMethod(method){
   // 납부일 — 목록에 있는 날짜 입력칸을 그대로 쓰고, 없으면 오늘(로컬)
   var _dEl = document.getElementById('pay-date-'+memberId);
   var payDate = (_dEl && _dEl.value) ? _dEl.value : todayStr();
+  // 미래 날짜는 한 번 되물음 — 같은 pay-date 칸을 쓰는 confirmPayment와 같은 기준
+  if(payDate > todayStr()){
+    if(!confirm('납부일이 미래예요. 그대로 기록할까요?')) return;
+  }
   data[key] = {paid:true, method:method, date:payDate, memo:''};
   savePayments(data);
   // 세무 데이터에도 자동 기록
