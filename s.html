@@ -172,12 +172,13 @@ async function load(){
     show('링크가 올바르지 않아요', ['주소가 잘렸는지 확인해 주세요.']);
     return;
   }
-  try{
-    await signInAnonymously(auth);
-  }catch(e){
-    show('지금 열 수 없어요', ['잠시 뒤 다시 시도해 주세요.']);
-    return;
-  }
+  // 로그인은 **기다리지 않는다.** 보안 규칙의 공유 열람 조건은
+  //   allow get: if resource.data.expiresAt > request.time
+  // 이라 인증이 필요 없다. 예전에는 signInAnonymously 를 await 했는데,
+  // 로그인 요청이 늦거나 막히는 환경(브라우저 저장소 차단 등)에서 그대로 멈춰
+  // "불러오는 중…" 에서 영영 안 넘어갔다. 받는 사람 화면이라 더 위험하다.
+  try{ signInAnonymously(auth).catch(function(){}); }catch(e){}
+
   try{
     const snap = await getDoc(doc(db, 'shares', token));
     if(!snap.exists()){
