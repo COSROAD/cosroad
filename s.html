@@ -59,7 +59,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+// Firebase Auth 는 **불러오지 않는다.** 아래 load() 의 설명 참고 —
+// 공유 열람에 인증이 필요 없고, Auth 를 초기화하면 Firestore 가 그 상태를 기다리다 멈춘다.
 
 // 앱과 같은 Firebase 웹 설정 (웹 설정값은 비밀이 아니다 — 실제 방어선은 보안 규칙이다)
 const firebaseConfig = {
@@ -72,7 +73,6 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
 
 const root = document.getElementById('root');
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -172,13 +172,14 @@ async function load(){
     show('링크가 올바르지 않아요', ['주소가 잘렸는지 확인해 주세요.']);
     return;
   }
-  // 로그인은 **기다리지 않는다.** 보안 규칙의 공유 열람 조건은
-  //   allow get: if resource.data.expiresAt > request.time
-  // 이라 인증이 필요 없다. 예전에는 signInAnonymously 를 await 했는데,
-  // 로그인 요청이 늦거나 막히는 환경(브라우저 저장소 차단 등)에서 그대로 멈춰
-  // "불러오는 중…" 에서 영영 안 넘어갔다. 받는 사람 화면이라 더 위험하다.
-  try{ signInAnonymously(auth).catch(function(){}); }catch(e){}
-
+  /* 로그인하지 않고 바로 읽는다. 보안 규칙의 공유 열람 조건이
+       allow get: if resource.data.expiresAt > request.time
+     이라 **인증이 필요 없다.**
+     예전에는 signInAnonymously 를 먼저 했는데 화면이 "불러오는 중…" 에서 멈췄다.
+     원인은 로그인 자체가 아니라 **같은 Firebase 앱에 Auth 를 초기화한 것**이다 —
+     Auth 가 붙어 있으면 Firestore 가 인증 상태가 정해질 때까지 요청을 미룬다.
+     그래서 로그인을 백그라운드로 돌려도 소용이 없고, Auth 를 아예 안 부르는 것이 답이다.
+     (실측: Auth 초기화 O → 멈춤 / Auth 초기화 X → 정상 렌더) */
   try{
     const snap = await getDoc(doc(db, 'shares', token));
     if(!snap.exists()){
