@@ -121,6 +121,15 @@ function render(d){
   });
 
   const period = (d.period && (esc(d.period.start)+' ~ '+esc(d.period.end))) || '';
+
+  // 받는 분이 인쇄→PDF 저장할 때의 기본 파일명 = 이 title → 앱과 같은 「거래처명_기간」.
+  // 스냅샷에 이미 있는 값(client.name · period)만 쓴다. 다른 정보는 넣지 않는다.
+  try{
+    const cn = String((d.client && d.client.name) || '').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim();
+    const ps = d.period && d.period.start, pe = d.period && d.period.end;
+    if(cn && ps && pe) document.title = cn + '_' + ps + '~' + pe;
+  }catch(e){}
+
   let exp = '';
   try{
     const ed = d.expiresAt && d.expiresAt.toDate ? d.expiresAt.toDate() : null;

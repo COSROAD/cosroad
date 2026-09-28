@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 224;
+const APP_VERSION = 225;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -8911,7 +8911,11 @@ function printClientRange(){
     +   '});};'
     + '})();<\/script>';
   var fitScript = '<script>(function(){function fit(){var cells=document.querySelectorAll(".inv-items td .fitspan");for(var i=0;i<cells.length;i++){var sp=cells[i];sp.style.transform="";var td=sp.parentNode;var avail=td.clientWidth-10;var w=sp.scrollWidth;if(w>avail&&avail>0){var s=avail/w;if(s<0.5)s=0.5;sp.style.transform="scaleX("+s+")";}}}if(document.readyState!=="loading"){setTimeout(fit,30);}else{document.addEventListener("DOMContentLoaded",fit);}window.addEventListener("beforeprint",fit);})();<\/script>';
-  w.document.write('<html><head><title>거래내역_'+esc(sel.name||'')+'_'+esc(startYm)+'~'+esc(endYm)+'</title>'+css+'</head><body>'
+  // 인쇄→PDF 저장 시 기본 파일명이 이 title 이다 → 「거래처명_기간」 으로 맞춘다.
+  // 파일명에 못 쓰는 문자(\ / : * ? " < > |)만 공백으로 바꾼다. 다른 정보는 넣지 않는다.
+  var fileTitle = String(sel.name||'').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim()
+                + '_' + startYm + '~' + endYm;
+  w.document.write('<html><head><title>'+esc(fileTitle)+'</title>'+css+'</head><body>'
     + topbar + spacer
     + summarySheet
     + detailSheets
