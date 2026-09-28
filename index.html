@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 221;
+const APP_VERSION = 222;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2296,8 +2296,8 @@ var HELP_QA=[
    a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요\n5. 거래처 카드의 「수금일(매입은 결제일)」 칸에서 날짜를 고른 뒤 수금하면 그 날짜로 기록돼요 — 옛날 거래를 뒤늦게 받을 때 쓰세요\n6. 수금(결제)한 날짜에는 달력에 초록색으로 「✓ 거래처 수금완료/부분수금 금액」이 함께 찍혀요 — 매출 달력엔 수금만, 매입 달력엔 결제만 나와요\n7. 그 날짜를 누르면 아래에 그날 거래와 함께 「수금 · 합계」 목록이 나오고, ✕ 로 잘못된 수금을 지울 수 있어요'},
   {role:'admin', keys:['수금일','수금날짜','결제일','수금처리','선수금','선급금','초과'], t:'물류 수금 — 날짜 고르기·초과 금액',
    a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요 — 달력에서도 같이 사라져요\n8. 수금한 날짜에는 달력에도 초록색으로 표시돼요 — 그 수금으로 명세서가 다 채워지면 「수금완료(매입은 결제완료)」, 덜 채워지면 「부분수금 ○○원」으로 나와요\n9. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요 (앱의 모든 날짜 칸이 같아요)'},
-  {role:'admin', keys:['거래내역','기간','pdf','거래처별'], t:'거래처별 기간 거래내역 PDF',
-   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).'},
+  {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 PDF',
+   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).\n5. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이라 수납 달력의 「상계 순액」과 같은 값이에요\n6. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
    a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요'},
   {role:'admin', keys:['파트너','제휴','추천업체'], t:'파트너(제휴 업체) 탭',
@@ -5392,15 +5392,35 @@ function memberUnpaidAsOf(memberId, kind, baseDate, baseCreated, baseId){
   return loadInvoices().reduce(function(s,iv){
     if(String(iv.memberId)!==String(memberId)) return s;
     if((iv.kind||'sale')!==kind) return s;
-    var inRange = false;
-    if((iv.date||'') < baseDate) inRange = true;
-    else if((iv.date||'')===baseDate){
-      if(iv.id===baseId) inRange = true;
-      else if((iv.createdAt||0) < baseCreated) inRange = true;
-    }
-    if(inRange) return s + invUnpaid(iv);
+    if(invIsAsOf(iv, baseDate, baseCreated, baseId)) return s + invUnpaid(iv);
     return s;
   }, 0);
+}
+/* ── 상계(순 미수) 계산 — 이 두 함수만 쓴다 ──
+   매출은 +미수, 매입은 −미지급. 거래처에 보낼 정산 순액의 기준값이다.
+   수납 달력(거래처 카드)과 기간 거래내역 PDF가 **모두 이 함수만** 본다.
+   계산을 두 벌로 두면 어긋난다 — PDF만 단순 합산이라 매입까지 미수에 더해
+   틀렸던 것(호모사피엔스 418,050 → 실제 순 274,050)이 바로 그 증상이었다. */
+function netUnpaid(list){
+  var sale=0, pur=0;
+  (list||[]).forEach(function(iv){
+    if((iv.kind||'sale')==='purchase') pur += invUnpaid(iv);
+    else sale += invUnpaid(iv);
+  });
+  return { sale:sale, purchase:pur, net:sale-pur };
+}
+/* 기준 명세서 시점까지인가 — 누적 범위 판정을 한 곳에서만 정의한다 */
+function invIsAsOf(iv, baseDate, baseCreated, baseId){
+  var d = iv.date||'';
+  if(d < baseDate) return true;
+  if(d === baseDate) return iv.id===baseId || (iv.createdAt||0) < baseCreated;
+  return false;
+}
+/* 기준 명세서 시점까지로 끊어 상계 — 수납 달력 거래처 카드가 쓰는 형태 */
+function netUnpaidAsOf(memberId, baseDate, baseCreated, baseId){
+  return netUnpaid(loadInvoices().filter(function(iv){
+    return String(iv.memberId)===String(memberId) && invIsAsOf(iv, baseDate, baseCreated, baseId);
+  }));
 }
 // 거래처의 누적 미수금 (매출 명세서 전체 미수 합계)
 function memberTotalUnpaid(memberId){
@@ -5450,10 +5470,11 @@ function renderLogiInvoiceCard(iv){
   var prevUnpaid = calcInvoiceBalance(iv).prevBalance||0;
   if(prevUnpaid<0) prevUnpaid=0;
   // 이번 명세서 시점까지의 매출 누적 미수 / 매입 누적 미지급 → 상계 순액
+  // 계산은 netUnpaid() 한 곳에서만 한다 (기간 거래내역 PDF도 같은 함수를 본다)
   var _bd = iv.date||'', _bc = iv.createdAt||0, _bi = iv.id;
-  var saleU = memberUnpaidAsOf(iv.memberId, 'sale', _bd, _bc, _bi);
-  var purU = memberUnpaidAsOf(iv.memberId, 'purchase', _bd, _bc, _bi);
-  var net = saleU - purU; // +면 받을 돈, -면 줄 돈
+  var _nb = netUnpaidAsOf(iv.memberId, _bd, _bc, _bi);
+  var saleU = _nb.sale, purU = _nb.purchase;
+  var net = _nb.net; // +면 받을 돈, -면 줄 돈
   if(net>0){
     c += '<div style="font-size:11px;color:#B42318;background:#FEF3F2;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 순액 · 받을돈 '+net.toLocaleString()+'원</div>';
   } else if(net<0){
@@ -8708,6 +8729,9 @@ function printClientRange(){
     }
     sumRows += '</tbody>';
   });
+  // 미수/미결 집계는 상계(매출 +미수 · 매입 −미지급) — 달력과 같은 netUnpaid()를 쓴다.
+  // 공급가액·세액·합계 열은 그대로(부가세 신고용이 아니라 거래처 정산용 순액).
+  var nb = netUnpaid(list);
   var summarySheet = '<div class="inv-sheet range-summary">'
     +'<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
     +'<div class="inv-sub">'+esc(sel.name||'')+' · '+esc(startYm)+' ~ '+esc(endYm)+'</div></div>'
@@ -8720,10 +8744,14 @@ function printClientRange(){
     +'<td class="rgt">'+totVat.toLocaleString()+'</td>'
     +'<td class="rgt">'+totGrand.toLocaleString()+'</td>'
     +'<td class="rgt">'+totPaid.toLocaleString()+'</td>'
-    +'<td class="rgt">'+(totGrand-totPaid).toLocaleString()+'</td></tr></tfoot>'
+    +'<td class="rgt">'+nb.net.toLocaleString()+'</td></tr></tfoot>'
     +'</table>'
     +'<div class="inv-foot"><div>기간 내 거래를 모두 표시합니다.</div>'
-    +'<div class="inv-grand">미수/미결 합계 : '+(totGrand-totPaid).toLocaleString()+' 원</div></div>'
+    +'<div class="inv-net">'
+      +'<div>매출 미수 : '+nb.sale.toLocaleString()+' 원</div>'
+      +'<div>매입 미지급 : '+nb.purchase.toLocaleString()+' 원</div>'
+      +'<div class="inv-grand">순 미수 : '+nb.net.toLocaleString()+' 원</div>'
+    +'</div></div>'
     +'</div>';
 
   // ── 2) 개별 명세서는 출력하지 않음 (요약표만) ──
@@ -8755,8 +8783,10 @@ function printClientRange(){
     +'.inv-items .fitspan{display:inline-block;transform-origin:left center;white-space:nowrap;}'
     +'.inv-items td.rgt .fitspan{transform-origin:right center;}'
     +'.c-no{width:7%;}.c-nm{width:33%;}.c-un{width:9%;}.c-qt{width:11%;}.c-pr{width:13%;}.c-am{width:15%;}.c-vt{width:12%;}'
-    +'.inv-foot{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;font-size:12px;}'
+    +'.inv-foot{display:flex;justify-content:space-between;align-items:flex-end;padding:5px 8px;font-size:12px;}'
     +'.inv-grand{font-weight:800;font-size:14px;color:#C00;}'
+    +'.inv-net{text-align:right;line-height:1.65;white-space:nowrap;}'
+    +'.inv-net .inv-grand{border-top:1px solid #C00;padding-top:2px;margin-top:2px;}'
     +'.inv-bal{width:100%;border-collapse:collapse;}'
     +'.inv-bal td{border:1px solid #C00;font-size:12px;padding:3px 6px;}'
     +'.inv-bal .bk{background:#FEF2F2;color:#C00;text-align:center;width:70px;font-size:11px;}'
