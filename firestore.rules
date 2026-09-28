@@ -1,90 +1,120 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// 코스로드 Firestore 보안 규칙 (프로젝트 cosroad-9a49c) · 2026-09-28
+// 코스로드 Firestore 보안 규칙 (프로젝트 cosroad-9a49c) · 2026-09-28 (2차 — 두 모드 반영)
 //
 // 적용: Firebase 콘솔 → Firestore Database → 규칙 → 이 파일 내용 전체 붙여넣기 → 게시
-// 되돌리기: firestore.rules.backup-20260928-open 내용을 붙여넣기 (전체 개방 상태로 복귀)
+// 되돌리기: firestore.rules.backup-20260928-open 내용을 붙여넣기 (전체 개방으로 복귀)
 //
 // 여기에 적히지 않은 경로는 **전부 거부**된다(Firestore 기본값).
-//   → 앞으로 새 컬렉션을 쓰는 기능을 만들면 이 파일에 경로를 반드시 추가해야 한다.
+//   → 새 컬렉션을 쓰는 기능을 만들면 이 파일에 경로를 반드시 추가해야 한다.
 //     코드만 만들면 permission-denied 로 조용히 먹통이 된다.
 //
-// 허용 경로는 index.html 코드에서 실제 호출을 전수 조사해 뽑았다(추측 아님):
-//   users/{uid}                     index.html:1842, 1861, 1881, 2033, 2046
-//   inquiries/{id}                  index.html:2009, 2022, 2582
-//   orgs/_master/data/companies     index.html:2172, 2183
-//   orgs/{orgId}/data/{key}         index.html:12148, 12185, 12242
-//   orgs/{orgId}/backups/{id}       index.html:12120, 12124, 12134
-//   shares/{token}                  index.html:8925, 8998 · s.html:173
-// api/ 는 코스로드 Firestore 를 쓰지 않는다(api/rc-notify.js 는 roadcrew-1e9cd 프로젝트).
+// ── 이 앱의 구조 (코드 근거 — 규칙을 이해하는 데 꼭 필요) ────────────────────
+// 기관(orgId)이 정해지는 길이 **두 갈래**이고, URL 이 로그인을 이긴다.
+//   getFbOrgId() index.html:11567-11578
+//     ① URL ?org=<orgId>            ← 최우선. 로그인 정보를 덮어쓴다
+//     ② window._userOrgId           ← 로그인 계정의 users/{uid}.orgId (1864)
+//     ③ FIXED_ORG_ID → localStorage → 'cosroad_default'
 //
-// 앱은 로그인 사용자가 없으면 익명 로그인을 자동으로 한다(index.html:285-287).
-// 따라서 `request.auth != null` 만으로는 방어가 되지 않는다 —
-// 실계정은 users/{uid} 문서의 존재로 가린다(hasAccount).
+//   ㉠ 자체 가입 기관 : users/{uid}.orgId = 업종 + '_' + uid 앞 12자 (1840)
+//                      ?org= 없이 접속 → ② 로 결정
+//   ㉡ 마스터 개통 기관 : 마스터가 orgId = 업종 + '_' + 직접입력 으로 만들고(2194)
+//                      https://cosroad.com/?org=<orgId> 주소를 업체에 넘긴다(2214)
+//                      → ① 로 결정. **서버에 신원을 묶는 자료가 없다**
+//   ㉢ 테스트 모드 : ?org=<이름>_test  ㉣ 데모 : ?org=<이름>_demo  ㉤ 마스터 : ?org=admin (6951)
+//
+// 그래서 `users/{uid}.orgId == orgId` 식 기관 격리를 걸면 **㉡ 개통 업체 전부가 먹통이 된다**
+// (주소로만 기관이 정해지므로 대조할 서버 자료가 없다). 이번 규칙에서 기관 격리를
+// 완전히 적용하지 못한 이유다 — 자세한 것은 REPLY_33 "못 닫은 것" 참고.
+//
+// 마스터 패널도 Firebase 로그인 없이 클라이언트 비밀번호(index.html:1963)로 들어가므로
+// 규칙이 "마스터임"을 확인할 수 없다. 승인·개통 쓰기를 막지 않으려면(지시문 ㄱ)
+// 로그인한 사용자 전체에게 열어 두어야 한다. 아래 ★ 표시한 세 블록이 그것이다.
+//
+// ── 이번 규칙이 실제로 막는 것 ──────────────────────────────────────────────
+//  · 전체 개방(`/{document=**} if true`) 제거 — 규칙에 없는 경로 전부 거부
+//  · 로그인(익명 포함) 없는 접근 전부 거부 — 토큰 없는 REST 접근 차단
+//  · 공유 링크(shares) 완전 잠금 — 만료 검사 · 목록 차단 · 변조 차단 · 본인만 회수
+//  · 남의 users 문서 읽기·수정·삭제, orgId 바꿔치기, 데모에 쓰기
 // ─────────────────────────────────────────────────────────────────────────────
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── 도우미 ────────────────────────────────────────────────────────────
+    // 앱은 로그인 사용자가 없으면 익명 로그인을 자동으로 한다(index.html:285-287).
+    // 따라서 signedIn() 은 "사람을 가린다"는 뜻이 아니라
+    // "정상 앱(Firebase SDK)을 통해서만 들어온다"는 뜻이다.
     function signedIn() {
-      return request.auth != null;              // 익명 로그인도 포함된다
-    }
-    // 실계정만 users 문서를 갖는다 (가입 시 생성 — index.html:1842)
-    function hasAccount() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-    function myOrg() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
+      return request.auth != null;
     }
     function isDemoOrg(orgId) {
       return orgId.matches('.*_demo');
     }
 
-    // ── users/{uid} — 본인 문서만 ─────────────────────────────────────────
-    // 가입(create)·로그인 시 읽기(get)·30일무료 마이그레이션 저장(update) 모두 본인 것.
-    // list 는 막는다 — 열어두면 가입자 전원의 이메일·요금제·orgId 가 통째로 새어나간다.
-    match /users/{uid} {
-      allow get:    if signedIn() && request.auth.uid == uid;
-      allow create: if signedIn() && request.auth.uid == uid;
-      // orgId 는 만든 뒤 바꿀 수 없다 — 바꿀 수 있으면 남의 기관으로 옮겨탈 수 있다
-      allow update: if signedIn() && request.auth.uid == uid
-                    && request.resource.data.orgId == resource.data.orgId;
-      allow list:   if false;
-      allow delete: if false;
-    }
-
-    // ── inquiries/{id} — 보내기만 ─────────────────────────────────────────
-    // 문의는 로그인 전/데모에서도 보낼 수 있어야 한다(index.html:2582) → create 는 익명 허용.
-    // 읽기는 전부 막는다 — 다른 기관의 문의 내용·연락처가 보이면 안 된다.
-    match /inquiries/{id} {
-      allow create: if signedIn();
-      allow get:    if false;
-      allow list:   if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    // ── orgs/{orgId}/data/{key} — 기관 자료 (본체) ────────────────────────
-    // 회원·거래명세서·수납·세무·근태 등 앱의 모든 자료가 여기 들어간다.
+    // ── orgs/{orgId}/data/{key} — 기관 자료 본체 ──────────────────────────
+    // 회원·거래명세서·수납·세무·근태 등 앱 자료 전부. (12148 set · 12185 get · 12242 onSnapshot)
+    // 두 모드(테스트 ?org=..._test · 개통 업체 ?org=...)가 모두 여기로 들어온다.
     match /orgs/{orgId}/data/{key} {
-      // 둘러보기(데모): 누구나 읽기만. 쓰기는 앱에서도 막혀 있다(isDemoMode).
-      allow read: if signedIn() && isDemoOrg(orgId);
-      // 실계정: 자기 기관만
-      allow read:  if hasAccount() && myOrg() == orgId;
-      allow write: if hasAccount() && myOrg() == orgId;
+      allow read:  if signedIn();
+      allow write: if signedIn() && !isDemoOrg(orgId);   // 데모는 읽기 전용
     }
 
     // ── orgs/{orgId}/backups/{backupId} — 자동 백업 ───────────────────────
+    // (12120 create · 12124 list · 12134 delete)
     match /orgs/{orgId}/backups/{backupId} {
-      allow read:   if hasAccount() && myOrg() == orgId;   // get + list(목록 정리용)
-      allow create: if hasAccount() && myOrg() == orgId;
-      allow delete: if hasAccount() && myOrg() == orgId;   // 오래된 백업 정리
-      allow update: if false;                              // 백업은 덮어쓰지 않는다
+      allow read:   if signedIn();                       // get + 목록 정리용 list
+      allow create: if signedIn() && !isDemoOrg(orgId);
+      allow delete: if signedIn() && !isDemoOrg(orgId);  // 오래된 백업 정리
+      allow update: if false;                            // 백업은 덮어쓰지 않는다
+    }
+
+    // ── users/{uid} — 계정 ────────────────────────────────────────────────
+    // 본인 문서: 가입 생성(1842) · 로그인 시 읽기(1861) · 무료기간 마이그레이션(1881)
+    // ★ list/update 를 로그인 전체에 여는 이유: 마스터 패널의 가입자 목록(2033)과
+    //   승인 쓰기(2046 setUserApproval)가 이것을 쓴다. 규칙이 마스터를 식별할 수 없어
+    //   지시문 ㄱ(승인 쓰기를 막지 않는다)을 지키려면 열어야 한다.
+    //   → 대가: 로그인한 누구나 가입자 목록(이메일·요금제·orgId)을 볼 수 있다.
+    //     이것을 닫으려면 마스터 패널을 Firebase 로그인 + admins 허용목록으로 바꿔야 한다.
+    match /users/{uid} {
+      allow get:    if signedIn();
+      allow list:   if signedIn();                       // ★ 마스터 가입자 목록
+      allow create: if signedIn() && request.auth.uid == uid;
+      // 본인은 자기 문서를 고칠 수 있다. 단 orgId 는 못 바꾼다 —
+      // 바꿀 수 있으면 남의 기관으로 옮겨탄다.
+      allow update: if signedIn()
+                    && (
+                         (request.auth.uid == uid
+                          && request.resource.data.orgId == resource.data.orgId)
+                         // ★ 마스터 승인: approved 만 바뀌는 쓰기는 허용 (2046)
+                         || (request.resource.data.orgId == resource.data.orgId
+                             && request.resource.data.email == resource.data.email
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                .hasOnly(['approved']))
+                       );
+      allow delete: if false;
+    }
+
+    // ── inquiries/{id} — 문의 ─────────────────────────────────────────────
+    // 보내기는 로그인 전·데모에서도 되어야 한다(2582). 목록·상태변경은 마스터 패널(2009·2022).
+    // ★ 위 users 와 같은 이유로 로그인 전체에 열어 둔다.
+    match /inquiries/{id} {
+      allow create: if signedIn();
+      allow read:   if signedIn();                       // ★ 마스터 문의 목록
+      allow update: if signedIn();                       // ★ 마스터 처리상태 변경
+      allow delete: if false;
+    }
+
+    // ── orgs/_master/data/{key} — 마스터 업체 목록 (개통 대장) ─────────────
+    // (2172 get · 2183 set) ★ 마스터 개통이 이것을 쓴다. 위와 같은 이유로 열어 둔다.
+    // 이 블록이 위의 orgs/{orgId}/data/{key} 보다 뒤에 있어도 무방하다 —
+    // Firestore 는 allow 를 합집합으로 본다(어느 하나라도 허용이면 허용).
+    match /orgs/_master/data/{key} {
+      allow read, write: if signedIn();
     }
 
     // ── shares/{token} — 카톡 공유 링크 스냅샷 (REPLY_32 확정본) ──────────
-    // 방어선은 ① 추측 불가 토큰(128비트) ② list 차단 ③ 만료. "인증됨"은 방어가 아니다.
+    // 여기는 신원이 필요 없어 **완전히 잠글 수 있다.**
+    // 방어선 ① 추측 불가 토큰(128비트) ② list 차단 ③ 만료. "로그인됨"은 방어가 아니다.
     match /shares/{token} {
       allow get:    if resource.data.expiresAt > request.time;   // 만료되면 못 읽는다
       allow list:   if false;                                    // 토큰 없이 훑기 차단
@@ -96,32 +126,25 @@ service cloud.firestore {
                     && resource.data.ownerUid == request.auth.uid;   // 만든 본인만 회수
     }
 
-    // ── orgs/_master/data/{key} — 전체 관리자(마스터) 업체 목록 ───────────
-    // ⚠ 지금은 막혀 있다. 마스터 패널은 Firebase 로그인 없이 클라이언트 비밀번호만으로
-    //    들어가므로(index.html:1963) 규칙으로 "마스터임"을 확인할 방법이 없다.
-    //    → 마스터 패널의 업체목록 저장/불러오기와 가입자 목록은 동작하지 않는다.
-    //    복구 방법은 REPLY_33 참고(마스터 패널을 Firebase 로그인 + admins 허용목록으로
-    //    바꾸는 별도 작업이 필요하다).
-    match /orgs/_master/data/{key} {
-      allow read, write: if false;
-    }
-
     // ─────────────────────────────────────────────────────────────────────
-    // ⚠ 과도기 예외 — 로그인 없이 쓰던 옛 공간(cosroad_default)
+    // ☆ 다음 단계용 — 기관 격리 (지금은 켜지 말 것)
     //
-    // 지금까지 규칙이 전체 개방이어서, 로그인하지 않은 상태로도 이 공간을 읽고 쓸 수
-    // 있었다(index.html:11577 — 로그인·URL 둘 다 없으면 orgId 가 'cosroad_default').
-    // 실제로 그렇게 쓰는 이용자가 있는지는 코드로는 알 수 없어 일단 남겨 두었다.
+    // 아래를 켜면 "users 문서가 있는 계정은 자기 기관만" 으로 조인다.
+    // 그러나 지금 구조에서는 **㉡ 마스터 개통 업체가 먹통이 된다** —
+    // 개통 업체는 주소(?org=)로만 기관이 정해져 users 문서와 대조할 수 없고,
+    // 자체 가입 계정이 개통 주소를 함께 쓰는 경우에도 막힌다.
     //
-    // ★ 로그인하지 않고 쓰는 이용자가 없다고 확인되면 이 블록(match ~ }) 을 지워라.
-    //   지우면 이 공간도 '자기 기관만' 규칙으로 완전히 닫힌다.
+    // 켜려면 먼저 코드가 바뀌어야 한다(REPLY_33 참고):
+    //   users/{uid} 에 그 사람이 쓸 수 있는 orgId 목록을 두고,
+    //   마스터가 개통할 때 그 목록에 넣어 주는 흐름.
+    // 그 뒤 위의 orgs/{orgId}/data·backups 블록을 아래 형태로 바꾼다.
+    //
+    // match /orgs/{orgId}/data/{key} {
+    //   allow read: if signedIn() && isDemoOrg(orgId);
+    //   allow read, write: if signedIn()
+    //     && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+    //     && orgId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgIds;
+    // }
     // ─────────────────────────────────────────────────────────────────────
-    match /orgs/cosroad_default/data/{key} {
-      allow read, write: if signedIn();
-    }
-    match /orgs/cosroad_default/backups/{backupId} {
-      allow read, create, delete: if signedIn();
-      allow update: if false;
-    }
   }
 }
