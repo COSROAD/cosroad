@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="referrer" content="no-referrer"/>
+<title>거래내역 명세 — 코스로드</title>
+<!--
+  공유 링크 페이지 (자료 없음).
+  주소 형태: https://cosroad.com/s.html#<토큰>
+  토큰은 반드시 '#' 프래그먼트다 — 프래그먼트는 서버로 전송되지 않으므로
+  웹서버 접근 로그·외부 링크 리퍼러에 토큰이 남지 않는다. '?t=' 로 바꾸지 말 것.
+  이 파일에는 거래 자료가 없다. 열릴 때 토큰으로 Firestore shares/{token} 스냅샷을 읽어 그린다.
+-->
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;padding:10px;background:#F2F4F7;font-family:"Malgun Gothic","맑은 고딕",-apple-system,sans-serif;color:#1D2939;}
+  .wrap{max-width:900px;margin:0 auto;}
+  .msg{background:white;border-radius:12px;padding:28px 20px;text-align:center;line-height:1.7;}
+  .msg h2{margin:0 0 8px;font-size:17px;color:#1D2939;}
+  .msg p{margin:4px 0;font-size:13px;color:#667085;}
+  .bar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px;}
+  .bar button{padding:9px 16px;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;background:#7C3AED;color:white;}
+  .bar .sub{background:white;color:#475467;border:1px solid #D0D5DD;}
+  .note{font-size:11px;color:#98A2B3;text-align:right;margin-top:6px;}
+
+  /* 표 모양은 앱의 기간 거래내역 PDF(printClientRange)와 같게 맞췄다 */
+  .inv-sheet{width:185mm;max-width:100%;margin:0 auto 5mm;border:2px solid #C00;background:white;}
+  .inv-head{text-align:center;padding:6px;}
+  .inv-title{font-size:22px;font-weight:800;color:#C00;letter-spacing:6px;}
+  .inv-sub{font-size:11px;color:#C00;}
+  .inv-date{font-size:12px;padding:2px 8px;}
+  .range-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;}
+  .range-tbl th,.range-tbl td{border:1px solid #C00;font-size:11px;padding:2px 4px;overflow:hidden;}
+  .range-tbl th{background:#FEF2F2;color:#C00;text-align:center;}
+  .range-tbl td.ctr{text-align:center;}
+  .range-tbl td.rgt{text-align:right;}
+  .range-tbl td.item{text-align:left;word-break:break-all;}
+  .range-tbl tr.subt td{background:#FFFBFA;font-weight:700;}
+  .range-tbl tfoot td{background:#FEF2F2;font-weight:800;}
+  .rc-date{width:13%;}.rc-kind{width:7%;}.rc-item{width:28%;}.rc-num{width:10.4%;}
+  .inv-foot{display:flex;justify-content:space-between;align-items:flex-end;padding:5px 8px;font-size:12px;}
+  .inv-grand{font-weight:800;font-size:14px;color:#C00;}
+  .inv-net{text-align:right;line-height:1.65;white-space:nowrap;}
+  .inv-net .inv-grand{border-top:1px solid #C00;padding-top:2px;margin-top:2px;}
+  @media print{
+    body{background:white;padding:0;}
+    .bar,.note{display:none !important;}
+    .inv-sheet{border-width:2px;margin:0;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <div class="msg"><h2>불러오는 중…</h2><p>잠시만 기다려 주세요.</p></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// 앱과 같은 Firebase 웹 설정 (웹 설정값은 비밀이 아니다 — 실제 방어선은 보안 규칙이다)
+const firebaseConfig = {
+  apiKey: "AIzaSyBTpvJtKQvfpmyyJS6rteCJDgsphvMyCgI",
+  authDomain: "cosroad-9a49c.firebaseapp.com",
+  projectId: "cosroad-9a49c",
+  storageBucket: "cosroad-9a49c.firebasestorage.app",
+  messagingSenderId: "491198626337",
+  appId: "1:491198626337:web:48b1e2cbd833abfd590160"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const root = document.getElementById('root');
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function won(n){ return (Number(n)||0).toLocaleString(); }
+function show(title, lines){
+  root.innerHTML = '<div class="msg"><h2>'+esc(title)+'</h2>'
+    + (lines||[]).map(function(l){ return '<p>'+esc(l)+'</p>'; }).join('') + '</div>';
+}
+
+// 토큰은 '#' 뒤에서만 읽는다
+const token = (location.hash || '').replace(/^#/, '').trim();
+// 우리가 만드는 토큰은 base64url 22자 이상 — 형식이 아니면 조회 자체를 하지 않는다
+const TOKEN_OK = /^[A-Za-z0-9_-]{22,128}$/;
+
+function render(d){
+  const rows = Array.isArray(d.rows) ? d.rows : [];
+  const t = d.totals || {};
+  const nb = d.net || {};
+  let body = '';
+  rows.forEach(function(r){
+    const its = Array.isArray(r.items) ? r.items : [];
+    body += '<tbody>';
+    if(its.length >= 2){
+      const span = its.length + 1;
+      its.forEach(function(it, ii){
+        body += '<tr>'
+          + (ii===0 ? '<td class="ctr" rowspan="'+span+'">'+esc(r.date)+'</td><td class="ctr" rowspan="'+span+'">'+esc(r.kind)+'</td>' : '')
+          + '<td class="item">'+esc(it.label)+'</td>'
+          + '<td class="rgt">'+won(it.supply)+'</td>'
+          + '<td class="rgt">'+won(it.vat)+'</td>'
+          + '<td class="rgt">'+won((Number(it.supply)||0)+(Number(it.vat)||0))+'</td>'
+          + '<td></td><td></td></tr>';
+      });
+      body += '<tr class="subt"><td class="rgt">소계</td>'
+        + '<td class="rgt">'+won(r.supply)+'</td><td class="rgt">'+won(r.vat)+'</td>'
+        + '<td class="rgt">'+won(r.grand)+'</td><td class="rgt">'+won(r.paid)+'</td>'
+        + '<td class="rgt">'+won(r.unpaid)+'</td></tr>';
+    } else {
+      body += '<tr><td class="ctr">'+esc(r.date)+'</td><td class="ctr">'+esc(r.kind)+'</td>'
+        + '<td class="item">'+esc(its.length ? its[0].label : '')+'</td>'
+        + '<td class="rgt">'+won(r.supply)+'</td><td class="rgt">'+won(r.vat)+'</td>'
+        + '<td class="rgt">'+won(r.grand)+'</td><td class="rgt">'+won(r.paid)+'</td>'
+        + '<td class="rgt">'+won(r.unpaid)+'</td></tr>';
+    }
+    body += '</tbody>';
+  });
+
+  const period = (d.period && (esc(d.period.start)+' ~ '+esc(d.period.end))) || '';
+  let exp = '';
+  try{
+    const ed = d.expiresAt && d.expiresAt.toDate ? d.expiresAt.toDate() : null;
+    if(ed) exp = ed.getFullYear()+'-'+String(ed.getMonth()+1).padStart(2,'0')+'-'+String(ed.getDate()).padStart(2,'0');
+  }catch(e){}
+
+  root.innerHTML =
+    '<div class="bar">'
+      + '<button class="sub" onclick="window.print()">🖨 인쇄 / PDF 저장</button>'
+    + '</div>'
+    + '<div class="inv-sheet">'
+      + '<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
+      + '<div class="inv-sub">'+esc((d.client&&d.client.name)||'')+' · '+period+'</div></div>'
+      + '<div class="inv-date">공급자 : '+esc((d.org&&d.org.name)||'')+'　|　거래처 : '+esc((d.client&&d.client.name)||'')+'　|　건수 : '+esc(d.count||rows.length)+'건</div>'
+      + '<table class="range-tbl"><colgroup><col class="rc-date"><col class="rc-kind"><col class="rc-item">'
+      + '<col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"></colgroup>'
+      + '<thead><tr><th>거래일자</th><th>구분</th><th>품목</th><th>공급가액</th><th>세액</th><th>합계</th><th>수금/결제</th><th>미수/미결</th></tr></thead>'
+      + body
+      + '<tfoot><tr><td colspan="3" class="rgt">합 계</td>'
+      + '<td class="rgt">'+won(t.supply)+'</td><td class="rgt">'+won(t.vat)+'</td>'
+      + '<td class="rgt">'+won(t.grand)+'</td><td class="rgt">'+won(t.paid)+'</td>'
+      + '<td class="rgt">'+won(nb.net)+'</td></tr></tfoot>'
+      + '</table>'
+      + '<div class="inv-foot"><div>기간 내 거래를 모두 표시합니다.</div>'
+      + '<div class="inv-net">'
+        + '<div>매출 미수 : '+won(nb.sale)+' 원</div>'
+        + '<div>매입 미지급 : '+won(nb.purchase)+' 원</div>'
+        + '<div class="inv-grand">순 미수 : '+won(nb.net)+' 원</div>'
+      + '</div></div>'
+    + '</div>'
+    + (exp ? '<div class="note">이 링크는 '+esc(exp)+'까지 볼 수 있어요.</div>' : '');
+}
+
+async function load(){
+  if(!token){
+    show('주소가 올바르지 않아요', ['링크를 다시 확인해 주세요.']);
+    return;
+  }
+  if(!TOKEN_OK.test(token)){
+    show('링크가 올바르지 않아요', ['주소가 잘렸는지 확인해 주세요.']);
+    return;
+  }
+  try{
+    await signInAnonymously(auth);
+  }catch(e){
+    show('지금 열 수 없어요', ['잠시 뒤 다시 시도해 주세요.']);
+    return;
+  }
+  try{
+    const snap = await getDoc(doc(db, 'shares', token));
+    if(!snap.exists()){
+      // 만료된 문서도 규칙에서 막히므로 여기로 떨어질 수 있다 — 어느 쪽인지 알려주지 않는다
+      show('링크가 만료되었거나 주소가 올바르지 않아요', ['보낸 분께 새 링크를 받아 주세요.']);
+      return;
+    }
+    render(snap.data());
+  }catch(e){
+    // permission-denied = 만료 또는 없는 토큰. 구분해 알려주면 토큰 확인 수단이 되므로 합쳐서 안내한다.
+    show('링크가 만료되었거나 주소가 올바르지 않아요', ['보낸 분께 새 링크를 받아 주세요.']);
+  }
+}
+load();
+// 같은 탭에서 토큰만 바뀌는 경우도 다시 그린다
+window.addEventListener('hashchange', function(){ location.reload(); });
+</script>
+</body>
+</html>

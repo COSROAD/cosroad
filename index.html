@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 222;
+const APP_VERSION = 223;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2298,6 +2298,8 @@ var HELP_QA=[
    a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요 — 달력에서도 같이 사라져요\n8. 수금한 날짜에는 달력에도 초록색으로 표시돼요 — 그 수금으로 명세서가 다 채워지면 「수금완료(매입은 결제완료)」, 덜 채워지면 「부분수금 ○○원」으로 나와요\n9. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요 (앱의 모든 날짜 칸이 같아요)'},
   {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 PDF',
    a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).\n5. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이라 수납 달력의 「상계 순액」과 같은 값이에요\n6. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)'},
+  {role:'admin', keys:['공유','공유링크','카톡','카카오','링크','전송','만료','회수'], t:'거래내역 명세 카톡 공유 링크',
+   a:'1. 물류 → 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」 칸에서 거래처와 기간을 고르고 「💬 공유 링크 만들기」\n2. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n3. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n4. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n5. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요. 그 전에 끊고 싶으면 「⛔ 지금 만료」를 누르세요 (되돌릴 수 없어요)\n6. 같은 명세로 다시 만들면 새 링크가 발급돼요 — 전 링크도 살아 있으니 필요하면 따로 만료시켜 주세요\n7. 링크 기록은 만든 기기에만 저장돼요 — 회수는 그 기기에서 해주세요\n8. 명세에는 거래처 이름·기간·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
    a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요'},
   {role:'admin', keys:['파트너','제휴','추천업체'], t:'파트너(제휴 업체) 탭',
@@ -7565,6 +7567,9 @@ function renderInvoice(){
   h += '</div>';
   h += '<button onclick="printClientRange()" style="width:100%;padding:11px;background:#7C3AED;color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📄 기간 거래내역 PDF 출력</button>';
   h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;">선택 거래처의 기간 내 거래를 일자별로 모아 출력합니다.</div>';
+  h += '<button onclick="shareCreateClientRange()" style="width:100%;padding:11px;background:#FEE500;color:#3C1E1E;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">💬 공유 링크 만들기 (카톡 전송)</button>';
+  h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;">받는 분이 웹으로 명세를 보고 PDF로 저장할 수 있어요. '+SHARE_DAYS+'일 뒤 자동 만료돼요.</div>';
+  h += renderShareLinks();
   h += '</div>';
 
   h += '<button onclick="openSettlement()" style="width:100%;padding:11px;background:#0E7090;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📊 월말 정산 — 거래처별 매출·입금·미수·매입</button>';
@@ -8647,18 +8652,13 @@ function setClientRangeEnd(v){ clientRangeEnd = v; }
 // 'YYYY-MM' 문자열을 비교 가능한 숫자로 (202604)
 function ymNum(ym){ if(!ym) return 0; var p=ym.split('-'); return Number(p[0])*100+Number(p[1]||0); }
 
-function printClientRange(){
-  var mid = clientRangeMemberId;
-  var startYm = clientRangeStart;
-  var endYm = clientRangeEnd;
-  if(!mid){ alert('거래처를 선택하세요.'); return; }
-  if(!startYm || !endYm){ alert('시작 월과 끝 월을 선택하세요.'); return; }
+/* ── 기간 거래내역의 행·합계·상계를 만든다 ──
+   기간 거래내역 PDF(printClientRange)와 카톡 공유 스냅샷(shareCreateClientRange)이
+   **모두 이 함수만** 본다. 계산을 두 벌로 두면 어긋난다 — v222 상계 버그가 그 증상이었다.
+   여기서는 숫자·글자만 만들고 HTML 은 만들지 않는다(쓰는 쪽에서 그린다). */
+function buildClientRangeData(mid, startYm, endYm){
   var s = ymNum(startYm), e = ymNum(endYm);
   if(s>e){ var t=s; s=e; e=t; var tt=startYm; startYm=endYm; endYm=tt; }
-
-  var sel = members.find(function(m){return String(m.id)===String(mid);}) || {};
-  var org = orgSettings || {};
-
   // 해당 거래처 + 기간 내 명세서 필터 (날짜 오름차순)
   var list = loadInvoices().filter(function(iv){
     if(String(iv.memberId)!==String(mid)) return false;
@@ -8667,28 +8667,55 @@ function printClientRange(){
     return ivYm>=s && ivYm<=e;
   }).sort(function(a,b){ return (a.date<b.date)?-1:(a.date>b.date?1:0); });
 
-  if(list.length===0){ alert('선택한 거래처의 해당 기간에 거래내역이 없습니다.'); return; }
-
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-  // ── 1) 기간 요약표 (일자별 거래내역) ──
-  var sumRows = '';
-  var totSupply=0, totVat=0, totGrand=0, totPaid=0;
+  var rows = [];
+  var totals = { supply:0, vat:0, grand:0, paid:0 };
   list.forEach(function(iv){
     var supply = iv.supply!=null ? iv.supply : (iv.total||0);
     var vat = iv.vat!=null ? iv.vat : Math.round(supply*0.1);
     var grand = iv.total!=null ? iv.total : (supply+vat);
     var paid = invCollected(iv);
-    var kindTxt = (iv.kind||'sale')==='purchase'?'매입':'매출';
-    // 품목 한 줄 표기 (품명 규격 ×수량)
     var its = (iv.items && iv.items.length) ? iv.items : [];
-    function itemLabel(it){
-      var nm = esc(it.name||'');
-      if(it.spec) nm += ' '+esc(it.spec);
-      var q = Number(it.qty)||0;
-      return nm + (q?' ×'+q.toLocaleString():'');
-    }
-    totSupply+=supply; totVat+=vat; totGrand+=grand; totPaid+=paid;
+    totals.supply+=supply; totals.vat+=vat; totals.grand+=grand; totals.paid+=paid;
+    rows.push({
+      date: iv.date||'',
+      kind: (iv.kind||'sale')==='purchase'?'매입':'매출',
+      // 품목 한 줄 표기 (품명 규격 ×수량) — 글자는 날것으로 두고 그리는 쪽에서 escape 한다
+      items: its.map(function(it){
+        var _p = itemAmounts(it);
+        var nm = String(it.name||'');
+        if(it.spec) nm += ' '+it.spec;
+        var q = Number(it.qty)||0;
+        return { label: nm + (q?' ×'+q.toLocaleString():''), supply:_p.supply, vat:_p.vat };
+      }),
+      // 소계는 저장된 거래 값이 정본 (품목별 반올림 합과 1~2원 다를 수 있음)
+      supply: supply, vat: vat, grand: grand, paid: paid, unpaid: grand-paid
+    });
+  });
+  // 미수/미결 집계는 상계(매출 +미수 · 매입 −미지급) — 달력과 같은 netUnpaid()를 쓴다.
+  // 공급가액·세액·합계는 그대로(부가세 신고용이 아니라 거래처 정산용 순액).
+  return { list:list, rows:rows, totals:totals, net:netUnpaid(list),
+           period:{ start:startYm, end:endYm } };
+}
+
+function printClientRange(){
+  var mid = clientRangeMemberId;
+  if(!mid){ alert('거래처를 선택하세요.'); return; }
+  if(!clientRangeStart || !clientRangeEnd){ alert('시작 월과 끝 월을 선택하세요.'); return; }
+
+  var D = buildClientRangeData(mid, clientRangeStart, clientRangeEnd);
+  var list = D.list, nb = D.net;
+  var startYm = D.period.start, endYm = D.period.end;
+  if(list.length===0){ alert('선택한 거래처의 해당 기간에 거래내역이 없습니다.'); return; }
+
+  var sel = members.find(function(m){return String(m.id)===String(mid);}) || {};
+  var org = orgSettings || {};
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ── 1) 기간 요약표 (일자별 거래내역) ──
+  var sumRows = '';
+  var totSupply=D.totals.supply, totVat=D.totals.vat, totGrand=D.totals.grand, totPaid=D.totals.paid;
+  D.rows.forEach(function(r){
+    var its = r.items;
     // 한 쪽에 들어갈 크기(실측: 쪽당 38행)일 때만 거래를 통째로 묶어 쪽 경계에서
     // 갈라지지 않게 한다. 품목이 아주 많은 거래까지 묶으면 앞 쪽이 통째로 비어버림.
     sumRows += (its.length<=20) ? '<tbody class="txgrp">' : '<tbody>';
@@ -8696,42 +8723,37 @@ function printClientRange(){
       // 품목마다 한 행 — 거래일자·구분은 첫 행에서 세로 병합(소계 행까지)
       var span = its.length+1;
       its.forEach(function(it,ii){
-        var _p = itemAmounts(it);
         sumRows += '<tr>'
-          +(ii===0 ? '<td class="ctr" rowspan="'+span+'">'+esc(iv.date)+'</td><td class="ctr" rowspan="'+span+'">'+kindTxt+'</td>' : '')
-          +'<td class="item">'+itemLabel(it)+'</td>'
-          +'<td class="rgt">'+_p.supply.toLocaleString()+'</td>'
-          +'<td class="rgt">'+_p.vat.toLocaleString()+'</td>'
-          +'<td class="rgt">'+(_p.supply+_p.vat).toLocaleString()+'</td>'
+          +(ii===0 ? '<td class="ctr" rowspan="'+span+'">'+esc(r.date)+'</td><td class="ctr" rowspan="'+span+'">'+r.kind+'</td>' : '')
+          +'<td class="item">'+esc(it.label)+'</td>'
+          +'<td class="rgt">'+it.supply.toLocaleString()+'</td>'
+          +'<td class="rgt">'+it.vat.toLocaleString()+'</td>'
+          +'<td class="rgt">'+(it.supply+it.vat).toLocaleString()+'</td>'
           +'<td></td><td></td>'
           +'</tr>';
       });
-      // 소계는 저장된 거래 값이 정본 (품목별 반올림 합과 1~2원 다를 수 있음)
       sumRows += '<tr class="subt">'
         +'<td class="rgt">소계</td>'
-        +'<td class="rgt">'+supply.toLocaleString()+'</td>'
-        +'<td class="rgt">'+vat.toLocaleString()+'</td>'
-        +'<td class="rgt">'+grand.toLocaleString()+'</td>'
-        +'<td class="rgt">'+paid.toLocaleString()+'</td>'
-        +'<td class="rgt">'+(grand-paid).toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.supply.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.vat.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.grand.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.paid.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.unpaid.toLocaleString()+'</td>'
         +'</tr>';
     } else {
       sumRows += '<tr>'
-        +'<td class="ctr">'+esc(iv.date)+'</td>'
-        +'<td class="ctr">'+kindTxt+'</td>'
-        +'<td class="item">'+(its.length?itemLabel(its[0]):'')+'</td>'
-        +'<td class="rgt">'+supply.toLocaleString()+'</td>'
-        +'<td class="rgt">'+vat.toLocaleString()+'</td>'
-        +'<td class="rgt">'+grand.toLocaleString()+'</td>'
-        +'<td class="rgt">'+paid.toLocaleString()+'</td>'
-        +'<td class="rgt">'+(grand-paid).toLocaleString()+'</td>'
+        +'<td class="ctr">'+esc(r.date)+'</td>'
+        +'<td class="ctr">'+r.kind+'</td>'
+        +'<td class="item">'+(its.length?esc(its[0].label):'')+'</td>'
+        +'<td class="rgt">'+r.supply.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.vat.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.grand.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.paid.toLocaleString()+'</td>'
+        +'<td class="rgt">'+r.unpaid.toLocaleString()+'</td>'
         +'</tr>';
     }
     sumRows += '</tbody>';
   });
-  // 미수/미결 집계는 상계(매출 +미수 · 매입 −미지급) — 달력과 같은 netUnpaid()를 쓴다.
-  // 공급가액·세액·합계 열은 그대로(부가세 신고용이 아니라 거래처 정산용 순액).
-  var nb = netUnpaid(list);
   var summarySheet = '<div class="inv-sheet range-summary">'
     +'<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
     +'<div class="inv-sub">'+esc(sel.name||'')+' · '+esc(startYm)+' ~ '+esc(endYm)+'</div></div>'
@@ -8822,6 +8844,207 @@ function printClientRange(){
     + fitScript
     + '</body></html>');
   w.document.close();
+}
+
+/* ══════════ 카톡 공유 링크 (기간 거래내역 명세) ══════════
+   구조: 앱이 Firestore `shares/{token}` 에 **그 시점 스냅샷 1건**을 저장하고,
+   받는 사람은 cosroad.com/s.html#<토큰> 으로 그 스냅샷만 본다.
+   - 토큰은 반드시 '#' 프래그먼트 — 서버 로그·리퍼러에 남지 않는다.
+   - 라이브 조회가 아니라 스냅샷이라, 나중에 앱에서 금액을 고쳐도 보낸 링크는 안 바뀐다.
+   - 스냅샷에는 명세에 필요한 값만 담는다 — 연락처·주소·다른 거래처 자료는 넣지 않는다.
+   - 실제 방어선은 ① 추측 불가 토큰 ② 보안 규칙의 list 차단 ③ 만료다.
+     익명 로그인이 켜져 있으므로 "인증됨"은 방어가 아니다. */
+
+var SHARE_DAYS = 30;               // 만료 기간 (사장님 결정: 30일)
+var SHARE_BASE = 'https://cosroad.com/s.html';
+
+/* 토큰 — crypto 128비트(=16바이트)를 base64url 22자로. 순번·거래처명·날짜를 섞지 않는다. */
+function shareNewToken(){
+  var b = new Uint8Array(16);
+  (window.crypto || window.msCrypto).getRandomValues(b);
+  var s = '';
+  for(var i=0;i<b.length;i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function shareUrlOf(token){ return SHARE_BASE + '#' + token; }
+
+/* 발급한 링크 기록은 **이 기기 localStorage 에만** 둔다 — 토큰은 그 자체가 열쇠라
+   Firebase 동기화에 올리지 않는다. 기관별로 분리. */
+function shareLsKey(){ return 'cos_share_links_' + (typeof getFbOrgId==='function' ? getFbOrgId() : 'default'); }
+function loadShareLinks(){
+  try{ return JSON.parse(localStorage.getItem(shareLsKey())||'[]'); }catch(e){ return []; }
+}
+function saveShareLinks(l){
+  try{ localStorage.setItem(shareLsKey(), JSON.stringify(l)); }catch(e){}
+}
+
+/* 공유 링크 만들기 — 현재 고른 거래처·기간의 스냅샷을 저장한다 */
+async function shareCreateClientRange(){
+  var mid = clientRangeMemberId;
+  if(!mid){ alert('거래처를 선택하세요.'); return; }
+  if(!clientRangeStart || !clientRangeEnd){ alert('시작 월과 끝 월을 선택하세요.'); return; }
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    alert('둘러보기(데모) 기관에서는 공유 링크를 만들 수 없어요.');
+    return;
+  }
+  if(!window._db || !window._firestore){
+    alert('서버 연결이 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요.');
+    return;
+  }
+
+  // PDF와 같은 buildClientRangeData 를 쓴다 (계산 두 벌 금지)
+  var D = buildClientRangeData(mid, clientRangeStart, clientRangeEnd);
+  if(D.rows.length===0){ alert('선택한 거래처의 해당 기간에 거래내역이 없습니다.'); return; }
+
+  var sel = members.find(function(m){return String(m.id)===String(mid);}) || {};
+  var org = orgSettings || {};
+
+  // ── 스냅샷: 명세에 필요한 값만. 이름 외 개인정보는 담지 않는다 ──
+  // (회원 연락처·주소·차량·메모, 다른 거래처 자료, memberId 모두 제외)
+  var snap = {
+    v: 1,
+    kind: 'clientRange',
+    org:    { name: String(org.name||'') },
+    client: { name: String(sel.name||'') },
+    period: { start: D.period.start, end: D.period.end },
+    count:  D.rows.length,
+    rows:   D.rows,
+    totals: D.totals,
+    net:    D.net,
+    createdAt: new Date(),
+    // Date 로 넣으면 Firestore 가 Timestamp 로 저장한다 —
+    // 보안 규칙의 `resource.data.expiresAt > request.time` 비교가 이래야 성립한다.
+    expiresAt: new Date(Date.now() + SHARE_DAYS*24*60*60*1000)
+  };
+  // 회수(삭제) 권한 판정에 쓸 발급자 — 익명 로그인 uid
+  try{ if(window._auth && window._auth.currentUser) snap.ownerUid = window._auth.currentUser.uid; }catch(e){}
+
+  var token = shareNewToken();
+  try{
+    var { doc, setDoc } = window._firestore;
+    await setDoc(doc(window._db, 'shares', token), snap);
+  }catch(e){
+    var m = String((e && e.code) || (e && e.message) || e);
+    if(m.indexOf('permission-denied')>=0){
+      alert('공유 링크를 저장할 수 없어요.\n\nFirebase 보안 규칙에 shares 경로가 아직 추가되지 않았어요.\n관리자에게 규칙 적용을 요청해 주세요.');
+    } else {
+      alert('공유 링크를 만들지 못했어요.\n\n'+m);
+    }
+    return;
+  }
+
+  var links = loadShareLinks();
+  links.unshift({
+    token: token, memberId: String(mid), memberName: String(sel.name||''),
+    start: D.period.start, end: D.period.end,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + SHARE_DAYS*24*60*60*1000
+  });
+  saveShareLinks(links);
+  showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.');
+  renderInvoice();
+  shareSend(token);   // 바로 카톡 전송(또는 링크 복사) 안내
+}
+
+/* 카톡 전송 — 모바일은 OS 공유시트(거기서 카톡 선택), 없으면 링크 복사 */
+async function shareSend(token){
+  var links = loadShareLinks();
+  var rec = links.find(function(x){ return x.token===token; }) || {};
+  var url = shareUrlOf(token);
+  var title = '거래내역 명세';
+  var text = (rec.memberName||'') + ' ' + (rec.start||'') + '~' + (rec.end||'') + ' 거래내역 명세';
+  if(navigator.share){
+    try{
+      await navigator.share({ title: title, text: text, url: url });
+      return;
+    }catch(e){
+      // 사용자가 공유시트를 닫은 경우(AbortError)는 조용히 넘어간다
+      if(e && e.name==='AbortError') return;
+      // 그 밖의 실패는 링크 복사로 떨어진다
+    }
+  }
+  shareCopy(url);
+}
+
+/* 링크 복사 — clipboard 실패 시 입력칸을 만들어 선택해 준다 */
+async function shareCopy(url){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+      showToast('링크를 복사했어요. 카톡에 붙여넣기 하세요.');
+      return;
+    }
+  }catch(e){}
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, url.length);
+    var okc = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(okc){ showToast('링크를 복사했어요. 카톡에 붙여넣기 하세요.'); return; }
+  }catch(e){}
+  prompt('아래 링크를 복사해 카톡으로 보내세요.', url);
+}
+
+/* 지금 만료(즉시 회수) — 스냅샷 문서를 지운다. 링크는 바로 죽는다.
+   문서 내용을 고치는 것이 아니라 삭제라, '스냅샷 불변' 원칙은 그대로다. */
+async function shareRevoke(token){
+  if(!confirm('이 공유 링크를 지금 만료시킬까요?\n\n받는 분이 더 이상 열 수 없게 돼요. 되돌릴 수 없어요.\n필요하면 새 링크를 다시 만들면 돼요.')) return;
+  if(window._db && window._firestore){
+    try{
+      var { doc, deleteDoc } = window._firestore;
+      await deleteDoc(doc(window._db, 'shares', token));
+    }catch(e){
+      var m = String((e && e.code) || (e && e.message) || e);
+      if(m.indexOf('permission-denied')>=0){
+        alert('링크를 회수할 수 없어요.\n\n보안 규칙이 삭제를 막고 있어요(만든 기기에서만 회수할 수 있어요).\n관리자에게 문의해 주세요.');
+      } else {
+        alert('링크를 회수하지 못했어요.\n\n'+m);
+      }
+      return;
+    }
+  }
+  saveShareLinks(loadShareLinks().filter(function(x){ return x.token!==token; }));
+  showToast('공유 링크를 만료시켰어요.');
+  renderInvoice();
+}
+
+/* 기록에서만 지우기 — 이미 만료된 링크를 목록에서 치운다 (서버 문서는 규칙상 만료로 이미 못 열림) */
+function shareForget(token){
+  if(!confirm('이 링크를 목록에서 지울까요?\n\n이미 만료된 링크예요. 목록만 정리돼요.')) return;
+  saveShareLinks(loadShareLinks().filter(function(x){ return x.token!==token; }));
+  renderInvoice();
+}
+
+/* 공유 링크 목록 UI — 기간 거래내역 PDF 칸 안에 그린다 */
+function renderShareLinks(){
+  var links = loadShareLinks();
+  if(!links.length) return '';
+  var now = Date.now();
+  var h = '<div style="margin-top:10px;border-top:1px solid #E9D7FE;padding-top:10px;">';
+  h += '<div style="font-size:11px;font-weight:800;color:#6941C6;margin-bottom:6px;">🔗 만든 공유 링크 ('+links.length+')</div>';
+  links.forEach(function(x){
+    var expired = (Number(x.expiresAt)||0) <= now;
+    var ed = new Date(Number(x.expiresAt)||0);
+    var eds = ed.getFullYear()+'-'+String(ed.getMonth()+1).padStart(2,'0')+'-'+String(ed.getDate()).padStart(2,'0');
+    h += '<div style="background:white;border:1px solid #E9D7FE;border-radius:8px;padding:8px;margin-bottom:6px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#1D2939;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escapeMasterHtml(x.memberName||'')+' · '+escapeMasterHtml(x.start||'')+'~'+escapeMasterHtml(x.end||'')+'</div>';
+    h += '<div style="font-size:10px;color:'+(expired?'#F04438':'#98A2B3')+';margin:2px 0 6px;">'+(expired?'만료됨 ('+eds+')':eds+'까지')+'</div>';
+    h += '<div style="display:flex;gap:5px;flex-wrap:wrap;">';
+    if(!expired){
+      h += '<button onclick="shareSend(\''+x.token+'\')" style="flex:1;min-width:76px;padding:7px;background:#FEE500;color:#3C1E1E;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">💬 카톡 전송</button>';
+      h += '<button onclick="shareCopy(shareUrlOf(\''+x.token+'\'))" style="flex:1;min-width:70px;padding:7px;background:#F9F5FF;color:#6941C6;border:1px solid #E9D7FE;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🔗 링크 복사</button>';
+      h += '<button onclick="shareRevoke(\''+x.token+'\')" style="flex:1;min-width:76px;padding:7px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">⛔ 지금 만료</button>';
+    } else {
+      h += '<button onclick="shareForget(\''+x.token+'\')" style="flex:1;padding:7px;background:#F9FAFB;color:#667085;border:1px solid #EAECF0;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">목록에서 지우기</button>';
+    }
+    h += '</div></div>';
+  });
+  h += '<div style="font-size:10px;color:#98A2B3;">링크 기록은 이 기기에만 저장돼요 — 만든 기기에서 회수할 수 있어요. 같은 명세로 다시 만들면 새 링크가 발급돼요(전 링크는 그대로 살아 있으니 필요하면 「지금 만료」를 누르세요).</div>';
+  h += '</div>';
+  return h;
 }
 
 // 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
