@@ -25,7 +25,9 @@
 // 2026-09-29(코스로드6) — ㉡ 개통 방식은 **폐기**됐다(사장님 결정). 모든 업체는 이메일·휴대폰
 // 셀프 가입만 쓰고, 그 계정은 users/{uid}.orgId 에 자기 기관이 저장된다.
 // 그래서 이제 `users/{uid}.orgId == orgId` 격리를 걸 수 있다 — 아래 isMyOrg() 가 그것이다.
-// 예외 셋: 데모(_demo 읽기만) · 테스트(_test) · 사장님 레거시 공간(cosroad_default).
+// 예외 둘: 데모(_demo 읽기만) · 테스트(_test).
+// 옛 기본 공간 cosroad_default 는 2026-09-29 에 **닫았다**(사장님 결정, 더 쓰지 않음).
+//   자료를 지운 것이 아니라 접근만 막은 것이다 — 필요하면 이 규칙만 되돌리면 다시 열린다.
 //
 // 마스터 패널도 Firebase 로그인 없이 클라이언트 비밀번호(index.html:1963)로 들어가므로
 // 규칙이 "마스터임"을 확인할 수 없다. 승인·개통 쓰기를 막지 않으려면(지시문 ㄱ)
@@ -56,12 +58,6 @@ service cloud.firestore {
     function isTestOrg(orgId) {
       return orgId.matches('.*_test');
     }
-    // 사장님의 기존 태권도 자료 공간. ?org= 없이 들어오면 여기로 떨어진다(index.html:11568).
-    // 이 공간을 쓰는 계정이 users 문서를 갖고 있지 않아(마스터·익명 접근) 격리하면 막힌다 —
-    // REPLY_62 에서 사장님께 확인을 청했고, 답을 받기 전까지 열어 둔다.
-    function isLegacyDefaultOrg(orgId) {
-      return orgId == 'cosroad_default';
-    }
     function hasUserDoc() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
@@ -77,10 +73,10 @@ service cloud.firestore {
     match /orgs/{orgId}/data/{key} {
       // 기관 격리(코스로드6): 남의 주소(?org=)를 알아도 자기 users.orgId 와 다르면 거부된다.
       allow read:  if signedIn()
-                   && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId) || isLegacyDefaultOrg(orgId));
+                   && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId));
       allow write: if signedIn()
                    && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
-                   && (isMyOrg(orgId) || isTestOrg(orgId) || isLegacyDefaultOrg(orgId));
+                   && (isMyOrg(orgId) || isTestOrg(orgId));
     }
 
     // ── orgs/{orgId}/backups/{backupId} — 자동 백업 ───────────────────────
@@ -88,12 +84,23 @@ service cloud.firestore {
     match /orgs/{orgId}/backups/{backupId} {
       // 자료 본체와 같은 격리를 건다. 백업만 열려 있으면 격리가 뚫린다.
       allow read:   if signedIn()
-                    && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId) || isLegacyDefaultOrg(orgId));
+                    && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId));
       allow create: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || isTestOrg(orgId) || isLegacyDefaultOrg(orgId));
+                    && (isMyOrg(orgId) || isTestOrg(orgId));
       allow delete: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || isTestOrg(orgId) || isLegacyDefaultOrg(orgId));
+                    && (isMyOrg(orgId) || isTestOrg(orgId));
       allow update: if false;                            // 백업은 덮어쓰지 않는다
+    }
+
+    // ── orgs/cosroad_global/data/{key} — 전 계정 공통 설정 ────────────────
+    // 지금은 알리고 문자 설정 한 가지뿐이다. 프리존 알리고 계정 1 개를 전 업종이 함께 쓰므로
+    // 기관 자료가 아니라 공통 자료다(index.html:12368 저장 · 12405 불러오기 —
+    // key==='aligo' 일 때만 이 자리로 간다).
+    // 기관 격리를 걸면서 이 경로를 빠뜨리면 **문자 설정이 조용히 안 읽혀 문자가 멈춘다.**
+    // 그래서 따로 연다. 쓰기까지 여는 것은 지금 마스터를 규칙이 식별할 수 없기 때문이고,
+    // 마스터를 admins/{uid} 로 바꾸는 다음 단계에서 함께 좁힌다.
+    match /orgs/cosroad_global/data/{key} {
+      allow read, write: if signedIn();
     }
 
     // ── users/{uid} — 계정 ────────────────────────────────────────────────
@@ -161,8 +168,7 @@ service cloud.firestore {
     //   · 마스터 패널을 Firebase 로그인 + admins 허용목록으로 바꿔 users list·inquiries·
     //     orgs/_master 를 닫는다. 지금은 마스터가 클라이언트 비밀번호라 규칙이 식별할 수 없어
     //     로그인 전체에 열려 있다(★ 표시 세 블록).
-    //   · cosroad_default 를 사장님 계정 하나로 좁힌다 — 그 계정이 users 문서를 갖도록 한 뒤
-    //     isLegacyDefaultOrg() 를 isMyOrg() 로 바꾸면 된다.
+    //   (cosroad_default 는 2026-09-29 에 닫았다 — 더 쓰지 않기로 확정. 자료는 지우지 않았다.)
     // ─────────────────────────────────────────────────────────────────────
   }
 }
