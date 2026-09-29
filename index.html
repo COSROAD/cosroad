@@ -258,7 +258,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, signInAnonymously, sendEmailVerification, signInWithPhoneNumber, RecaptchaVerifier, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getStorage, ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -277,7 +277,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   window._db = db;
   window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot };
   window._auth = auth;
-  window._authFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };
+  window._authFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, signInWithPhoneNumber, RecaptchaVerifier, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
   window._storage = storage;
   window._storageFns = { storageRef, uploadBytes, uploadString, getDownloadURL };
   window._fbReady = true;
@@ -580,7 +580,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 227;
+const APP_VERSION = 228;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1786,27 +1786,60 @@ function onAdminLoggedIn(){
 }
 
 // 회원가입 모달
+/* ── 회원가입: 이메일 / 휴대폰 선택 (코스로드7, 2026-09-29) ──────────────────
+   어느 쪽으로 가입하든 Firebase 계정(uid)이 생기고 users/{uid} 에 **같은 필드**를 저장한다.
+   그래야 코스로드6 기관 격리 규칙(users.orgId == orgId)이 그대로 작동한다.
+     이메일 : 가입 즉시 확인 메일(sendEmailVerification) 발송 → 메일함에서 링크 확인
+     휴대폰 : 문자 6자리 인증번호(signInWithPhoneNumber + invisible reCAPTCHA)
+   휴대폰 계정은 비밀번호가 없다(문자로 로그인). 그래서 비밀번호 변경은 이메일 계정만 해당한다.
+   ※ 문자 발송에는 Firebase 콘솔 설정이 먼저 필요하다 —
+      Authentication → Sign-in method → 전화(Phone) 사용 설정, 승인된 도메인에 cosroad.com.
+      설정 전에는 문자가 나가지 않으므로 아래 오류 안내가 그 사실을 알려 준다. */
+var _suMethod = 'email';           // 'email' | 'phone'
+var _suPhoneConfirm = null;        // signInWithPhoneNumber 결과(확인 객체)
+var _suRecaptcha = null;
+
+function suFieldRow(label, inner){
+  return '<label style="font-size:12px;font-weight:700;color:#475467;">'+label+'</label>'+inner;
+}
+
 function openSignupModal(presetBiz){
   var m=document.getElementById('signup-modal');
   if(m){ m.remove(); }
-  var html='<div id="signup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">'
+  _suMethod='email'; _suPhoneConfirm=null;
+  var ipt='width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;';
+  var html='<div id="signup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;">'
     +'<div style="background:white;border-radius:16px;padding:22px;max-width:360px;width:100%;box-sizing:border-box;">'
     +'<div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:4px;">회원가입</div>'
-    +'<div style="font-size:12px;color:#98A2B3;margin-bottom:16px;">업체 계정을 만듭니다.</div>'
-    +'<label style="font-size:12px;font-weight:700;color:#475467;">업종 선택</label>'
-    +'<select id="su-biz" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;">'
-    +'<option value="academy">학원 (셔틀)</option><option value="logistics">물류 (배송)</option><option value="public">공공 (복지)</option><option value="delivery">택배</option></select>'
-    +'<label style="font-size:12px;font-weight:700;color:#475467;">업체명</label>'
-    +'<input id="su-name" type="text" placeholder="예) 코스로드학원" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;"/>'
-    +'<label style="font-size:12px;font-weight:700;color:#475467;">이메일</label>'
-    +'<input id="su-email" type="email" placeholder="이메일 주소" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;"/>'
-    +'<label style="font-size:12px;font-weight:700;color:#475467;">비밀번호 (6자 이상)</label>'
-    +'<input id="su-pw" type="password" placeholder="비밀번호" style="width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 4px;box-sizing:border-box;"/>'
+    +'<div style="font-size:12px;color:#98A2B3;margin-bottom:14px;">업체 계정을 만듭니다.</div>'
+    /* 가입 수단 선택 */
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;">'
+    +'<button type="button" id="su-tab-email" onclick="suSetMethod(\'email\')" style="flex:1;padding:11px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid var(--admin);background:var(--admin);color:#fff;">📧 이메일로 가입</button>'
+    +'<button type="button" id="su-tab-phone" onclick="suSetMethod(\'phone\')" style="flex:1;padding:11px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid #EAECF0;background:#fff;color:#475467;">📱 휴대폰으로 가입</button>'
+    +'</div>'
+    +suFieldRow('업종 선택','<select id="su-biz" style="'+ipt+'"><option value="academy">학원 (셔틀)</option><option value="logistics">물류 (배송)</option><option value="public">공공 (복지)</option><option value="delivery">택배</option></select>')
+    +suFieldRow('업체명','<input id="su-name" type="text" placeholder="예) 코스로드학원" style="'+ipt+'"/>')
+    /* 이메일 칸 */
+    +'<div id="su-email-box">'
+    +suFieldRow('이메일','<input id="su-email" type="email" placeholder="이메일 주소" style="'+ipt+'"/>')
+    +suFieldRow('비밀번호 (6자 이상)','<input id="su-pw" type="password" placeholder="비밀번호" style="'+ipt+'"/>')
+    +'</div>'
+    /* 휴대폰 칸 */
+    +'<div id="su-phone-box" style="display:none;">'
+    +suFieldRow('휴대폰 번호','<input id="su-phone" type="tel" placeholder="010-1234-5678" style="'+ipt+'"/>')
+    +'<button type="button" id="su-send-code" onclick="suSendPhoneCode()" style="width:100%;padding:11px;background:#fff;color:var(--admin);border:1.5px solid var(--admin);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">인증번호 받기</button>'
+    +'<div id="su-code-box" style="display:none;">'
+    +suFieldRow('문자로 받은 6자리','<input id="su-code" type="tel" inputmode="numeric" maxlength="6" placeholder="6자리 숫자" style="'+ipt+'"/>')
+    +'</div>'
+    +'<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:8px;">휴대폰으로 가입하면 비밀번호 없이 문자 인증으로 로그인합니다.</div>'
+    +'</div>'
     +'<div id="su-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
+    +'<div id="su-info" style="display:none;color:#027A48;font-size:12px;margin:6px 0;"></div>'
     +'<label style="display:flex;align-items:flex-start;gap:7px;font-size:12px;color:#475467;line-height:1.6;cursor:pointer;margin-top:10px;">'
     +'<input type="checkbox" id="su-agree" style="margin-top:2px;width:16px;height:16px;accent-color:var(--admin);flex-shrink:0;"/>'
     +'<span><a href="terms.html" target="_blank" style="color:#EA580C;text-decoration:underline;font-weight:700;">이용약관</a> 및 <a href="privacy.html" target="_blank" style="color:#EA580C;text-decoration:underline;font-weight:700;">개인정보처리방침</a>에 동의합니다. <b style="color:#EA580C;">(필수)</b></span></label>'
     +'<button onclick="doSignup()" style="width:100%;padding:13px;background:var(--admin);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:10px;">가입하기</button>'
+    +'<div id="su-recaptcha"></div>'
     +'<div style="text-align:center;font-size:12px;color:#98A2B3;margin:14px 0 6px;">이미 가입하셨나요?</div>'
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:12px;background:#fff;color:var(--admin);border:1.5px solid var(--admin);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">📱 바로 앱 실행하기</button>'
     +'<button onclick="document.getElementById(\'signup-modal\').remove()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">취소</button>'
@@ -1819,38 +1852,221 @@ function openSignupModal(presetBiz){
   }
 }
 
-function doSignup(){
-  var biz=document.getElementById('su-biz').value;
-  var name=document.getElementById('su-name').value.trim();
-  var email=document.getElementById('su-email').value.trim();
-  var pw=document.getElementById('su-pw').value;
-  var err=document.getElementById('su-err');
-  function showErr(msg){ if(err){err.textContent=msg;err.style.display='block';} }
-  if(!name){ showErr('업체명을 입력해주세요.'); return; }
-  if(!email){ showErr('이메일을 입력해주세요.'); return; }
-  if(pw.length<6){ showErr('비밀번호는 6자 이상이어야 합니다.'); return; }
-  /* 약관·개인정보처리방침 동의 (필수) — 신규 가입에만 적용, 로그인과 무관 */
+function suSetMethod(mode){
+  _suMethod = (mode==='phone') ? 'phone' : 'email';
+  var eb=document.getElementById('su-email-box'), pb=document.getElementById('su-phone-box');
+  var te=document.getElementById('su-tab-email'), tp=document.getElementById('su-tab-phone');
+  if(eb) eb.style.display = (_suMethod==='email') ? '' : 'none';
+  if(pb) pb.style.display = (_suMethod==='phone') ? '' : 'none';
+  function on(b){ if(b){ b.style.background='var(--admin)'; b.style.color='#fff'; b.style.borderColor='var(--admin)'; } }
+  function off(b){ if(b){ b.style.background='#fff'; b.style.color='#475467'; b.style.borderColor='#EAECF0'; } }
+  if(_suMethod==='email'){ on(te); off(tp); } else { on(tp); off(te); }
+  suMsg('', '');
+}
+
+function suMsg(kind, msg){
+  var e=document.getElementById('su-err'), i=document.getElementById('su-info');
+  if(e){ e.style.display = (kind==='err'&&msg) ? 'block':'none'; if(kind==='err') e.textContent=msg||''; }
+  if(i){ i.style.display = (kind==='info'&&msg) ? 'block':'none'; if(kind==='info') i.textContent=msg||''; }
+}
+
+/* 공통 입력 검사 — 업종·업체명·약관 동의 */
+function suCheckCommon(){
+  var name=(document.getElementById('su-name')||{}).value;
+  name = name ? name.trim() : '';
+  if(!name){ suMsg('err','업체명을 입력해주세요.'); return null; }
   var agr=document.getElementById('su-agree');
-  if(!agr || !agr.checked){ showErr('약관 동의가 필요합니다.'); return; }
-  if(!window._auth || !window._authFns){ showErr('가입 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  if(!agr || !agr.checked){ suMsg('err','약관 동의가 필요합니다.'); return null; }
+  if(!window._auth || !window._authFns){ suMsg('err','가입 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return null; }
+  return { biz: document.getElementById('su-biz').value, name: name };
+}
+
+/* 계정이 생긴 뒤 users/{uid} 저장 — 이메일·휴대폰 공통(격리 규칙이 이 orgId 를 본다) */
+function suSaveUserDoc(uid, common, extra){
+  var d=window._firestore.doc, sd=window._firestore.setDoc;
+  var orgId = common.biz + '_' + uid.slice(0,12);
+  var rec = { bizType: common.biz, orgName: common.name, orgId: orgId,
+              approved: true, plan: 'trial', trialStart: Date.now(), createdAt: Date.now() };
+  if(extra){ for(var k in extra){ if(Object.prototype.hasOwnProperty.call(extra,k)) rec[k]=extra[k]; } }
+  return sd(d(window._db, 'users', uid), rec);
+}
+
+/* 휴대폰 번호 정규화: 010-1234-5678 → +821012345678 */
+function suNormalizePhone(raw){
+  var s = String(raw||'').replace(/[^0-9+]/g,'');
+  if(!s) return '';
+  if(s.charAt(0)==='+') return s;
+  if(s.indexOf('0')===0) return '+82' + s.slice(1);
+  return '+82' + s;
+}
+
+function suPhoneErrText(e){
+  var c = e && e.code ? e.code : '';
+  if(c==='auth/operation-not-allowed' || c==='auth/invalid-app-credential'){
+    return '문자 인증이 아직 켜져 있지 않습니다. 잠시 후 다시 시도하거나 cosroad@cosroad.com 으로 알려 주세요.';
+  }
+  if(c==='auth/invalid-phone-number') return '휴대폰 번호 형식을 확인해주세요. (예: 010-1234-5678)';
+  if(c==='auth/too-many-requests')    return '요청이 많습니다. 잠시 후 다시 시도해주세요.';
+  if(c==='auth/invalid-verification-code') return '인증번호가 맞지 않습니다. 다시 확인해주세요.';
+  if(c==='auth/code-expired')         return '인증번호가 만료됐습니다. 다시 받아주세요.';
+  return '문자 인증 실패: ' + (e && e.message ? e.message : '알 수 없는 오류');
+}
+
+function suSendPhoneCode(){
+  var common = suCheckCommon(); if(!common) return;
+  var phone = suNormalizePhone((document.getElementById('su-phone')||{}).value);
+  if(!phone || phone.length < 12){ suMsg('err','휴대폰 번호를 입력해주세요. (예: 010-1234-5678)'); return; }
+  var A=window._authFns;
+  if(!A.signInWithPhoneNumber || !A.RecaptchaVerifier){ suMsg('err','문자 인증 준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  var btn=document.getElementById('su-send-code'); if(btn){ btn.disabled=true; btn.textContent='보내는 중…'; }
+  try{
+    if(!_suRecaptcha){
+      _suRecaptcha = new A.RecaptchaVerifier(window._auth, 'su-recaptcha', { size:'invisible' });
+    }
+  }catch(e){
+    if(btn){ btn.disabled=false; btn.textContent='인증번호 받기'; }
+    suMsg('err','보안 확인 준비에 실패했습니다. 새로고침 후 다시 시도해주세요.'); return;
+  }
+  A.signInWithPhoneNumber(window._auth, phone, _suRecaptcha)
+    .then(function(conf){
+      _suPhoneConfirm = conf;
+      var cb=document.getElementById('su-code-box'); if(cb) cb.style.display='';
+      if(btn){ btn.disabled=false; btn.textContent='인증번호 다시 받기'; }
+      suMsg('info','문자로 6자리 인증번호를 보냈어요.');
+    })
+    .catch(function(e){
+      if(btn){ btn.disabled=false; btn.textContent='인증번호 받기'; }
+      try{ if(_suRecaptcha && _suRecaptcha.clear) _suRecaptcha.clear(); }catch(e2){}
+      _suRecaptcha=null;
+      suMsg('err', suPhoneErrText(e));
+    });
+}
+
+function doSignup(){
+  if(_suMethod==='phone') return doSignupPhone();
+  return doSignupEmail();
+}
+
+function doSignupEmail(){
+  var common = suCheckCommon(); if(!common) return;
+  var email=(document.getElementById('su-email')||{}).value;
+  email = email ? email.trim() : '';
+  var pw=(document.getElementById('su-pw')||{}).value || '';
+  if(!email){ suMsg('err','이메일을 입력해주세요.'); return; }
+  if(pw.length<6){ suMsg('err','비밀번호는 6자 이상이어야 합니다.'); return; }
   window._authFns.createUserWithEmailAndPassword(window._auth, email, pw)
     .then(function(cred){
       var uid=cred.user.uid;
-      var d=window._firestore.doc, sd=window._firestore.setDoc;
-      var orgId = biz + '_' + uid.slice(0,12);
-      /* 30일 무료 시작: 자동 승인 + 가입일(trialStart) 저장 */
-      return sd(d(window._db, 'users', uid), { email: email, bizType: biz, orgName: name, orgId: orgId, approved: true, plan: 'trial', trialStart: Date.now(), createdAt: Date.now() });
+      /* 확인 메일 — 실패해도 가입 자체는 살린다(안내만 달라진다) */
+      var vp = Promise.resolve(true);
+      if(window._authFns.sendEmailVerification){
+        vp = window._authFns.sendEmailVerification(cred.user).then(function(){ return true; })
+              .catch(function(){ return false; });
+      }
+      return vp.then(function(sent){
+        return suSaveUserDoc(uid, common, { email: email, signupMethod: 'email' })
+                 .then(function(){ return sent; });
+      });
     })
-    .then(function(){
+    .then(function(sent){
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
-      alert('✅ 가입 완료!\n\n지금부터 30일 동안 모든 기능을 무료로 사용할 수 있어요.\n방금 만든 이메일·비밀번호로 로그인해 주세요.\n문의: cosroad@cosroad.com');
+      alert('✅ 가입 완료!\n\n지금부터 30일 동안 모든 기능을 무료로 사용할 수 있어요.\n'
+            + (sent ? '메일함에서 확인 링크를 눌러 이메일 확인을 마쳐 주세요.\n'
+                    : '확인 메일 발송에 실패했어요. 로그인 후 설정에서 다시 보낼 수 있어요.\n')
+            + '방금 만든 이메일·비밀번호로 로그인해 주세요.\n문의: cosroad@cosroad.com');
       var ae=document.getElementById('admin-email'); if(ae) ae.value=email;
-      // 가입 후 홈 화면 추가 안내
       try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
     })
     .catch(function(e){
-      showErr(e.code==='auth/email-already-in-use'?'이미 가입된 이메일입니다.':e.code==='auth/invalid-email'?'이메일 형식이 올바르지 않습니다.':'가입 실패: '+e.message);
+      suMsg('err', e.code==='auth/email-already-in-use'?'이미 가입된 이메일입니다.'
+                  :e.code==='auth/invalid-email'?'이메일 형식이 올바르지 않습니다.'
+                  :'가입 실패: '+e.message);
     });
+}
+
+function doSignupPhone(){
+  var common = suCheckCommon(); if(!common) return;
+  if(!_suPhoneConfirm){ suMsg('err','먼저 [인증번호 받기]를 눌러 문자를 받아주세요.'); return; }
+  var code=((document.getElementById('su-code')||{}).value || '').replace(/[^0-9]/g,'');
+  if(code.length!==6){ suMsg('err','문자로 받은 6자리 숫자를 입력해주세요.'); return; }
+  _suPhoneConfirm.confirm(code)
+    .then(function(cred){
+      var u=cred.user;
+      return suSaveUserDoc(u.uid, common, { phone: u.phoneNumber || '', signupMethod: 'phone' });
+    })
+    .then(function(){
+      var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
+      alert('✅ 가입 완료!\n\n지금부터 30일 동안 모든 기능을 무료로 사용할 수 있어요.\n휴대폰 가입은 비밀번호 없이 문자 인증으로 로그인합니다.\n문의: cosroad@cosroad.com');
+      try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
+      try{ location.reload(); }catch(e){}
+    })
+    .catch(function(e){ suMsg('err', suPhoneErrText(e)); });
+}
+
+/* ── 비밀번호 변경 (이메일 가입 계정만) ──────────────────────────────────── */
+function openPwChangeModal(){
+  var u = window._auth && window._auth.currentUser;
+  if(!u){ alert('로그인 후 이용할 수 있어요.'); return; }
+  if(!u.email){ alert('휴대폰으로 가입한 계정은 비밀번호가 없어요.\n문자 인증으로 로그인합니다.'); return; }
+  var old=document.getElementById('pwchg-modal'); if(old) old.remove();
+  var ipt='width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;';
+  var html='<div id="pwchg-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    +'<div style="background:white;border-radius:16px;padding:22px;max-width:340px;width:100%;box-sizing:border-box;">'
+    +'<div style="font-size:17px;font-weight:800;color:#1A1A2E;margin-bottom:12px;">비밀번호 변경</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">지금 비밀번호</label>'
+    +'<input id="pwchg-old" type="password" style="'+ipt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">새 비밀번호 (6자 이상)</label>'
+    +'<input id="pwchg-new" type="password" style="'+ipt+'"/>'
+    +'<div id="pwchg-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
+    +'<button onclick="doPwChange()" style="width:100%;padding:12px;background:var(--admin);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">변경하기</button>'
+    +'<button onclick="document.getElementById(\'pwchg-modal\').remove()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">취소</button>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function doPwChange(){
+  var e=document.getElementById('pwchg-err');
+  function showErr(m){ if(e){ e.textContent=m; e.style.display='block'; } }
+  var u = window._auth && window._auth.currentUser;
+  var A = window._authFns;
+  if(!u || !A || !A.updatePassword || !A.reauthenticateWithCredential || !A.EmailAuthProvider){ showErr('준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  var oldPw=(document.getElementById('pwchg-old')||{}).value || '';
+  var newPw=(document.getElementById('pwchg-new')||{}).value || '';
+  if(newPw.length<6){ showErr('새 비밀번호는 6자 이상이어야 합니다.'); return; }
+  /* 비밀번호 변경은 최근 로그인을 요구한다 — 먼저 재인증한다 */
+  var cred = A.EmailAuthProvider.credential(u.email, oldPw);
+  A.reauthenticateWithCredential(u, cred)
+    .then(function(){ return A.updatePassword(u, newPw); })
+    .then(function(){
+      var m=document.getElementById('pwchg-modal'); if(m) m.remove();
+      alert('✅ 비밀번호를 바꿨어요.');
+    })
+    .catch(function(err){
+      showErr(err.code==='auth/wrong-password' ? '지금 비밀번호가 맞지 않습니다.'
+             : err.code==='auth/weak-password' ? '새 비밀번호가 너무 쉽습니다.'
+             : '변경 실패: '+err.message);
+    });
+}
+
+/* 이메일 확인이 아직 안 된 계정에 안내 한 줄 — 막지는 않는다(안내만) */
+function suVerifyNoticeHtml(){
+  try{
+    var u = window._auth && window._auth.currentUser;
+    if(!u || !u.email || u.emailVerified) return '';
+    return '<div style="background:#FFFAEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;margin:0 16px 10px;font-size:12px;color:#92400E;line-height:1.6;">'
+         + '메일함에서 <b>확인 링크</b>를 눌러 이메일 확인을 마쳐 주세요. '
+         + '<button onclick="resendVerifyMail()" style="margin-left:4px;font-size:11px;padding:3px 8px;border:1px solid #FDE68A;background:#fff;border-radius:6px;cursor:pointer;font-weight:700;color:#92400E;">확인 메일 다시 보내기</button></div>';
+  }catch(e){ return ''; }
+}
+
+function resendVerifyMail(){
+  var u = window._auth && window._auth.currentUser;
+  if(!u || !u.email){ alert('로그인 후 이용할 수 있어요.'); return; }
+  if(u.emailVerified){ alert('이미 확인된 이메일이에요.'); return; }
+  if(!window._authFns.sendEmailVerification){ alert('준비 중입니다.'); return; }
+  window._authFns.sendEmailVerification(u)
+    .then(function(){ alert('📧 확인 메일을 다시 보냈어요. 메일함을 확인해주세요.'); })
+    .catch(function(e){ alert('발송 실패: '+e.message); });
 }
 
 // 로그인 사용자 정보(orgId, 업종) 불러오기
@@ -2119,17 +2335,13 @@ function drawMasterPanel(){
   }
   h += '</div>';
 
-  // 추가 폼
-  h += '<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-bottom:16px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#344054;margin-bottom:10px;">➕ 새 업체 추가</div>';
-  h += '<div style="display:flex;gap:6px;margin-bottom:6px;">';
-  h += '<select id="new-co-group" style="flex:0 0 110px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;">';
-  h += '<option value="academy">🏫 학원</option><option value="logistics">📦 물류</option><option value="public">🏛️ 공공</option><option value="delivery">🚚 택배</option>';
-  h += '</select>';
-  h += '<input type="text" id="new-co-name" placeholder="업체 이름 (예: 강남태권도)" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;"/>';
-  h += '</div>';
-  h += '<input type="text" id="new-co-id" placeholder="주소 ID (영문/숫자, 예: gangnam_tkd)" style="width:100%;padding:9px 12px;border:1.5px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>';
-  h += '<button onclick="addMasterCompany()" style="width:100%;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">업체 추가</button>';
+  /* 개통(주소 발급) 방식 폐기 — 코스로드6(2026-09-29, 사장님 결정).
+     모든 업체는 이메일·휴대폰 셀프 가입만 쓴다. 마스터가 ?org= 주소를 발급하던 흐름은 쓰지 않는다.
+     아래 목록은 지난 기록이며 데이터(orgs/_master/data/companies)는 지우지 않았다.
+     추가·주소복사·삭제 버튼만 화면에서 뺐다. */
+  h += '<div style="background:#FFFAEB;border:1px solid #FDE68A;border-radius:12px;padding:14px;margin-bottom:16px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#92400E;margin-bottom:4px;">개통(주소 발급)은 쓰지 않습니다</div>';
+  h += '<div style="font-size:12px;color:#92400E;line-height:1.6;">업체는 <b>회원가입</b>으로 스스로 계정을 만듭니다. 아래는 지난 기록이며 지우지 않았습니다.</div>';
   h += '</div>';
 
   // 그룹별 목록
@@ -2147,8 +2359,7 @@ function drawMasterPanel(){
         h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">';
         h += '<span style="font-size:14px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(c.name)+'</span>';
         h += '<div style="display:flex;gap:6px;flex-shrink:0;">';
-        h += '<button onclick="copyMasterUrl(\''+c.orgId+'\')" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">📋 주소복사</button>';
-        h += '<button onclick="deleteMasterCompany(\''+c.orgId+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">🗑 삭제</button>';
+        h += '<span style="font-size:11px;color:#98A2B3;">지난 기록</span>';
         h += '</div>';
         h += '</div>';
         h += '<div style="font-size:11px;color:#98A2B3;margin-top:4px;word-break:break-all;">'+url+'</div>';
@@ -2228,6 +2439,15 @@ function copyMasterUrl(orgId){
 // 문의는 전역 컬렉션 inquiries (ORG_KEYS 제외 — 의도적 전역, 기관 백업 제외)
 // ══════════════════════
 var HELP_QA=[
+  /* 코스로드6·7 (2026-09-29) — 가입 수단 선택·이메일 확인·비밀번호 변경·기관 격리 */
+  {role:'all', keys:['가입','회원가입','계정','휴대폰가입','이메일가입'], t:'회원가입 — 이메일 또는 휴대폰',
+   a:'1. 회원가입 창 맨 위에서 「📧 이메일로 가입」 또는 「📱 휴대폰으로 가입」을 고르세요\n2. 이메일로 가입하면 확인 메일이 가요 — 메일함에서 확인 링크를 눌러 주세요\n3. 휴대폰으로 가입하면 문자로 6자리 숫자가 와요 — 그 숫자를 넣으면 가입됩니다\n4. 휴대폰 가입은 비밀번호가 없어요. 다음부터도 문자 인증으로 들어옵니다\n5. 어느 쪽으로 가입해도 30일 무료는 똑같아요'},
+  {role:'all', keys:['이메일확인','확인메일','인증메일','메일확인'], t:'이메일 확인이 안 됐다고 나와요',
+   a:'1. 가입할 때 보낸 확인 메일의 링크를 누르면 끝나요\n2. 메일이 안 보이면 스팸함도 보세요\n3. 관리 → 대시보드 위쪽의 「확인 메일 다시 보내기」로 다시 받을 수 있어요\n4. 확인 전에도 쓸 수는 있어요 — 안내만 뜹니다'},
+  {role:'all', keys:['로그인비밀번호','계정비밀번호','비번변경','비밀번호바꾸기'], t:'로그인 비밀번호 바꾸기',
+   a:'1. 관리 → 대시보드 오른쪽 위 「비밀번호 변경」\n2. 지금 비밀번호와 새 비밀번호(6자 이상)를 넣으세요\n3. 이건 로그인 계정 비밀번호예요 — 관리자 잠금 번호와는 다른 것이에요\n4. 휴대폰으로 가입한 계정은 비밀번호가 없어 이 메뉴가 안 보여요'},
+  {role:'all', keys:['다른업체','남의자료','격리','보안'], t:'다른 업체 자료는 안 보이나요',
+   a:'1. 안 보여요. 계정마다 자기 업체 자료만 열려요\n2. 주소(링크)를 알아도 자기 업체가 아니면 열리지 않아요\n3. 둘러보기(데모)는 누구나 볼 수 있지만 저장은 안 돼요'},
   /* keys에 맨 '등록'·'추가'를 두면 「도장 등록」·「아이콘 추가」 같은 질문까지 끌어와서 뺐다 */
   {role:'admin', keys:['회원','거래처','회원등록','거래처등록'], t:'회원/거래처 등록',
    a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
@@ -3842,7 +4062,17 @@ function renderDashboard(){
       +'<div><div style="font-size:13px;font-weight:600;color:#344054;">'+d[0]+' <span style="font-size:11px;color:#1A6BFF;">↗</span></div>'
       +'<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+d[2]+'</div></div></div>';
   }).join('');
+  /* 계정 안내 — 이메일 확인이 안 됐으면 한 줄 안내(막지는 않는다), 이메일 계정은 비밀번호 변경 (코스로드7) */
+  var _acctBox = suVerifyNoticeHtml();
+  try{
+    var _cu = window._auth && window._auth.currentUser;
+    if(_cu && _cu.email){
+      _acctBox += '<div style="display:flex;justify-content:flex-end;padding:0 16px 8px;">'
+        + '<button onclick="openPwChangeModal()" style="font-size:11px;padding:5px 10px;border:1px solid #EAECF0;background:#fff;border-radius:8px;cursor:pointer;font-weight:700;color:#475467;">비밀번호 변경</button></div>';
+    }
+  }catch(e){}
   return `
+  ${_acctBox}
   <div class="stat-grid">
     <div class="stat-card" onclick="showDashDetail('all')" style="cursor:pointer;"><div class="stat-num">${total}</div><div class="stat-label">전체 ${T('회원')}</div><div class="stat-sub">${_subInfo}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>
     <div class="stat-card" onclick="showDashDetail('today')" style="cursor:pointer;"><div class="stat-num">${todayOn.length}</div><div class="stat-label">오늘(${currentDay}) ${_onWord}</div><div class="stat-sub">${_offWord} ${todayAll.length-todayOn.length}${_unit}</div><div style="font-size:10px;color:var(--admin);margin-top:4px;">▶ 클릭해서 보기</div></div>
