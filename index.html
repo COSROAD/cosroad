@@ -587,7 +587,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 230;
+const APP_VERSION = 231;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1844,14 +1844,14 @@ function openSignupModal(presetBiz){
     /* 이메일 칸 */
     +'<div id="su-email-box">'
     +suFieldRow('이메일','<input id="su-email" type="email" placeholder="이메일 주소" style="'+ipt+'"/>')
-    +suFieldRow('비밀번호 (6자 이상)','<input id="su-pw" type="password" placeholder="비밀번호" style="'+ipt+'"/>')
-    +suFieldRow('비밀번호 확인','<input id="su-pw2" type="password" placeholder="비밀번호를 한 번 더" style="'+ipt+'"/>')
+    +suFieldRow('비밀번호 (6자 이상)','<input id="su-pw" type="password" oninput="suCheckPwMatch(\'su-pw\',\'su-pw2\',\'su-pw2-msg\')" placeholder="비밀번호" style="'+ipt+'"/>')
+    +suFieldRow('비밀번호 확인','<input id="su-pw2" type="password" oninput="suCheckPwMatch(\'su-pw\',\'su-pw2\',\'su-pw2-msg\')" placeholder="비밀번호를 한 번 더" style="'+ipt+'"/><div id="su-pw2-msg" style="display:none;font-size:12px;margin-top:4px;"></div>')
     +'</div>'
     /* 휴대폰 칸 */
     +'<div id="su-phone-box" style="display:none;">'
     +suFieldRow('휴대폰 번호','<input id="su-phone" type="tel" oninput="suSyncContact()" placeholder="010-1234-5678" style="'+ipt+'"/>')
-    +suFieldRow('비밀번호 (6자 이상)','<input id="su-pw-p" type="password" placeholder="비밀번호" style="'+ipt+'"/>')
-    +suFieldRow('비밀번호 확인','<input id="su-pw-p2" type="password" placeholder="비밀번호를 한 번 더" style="'+ipt+'"/>')
+    +suFieldRow('비밀번호 (6자 이상)','<input id="su-pw-p" type="password" oninput="suCheckPwMatch(\'su-pw-p\',\'su-pw-p2\',\'su-pw-p2-msg\')" placeholder="비밀번호" style="'+ipt+'"/>')
+    +suFieldRow('비밀번호 확인','<input id="su-pw-p2" type="password" oninput="suCheckPwMatch(\'su-pw-p\',\'su-pw-p2\',\'su-pw-p2-msg\')" placeholder="비밀번호를 한 번 더" style="'+ipt+'"/><div id="su-pw-p2-msg" style="display:none;font-size:12px;margin-top:4px;"></div>')
     +'<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:8px;">다음부터 <b>휴대폰 번호 + 비밀번호</b>로 로그인합니다.</div>' 
     +'</div>'
     +'<div id="su-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;"></div>'
@@ -1888,6 +1888,18 @@ function suMsg(kind, msg){
   var e=document.getElementById('su-err'), i=document.getElementById('su-info');
   if(e){ e.style.display = (kind==='err'&&msg) ? 'block':'none'; if(kind==='err') e.textContent=msg||''; }
   if(i){ i.style.display = (kind==='info'&&msg) ? 'block':'none'; if(kind==='info') i.textContent=msg||''; }
+}
+
+/* 비밀번호 2회 입력 일치 여부를 **치는 즉시** 확인 칸 아래에 보여준다.
+   제출 시 불일치 검사(doSignupEmail·doSignupPhone)는 그대로 둔다 — 2중 안전. */
+function suCheckPwMatch(pwId, pw2Id, msgId){
+  var a=(document.getElementById(pwId)||{}).value||'';
+  var b=(document.getElementById(pw2Id)||{}).value||'';
+  var m=document.getElementById(msgId); if(!m) return;
+  if(!b){ m.style.display='none'; return; }
+  if(a===b){ m.textContent='✓ 비밀번호가 일치합니다'; m.style.color='#027A48'; }
+  else     { m.textContent='비밀번호가 일치하지 않습니다'; m.style.color='#F04438'; }
+  m.style.display='block';
 }
 
 /* 휴대폰 번호를 치면 연락처 칸을 같은 값으로 채운다(아직 손대지 않은 경우만) */
@@ -2179,6 +2191,9 @@ function isAccountApproved(){
 window._checkAccountGate = function(user){
   if(!user || user.isAnonymous) return;
   var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
+  if(o==='admin') return;              // 마스터 모드는 showMasterGate()/checkIsAdmin() 가 전담한다.
+                                       // 여기서 승인검사를 하면, 브라우저에 남은 대기·비마스터 계정
+                                       // 세션 때문에 승인 대기 화면이 마스터 화면을 덮어 관리가 막힌다.
   if(/_demo$|_test$/.test(o)) return;
   loadUserProfile(user.uid).then(function(){
     if(window._userWithdrawn){
