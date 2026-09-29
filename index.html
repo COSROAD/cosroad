@@ -285,6 +285,13 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   onAuthStateChanged(auth, function(user){
     if(!user){
       signInAnonymously(auth).catch(function(e){ console.log('익명 로그인 실패', e); });
+      return;
+    }
+    /* 실계정으로 들어온 경우 승인 상태를 확인한다.
+       「로그인 유지」(tryAutoLogin)로 로그인 화면을 건너뛰고 바로 앱이 열리는 경로가 있어,
+       여기서도 검사하지 않으면 승인 대기 계정이 앱에 들어와 버린다. */
+    if(!user.isAnonymous && typeof window._checkAccountGate === 'function'){
+      try{ window._checkAccountGate(user); }catch(e){ console.log('승인 검사 실패', e); }
     }
   });
   console.log('✅ Firebase 연결 완료');
@@ -580,7 +587,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 228;
+const APP_VERSION = 229;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1755,12 +1762,16 @@ function loginAdmin(){
     if(!window._auth || !window._authFns){ alert('로그인 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return; }
     window._authFns.signInWithEmailAndPassword(window._auth, email, pw)
       .then(function(cred){
-        var keep=document.getElementById('keep-login');
-        if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
         return loadUserProfile(cred.user.uid);
       })
       .then(function(){
-        /* 30일 무료 정책: 가입 즉시 사용, 만료 시 안내 화면 (paid·데모는 검사 제외) */
+        /* 모델 B: 승인 전에는 앱을 열지 않는다. 승인 대기 화면(계좌 안내)만 보여준다.
+           「로그인 유지」도 승인된 뒤에만 저장한다 — 먼저 저장하면 다음 접속에
+           tryAutoLogin 이 로그인 화면을 건너뛰어 승인 대기 계정이 앱에 들어간다. */
+        if(!isAccountApproved()){ showPendingScreen(); return; }
+        var keep=document.getElementById('keep-login');
+        if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
+        /* 30일 무료: 승인 시각부터 시작, 만료 시 안내 화면 (paid·데모는 검사 제외) */
         var st=getTrialStatus();
         if(st.blocked){ showTrialExpired(); return; }
         onAdminLoggedIn();
@@ -1819,14 +1830,17 @@ function openSignupModal(presetBiz){
     +'</div>'
     +suFieldRow('업종 선택','<select id="su-biz" style="'+ipt+'"><option value="academy">학원 (셔틀)</option><option value="logistics">물류 (배송)</option><option value="public">공공 (복지)</option><option value="delivery">택배</option></select>')
     +suFieldRow('업체명','<input id="su-name" type="text" placeholder="예) 코스로드학원" style="'+ipt+'"/>')
+    /* 연락처 — 입금 확인·안내 연락에 쓴다. 휴대폰 가입이면 그 번호로 자동 채운다. */
+    +suFieldRow('연락처 (휴대폰)','<input id="su-contact" type="tel" placeholder="010-1234-5678" style="'+ipt+'"/>')
     /* 이메일 칸 */
     +'<div id="su-email-box">'
     +suFieldRow('이메일','<input id="su-email" type="email" placeholder="이메일 주소" style="'+ipt+'"/>')
     +suFieldRow('비밀번호 (6자 이상)','<input id="su-pw" type="password" placeholder="비밀번호" style="'+ipt+'"/>')
+    +suFieldRow('비밀번호 확인','<input id="su-pw2" type="password" placeholder="비밀번호를 한 번 더" style="'+ipt+'"/>')
     +'</div>'
     /* 휴대폰 칸 */
     +'<div id="su-phone-box" style="display:none;">'
-    +suFieldRow('휴대폰 번호','<input id="su-phone" type="tel" placeholder="010-1234-5678" style="'+ipt+'"/>')
+    +suFieldRow('휴대폰 번호','<input id="su-phone" type="tel" oninput="suSyncContact()" placeholder="010-1234-5678" style="'+ipt+'"/>')
     +'<button type="button" id="su-send-code" onclick="suSendPhoneCode()" style="width:100%;padding:11px;background:#fff;color:var(--admin);border:1.5px solid var(--admin);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">인증번호 받기</button>'
     +'<div id="su-code-box" style="display:none;">'
     +suFieldRow('문자로 받은 6자리','<input id="su-code" type="tel" inputmode="numeric" maxlength="6" placeholder="6자리 숫자" style="'+ipt+'"/>')
@@ -1870,23 +1884,42 @@ function suMsg(kind, msg){
   if(i){ i.style.display = (kind==='info'&&msg) ? 'block':'none'; if(kind==='info') i.textContent=msg||''; }
 }
 
-/* 공통 입력 검사 — 업종·업체명·약관 동의 */
+/* 휴대폰 번호를 치면 연락처 칸을 같은 값으로 채운다(아직 손대지 않은 경우만) */
+function suSyncContact(){
+  var p=document.getElementById('su-phone'), c=document.getElementById('su-contact');
+  if(!p || !c) return;
+  if(c.dataset && c.dataset.touched==='1') return;
+  c.value = p.value;
+}
+
+/* 공통 입력 검사 — 업종·업체명·연락처·약관 동의 */
 function suCheckCommon(){
   var name=(document.getElementById('su-name')||{}).value;
   name = name ? name.trim() : '';
   if(!name){ suMsg('err','업체명을 입력해주세요.'); return null; }
+  var contact=(document.getElementById('su-contact')||{}).value;
+  contact = contact ? contact.trim() : '';
+  // 연락처는 입금 확인·승인 안내에 쓰므로 필수다
+  if(contact.replace(/[^0-9]/g,'').length < 10){
+    suMsg('err','연락처(휴대폰)를 정확히 입력해주세요. 입금 확인과 승인 안내에 사용됩니다.'); return null;
+  }
   var agr=document.getElementById('su-agree');
   if(!agr || !agr.checked){ suMsg('err','약관 동의가 필요합니다.'); return null; }
   if(!window._auth || !window._authFns){ suMsg('err','가입 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return null; }
-  return { biz: document.getElementById('su-biz').value, name: name };
+  return { biz: document.getElementById('su-biz').value, name: name, contact: contact };
 }
 
-/* 계정이 생긴 뒤 users/{uid} 저장 — 이메일·휴대폰 공통(격리 규칙이 이 orgId 를 본다) */
+/* 계정이 생긴 뒤 users/{uid} 저장 — 이메일·휴대폰 공통(격리 규칙이 이 orgId 를 본다)
+   ── 모델 B (2026-09-29) ──
+   가입은 **승인 대기(pending)** 로 들어간다. 30일 무료는 여기서 시작하지 않는다 —
+   마스터가 입금을 확인하고 승인하는 순간 시작한다(setUserApproval 에서 trialStart 를 넣는다).
+   그래서 여기서는 approved:false · status:'pending' 이고 trialStart·plan 을 넣지 않는다. */
 function suSaveUserDoc(uid, common, extra){
   var d=window._firestore.doc, sd=window._firestore.setDoc;
   var orgId = common.biz + '_' + uid.slice(0,12);
   var rec = { bizType: common.biz, orgName: common.name, orgId: orgId,
-              approved: true, plan: 'trial', trialStart: Date.now(), createdAt: Date.now() };
+              contact: common.contact || '',
+              status: 'pending', approved: false, createdAt: Date.now() };
   if(extra){ for(var k in extra){ if(Object.prototype.hasOwnProperty.call(extra,k)) rec[k]=extra[k]; } }
   return sd(d(window._db, 'users', uid), rec);
 }
@@ -1952,8 +1985,10 @@ function doSignupEmail(){
   var email=(document.getElementById('su-email')||{}).value;
   email = email ? email.trim() : '';
   var pw=(document.getElementById('su-pw')||{}).value || '';
+  var pw2=(document.getElementById('su-pw2')||{}).value || '';
   if(!email){ suMsg('err','이메일을 입력해주세요.'); return; }
   if(pw.length<6){ suMsg('err','비밀번호는 6자 이상이어야 합니다.'); return; }
+  if(pw!==pw2){ suMsg('err','비밀번호가 서로 다릅니다. 다시 확인해주세요.'); return; }
   window._authFns.createUserWithEmailAndPassword(window._auth, email, pw)
     .then(function(cred){
       var uid=cred.user.uid;
@@ -1970,10 +2005,11 @@ function doSignupEmail(){
     })
     .then(function(sent){
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
-      alert('✅ 가입 완료!\n\n지금부터 30일 동안 모든 기능을 무료로 사용할 수 있어요.\n'
-            + (sent ? '메일함에서 확인 링크를 눌러 이메일 확인을 마쳐 주세요.\n'
-                    : '확인 메일 발송에 실패했어요. 로그인 후 설정에서 다시 보낼 수 있어요.\n')
-            + '방금 만든 이메일·비밀번호로 로그인해 주세요.\n문의: cosroad@cosroad.com');
+      alert('✅ 가입 신청이 접수됐어요!\n\n'
+            + (sent ? '① 메일함에서 확인 링크를 눌러 이메일 확인을 마쳐 주세요.\n'
+                    : '① 확인 메일 발송에 실패했어요. 로그인 후 다시 보낼 수 있어요.\n')
+            + '② 방금 만든 이메일·비밀번호로 로그인하면 입금 계좌를 안내해 드려요.\n'
+            + '③ 입금이 확인되면 열어 드리고, 그때부터 30일 무료가 시작돼요.\n\n문의: cosroad@cosroad.com');
       var ae=document.getElementById('admin-email'); if(ae) ae.value=email;
       try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
     })
@@ -1996,7 +2032,9 @@ function doSignupPhone(){
     })
     .then(function(){
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
-      alert('✅ 가입 완료!\n\n지금부터 30일 동안 모든 기능을 무료로 사용할 수 있어요.\n휴대폰 가입은 비밀번호 없이 문자 인증으로 로그인합니다.\n문의: cosroad@cosroad.com');
+      alert('✅ 가입 신청이 접수됐어요!\n\n문자 인증으로 본인확인이 끝났어요.\n'
+            + '입금 계좌를 안내해 드릴게요 — 입금이 확인되면 열어 드리고,\n그때부터 30일 무료가 시작돼요.\n\n'
+            + '휴대폰 가입은 비밀번호 없이 문자 인증으로 로그인합니다.\n문의: cosroad@cosroad.com');
       try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
       try{ location.reload(); }catch(e){}
     })
@@ -2079,25 +2117,122 @@ function loadUserProfile(uid){
       var u=snap.data();
       window._userOrgId = u.orgId || null;
       window._userBizType = u.bizType || null;
-      window._userApproved = u.approved===true; // 승인 여부 (다음 단계에서 사용)
+      window._userApproved = u.approved===true; // 승인 여부 — 앱 진입 게이트가 이걸 본다
+      window._userStatus = u.status || (u.approved===true ? 'active' : 'pending');
       window._userOrgName = u.orgName || '';
+      window._userContact = u.contact || u.phone || '';
       window._userPlan = u.plan || null;
       window._userTrialStart = u.trialStart || null;
-      /* ── 30일 무료 정책 마이그레이션 (기존 계정) ──
+      /* ── 기존 계정 마이그레이션 ──
          · 이미 승인된(유료) 계정: plan='paid' 기록 → 만료 검사 대상에서 영구 제외 (절대 차단 금지)
-         · 미승인 계정: 수동 승인 흐름 폐지 → 지금부터 30일 무료 시작 */
+         · 모델 B 도입(2026-09-29) **전에** 만들어진 미승인 계정: 예전 규칙대로 자동 승인해
+           무료를 시작한다 — 쓰던 사람을 갑자기 잠그지 않기 위한 보호다.
+         · 모델 B 도입 **후** 가입한 계정은 건드리지 않는다(승인 대기 그대로).
+           이들은 애초에 status:'pending' 으로 저장되므로 마스터 승인을 기다린다. */
       if(!u.trialStart && u.plan!=='paid'){
         if(u.approved===true){
           u.plan='paid';
           window._userPlan='paid';
-        } else {
-          u.approved=true; u.plan='trial'; u.trialStart=Date.now();
-          window._userApproved=true; window._userPlan='trial'; window._userTrialStart=u.trialStart;
+          try{ sd(d(window._db, 'users', uid), u); }catch(e){}
+        } else if((u.createdAt||0) < MODEL_B_START){
+          u.approved=true; u.status='active'; u.plan='trial'; u.trialStart=Date.now();
+          window._userApproved=true; window._userStatus='active';
+          window._userPlan='trial'; window._userTrialStart=u.trialStart;
+          try{ sd(d(window._db, 'users', uid), u); }catch(e){}
         }
-        try{ sd(d(window._db, 'users', uid), u); }catch(e){}
       }
     }
   }).catch(function(e){ console.log('사용자 정보 로드 실패:', e.message); });
+}
+
+/* ══════════ 모델 B — 승인 대기 게이트 (2026-09-29) ══════════
+   가입 → 본인확인 → 승인 대기 → (입금) → 마스터 승인 → 그때부터 30일 무료.
+   이 시각 이전에 만들어진 계정은 예전 규칙(가입 즉시 무료)을 그대로 적용한다. */
+var MODEL_B_START = 1790607600000;   // 2026-09-29 00:00 KST. 이 값보다 먼저 만들어진 계정은 예전 규칙으로 보호한다.
+
+/* 앱에 들어가도 되는 계정인가 — 데모·테스트 공간은 예외(둘러보기·시험용) */
+function isAccountApproved(){
+  try{
+    var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
+    if(/_demo$|_test$/.test(o)) return true;
+    if(!window._userUid) return true;          // 이메일 로그인이 아닌 기존 경로는 건드리지 않는다
+    return window._userApproved===true;
+  }catch(e){ return true; }
+}
+
+/* 「로그인 유지」로 로그인 화면을 건너뛴 경우에도 승인 상태를 확인한다.
+   (module 의 onAuthStateChanged 가 실계정일 때 이걸 부른다) */
+window._checkAccountGate = function(user){
+  if(!user || user.isAnonymous) return;
+  var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
+  if(/_demo$|_test$/.test(o)) return;
+  loadUserProfile(user.uid).then(function(){
+    if(!isAccountApproved()) showPendingScreen();
+  });
+};
+
+/* 계좌 안내는 마스터가 넣는 설정값이다 — 코드에 계좌번호를 박지 않는다.
+   저장 위치: orgs/_master/data/billing (마스터 패널에서 입력) */
+var _billingInfo = null;
+function loadBillingInfo(){
+  if(!window._db || !window._firestore) return Promise.resolve(null);
+  var d=window._firestore.doc, gd=window._firestore.getDoc;
+  return gd(d(window._db, 'orgs', '_master', 'data', 'billing'))
+    .then(function(s){ _billingInfo = s.exists() ? s.data() : null; return _billingInfo; })
+    .catch(function(){ return null; });
+}
+
+/* 승인 대기 화면 — 앱 대신 표시. 입금 계좌와 입금자명을 안내한다. */
+function showPendingScreen(){
+  try{ document.getElementById('login-screen').classList.remove('hide'); }catch(e){}
+  try{ document.getElementById('main-app').style.display='none'; }catch(e){}
+  var old=document.getElementById('pending-screen'); if(old) old.remove();
+  var el=document.createElement('div');
+  el.id='pending-screen';
+  el.style.cssText='position:fixed;inset:0;background:white;z-index:99999;overflow:auto;padding:24px;display:flex;align-items:flex-start;justify-content:center;';
+  function draw(){
+    var b=_billingInfo||{};
+    var orgName = window._userOrgName || '';
+    var u = window._auth && window._auth.currentUser;
+    var needVerify = !!(u && u.email && u.emailVerified===false);
+    var h='<div style="max-width:360px;width:100%;margin:auto;text-align:center;">'
+      +'<div style="font-size:44px;">🕐</div>'
+      +'<div style="font-size:19px;font-weight:800;color:#1D2939;margin-top:10px;">가입 신청이 접수됐습니다</div>'
+      +'<div style="font-size:13px;color:#475467;margin-top:8px;line-height:1.7;">아래 계좌로 입금해 주시면<br>확인 후 열어 드립니다.</div>';
+    if(needVerify){
+      h+='<div style="background:#FFFAEB;border:1px solid #FEDF89;border-radius:12px;padding:12px;margin-top:14px;text-align:left;font-size:12px;color:#B54708;line-height:1.7;">'
+        +'<b>📧 이메일 확인이 아직 안 됐어요</b><br>메일함에서 확인 링크를 눌러 주세요.'
+        +'<button onclick="resendVerifyMail()" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:#B54708;border:1px solid #FEDF89;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">확인 메일 다시 보내기</button></div>';
+    }
+    h+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-top:14px;text-align:left;font-size:13px;color:#344054;line-height:1.9;">';
+    if(b.bank || b.account){
+      h+='<div style="font-size:12px;font-weight:800;color:#6941C6;margin-bottom:6px;">입금 계좌</div>'
+        +'<div><b>'+escapeMasterHtml(b.bank||'')+'</b> '+escapeMasterHtml(b.account||'')+'</div>'
+        +'<div style="font-size:12px;color:#667085;">예금주 '+escapeMasterHtml(b.holder||'')+'</div>';
+      if(b.fee) h+='<div style="margin-top:6px;">구독료 <b>'+escapeMasterHtml(String(b.fee))+'</b></div>';
+      h+='<div style="margin-top:6px;border-top:1px dashed #EAECF0;padding-top:6px;">입금자명 <b>'+escapeMasterHtml(orgName||'(업체명)')+'</b><div style="font-size:11px;color:#98A2B3;">업체명으로 입금해 주셔야 확인이 빨라요.</div></div>';
+      if(b.note) h+='<div style="font-size:12px;color:#667085;margin-top:6px;white-space:pre-line;">'+escapeMasterHtml(b.note)+'</div>';
+    } else {
+      h+='<div style="font-size:12px;color:#667085;">입금 계좌 안내를 준비 중입니다.<br>아래 연락처로 문의해 주세요.</div>';
+    }
+    h+='</div>'
+      +'<div style="font-size:12px;color:#667085;margin-top:12px;">문의 📧 <a href="mailto:cosroad@cosroad.com" style="color:#1A6BFF;font-weight:700;">cosroad@cosroad.com</a></div>'
+      +'<button onclick="logout();var p=document.getElementById(\'pending-screen\');if(p)p.remove();" style="margin-top:16px;padding:11px 22px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">로그아웃</button>'
+      +'</div>';
+    el.innerHTML=h;
+  }
+  draw();
+  document.body.appendChild(el);
+  loadBillingInfo().then(draw);
+}
+
+/* 확인 메일 다시 보내기 (승인 대기 화면에서) */
+function resendVerifyMail(){
+  var u = window._auth && window._auth.currentUser;
+  if(!u || !window._authFns || !window._authFns.sendEmailVerification){ alert('잠시 후 다시 시도해주세요.'); return; }
+  window._authFns.sendEmailVerification(u)
+    .then(function(){ alert('확인 메일을 다시 보냈어요. 메일함을 확인해 주세요.'); })
+    .catch(function(e){ alert('발송 실패: '+(e&&e.message?e.message:'')); });
 }
 
 /* ── 30일 무료 상태 계산 — 로그인/앱 로드 시 호출 ──
@@ -2212,6 +2347,7 @@ async function renderMasterPanel(){
   await loadMasterCompanies();
   await loadSignupUsers();
   await loadInquiries();
+  await loadBillingInfo();   // 💳 계좌 안내 (승인 대기 화면에 나가는 값)
   drawMasterPanel();
 }
 
@@ -2256,15 +2392,40 @@ async function loadSignupUsers(){
   }catch(e){ console.log('가입자 목록 로드 실패:', e.message); }
 }
 
+/* 계좌 안내 저장 (마스터 전용) — 값은 Firestore 에만, 코드에 박지 않는다 */
+async function saveBillingInfo(){
+  try{
+    var v=function(id){ var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+    var rec={ bank:v('bill-bank'), account:v('bill-account'), holder:v('bill-holder'),
+              fee:v('bill-fee'), note:v('bill-note'), updatedAt:Date.now() };
+    var d=window._firestore.doc, sd=window._firestore.setDoc;
+    await sd(d(window._db, 'orgs', '_master', 'data', 'billing'), rec);
+    _billingInfo = rec;
+    alert('✅ 계좌 안내를 저장했어요.\n승인 대기 중인 업체 화면에 이대로 표시됩니다.');
+  }catch(e){ alert('저장 실패: '+e.message); }
+}
+
 async function setUserApproval(uid, approved){
   try{
     var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
     var ref=d(window._db, 'users', uid);
     var snap=await gd(ref);
     if(snap.exists()){
-      var u=snap.data(); u.approved=approved;
+      var u=snap.data();
+      u.approved=approved;
+      /* 모델 B: **승인하는 이 순간부터 30일 무료가 시작된다.**
+         이미 trialStart 가 있으면 덮지 않는다 — 승인취소 후 재승인으로 무료가
+         처음부터 다시 시작되는 것을 막기 위함이다(원하면 마스터가 따로 처리). */
+      if(approved){
+        u.status='active';
+        if(!u.trialStart){ u.trialStart = Date.now(); u.plan = u.plan || 'trial'; }
+      } else {
+        u.status='pending';
+      }
       await sd(ref, u);
-      alert(approved?'✅ 승인 완료':'승인이 취소되었습니다.');
+      alert(approved
+        ? ('✅ 승인 완료\n\n' + (u.orgName||'') + ' — 지금부터 30일 무료가 시작됩니다.')
+        : '승인이 취소되었습니다. 이 업체는 다시 승인 대기 상태가 됩니다.');
       renderMasterPanel();
     }
   }catch(e){ alert('처리 실패: '+e.message); }
@@ -2276,6 +2437,22 @@ function drawMasterPanel(){
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0;">';
   h += '<div style="font-size:20px;font-weight:800;color:#1D2939;">🏢 업체 관리</div>';
   h += '<span style="font-size:13px;color:#667085;">총 '+masterCompanies.length+'개</span>';
+  h += '</div>';
+
+  /* ── 💳 입금 계좌 안내 (승인 대기 화면에 그대로 나간다) ──
+     계좌번호를 코드에 박지 않는다. 여기서 넣은 값이 orgs/_master/data/billing 에 저장되고,
+     가입자의 「승인 대기」 화면이 그 값을 읽어 보여준다. */
+  var _b = _billingInfo || {};
+  var _bi='width:100%;padding:9px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;';
+  h += '<div style="background:#F9F5FF;border:1px solid #E9D7FE;border-radius:12px;padding:14px;margin-bottom:16px;">';
+  h += '<div style="font-size:14px;font-weight:800;color:#6941C6;margin-bottom:4px;">💳 입금 계좌 안내</div>';
+  h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">승인 대기 중인 업체 화면에 이대로 표시됩니다.</div>';
+  h += '<input id="bill-bank" placeholder="은행 (예: 국민은행)" value="'+escapeMasterHtml(_b.bank||'')+'" style="'+_bi+'"/>';
+  h += '<input id="bill-account" placeholder="계좌번호" value="'+escapeMasterHtml(_b.account||'')+'" style="'+_bi+'"/>';
+  h += '<input id="bill-holder" placeholder="예금주" value="'+escapeMasterHtml(_b.holder||'')+'" style="'+_bi+'"/>';
+  h += '<input id="bill-fee" placeholder="구독료 표기 (예: 월 30,000원 / 연 300,000원)" value="'+escapeMasterHtml(_b.fee||'')+'" style="'+_bi+'"/>';
+  h += '<textarea id="bill-note" placeholder="덧붙일 안내 (선택)" style="'+_bi+'height:52px;resize:vertical;">'+escapeMasterHtml(_b.note||'')+'</textarea>';
+  h += '<button onclick="saveBillingInfo()" style="width:100%;padding:10px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button>';
   h += '</div>';
 
   var pending = signupUsers.filter(function(u){ return u.approved!==true; });
@@ -2290,8 +2467,11 @@ function drawMasterPanel(){
       var dt = u.createdAt ? new Date(u.createdAt).toLocaleDateString('ko-KR') : '';
       h += '<div style="background:white;border:1px solid #FED7AA;border-radius:10px;padding:11px;margin-bottom:6px;">';
       h += '<div style="font-size:14px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(u.orgName||'(이름없음)')+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+(bizLabel[u.bizType]||u.bizType||'')+'</span></div>';
-      h += '<div style="font-size:11px;color:#667085;margin-top:3px;">'+escapeMasterHtml(u.email||'')+' · '+dt+'</div>';
-      h += '<button onclick="setUserApproval(\''+u._uid+'\',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 승인하기</button>';
+      // 입금 확인용 — 연락처·아이디·가입일
+      h += '<div style="font-size:11px;color:#667085;margin-top:3px;">'+escapeMasterHtml(u.email||u.phone||'')+' · 가입 '+dt+'</div>';
+      h += '<div style="font-size:12px;color:#344054;margin-top:2px;">📞 <b>'+escapeMasterHtml(u.contact||u.phone||'(연락처 없음)')+'</b></div>';
+      h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">입금자명으로 확인: <b>'+escapeMasterHtml(u.orgName||'')+'</b></div>';
+      h += '<button onclick="setUserApproval(\''+u._uid+'\',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
       h += '</div>';
     });
   }
@@ -2441,7 +2621,7 @@ function copyMasterUrl(orgId){
 var HELP_QA=[
   /* 코스로드6·7 (2026-09-29) — 가입 수단 선택·이메일 확인·비밀번호 변경·기관 격리 */
   {role:'all', keys:['가입','회원가입','계정','휴대폰가입','이메일가입'], t:'회원가입 — 이메일 또는 휴대폰',
-   a:'1. 회원가입 창 맨 위에서 「📧 이메일로 가입」 또는 「📱 휴대폰으로 가입」을 고르세요\n2. 이메일로 가입하면 확인 메일이 가요 — 메일함에서 확인 링크를 눌러 주세요\n3. 휴대폰으로 가입하면 문자로 6자리 숫자가 와요 — 그 숫자를 넣으면 가입됩니다\n4. 휴대폰 가입은 비밀번호가 없어요. 다음부터도 문자 인증으로 들어옵니다\n5. 어느 쪽으로 가입해도 30일 무료는 똑같아요'},
+   a:'1. 회원가입 창 맨 위에서 「📧 이메일로 가입」 또는 「📱 휴대폰으로 가입」을 고르세요\n2. 업종·업체명·연락처(휴대폰)를 넣어요 — 연락처는 입금 확인과 승인 안내에 써요\n3. 이메일 가입은 비밀번호를 두 번 넣어 확인해요. 확인 메일이 가니 메일함에서 링크를 눌러 주세요\n4. 휴대폰으로 가입하면 문자로 6자리 숫자가 와요 — 그 숫자를 넣으면 본인확인이 끝나요\n5. 휴대폰 가입은 비밀번호가 없어요. 다음부터도 문자 인증으로 들어옵니다\n6. 가입하면 바로 열리는 게 아니라 「승인 대기」예요 — 로그인하면 입금 계좌를 안내해 드려요\n7. 입금이 확인되어 승인되면 그때부터 30일 무료가 시작돼요'},
   {role:'all', keys:['이메일확인','확인메일','인증메일','메일확인'], t:'이메일 확인이 안 됐다고 나와요',
    a:'1. 가입할 때 보낸 확인 메일의 링크를 누르면 끝나요\n2. 메일이 안 보이면 스팸함도 보세요\n3. 관리 → 대시보드 위쪽의 「확인 메일 다시 보내기」로 다시 받을 수 있어요\n4. 확인 전에도 쓸 수는 있어요 — 안내만 뜹니다'},
   {role:'all', keys:['로그인비밀번호','계정비밀번호','비번변경','비밀번호바꾸기'], t:'로그인 비밀번호 바꾸기',
@@ -2491,8 +2671,10 @@ var HELP_QA=[
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업','4대보험','요율','국민연금','건강보험'], t:'급여상세 내보내기',
    a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n9. 인쇄는 가로 A4로 나와요 (날짜가 31칸이라 세로에는 안 들어가요). 기사 한 명당 한 장씩 나오니까 각자에게 그대로 떼어 주시면 돼요 (4대보험 요율표·임시공휴일은 맨 마지막 장에)\n10. 인쇄본은 한 사람을 위아래 2단(앞 15일 / 나머지)으로 나눠 칸을 넓게 쓰고, 날짜는 「1(목)」처럼 요일까지 나와요 (토 파랑·일 빨강, 임시공휴일은 빨강+공휴)'},
+  {role:'all', keys:['승인대기','승인','입금','계좌','대기','잠김'], t:'승인 대기 화면이 나와요',
+   a:'1. 가입 신청이 접수된 상태예요. 아직 앱은 열리지 않아요\n2. 화면에 나온 계좌로 입금해 주세요 — 입금자명은 업체명으로 해주세요\n3. 입금이 확인되면 열어 드리고, 그때부터 30일 무료가 시작돼요\n4. 이메일로 가입했는데 「이메일 확인 필요」가 같이 보이면, 메일함에서 확인 링크도 눌러 주세요 (버튼으로 다시 보낼 수 있어요)\n5. 계좌가 안 보이면 아직 준비 중이에요 — 📧 cosroad@cosroad.com 으로 문의해 주세요'},
   {role:'admin', keys:['체험','무료','구독','요금','만료','결제'], t:'30일 무료 체험·구독',
-   a:'1. 가입 즉시 30일 모든 기능 무료 (카드 등록 없음)\n2. 만료 10일 전부터 상단에 D-N 안내\n3. 만료되면 화면이 잠기고 구독 안내가 나와요 — 넣어 두신 데이터는 지워지지 않아요\n4. 계속 쓰시려면 구독 신청 — 📧 cosroad@cosroad.com'},
+   a:'1. 가입 → 본인확인 → 승인 대기 → 입금 → 승인. 승인된 그 순간부터 30일 무료가 시작돼요 (카드 등록 없음)\n2. 승인 전에는 로그인해도 「승인 대기」 화면만 나와요 — 거기에 입금 계좌가 안내돼요\n3. 입금자명은 업체명으로 해주셔야 확인이 빨라요\n4. 만료 10일 전부터 상단에 D-N 안내\n5. 만료되면 화면이 잠기고 구독 안내가 나와요 — 넣어 두신 데이터는 지워지지 않아요\n6. 문의 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)'},
   {role:'driver', keys:['pin','출근','퇴근','출퇴근','계기판'], t:'PIN 출퇴근 체크',
