@@ -1957,6 +1957,14 @@ function looksLikePhoneId(raw){
    실패해도 가입은 그대로 끝난다. 알림이 목적이지 가입 조건이 아니다. */
 function notifyMasterSignup(common, idText){
   try{
+    /* 같은 기기에서 하루 3건까지만 보낸다 — 문의 알림과 같은 방식(3023 limKey).
+       인증을 뺀 뒤로 가입이 쉬워져, 장난으로 반복하면 문자가 쏟아지고 비용이 나간다.
+       **막는 것은 문자뿐이다.** 가입 자체는 그대로 되고 마스터 화면의 승인 대기 목록에
+       그대로 올라온다 — 알림이 없다고 신청이 사라지면 안 된다. */
+    var limKey='signup_sms_cnt_'+todayStr();
+    var cnt=parseInt(localStorage.getItem(limKey)||'0');
+    if(cnt>=3){ return; }
+    localStorage.setItem(limKey, String(cnt+1));
     var label = {academy:'학원', logistics:'물류', public:'공공', delivery:'택배'}[common.biz] || common.biz || '';
     fetch('https://cosroad.vercel.app/api/send-sms', {
       method:'POST', headers:{'Content-Type':'application/json'},
