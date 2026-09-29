@@ -587,7 +587,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 231;
+const APP_VERSION = 232;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1967,7 +1967,7 @@ function looksLikePhoneId(raw){
 /* ── 가입 신청을 사장님 폰으로 알린다 ────────────────────────────────────
    문의 알림과 **같은 길**(api/send-sms)을 쓴다 — 키는 서버(Vercel 환경변수)에 있다.
    실패해도 가입은 그대로 끝난다. 알림이 목적이지 가입 조건이 아니다. */
-function notifyMasterSignup(common, idText){
+function notifyMasterSignup(common, idText, isPhone){
   try{
     /* 같은 기기에서 하루 3건까지만 보낸다 — 문의 알림과 같은 방식(3023 limKey).
        인증을 뺀 뒤로 가입이 쉬워져, 장난으로 반복하면 문자가 쏟아지고 비용이 나간다.
@@ -1978,11 +1978,42 @@ function notifyMasterSignup(common, idText){
     if(cnt>=3){ return; }
     localStorage.setItem(limKey, String(cnt+1));
     var label = {academy:'학원', logistics:'물류', public:'공공', delivery:'택배'}[common.biz] || common.biz || '';
+    sendSignupSms('010-3660-3911',
+      '[코스로드 가입신청] '+(common.name||'')+'/'+label+' · 연락처 '+(common.contact||'')+' · 아이디 '+(idText||''));
+    /* 신청자에게 입금 계좌 안내 — 같은 가입 1회 흐름, 같은 하루 3건 게이트 안에서 함께 나간다.
+       계좌 값은 코드에 박지 않는다. orgs/_master/data/billing 에서 읽어 조립하므로
+       마스터가 계좌를 바꾸면 문자도 자동으로 따라 바뀐다. */
+    notifyApplicantAccount(common, idText, isPhone);
+  }catch(e){}
+}
+
+/* 문자 한 통 — 실패해도 가입은 완료다(알림 목적이지 가입 조건이 아니다) */
+function sendSignupSms(receiver, msg){
+  try{
     fetch('https://cosroad.vercel.app/api/send-sms', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ receiver:'010-3660-3911',
-        msg:'[코스로드 가입신청] '+(common.name||'')+'/'+label+' · 연락처 '+(common.contact||'')+' · 아이디 '+(idText||'') })
-    });
+      body: JSON.stringify({ receiver: receiver, msg: msg })
+    }).catch(function(){});
+  }catch(e){}
+}
+
+/* 신청자 폰으로 "가입 접수 + 입금 계좌" 안내.
+   보낼 번호가 없거나(이메일만 넣고 연락처가 빈 경우) 마스터가 계좌를 아직 안 넣었으면
+   **보내지 않는다** — 앱의 승인 대기 화면 계좌 안내로 대체된다. */
+function notifyApplicantAccount(common, idText, isPhone){
+  try{
+    var to = phoneDigits((common && common.contact) || '');
+    if(!to && isPhone) to = phoneDigits(idText || '');
+    if(!to) return;                                  // 번호 없음 → 생략
+    loadBillingInfo().then(function(b){
+      if(!b || !b.bank || !b.account) return;        // 계좌 미입력 → 생략
+      var msg = '[코스로드] 가입 신청이 접수됐습니다.\n확인 후 관리자가 승인해 드립니다.\n\n'
+              + '▷ 입금 계좌\n' + b.bank + ' ' + b.account + '\n'
+              + (b.holder ? '예금주 ' + b.holder + '\n' : '')
+              + (b.fee ? '구독료 ' + b.fee + '\n' : '')
+              + '\n입금자명은 가입 시 기관명(' + ((common && common.name) || '') + ')으로 부탁드려요(확인이 빨라요).';
+      sendSignupSms(to, msg);
+    }).catch(function(){});
   }catch(e){}
 }
 
@@ -2021,7 +2052,7 @@ function suCreateAccount(loginId, pw, common, extra, shownId){
   window._authFns.createUserWithEmailAndPassword(window._auth, loginId, pw)
     .then(function(cred){ return suSaveUserDoc(cred.user.uid, common, extra); })
     .then(function(){
-      notifyMasterSignup(common, shownId);
+      notifyMasterSignup(common, shownId, isPhone);
       var mm=document.getElementById('signup-modal'); if(mm) mm.remove();
       alert('✅ 관리자에게 승인 요청했습니다.\n\n'
             + '① 방금 정한 ' + (isPhone ? '휴대폰 번호' : '이메일') + '·비밀번호로 로그인하시면\n'
@@ -2474,6 +2505,42 @@ async function saveBillingInfo(){
   }catch(e){ alert('저장 실패: '+e.message); }
 }
 
+/* 승인 대기 기한 — 이 날수가 지나면 목록에 '기한 만료'로 강조한다(자동 삭제는 하지 않는다) */
+var SIGNUP_EXPIRE_DAYS = 7;
+
+/* 승인 대기 신청 삭제 (마스터 수동, 미승인만) — 목록 정리용.
+   users 문서만 지운다. Firebase Auth 계정은 남는다 —
+   클라이언트가 남의 Auth 계정을 지울 수 없기 때문이다(완전 삭제는 콘솔 Authentication).
+   그 사람이 다시 로그인하면 users 문서가 없어 재가입 안내로 돌아간다. */
+async function deleteSignupUser(uid, orgName){
+  if(!confirm('「'+(orgName||'이름없음')+'」 가입 신청을 삭제할까요?\n\n되돌릴 수 없습니다.\n\n'
+            + '· 승인 대기 목록에서 사라집니다\n'
+            + '· 이 사람이 다시 로그인하면 재가입 안내로 돌아갑니다\n'
+            + '· 로그인 계정 자체는 남습니다 (완전 삭제는 Firebase 콘솔에서)')) return;
+  try{
+    var d=window._firestore.doc, dd=window._firestore.deleteDoc, gd=window._firestore.getDoc;
+    var ref=d(window._db, 'users', uid);
+    /* 안전장치 — 그 사이 승인된 계정이면 지우지 않는다(자료가 딸린 계정 보호).
+       규칙도 같은 조건으로 막지만, 화면에서도 먼저 걸러 실수를 줄인다. */
+    var snap=await gd(ref);
+    if(snap.exists() && snap.data().approved===true){
+      alert('이미 승인된 업체입니다. 승인된 계정은 삭제할 수 없어요.\n먼저 승인을 취소해 주세요.');
+      return;
+    }
+    await dd(ref);
+    await loadSignupUsers();
+    drawMasterPanel();
+    alert('🗑 가입 신청을 삭제했습니다.');
+  }catch(e){
+    var m=String((e&&e.code)||(e&&e.message)||e);
+    if(m.indexOf('permission-denied')>=0){
+      alert('삭제할 수 없습니다.\n\nFirebase 보안 규칙이 아직 갱신되지 않았어요.\n(users delete 를 마스터에게 여는 규칙이 필요합니다)');
+    } else {
+      alert('삭제 실패: '+m);
+    }
+  }
+}
+
 async function setUserApproval(uid, approved){
   try{
     var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
@@ -2543,7 +2610,16 @@ function drawMasterPanel(){
       h += '<div style="font-size:11px;color:#667085;margin-top:3px;">'+escapeMasterHtml(u.phone||u.email||'')+' · 가입 '+dt+'</div>';
       h += '<div style="font-size:12px;color:#344054;margin-top:2px;">📞 <b>'+escapeMasterHtml(u.contact||u.phone||'(연락처 없음)')+'</b></div>';
       h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">입금자명으로 확인: <b>'+escapeMasterHtml(u.orgName||'')+'</b></div>';
+      /* 신청 후 얼마나 지났나 — 7일이 지나면 '기한 만료'로 강조해 정리 판단을 돕는다.
+         표시일 뿐이고 자동으로 지우지는 않는다(삭제는 마스터가 단추로 한다). */
+      var days = u.createdAt ? Math.floor((Date.now()-u.createdAt)/86400000) : 0;
+      if(days >= SIGNUP_EXPIRE_DAYS){
+        h += '<div style="font-size:12px;font-weight:800;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:7px;padding:5px 8px;margin-top:6px;">⛔ 기한 만료 ('+days+'일 경과)</div>';
+      } else {
+        h += '<div style="font-size:11px;color:#667085;margin-top:6px;">'+days+'일 경과 · 만료까지 '+(SIGNUP_EXPIRE_DAYS-days)+'일</div>';
+      }
       h += '<button onclick="setUserApproval(\''+u._uid+'\',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
+      h += '<button onclick="deleteSignupUser(\''+u._uid+'\',\''+escapeMasterHtml(String(u.orgName||'').replace(/\'/g,"\\\\'"))+'\')" style="width:100%;margin-top:5px;padding:8px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🗑 신청 삭제</button>';
       h += '</div>';
     });
   }

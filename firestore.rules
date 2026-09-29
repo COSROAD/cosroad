@@ -143,8 +143,14 @@ service cloud.firestore {
                              && request.resource.data.diff(resource.data).affectedKeys()
                                 .hasOnly(['approved','status','plan','trialStart']))
                        );
-      // 탈퇴해도 지우지 않는다(사장님 결정) — withdrawn 표시만 남기고 로그인을 막는다.
-      allow delete: if false;
+      // 탈퇴해도 본인은 지우지 못한다(사장님 결정) — withdrawn 표시만 남기고 로그인을 막는다.
+      // 다만 **승인 대기(미승인) 신청은 마스터가 정리할 수 있다**(대기 목록 청소용, v232).
+      // 승인된 계정은 기관 자료가 딸려 있으므로 여전히 못 지운다 — 자료 보존 원칙 유지.
+      // 지우려면 먼저 승인을 취소해야 한다(그때 approved 가 false 가 된다).
+      // approved 필드가 아예 없는 옛 문서도 지울 수 있어야 한다 —
+      // resource.data.approved 로 바로 읽으면 없는 필드에서 평가 오류가 나 거부된다.
+      // (email 을 get(,'') 로 읽는 위 규칙과 같은 이유·같은 방식)
+      allow delete: if isAdmin() && resource.data.get('approved', false) != true;
     }
 
     // ── admins/{uid} — 전체 관리자 명단 ───────────────────────────────────
