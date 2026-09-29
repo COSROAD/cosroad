@@ -29,9 +29,10 @@
 // 옛 기본 공간 cosroad_default 는 2026-09-29 에 **닫았다**(사장님 결정, 더 쓰지 않음).
 //   자료를 지운 것이 아니라 접근만 막은 것이다 — 필요하면 이 규칙만 되돌리면 다시 열린다.
 //
-// 마스터 패널도 Firebase 로그인 없이 클라이언트 비밀번호(index.html:1963)로 들어가므로
-// 규칙이 "마스터임"을 확인할 수 없다. 승인·개통 쓰기를 막지 않으려면(지시문 ㄱ)
-// 로그인한 사용자 전체에게 열어 두어야 한다. 아래 ★ 표시한 세 블록이 그것이다.
+// 2026-09-29(코스로드8 ②) — 마스터도 **Firebase 계정**으로 들어온다.
+// 전에는 코드에 적힌 비밀번호였고, 그래서 규칙이 "마스터임"을 확인할 수 없어
+// 가입자 목록·문의함·마스터 자료를 로그인한 전체에게 열어 둘 수밖에 없었다.
+// 이제 admins/{uid} 문서로 가린다(isAdmin()) — 그 세 곳을 닫았다.
 //
 // ── 이번 규칙이 실제로 막는 것 ──────────────────────────────────────────────
 //  · 전체 개방(`/{document=**} if true`) 제거 — 규칙에 없는 경로 전부 거부
@@ -60,6 +61,13 @@ service cloud.firestore {
     }
     function hasUserDoc() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    // 전체 관리자(마스터)인가 — admins/{uid} 문서가 있으면 마스터다 (2026-09-29 코스로드8 ②).
+    // 이 문서는 콘솔에서만 만든다(아래 admins 블록은 쓰기를 닫아 두었다).
+    // 앱 쪽도 같은 문서를 본다(index.html checkIsAdmin) — 화면과 규칙이 같은 것을 근거로 삼는다.
+    function isAdmin() {
+      return signedIn()
+             && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
     // 이메일·휴대폰 가입 계정은 users/{uid}.orgId 에 자기 기관이 저장돼 있다(index.html 가입 흐름).
     function isMyOrg(orgId) {
@@ -104,47 +112,71 @@ service cloud.firestore {
     }
 
     // ── users/{uid} — 계정 ────────────────────────────────────────────────
-    // 본인 문서: 가입 생성(1842) · 로그인 시 읽기(1861) · 무료기간 마이그레이션(1881)
-    // ★ list/update 를 로그인 전체에 여는 이유: 마스터 패널의 가입자 목록(2033)과
-    //   승인 쓰기(2046 setUserApproval)가 이것을 쓴다. 규칙이 마스터를 식별할 수 없어
-    //   지시문 ㄱ(승인 쓰기를 막지 않는다)을 지키려면 열어야 한다.
-    //   → 대가: 로그인한 누구나 가입자 목록(이메일·요금제·orgId)을 볼 수 있다.
-    //     이것을 닫으려면 마스터 패널을 Firebase 로그인 + admins 허용목록으로 바꿔야 한다.
+    // 본인 문서: 가입 생성 · 로그인 시 읽기 · 탈퇴 표시. 목록·승인은 마스터 패널.
+    // 2026-09-29(코스로드8 ②) 마스터가 실계정이 되어 **가입자 목록을 닫았다** —
+    //   전에는 로그인한 누구나 남의 이메일·요금제·orgId 를 훑어볼 수 있었다.
     match /users/{uid} {
-      allow get:    if signedIn();
-      allow list:   if signedIn();                       // ★ 마스터 가입자 목록
+      allow get:    if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list:   if isAdmin();                        // 마스터 가입자 목록 (닫음)
       allow create: if signedIn() && request.auth.uid == uid;
-      // 본인은 자기 문서를 고칠 수 있다. 단 orgId 는 못 바꾼다 —
-      // 바꿀 수 있으면 남의 기관으로 옮겨탄다.
+      // 본인은 자기 문서를 고칠 수 있다. 단 두 가지를 막는다 —
+      //   ① orgId : 바꿀 수 있으면 남의 기관으로 옮겨탄다.
+      //   ② approved · status · plan · trialStart :
+      //      **마스터가 입금을 확인하고 정하는 값**이다. 본인이 바꿀 수 있으면
+      //      승인을 스스로 찍고 무료 기간도 스스로 늘린다 — 돈이 걸린 자리다.
+      //      본인이 고칠 수 있는 것은 기관명·연락처·탈퇴표시 같은 자기 정보뿐이다.
       allow update: if signedIn()
                     && (
                          (request.auth.uid == uid
-                          && request.resource.data.orgId == resource.data.orgId)
-                         // ★ 마스터 승인: approved 만 바뀌는 쓰기는 허용 (2046)
-                         || (request.resource.data.orgId == resource.data.orgId
-                             && request.resource.data.email == resource.data.email
+                          && request.resource.data.orgId == resource.data.orgId
+                          && !request.resource.data.diff(resource.data).affectedKeys()
+                                .hasAny(['approved','status','plan','trialStart']))
+                         // ★ 마스터 승인 — 승인 한 번에 네 값이 함께 바뀐다
+                         //   (approved:true · status:'active' · trialStart=승인시각 · plan:'trial').
+                         //   approved 하나만 허용하면 승인 자체가 막힌다(고쳐서 넓힘).
+                         //   orgId·email 은 그대로여야 한다 = 남의 기관으로 옮기거나
+                         //   아이디를 바꿔치기하는 쓰기는 여전히 거부된다.
+                         //   email 은 휴대폰 가입 계정에 없을 수 있어 get(,'') 로 읽는다.
+                         || (isAdmin()
+                             && request.resource.data.orgId == resource.data.orgId
+                             && request.resource.data.get('email','') == resource.data.get('email','')
                              && request.resource.data.diff(resource.data).affectedKeys()
-                                .hasOnly(['approved']))
+                                .hasOnly(['approved','status','plan','trialStart']))
                        );
+      // 탈퇴해도 지우지 않는다(사장님 결정) — withdrawn 표시만 남기고 로그인을 막는다.
       allow delete: if false;
+    }
+
+    // ── admins/{uid} — 전체 관리자 명단 ───────────────────────────────────
+    // 콘솔에서만 만든다. 앱은 "내가 마스터인가"만 확인한다(자기 문서 읽기).
+    // 쓰기를 열면 스스로 마스터가 될 수 있으므로 **앱에서는 절대 못 쓴다.**
+    match /admins/{uid} {
+      allow get:    if signedIn() && request.auth.uid == uid;
+      allow list:   if false;
+      allow write:  if false;
     }
 
     // ── inquiries/{id} — 문의 ─────────────────────────────────────────────
-    // 보내기는 로그인 전·데모에서도 되어야 한다(2582). 목록·상태변경은 마스터 패널(2009·2022).
-    // ★ 위 users 와 같은 이유로 로그인 전체에 열어 둔다.
+    // 보내기는 누구나(익명 로그인 포함) 되어야 한다 — 로그인 전 화면에서도 문의한다.
+    // 읽기·처리는 마스터 패널만 쓴다. 2026-09-29(코스로드8 ②) 마스터가 실계정이 되어 **닫았다** —
+    // 전에는 로그인한 누구나 남이 보낸 문의(연락처 포함)를 읽을 수 있었다.
     match /inquiries/{id} {
       allow create: if signedIn();
-      allow read:   if signedIn();                       // ★ 마스터 문의 목록
-      allow update: if signedIn();                       // ★ 마스터 처리상태 변경
+      allow read:   if isAdmin();
+      allow update: if isAdmin();
       allow delete: if false;
     }
 
-    // ── orgs/_master/data/{key} — 마스터 업체 목록 (개통 대장) ─────────────
-    // (2172 get · 2183 set) ★ 마스터 개통이 이것을 쓴다. 위와 같은 이유로 열어 둔다.
+    // ── orgs/_master/data/{key} — 마스터 자료 (개통 대장 · 입금 계좌 안내) ──
     // 이 블록이 위의 orgs/{orgId}/data/{key} 보다 뒤에 있어도 무방하다 —
     // Firestore 는 allow 를 합집합으로 본다(어느 하나라도 허용이면 허용).
+    //
+    // billing(입금 계좌 안내)만은 **승인 대기 중인 가입자도 읽어야 한다** —
+    // 승인 대기 화면이 이 값을 읽어 계좌를 보여준다(index.html loadBillingInfo).
+    // 마스터만으로 좁히면 계좌 칸이 영영 «준비 중»으로 남는다. 쓰기는 마스터만 한다.
     match /orgs/_master/data/{key} {
-      allow read, write: if signedIn();
+      allow read:  if isAdmin() || (signedIn() && key == 'billing');
+      allow write: if isAdmin();
     }
 
     // ── shares/{token} — 카톡 공유 링크 스냅샷 (REPLY_32 확정본) ──────────
@@ -164,10 +196,13 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────────────────
     // ☆ 기관 격리는 2026-09-29(코스로드6)에 **켰다.** 위 orgs/{orgId}/data·backups 참고.
     //
+    // ☆ 마스터 실계정(admins) 전환도 2026-09-29(코스로드8 ②)에 **했다.**
+    //    users list · inquiries · orgs/_master 쓰기를 isAdmin() 으로 닫았다.
+    //    단 orgs/_master/data/billing(계좌 안내)만은 승인 대기 중인 가입자도 읽어야 해서 열어 둔다.
+    //
     // 남은 다음 단계(이번 범위 아님):
-    //   · 마스터 패널을 Firebase 로그인 + admins 허용목록으로 바꿔 users list·inquiries·
-    //     orgs/_master 를 닫는다. 지금은 마스터가 클라이언트 비밀번호라 규칙이 식별할 수 없어
-    //     로그인 전체에 열려 있다(★ 표시 세 블록).
+    //   · orgs/cosroad_global(알리고 공통 설정)은 업체 관리자도 쓰므로 그대로 둔다.
+    //     좁히려면 "어느 기관이든 로그인한 관리자" 를 규칙이 가릴 수 있어야 한다.
     //   (cosroad_default 는 2026-09-29 에 닫았다 — 더 쓰지 않기로 확정. 자료는 지우지 않았다.)
     // ─────────────────────────────────────────────────────────────────────
   }
