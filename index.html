@@ -587,7 +587,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 235;
+const APP_VERSION = 236;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2849,7 +2849,7 @@ var HELP_QA=[
   {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 PDF',
    a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).\n5. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이라 수납 달력의 「상계 순액」과 같은 값이에요\n6. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)'},
   {role:'admin', keys:['공유','공유링크','카톡','카카오','링크','전송','만료','명세서공유','한건'], t:'거래내역 명세 카톡 공유 링크',
-   a:'1. 물류 → 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」 칸에서 거래처와 기간을 고르고 「📄 기간 거래내역 PDF 출력」\n2. 열린 PDF 화면 위쪽에 「💬 카톡 공유」 단추가 있어요 — 그걸 누르면 지금 보고 있는 그 명세로 공유 링크가 만들어져요\n3. 저장된 거래명세서 한 건만 보낼 때: 카드의 「💬 카톡 공유」 → 확인창에서 거래처·일자·금액 확인 → 「💬 카톡으로 보내기」 (매출 명세서만)\n4. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n5. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n6. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n7. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n8. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n9. 명세에는 거래처 이름·기간(단건은 일자)·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n10. 「💬 카톡 공유」는 인쇄·PDF에는 안 나와요'},
+   a:'1. 물류 → 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」 칸에서 거래처와 기간을 고르고 「📄 기간 거래내역 PDF 출력」\n2. 열린 PDF 화면 위쪽에 「💬 카톡 공유」 단추가 있어요 — 그걸 누르면 지금 보고 있는 그 명세로 공유 링크가 만들어져요\n3. 저장된 거래명세서 한 건만 보낼 때: 카드의 「💬 카톡 공유」 → 확인창 → 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요 (매출 명세서만)\n4. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n5. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n6. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n7. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n8. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n9. 명세에는 거래처 이름·기간(단건은 일자)·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n10. 「💬 카톡 공유」는 인쇄·PDF에는 안 나와요'},
   {role:'admin', keys:['전체총미수','총미수','업체필터','거래처만','누적미수'], t:'업체 지정 — 목록 필터·전체 총 미수',
    a:'1. 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」에서 거래처를 고르면, 아래 「📁 저장된 거래명세서」 목록도 그 거래처 것만 보여요\n2. 전체로 돌아가려면 목록 위의 「전체 거래처 보기 ↺」를 누르거나 거래처를 「— 거래처 선택 —」으로 바꾸세요\n3. 거래처를 고르면 「전체 총 미수」가 함께 나와요 — 매출 미수 / 매입 미지급 / 전체 순미수 세 줄이에요\n4. 「전체 총 미수」는 고른 기간과 무관하게 그 거래처의 전체 거래를 상계한 금액이에요 — PDF 아래쪽 기간 합계와는 다른 값이에요\n5. 전체 순미수가 음수(파란색)면 우리가 줄 돈이 더 많다는 뜻이에요'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
@@ -7990,6 +7990,7 @@ function invoiceVat(){
 function renderInvoice(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
+  try{ loadKakaoSdk(); }catch(e){}   // 카카오톡 공유 SDK — 이 탭에서만, 내부에서 1회만 로드 (v236)
   var h = '<div style="padding:0 16px 12px;">';
   h += '<div style="position:sticky;top:0;z-index:96;background:var(--gray-100);margin:0 -16px;padding:12px 16px 6px;">';
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:14px;">';
@@ -9614,6 +9615,66 @@ async function shareCopy(url){
   prompt('아래 링크를 복사해 카톡으로 보내세요.', url);
 }
 
+/* ══════════ 카카오톡 공유 SDK (물류 거래명세서 전용, v236) ══════════
+   공식 문서 대조(2026-10-14):
+   - Kakao.init("${JAVASCRIPT_KEY}") — **JavaScript 키**를 쓴다(REST 키 아님).
+     Kakao.isInitialized() 로 "SDK 초기화 여부를 판단" → 이미 되어 있으면 다시 init 하지 않는다.
+   - SDK 2.8.3 CDN + integrity + crossorigin="anonymous" (다운로드 문서 형식 그대로).
+     integrity 는 내려받아 sha384 를 직접 계산해 대조했다(일치 확인).
+   - 도메인: [앱]>[플랫폼 키]>[JavaScript SDK 도메인] 미등록 → 4019,
+     [앱]>[제품 링크 관리]>[웹 도메인] 미등록 → 4002. 둘 다 사장님이 등록했다.
+   - feed 의 content.title·description·imageUrl·link 는 **모두 필수**이므로 imageUrl 을 반드시 넣는다
+     (외부에서 못 읽는 이미지면 5001 → cosroad.com 공개 이미지를 쓰고 200 확인했다).
+   ★ JavaScript 키는 도메인 제한이 걸린 **공개용** 키다. 사장님 결정(10-14)으로 이 파일에만 둔다.
+     REST 키 등 다른 키는 종전대로 Vercel 환경변수에만 둔다. */
+var KAKAO_JS_KEY  = '94961729e3fc7ed924bd6e41f03b2ee8';   /* JavaScript 키 (공개용·도메인 제한). 비어 있으면 SDK 를 켜지 않고
+                               기존 공유 경로(navigator.share → 링크 복사)로만 동작한다. */
+var KAKAO_SDK_SRC = 'https://t1.kakaocdn.net/kakao_js_sdk/2.8.3/kakao.min.js';
+var KAKAO_SDK_SRI = 'sha384-oroumrnFVE0xtgqyDZJARgERibXg2C28380uaUZz2kHDS5CR7tu20eGiOU6GkTpy';
+/* feed 는 imageUrl 이 필수다 — 홈페이지·앱이 og:image 로 쓰는 공개 이미지(1200x630)를 그대로 쓴다 */
+var KAKAO_SHARE_IMAGE = 'https://cosroad.com/og-cosroad-v4.png';
+var _kakaoLoading = null;   // 로드 시도 1회만 (성공·실패 모두 기억)
+
+/* 지금 당장 Kakao.Share 를 쓸 수 있나 */
+function kakaoReady(){
+  try{
+    return !!(window.Kakao && window.Kakao.isInitialized && window.Kakao.isInitialized()
+              && window.Kakao.Share && window.Kakao.Share.sendDefault);
+  }catch(e){ return false; }
+}
+
+/* 초기화는 한 번만 — isInitialized() 로 확인하고 아니면 init */
+function kakaoInitOnce(){
+  try{
+    if(!KAKAO_JS_KEY) return false;                 // 키가 없으면 켜지 않는다
+    if(!window.Kakao || !window.Kakao.init) return false;
+    if(!window.Kakao.isInitialized()) window.Kakao.init(KAKAO_JS_KEY);
+    return kakaoReady();
+  }catch(e){ return false; }
+}
+
+/* SDK 를 동적으로 한 번만 불러온다. 실패해도 조용히 false — 공유는 기존 경로로 떨어진다.
+   물류 거래명세서 탭을 처음 그릴 때 부른다(다른 업종·화면에서는 불리지 않는다). */
+function loadKakaoSdk(){
+  if(_kakaoLoading) return _kakaoLoading;
+  if(kakaoReady()){ _kakaoLoading = Promise.resolve(true); return _kakaoLoading; }
+  _kakaoLoading = new Promise(function(resolve){
+    try{
+      if(!KAKAO_JS_KEY){ resolve(false); return; }
+      if(window.Kakao){ resolve(kakaoInitOnce()); return; }
+      var s = document.createElement('script');
+      s.src = KAKAO_SDK_SRC;
+      s.integrity = KAKAO_SDK_SRI;          // 공식 문서의 SRI 그대로 (직접 계산해 대조함)
+      s.crossOrigin = 'anonymous';          // integrity 검사에 필요
+      s.async = true;
+      s.onload  = function(){ resolve(kakaoInitOnce()); };
+      s.onerror = function(){ resolve(false); };   // 차단·오프라인·SRI 불일치
+      document.head.appendChild(s);
+    }catch(e){ resolve(false); }
+  });
+  return _kakaoLoading;
+}
+
 /* ══════════ 카톡 공유 링크 — 저장된 명세서 **한 건** (v233) ══════════
    기간 공유(shareIssueClientRange)와 **같은 구조·같은 경로·같은 만료**를 쓴다.
    - 스냅샷 모양을 clientRange 와 똑같이 맞춘다 → s.html 은 d.kind 를 읽지 않으므로
@@ -9709,6 +9770,8 @@ var _invShareId = null;   // 지금 확인창이 보고 있는 명세서 id
 var _invShareRes = null;  // 이미 발급한 { url, title, text } — 같은 창에서는 재발급하지 않는다
 /* 복사 완료 안내는 시트 안에 직접 그린다 — showToast(z-index 9999)는 이 시트(10000)에 가린다 */
 var INV_SHARE_COPIED = '✅ 링크를 복사했어요 — 카톡 대화창에 붙여넣기 하세요';
+/* 확인창 회차 — 미리 발급이 늦게 돌아왔을 때 지난 창의 결과를 쓰지 않도록 가른다 (v236) */
+var _invShareSeq = 0;
 
 function closeInvoiceShare(){
   var el = document.getElementById('invShareSheet');
@@ -9722,6 +9785,7 @@ function openInvoiceShare(id){
   // 확인창을 열 때마다 새로 발급한다(수정된 금액이 반영되도록)
   _invShareRes = null;
   _invShareId = String(id);
+  var seq = ++_invShareSeq;   // 이 창의 회차
 
   var sel = members.find(function(m){ return String(m.id)===String(iv.memberId); }) || {};
   var cname = String(sel.name || iv.memberName || '');
@@ -9740,18 +9804,69 @@ function openInvoiceShare(id){
     + '</div>'
     + '<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:12px;">받는 분은 가입 없이 링크만 열면 이 명세를 봐요. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요.<br>보낸 뒤 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요.</div>'
     + '<div id="invShareLink"></div>'
-    + '<button id="invShareSendBtn" onclick="invShareSend()" style="width:100%;padding:13px;background:#FEE500;color:#3C1E1E;border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;">💬 카톡으로 보내기</button>'
+    + '<button id="invShareSendBtn" onclick="invShareSend()" disabled style="width:100%;padding:13px;background:#FEE500;color:#3C1E1E;border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:default;opacity:.55;">링크 준비 중…</button>'
     + '<button onclick="invShareCopy()" style="width:100%;padding:11px;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">🔗 링크 복사</button>'
     + '<button onclick="closeInvoiceShare()" style="width:100%;padding:11px;background:#F2F4F7;color:#667085;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">닫기</button>'
     + '</div>';
   document.body.appendChild(wrap);
+  /* 링크를 **미리** 발급한다 — 보내기를 누른 뒤 await 하면 사용자 제스처가 풀려
+     카카오톡 창이 팝업 차단에 걸린다. 발급이 끝나면 단추가 열린다. */
+  invSharePrepare(seq);
 }
 
-/* 발급은 한 창에서 한 번만 — 이미 받은 url 이 있으면 그대로 쓴다 */
-async function invShareEnsureUrl(){
+/* 미리 발급 — 끝나면 「💬 카톡으로 보내기」를 활성화한다. 실패하면 시트에 사유를 적는다. */
+async function invSharePrepare(seq){
+  var r = await invShareEnsureUrl(seq);
+  if(seq !== _invShareSeq) return;                 // 그 사이 다른 명세서를 열었다 — 무시
+  var btn = document.getElementById('invShareSendBtn');
+  if(!r || r.error){
+    if(btn) btn.textContent = '보낼 수 없어요';
+    invShareShowError((r && r.error) || '공유 링크를 만들지 못했어요.');
+    return;
+  }
+  if(btn){
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = 'pointer';
+    btn.textContent = '💬 카톡으로 보내기';
+  }
+}
+
+/* 시트 안에 오류를 적는다(alert 대신 — 확인창 위에서 바로 보이게) */
+function invShareShowError(msg){
+  var box = document.getElementById('invShareLink');
+  if(!box) return;
+  box.innerHTML = '<div id="invShareErr" style="font-size:12px;font-weight:700;color:#B42318;background:#FEF3F2;'
+    + 'border:1px solid #FECDCA;border-radius:8px;padding:9px 11px;margin-bottom:10px;white-space:pre-line;">'
+    + escapeMasterHtml(msg) + '</div>';
+}
+
+/* 카카오톡 feed 메시지 — content 네 필드(title·description·imageUrl·link) 전부 필수 */
+function invShareKakaoPayload(r){
+  var iv = loadInvoices().find(function(x){ return String(x.id)===String(_invShareId); }) || {};
+  var sel = members.find(function(m){ return String(m.id)===String(iv.memberId); }) || {};
+  var org = orgSettings || {};
+  var cname = String(sel.name || iv.memberName || '');
+  var lk = { mobileWebUrl: r.url, webUrl: r.url };
+  return {
+    objectType: 'feed',
+    content: {
+      title: '거래명세서 · ' + cname,
+      description: String(iv.date||'') + ' · 합계 ' + (Number(iv.total)||0).toLocaleString() + '원 · ' + String(org.name||''),
+      imageUrl: KAKAO_SHARE_IMAGE,
+      link: lk
+    },
+    buttons: [{ title: '명세서 보기', link: lk }]
+  };
+}
+
+/* 발급은 한 창에서 한 번만 — 이미 받은 url 이 있으면 그대로 쓴다.
+   seq 를 주면 그 회차가 아직 열려 있을 때만 캐시에 넣는다(지난 창의 늦은 발급 방지, v236) */
+async function invShareEnsureUrl(seq){
   if(_invShareRes && _invShareRes.url) return _invShareRes;
   var r = await shareIssueOneInvoice(_invShareId);
   if(!r || r.error) return (r || { error:'공유 링크를 만들지 못했어요.' });
+  if(seq !== undefined && seq !== _invShareSeq) return r;
   _invShareRes = r;
   return r;
 }
@@ -9769,28 +9884,39 @@ function invShareShowLink(url, again, msg){
     + (msg ? '<div id="invShareMsg" style="font-size:12px;font-weight:700;color:#027A48;margin-bottom:10px;">'+escapeMasterHtml(msg)+'</div>' : '');
 }
 
-async function invShareSend(){
-  var btn = document.getElementById('invShareSendBtn');
-  if(btn){ btn.disabled = true; btn.textContent = '만드는 중…'; }
-  var r = await invShareEnsureUrl();
-  if(btn){ btn.disabled = false; btn.textContent = '💬 카톡으로 보내기'; }
-  if(r.error){ alert(r.error); return; }
+/* 「💬 카톡으로 보내기」 — 링크는 창을 열 때 이미 발급해 뒀으므로 **await 없이 즉시** 보낸다.
+   (await 를 두면 사용자 제스처가 풀려 카카오톡 창이 팝업 차단에 걸린다)
+   순서: ① 카카오톡 공유 → ② OS 공유창 → ③ 링크 복사.
+   기관 구분 없이 같은 길로 간다 — 예외는 _demo 차단(isDemoMode)뿐이다.
+   (v233 의 _test 전용 분기는 v235 에서 제거했다: _test 는 실사용자와 똑같이 동작해야 한다) */
+function invShareSend(){
+  var r = _invShareRes;
+  if(!r || !r.url){ invShareShowError('링크가 아직 준비되지 않았어요. 잠시 뒤 다시 눌러 주세요.'); return; }
 
-  // 기관 구분 없이 같은 길로 간다 — 예외는 _demo 차단(isDemoMode)뿐이다.
-  // (v233 의 _test 전용 분기는 제거했다: _test 는 실사용자와 똑같이 동작해야 한다)
-  if(navigator.share){
+  // ① 카카오톡으로 바로 — 친구·대화방 선택 창이 뜬다
+  if(kakaoReady()){
     try{
-      await navigator.share({ title:r.title, text:r.text, url:r.url });
+      window.Kakao.Share.sendDefault(invShareKakaoPayload(r));
+      return;
     }catch(e){
-      if(e && e.name==='AbortError') return;          // 사용자가 닫은 것 — 조용히 끝낸다
-      // 발급을 await 하는 사이 제스처가 풀려 거부된 경우(NotAllowedError 등)
+      // 규격·도메인 문제 등으로 던지면 링크를 보여주고 아래 기존 경로로 떨어진다
       invShareShowLink(r.url, true);
     }
+  }
+
+  // ② OS 공유창
+  if(navigator.share){
+    navigator.share({ title:r.title, text:r.text, url:r.url }).catch(function(e){
+      if(e && e.name==='AbortError') return;          // 사용자가 닫은 것 — 조용히 끝낸다
+      invShareShowLink(r.url, true);
+    });
     return;
   }
-  // PC 등 공유 API 가 없는 환경
-  await shareCopy(r.url);
-  invShareShowLink(r.url, false, INV_SHARE_COPIED);
+
+  // ③ PC 등 공유 API 가 없는 환경
+  Promise.resolve(shareCopy(r.url)).then(function(){
+    invShareShowLink(r.url, false, INV_SHARE_COPIED);
+  });
 }
 
 /* 「다시 공유」 — 새 터치이므로 재발급 없이 같은 url 로 보낸다.
