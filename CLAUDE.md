@@ -11,7 +11,14 @@
   - `send-sms.js`·`send-alimtalk.js` 알리고 문자·알림톡 (허용 출처 검사 있음 — 완화 금지)
 - 배포: GitHub push → Vercel 자동 배포. 정적 페이지는 GitHub Pages(cosroad.com)
 - 데이터: localStorage(기관별 키) + Firebase 동기화. `_demo` 기관은 읽기전용 샘플, `_test`는 테스트용
-- 요금제: 가입 즉시 30일 무료 체험, 만료 시 차단 + 구독 안내 (plan: trial/paid)
+- 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),
+  만료 시 차단 + 구독 안내 (plan: trial/paid). 농협 구독료 월 45,000 / 년 540,000.
+- 모델 B (v232 `350f960`)
+  - 로그인: 이메일 인증 제거, 휴대폰번호 + 비밀번호 로그인.
+  - 가입은 승인 대기(pending). 마스터가 승인해야 이용 시작(= 체험 30일 시작).
+  - 마스터: 실계정 `admins/{uid}` (MASTER_PW 제거). 기관 격리 `isMyOrg`.
+  - Firestore `users` delete = `isAdmin() && get('approved',false)!=true` (미승인만 삭제).
+  - 미승인 대기 항목은 마스터 패널에서 수동 삭제(🗑), 가입 7일 경과 시 만료 표시.
 
 ## 절대 규칙
 1. **API 키는 Vercel 환경변수에만.** 코드·커밋·로그·주석 어디에도 키를 넣지 않는다.
