@@ -587,7 +587,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 232;
+const APP_VERSION = 233;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2790,7 +2790,7 @@ var HELP_QA=[
   {role:'all', keys:['공유','위치공유','카톡공유'], t:'오늘 코스·위치 공유',
    a:'1. 운행 화면 위쪽 「📍 공유」\n2. 오늘 운행할 순서와 «회원» 목록이 글로 정리돼 미리보기로 떠요\n3. 「📋 운행 정보 복사 → 카카오톡 붙여넣기」로 복사한 뒤 카톡 방에 붙여넣으면 돼요\n4. 「📱 문자 보내기」를 누르면 «학부모» 연락처로 문자앱이 열려요\n5. 「🗺 네이버지도로 경로 확인」·「🗺 T맵으로 경로 확인」으로 경로를 지도에서 볼 수 있어요\n6. 실시간 GPS 위치 공유는 아직 준비 중이라, 지금은 운행 정보를 글로 보내는 방식이에요'},
   {role:'admin', keys:['명세서','거래명세'], t:'거래명세서 작성',
-   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 품목을 고르면 명세서 종류에 맞는 단가만 자동으로 들어와요 — 매입은 「입고가」, 매출은 「출고가」 (0원이면 단가는 비어 있어요)\n4. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증\n5. 저장 목록 위 「날짜로 보기」 달력을 열면 날짜마다 거래처·매출/매입·금액이 색으로 표시되고, 날짜를 누르면 그날 명세서만 모아 볼 수 있어요.\n6. 품목이 많으면 인쇄·PDF가 자동으로 여러 장으로 나뉘어요 (합계는 마지막 장에).'},
+   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 품목을 고르면 명세서 종류에 맞는 단가만 자동으로 들어와요 — 매입은 「입고가」, 매출은 「출고가」 (0원이면 단가는 비어 있어요)\n4. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증/💬 카톡 공유(매출)\n5. 저장 목록 위 「날짜로 보기」 달력을 열면 날짜마다 거래처·매출/매입·금액이 색으로 표시되고, 날짜를 누르면 그날 명세서만 모아 볼 수 있어요.\n6. 품목이 많으면 인쇄·PDF가 자동으로 여러 장으로 나뉘어요 (합계는 마지막 장에).'},
   {role:'admin', keys:['영수증','감열','프린터','rawbt','구매'], t:'영수증 인쇄 (감열 프린터)',
    a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. RawBT에서 막히는 두 곳: 기기 목록이 비어 있으면 「GRANT PERMISSION」으로 근처 기기 검색을 허용하고, 연결 뒤에는 「Your printers」에서 내 프린터에 체크하세요 (처음엔 Emulator에 체크돼 있어 종이로 안 나가요)\n6. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n7. 다른 프린터로 성공하셨다면 알려주세요 — 목록에 추가할게요!'},
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
@@ -2848,8 +2848,8 @@ var HELP_QA=[
    a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요 — 달력에서도 같이 사라져요\n8. 수금한 날짜에는 달력에도 초록색으로 표시돼요 — 그 수금으로 명세서가 다 채워지면 「수금완료(매입은 결제완료)」, 덜 채워지면 「부분수금 ○○원」으로 나와요\n9. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요 (앱의 모든 날짜 칸이 같아요)'},
   {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 PDF',
    a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).\n5. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이라 수납 달력의 「상계 순액」과 같은 값이에요\n6. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)'},
-  {role:'admin', keys:['공유','공유링크','카톡','카카오','링크','전송','만료'], t:'거래내역 명세 카톡 공유 링크',
-   a:'1. 물류 → 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」 칸에서 거래처와 기간을 고르고 「📄 기간 거래내역 PDF 출력」\n2. 열린 PDF 화면 위쪽에 「💬 카톡 공유」 단추가 있어요 — 그걸 누르면 지금 보고 있는 그 명세로 공유 링크가 만들어져요\n3. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n4. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n5. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n6. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n8. 명세에는 거래처 이름·기간·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n9. 「💬 카톡 공유」는 인쇄·PDF에는 안 나와요'},
+  {role:'admin', keys:['공유','공유링크','카톡','카카오','링크','전송','만료','명세서공유','한건'], t:'거래내역 명세 카톡 공유 링크',
+   a:'1. 물류 → 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」 칸에서 거래처와 기간을 고르고 「📄 기간 거래내역 PDF 출력」\n2. 열린 PDF 화면 위쪽에 「💬 카톡 공유」 단추가 있어요 — 그걸 누르면 지금 보고 있는 그 명세로 공유 링크가 만들어져요\n3. 저장된 거래명세서 한 건만 보낼 때: 카드의 「💬 카톡 공유」 → 확인창에서 거래처·일자·금액 확인 → 「💬 카톡으로 보내기」 (매출 명세서만)\n4. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n5. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n6. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n7. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n8. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n9. 명세에는 거래처 이름·기간(단건은 일자)·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n10. 「💬 카톡 공유」는 인쇄·PDF에는 안 나와요'},
   {role:'admin', keys:['전체총미수','총미수','업체필터','거래처만','누적미수'], t:'업체 지정 — 목록 필터·전체 총 미수',
    a:'1. 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」에서 거래처를 고르면, 아래 「📁 저장된 거래명세서」 목록도 그 거래처 것만 보여요\n2. 전체로 돌아가려면 목록 위의 「전체 거래처 보기 ↺」를 누르거나 거래처를 「— 거래처 선택 —」으로 바꾸세요\n3. 거래처를 고르면 「전체 총 미수」가 함께 나와요 — 매출 미수 / 매입 미지급 / 전체 순미수 세 줄이에요\n4. 「전체 총 미수」는 고른 기간과 무관하게 그 거래처의 전체 거래를 상계한 금액이에요 — PDF 아래쪽 기간 합계와는 다른 값이에요\n5. 전체 순미수가 음수(파란색)면 우리가 줄 돈이 더 많다는 뜻이에요'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
@@ -8197,10 +8197,12 @@ function renderInvoice(){
       h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+inv.date+' · 품목 '+inv.items.length+'건</div></div>';
       h += '<div style="text-align:right;"><div style="font-size:15px;font-weight:800;color:#7C3AED;">'+(inv.total||0).toLocaleString()+'원</div></div>';
       h += '</div>';
-      h += '<div style="display:flex;gap:6px;margin-top:8px;">';
+      // 단추가 4개(매출)라 360px 폭에서는 한 줄에 다 안 들어간다 → wrap 으로 접어 내린다
+      h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">';
       if((inv.kind||'sale')!=='purchase'){
         h += '<button onclick="printInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🖨 인쇄 / 📄 PDF</button>';
         h += '<button onclick="receiptPrintInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#B54708;background:#FFFAEB;border:1px solid #FEDF89;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🧾 영수증</button>';
+        h += '<button onclick="openInvoiceShare(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#3C1E1E;background:#FEE500;border:1px solid #F2D900;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;white-space:nowrap;">💬 카톡 공유</button>';
       }
       h += '<button onclick="startEditInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">✏ 수정</button>';
       h += '<button onclick="deleteInvoice(\''+inv.id+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:700;">삭제</button>';
@@ -9610,6 +9612,212 @@ async function shareCopy(url){
     if(okc){ showToast('링크를 복사했어요. 카톡에 붙여넣기 하세요.'); return; }
   }catch(e){}
   prompt('아래 링크를 복사해 카톡으로 보내세요.', url);
+}
+
+/* ══════════ 카톡 공유 링크 — 저장된 명세서 **한 건** (v233) ══════════
+   기간 공유(shareIssueClientRange)와 **같은 구조·같은 경로·같은 만료**를 쓴다.
+   - 스냅샷 모양을 clientRange 와 똑같이 맞춘다 → s.html 은 d.kind 를 읽지 않으므로
+     받는 쪽을 **고치지 않아도** 그대로 그려진다(s.html:91~146 확인).
+   - 계산은 buildClientRangeData **한 벌만** 쓴다. 행 계산을 복사하면 v222 상계 버그가 되살아난다.
+   - 기존 함수는 호출만 한다 — 내부를 고치지 않는다.
+   - 명세서 데이터(tkd_invoices)에는 아무 필드도 더하지 않는다(9580 결정 유지). */
+
+/* 단건 → 기간 공유와 같은 모양의 D 를 만든다.
+   같은 달 같은 거래처에 다른 거래가 있어도 **그 한 건만** 담는다 (id 로 골라낸다). */
+function buildOneInvoiceData(id){
+  var iv = loadInvoices().find(function(x){ return String(x.id)===String(id); });
+  if(!iv || !iv.date) return null;
+  var ym = iv.date.slice(0,7);
+  // 행·금액은 기존 함수가 만든 것을 그대로 쓴다(계산 두 벌 금지)
+  var D = buildClientRangeData(iv.memberId, ym, ym);
+  // rows 는 list.forEach 순서로 push 되므로 같은 인덱스다(9279~9300)
+  var idx = D.list.findIndex(function(x){ return String(x.id)===String(id); });
+  if(idx<0) return null;
+  var row = D.rows[idx];
+  if(!row) return null;
+  return {
+    list: [iv],
+    rows: [row],
+    totals: { supply:row.supply, vat:row.vat, grand:row.grand, paid:row.paid },
+    net: netUnpaid([iv]),
+    period: { start: iv.date, end: iv.date }
+  };
+}
+
+/* 단건 공유 링크 발급 — 순서·문구를 shareIssueClientRange 와 맞췄다.
+   반환: { url, title, text } 또는 { error:'사용자에게 보여줄 문구' } */
+async function shareIssueOneInvoice(id){
+  if(!id) return { error:'명세서를 찾을 수 없어요.' };
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    return { error:'둘러보기(데모) 기관에서는 공유 링크를 만들 수 없어요.' };
+  }
+  if(!window._db || !window._firestore){
+    return { error:'서버 연결이 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요.' };
+  }
+  var D = buildOneInvoiceData(id);
+  if(!D) return { error:'명세서를 찾을 수 없어요.' };
+  var iv = D.list[0];
+  // 화면에서 매입 카드엔 단추를 안 넣지만, 함수에서 한 번 더 막는다
+  if((iv.kind||'sale')==='purchase') return { error:'매출 명세서만 공유할 수 있어요.' };
+
+  var sel = members.find(function(m){ return String(m.id)===String(iv.memberId); }) || {};
+  var org = orgSettings || {};
+  var cname = String(sel.name || iv.memberName || '');
+
+  // ── 스냅샷: 기간 공유와 같은 키 구성. 이름 외 개인정보는 담지 않는다 ──
+  // (연락처·주소·차량·메모, 다른 거래처 자료, memberId 모두 제외 — 9548~9549 원칙)
+  var snap = {
+    v: 1,
+    kind: 'oneInvoice',
+    org:    { name: String(org.name||'') },
+    client: { name: cname },
+    period: D.period,
+    count:  1,
+    rows:   D.rows,
+    totals: D.totals,
+    net:    D.net,
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + SHARE_DAYS*864e5)
+  };
+  try{ if(window._auth && window._auth.currentUser) snap.ownerUid = window._auth.currentUser.uid; }catch(e){}
+
+  var token = shareNewToken();
+  try{
+    var { doc, setDoc } = window._firestore;
+    await setDoc(doc(window._db, 'shares', token), snap);
+  }catch(e){
+    var m = String((e && e.code) || (e && e.message) || e);
+    if(m.indexOf('permission-denied')>=0){
+      return { error:'공유 링크를 저장할 수 없어요.\n\nFirebase 보안 규칙에 shares 경로가 아직 추가되지 않았어요.\n관리자에게 규칙 적용을 요청해 주세요.' };
+    }
+    return { error:'공유 링크를 만들지 못했어요.\n\n'+m };
+  }
+
+  // 발급 기록은 남기지 않는다 — 30일 자동 만료에만 맡긴다(9580 결정 그대로)
+  try{ showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){}
+  return {
+    url:   shareUrlOf(token),
+    title: '거래명세서',
+    text:  cname + ' ' + iv.date + ' 거래명세서'
+  };
+}
+
+/* ── 단건 공유 확인창 ──
+   공용 showConfirmModal 은 단추가 2개(확인·취소)뿐이라 「보내기/링크 복사/닫기」 3개를 담을 수 없다.
+   공용 모달 내부를 고치면 4업종 전체에 번지므로 **전용 소형 시트**를 따로 만든다. */
+var _invShareId = null;   // 지금 확인창이 보고 있는 명세서 id
+var _invShareRes = null;  // 이미 발급한 { url, title, text } — 같은 창에서는 재발급하지 않는다
+
+function invShareIsTest(){
+  try{
+    var o = (typeof getFbOrgId==='function') ? getFbOrgId() : '';
+    return typeof o==='string' && /_test$/.test(o);
+  }catch(e){ return false; }
+}
+
+function closeInvoiceShare(){
+  var el = document.getElementById('invShareSheet');
+  if(el) el.remove();
+}
+
+function openInvoiceShare(id){
+  var iv = loadInvoices().find(function(x){ return String(x.id)===String(id); });
+  if(!iv){ alert('명세서를 찾을 수 없어요.'); return; }
+  if((iv.kind||'sale')==='purchase'){ alert('매출 명세서만 공유할 수 있어요.'); return; }
+  // 다른 명세서를 열면 앞서 발급한 링크는 버린다(엉뚱한 건이 전송되지 않게)
+  if(String(_invShareId)!==String(id)) _invShareRes = null;
+  _invShareId = String(id);
+
+  var sel = members.find(function(m){ return String(m.id)===String(iv.memberId); }) || {};
+  var cname = String(sel.name || iv.memberName || '');
+
+  closeInvoiceShare();
+  var wrap = document.createElement('div');
+  wrap.id = 'invShareSheet';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(16,24,40,.45);display:flex;align-items:flex-end;justify-content:center;';
+  wrap.innerHTML =
+    '<div style="background:white;width:100%;max-width:420px;border-radius:16px 16px 0 0;padding:18px 16px 20px;box-sizing:border-box;">'
+    + '<div style="font-size:15px;font-weight:800;color:#1D2939;margin-bottom:10px;">💬 이 거래명세서를 카톡으로 보낼까요?</div>'
+    + '<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px;padding:11px 12px;margin-bottom:12px;">'
+      + '<div style="display:flex;justify-content:space-between;font-size:12px;color:#475467;padding:2px 0;"><span>거래처</span><b style="color:#1D2939;">'+escapeMasterHtml(cname)+'</b></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:12px;color:#475467;padding:2px 0;"><span>일자</span><b style="color:#1D2939;">'+escapeMasterHtml(iv.date||'')+'</b></div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #EAECF0;margin-top:5px;padding-top:5px;"><span style="font-size:12px;font-weight:800;color:#344054;">합계</span><span style="font-size:17px;font-weight:800;color:#7C3AED;">'+(iv.total||0).toLocaleString()+'<span style="font-size:12px;">원</span></span></div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:12px;">받는 분은 가입 없이 링크만 열면 이 명세를 봐요. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요.<br>보낸 뒤 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요.</div>'
+    + '<div id="invShareLink"></div>'
+    + '<button id="invShareSendBtn" onclick="invShareSend()" style="width:100%;padding:13px;background:#FEE500;color:#3C1E1E;border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;">💬 카톡으로 보내기</button>'
+    + '<button onclick="invShareCopy()" style="width:100%;padding:11px;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">🔗 링크 복사</button>'
+    + '<button onclick="closeInvoiceShare()" style="width:100%;padding:11px;background:#F2F4F7;color:#667085;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">닫기</button>'
+    + '</div>';
+  document.body.appendChild(wrap);
+}
+
+/* 발급은 한 창에서 한 번만 — 이미 받은 url 이 있으면 그대로 쓴다 */
+async function invShareEnsureUrl(){
+  if(_invShareRes && _invShareRes.url) return _invShareRes;
+  var r = await shareIssueOneInvoice(_invShareId);
+  if(!r || r.error) return (r || { error:'공유 링크를 만들지 못했어요.' });
+  _invShareRes = r;
+  return r;
+}
+
+/* 발급된 링크를 시트에 보여준다. again=true 면 「💬 다시 공유」도 함께(새 터치용) */
+function invShareShowLink(url, again){
+  var box = document.getElementById('invShareLink');
+  if(!box) return;
+  box.innerHTML =
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">'
+    + '<input id="invShareUrl" readonly value="'+String(url).replace(/"/g,'&quot;')+'" style="flex:1;min-width:0;padding:8px;border:1px solid #D0D5DD;border-radius:8px;font-size:11px;"/>'
+    + ((again && navigator.share) ? '<button onclick="invShareAgain()" style="padding:8px 11px;background:#FEE500;color:#3C1E1E;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 다시 공유</button>' : '')
+    + '</div>';
+}
+
+async function invShareSend(){
+  var btn = document.getElementById('invShareSendBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '만드는 중…'; }
+  var r = await invShareEnsureUrl();
+  if(btn){ btn.disabled = false; btn.textContent = '💬 카톡으로 보내기'; }
+  if(r.error){ alert(r.error); return; }
+
+  // 테스트 기관: 공유창을 띄우지 않고 링크만 복사한다(s.html 확인용)
+  if(invShareIsTest()){
+    shareCopy(r.url);
+    invShareShowLink(r.url, false);
+    try{ showToast('테스트 기관: 공유창 없이 링크만 복사했어요'); }catch(e){}
+    return;
+  }
+
+  if(navigator.share){
+    try{
+      await navigator.share({ title:r.title, text:r.text, url:r.url });
+    }catch(e){
+      if(e && e.name==='AbortError') return;          // 사용자가 닫은 것 — 조용히 끝낸다
+      // 발급을 await 하는 사이 제스처가 풀려 거부된 경우(NotAllowedError 등)
+      invShareShowLink(r.url, true);
+    }
+    return;
+  }
+  // PC 등 공유 API 가 없는 환경
+  shareCopy(r.url);
+  invShareShowLink(r.url, false);
+}
+
+/* 「다시 공유」 — 새 터치이므로 재발급 없이 같은 url 로 보낸다 */
+function invShareAgain(){
+  var r = _invShareRes;
+  if(!r || !r.url) return;
+  if(!navigator.share){ shareCopy(r.url); return; }
+  navigator.share({ title:r.title, text:r.text, url:r.url }).catch(function(e){
+    if(e && e.name==='AbortError') return;
+    shareCopy(r.url);
+  });
+}
+
+async function invShareCopy(){
+  var r = await invShareEnsureUrl();
+  if(r.error){ alert(r.error); return; }
+  shareCopy(r.url);          // 기존 앱 창 복사 함수 재사용(9594~9613)
+  invShareShowLink(r.url, false);
 }
 
 // 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
