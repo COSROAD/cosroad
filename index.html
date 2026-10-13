@@ -587,7 +587,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 234;
+const APP_VERSION = 235;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -9707,13 +9707,8 @@ async function shareIssueOneInvoice(id){
    공용 모달 내부를 고치면 4업종 전체에 번지므로 **전용 소형 시트**를 따로 만든다. */
 var _invShareId = null;   // 지금 확인창이 보고 있는 명세서 id
 var _invShareRes = null;  // 이미 발급한 { url, title, text } — 같은 창에서는 재발급하지 않는다
-
-function invShareIsTest(){
-  try{
-    var o = (typeof getFbOrgId==='function') ? getFbOrgId() : '';
-    return typeof o==='string' && /_test$/.test(o);
-  }catch(e){ return false; }
-}
+/* 복사 완료 안내는 시트 안에 직접 그린다 — showToast(z-index 9999)는 이 시트(10000)에 가린다 */
+var INV_SHARE_COPIED = '✅ 링크를 복사했어요 — 카톡 대화창에 붙여넣기 하세요';
 
 function closeInvoiceShare(){
   var el = document.getElementById('invShareSheet');
@@ -9761,15 +9756,17 @@ async function invShareEnsureUrl(){
   return r;
 }
 
-/* 발급된 링크를 시트에 보여준다. again=true 면 「💬 다시 공유」도 함께(새 터치용) */
-function invShareShowLink(url, again){
+/* 발급된 링크를 시트에 보여준다.
+   again=true 면 「💬 다시 공유」도 함께(새 터치용), msg 가 있으면 링크 아래 한 줄로 안내한다. */
+function invShareShowLink(url, again, msg){
   var box = document.getElementById('invShareLink');
   if(!box) return;
   box.innerHTML =
-    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">'
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:'+(msg?'6px':'10px')+';">'
     + '<input id="invShareUrl" readonly value="'+String(url).replace(/"/g,'&quot;')+'" style="flex:1;min-width:0;padding:8px;border:1px solid #D0D5DD;border-radius:8px;font-size:11px;"/>'
     + ((again && navigator.share) ? '<button onclick="invShareAgain()" style="padding:8px 11px;background:#FEE500;color:#3C1E1E;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 다시 공유</button>' : '')
-    + '</div>';
+    + '</div>'
+    + (msg ? '<div id="invShareMsg" style="font-size:12px;font-weight:700;color:#027A48;margin-bottom:10px;">'+escapeMasterHtml(msg)+'</div>' : '');
 }
 
 async function invShareSend(){
@@ -9779,14 +9776,8 @@ async function invShareSend(){
   if(btn){ btn.disabled = false; btn.textContent = '💬 카톡으로 보내기'; }
   if(r.error){ alert(r.error); return; }
 
-  // 테스트 기관: 공유창을 띄우지 않고 링크만 복사한다(s.html 확인용)
-  if(invShareIsTest()){
-    shareCopy(r.url);
-    invShareShowLink(r.url, false);
-    try{ showToast('테스트 기관: 공유창 없이 링크만 복사했어요'); }catch(e){}
-    return;
-  }
-
+  // 기관 구분 없이 같은 길로 간다 — 예외는 _demo 차단(isDemoMode)뿐이다.
+  // (v233 의 _test 전용 분기는 제거했다: _test 는 실사용자와 똑같이 동작해야 한다)
   if(navigator.share){
     try{
       await navigator.share({ title:r.title, text:r.text, url:r.url });
@@ -9798,26 +9789,34 @@ async function invShareSend(){
     return;
   }
   // PC 등 공유 API 가 없는 환경
-  shareCopy(r.url);
-  invShareShowLink(r.url, false);
+  await shareCopy(r.url);
+  invShareShowLink(r.url, false, INV_SHARE_COPIED);
 }
 
-/* 「다시 공유」 — 새 터치이므로 재발급 없이 같은 url 로 보낸다 */
-function invShareAgain(){
+/* 「다시 공유」 — 새 터치이므로 재발급 없이 같은 url 로 보낸다.
+   navigator.share 호출을 await 앞에 두어 사용자 제스처를 잃지 않는다. */
+async function invShareAgain(){
   var r = _invShareRes;
   if(!r || !r.url) return;
-  if(!navigator.share){ shareCopy(r.url); return; }
-  navigator.share({ title:r.title, text:r.text, url:r.url }).catch(function(e){
+  if(!navigator.share){
+    await shareCopy(r.url);
+    invShareShowLink(r.url, true, INV_SHARE_COPIED);
+    return;
+  }
+  try{
+    await navigator.share({ title:r.title, text:r.text, url:r.url });
+  }catch(e){
     if(e && e.name==='AbortError') return;
-    shareCopy(r.url);
-  });
+    await shareCopy(r.url);
+    invShareShowLink(r.url, true, INV_SHARE_COPIED);
+  }
 }
 
 async function invShareCopy(){
   var r = await invShareEnsureUrl();
   if(r.error){ alert(r.error); return; }
-  shareCopy(r.url);          // 기존 앱 창 복사 함수 재사용(9594~9613)
-  invShareShowLink(r.url, false);
+  await shareCopy(r.url);    // 기존 앱 창 복사 함수 재사용(수정 없음)
+  invShareShowLink(r.url, false, INV_SHARE_COPIED);
 }
 
 // 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
