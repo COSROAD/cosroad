@@ -525,7 +525,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 (function(){
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -588,7 +588,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 240;
+const APP_VERSION = 241;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -726,6 +726,21 @@ function loadCars(){
 }
 function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveToFirebase('cars',c);}
 
+// ══════════ 직원(기사 외) — 근태·급여 (v241, 4업종 공통) ══════════
+// 저장 구조: tkd_staff = [{ id:'st'+Date.now(), name, phone, pin,
+//   hourlyWage, mealAllow, taxMode:'free33'|'insure4', breakAuto:true }]
+// 출퇴근은 **기사와 같은 tkd_driver_att** 에 attKey(직원id, 날짜)로 저장한다 —
+// 직원 id 는 'st…', 차량 id 는 'car…' 라 키가 겹치지 않는다(새 근태 키를 만들지 않는 이유).
+// 급여 수기값(심야·주휴·명절)도 tkd_payroll_manual.cars[직원id] 를 그대로 쓴다.
+function loadStaff(){
+  try{ var a=JSON.parse(localStorage.getItem('tkd_staff')||'[]'); return Array.isArray(a)?a:[]; }
+  catch(e){ return []; }
+}
+function saveStaff(s){ localStorage.setItem('tkd_staff', JSON.stringify(s)); saveToFirebase('staff', s); }
+/* 이름이 있는 직원만 화면·급여에 쓴다(기사 목록이 driver 있는 차량만 쓰는 것과 같은 규칙) */
+function activeStaff(){ return loadStaff().filter(function(s){ return s && s.name && String(s.name).trim(); }); }
+function findStaff(id){ var a=loadStaff(); for(var i=0;i<a.length;i++){ if(String(a[i].id)===String(id)) return a[i]; } return null; }
+
 // ══════════ 기사 근태관리 ══════════
 // 저장 구조: { "car1_2026-06-15": {in:"08:30", out:"18:00"}, ... }
 function loadDriverAtt(){ return JSON.parse(localStorage.getItem('tkd_driver_att')||'{}'); }
@@ -764,6 +779,26 @@ function fmtWorkMinutes(mins){
   if(mins==null) return '';
   var h=Math.floor(mins/60), m=mins%60;
   return h+'시간'+(m>0?' '+m+'분':'');
+}
+/* 직원 근무시간 — 휴게 자동 차감 (v241).
+   8시간 이상 → 1시간 / 4시간 이상 → 30분 / 그 미만 0. 직원마다 끌 수 있다(기본 켬).
+   ★ 기사는 종전대로 차감이 없다 — calcWorkMinutes 는 손대지 않았다. */
+function calcStaffWorkMinutes(rec, staff){
+  var m = calcWorkMinutes(rec && rec.in, rec && rec.out);
+  if(m==null) return null;
+  if(staff && staff.breakAuto===false) return m;
+  if(m>=480) return m-60;
+  if(m>=240) return m-30;
+  return m;
+}
+/* 휴게를 뺐을 때 근무시간 옆에 붙이는 작은 글씨 ('' 면 안 뺀 것) */
+function staffBreakNote(rec, staff){
+  var m = calcWorkMinutes(rec && rec.in, rec && rec.out);
+  if(m==null) return '';
+  if(staff && staff.breakAuto===false) return '';
+  if(m>=480) return ' <span style="font-size:10px;color:#98A2B3;font-weight:400;">(휴게 1시간 제외)</span>';
+  if(m>=240) return ' <span style="font-size:10px;color:#98A2B3;font-weight:400;">(휴게 30분 제외)</span>';
+  return '';
 }
 
 // ══════════════════════
@@ -861,6 +896,14 @@ function payrollManualSet(carId, ym, kind, row, day, val){
 function buildPayrollData(ym){
   if(!/^\d{4}-\d{2}$/.test(ym||'')) return null;
   var driverCars=cars.filter(function(c){ return c.driver && c.driver.trim(); });
+  /* 직원을 기사 **다음 순서**로 같은 표에 넣는다 (v241).
+     화면·엑셀이 P.car.driver / P.car.id 를 쓰므로 **차량과 같은 모양**으로 바꿔 넣어
+     그쪽 코드는 한 줄도 고치지 않는다. _staff 플래그로 근무시간 계산만 가른다. */
+  var payTargets=driverCars.concat(activeStaff().map(function(s){
+    return { id:s.id, driver:s.name, name:'직원',
+             hourlyWage:s.hourlyWage, mealAllow:s.mealAllow, taxMode:s.taxMode,
+             _staff:true, _staffRef:s };
+  }));
   var att=loadDriverAtt();
   var year=Number(ym.slice(0,4)), mon=Number(ym.slice(5,7));
   var lastDay=new Date(year, mon, 0).getDate();
@@ -877,14 +920,14 @@ function buildPayrollData(ym){
     /* 원본 양식대로 실제 날짜 표기 */
     dayCols.push(mon+'/'+d+'('+요일[_dw]+')');
   }
-  /* 공제 열 이름: 기사 전원이 같은 방식이면 그 이름으로 (원본 양식: "원천징수(3.3%)") */
-  var _modes=driverCars.map(function(c){ return c.taxMode||'free33'; });
+  /* 공제 열 이름: 대상(기사+직원) 전원이 같은 방식이면 그 이름으로 (원본 양식: "원천징수(3.3%)") */
+  var _modes=payTargets.map(function(c){ return c.taxMode||'free33'; });
   var dedName=(_modes.length && _modes.every(function(m){ return m==='free33'; }))?'원천징수(3.3%)'
     :(_modes.length && _modes.every(function(m){ return m==='insure4'; }))?'4대보험':'공제';
 
   function hsum(obj){ var t=0; for(var k in obj){ t+=Number(obj[k])||0; } return Math.round(t*100)/100; }
 
-  var rows=driverCars.map(function(car, ci){
+  var rows=payTargets.map(function(car, ci){
     var wage=Number(car.hourlyWage)||0;
     var meal=Number(car.mealAllow)||0;
     var mode=car.taxMode||'free33';
@@ -895,7 +938,8 @@ function buildPayrollData(ym){
     for(var d=1; d<=lastDay; d++){
       var ds=ym+'-'+String(d).padStart(2,'0');
       var rec=att[attKey(car.id, ds)]||{};
-      var mins=calcWorkMinutes(rec.in, rec.out);   /* 퇴근 없으면 null → 빈칸 */
+      /* 직원만 휴게 자동 차감 — 기사는 종전 계산 그대로 (v241) */
+      var mins=car._staff ? calcStaffWorkMinutes(rec, car._staffRef) : calcWorkMinutes(rec.in, rec.out);   /* 퇴근 없으면 null → 빈칸 */
       if(mins!=null){
         var hrs=Math.round(mins/60*100)/100;
         var dow=dayDows[d-1];
@@ -949,14 +993,14 @@ function buildPayrollData(ym){
 
   return { ym:ym, year:year, mon:mon, lastDay:lastDay, rates:rates, dows:요일,
     dayCols:dayCols, dayDows:dayDows, dayHol:dayHol, holidays:holidays,
-    dedName:dedName, rowNames:PAY_ROWS, cars:rows, driverCars:driverCars };
+    dedName:dedName, rowNames:PAY_ROWS, cars:rows, driverCars:driverCars, payTargets:payTargets };
 }
 
 /* ── 기사 급여상세내역 엑셀 내보내기 (근태 기반) — 계산부는 buildPayrollData 공용 ── */
 function exportPayrollDetail(ym){
   if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
   var D=buildPayrollData(ym);
-  if(!D || !D.cars.length){ alert('기사가 등록된 차량이 없습니다.'); return; }
+  if(!D || !D.cars.length){ alert('기사·직원이 등록돼 있지 않습니다.'); return; }
   var XLSX=window.XLSX;
   var lastDay=D.lastDay, mon=D.mon, rates=D.rates, dayCols=D.dayCols, dayDows=D.dayDows;
   var dedName=D.dedName;
@@ -1065,7 +1109,7 @@ function exportPayrollDetail(ym){
   _unlock.push({r1:holRow, c1:1, r2:holRow, c2:1});
   var _b0=blocks.length?blocks[0].r:4;   /* 메모는 첫 기사 블록에만 (반복하면 지저분) */
   var _notes=[
-    {r:_b0, c:DED, text:'공제방식은 차량 정보에서 기사별 설정 (3.3% 또는 4대보험)'},
+    {r:_b0, c:DED, text:'공제방식은 차량 정보에서 기사별 설정 (직원은 근태관리 직원 정보에서) (3.3% 또는 4대보험)'},
     {r:_b0+1, c:1, text:'기본시급의 1.5배 자동 계산'},
     {r:_b0+5, c:1, text:'기본시급의 1.5배 자동 계산'},
     {r:holRow, c:1, text:'날짜를 넣으면 그날 근무가 특근으로 분류돼요 (앱에서)'}
@@ -1087,7 +1131,7 @@ var pvYm='', pvEditKey=null, pvOpen=false;
 function openPayrollView(ym){
   if(!/^\d{4}-\d{2}$/.test(ym||'')){ alert('대상 월을 선택해주세요.'); return; }
   var D=buildPayrollData(ym);
-  if(!D || !D.cars.length){ alert('기사가 등록된 차량이 없습니다.'); return; }
+  if(!D || !D.cars.length){ alert('기사·직원이 등록돼 있지 않습니다.'); return; }
   pvYm=ym; pvEditKey=null; pvOpen=true;
   renderPayrollView();
 }
@@ -1481,8 +1525,10 @@ function buildDriverAttHtml(){
 
   var h = '<div style="padding:12px 16px 0;">';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h += '<span style="font-size:15px;font-weight:800;color:#344054;">🚚 기사 근태관리</span>';
+  h += '<span style="font-size:15px;font-weight:800;color:#344054;">🚚 기사·직원 근태관리</span>';
   h += '</div>';
+  /* PIN 판 — 물류·택배 관리자 화면에는 PIN 판이 없어서 여기에 둔다(v241) */
+  h += '<button onclick="openPinCheckin()" style="width:100%;padding:12px;background:#EA580C;color:white;border:none;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:12px;">🔢 PIN 출퇴근 체크</button>';
   // ── 근태 달력 (상단) — 수납·수입지출 달력과 같은 모양, 접힘 상태는 기기별 ──
   h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">';
   h += navArrowBtn('attCalMoveMonth(-1)','◀');
@@ -1523,8 +1569,9 @@ function buildDriverAttHtml(){
   h += navArrowBtn('moveAttDate(1)','▶');
   h += '</div>';
 
+  /* ── 기사 구역 ── (기사 안내문은 이 구역에만 — 직원 구역·월 집계는 항상 나온다, v241) */
   if(driverCars.length===0){
-    h += '<div style="text-align:center;padding:40px 20px;color:#98A2B3;font-size:13px;">차량관리에서 기사명을 먼저 등록해주세요.<br><span style="font-size:11px;">(기사 PIN도 함께 입력하면 기사가 직접 출퇴근 체크 가능)</span></div>';
+    h += '<div style="text-align:center;padding:24px 20px;color:#98A2B3;font-size:13px;">차량관리에서 기사명을 먼저 등록해주세요.<br><span style="font-size:11px;">(기사 PIN도 함께 입력하면 기사가 직접 출퇴근 체크 가능)</span></div>';
   } else {
     driverCars.forEach(function(car){
       var k = attKey(car.id, driverAttViewDate);
@@ -1546,26 +1593,164 @@ function buildDriverAttHtml(){
       h += '<button onclick="toggleDriverAtt(\''+car.id+'\',\'out\')" style="font-size:11px;'+outOn+'padding:6px 10px;border-radius:7px;font-weight:600;cursor:pointer;">퇴근</button>';
       h += '</div></div></div>';
     });
-
-    // 이번달 집계
-    var ym = driverAttViewDate.slice(0,7); // YYYY-MM
-    h += '<div style="background:#EFF4FF;border-radius:10px;padding:12px;margin-top:12px;">';
-    h += '<div style="font-size:12px;font-weight:700;color:#3538CD;margin-bottom:8px;">📊 '+ym.replace('-','년 ')+'월 근무 집계</div>';
-    driverCars.forEach(function(car){
-      var days=0, totalMin=0;
-      Object.keys(att).forEach(function(key){
-        if(key.indexOf(car.id+'_'+ym)===0){
-          var r=att[key];
-          if(r.in){ days++; var mm=calcWorkMinutes(r.in,r.out); if(mm!=null) totalMin+=mm; }
-        }
-      });
-      h += '<div style="font-size:11px;color:#475467;line-height:1.8;">'+car.driver+': '+days+'일 · 총 '+fmtWorkMinutes(totalMin)+'</div>';
-    });
-    h += '</div>';
   }
+
+  /* ── 직원 구역 (v241) — 기사와 같은 날짜·같은 출퇴근 단추, 저장도 같은 tkd_driver_att ── */
+  var staffList = activeStaff();
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">';
+  h += '<span style="font-size:14px;font-weight:800;color:#344054;">👤 직원 근태</span>';
+  h += '<button onclick="openStaffEdit(\'\')" style="padding:7px 12px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">＋ 직원 추가</button>';
+  h += '</div>';
+  if(staffList.length===0){
+    h += '<div style="text-align:center;padding:18px 20px;color:#98A2B3;font-size:12px;">등록된 직원이 없어요. 「＋ 직원 추가」로 넣어 주세요.<br><span style="font-size:11px;">(PIN 4자리를 넣으면 직원이 직접 PIN 판에서 출퇴근할 수 있어요)</span></div>';
+  } else {
+    staffList.forEach(function(st){
+      var k = attKey(st.id, driverAttViewDate);
+      var rec = att[k] || {};
+      var mins = calcStaffWorkMinutes(rec, st);
+      var statusLine;
+      if(rec.in && rec.out){ statusLine = '<span style="color:#12B76A;">출근 '+rec.in+' · 퇴근 '+rec.out+' · <b>'+fmtWorkMinutes(mins)+'</b>'+staffBreakNote(rec, st)+'</span>'; }
+      else if(rec.in){ statusLine = '<span style="color:#F79009;">출근 '+rec.in+' · <b>근무중</b></span>'; }
+      else { statusLine = '<span style="color:#98A2B3;">기록 없음</span>'; }
+
+      h += '<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px;padding:11px;margin-bottom:8px;">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+      h += '<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:700;color:#344054;">'+escapeMasterHtml(st.name)+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">직원</span></div>';
+      h += '<div style="font-size:11px;margin-top:3px;">'+statusLine+'</div></div>';
+      h += '<div style="display:flex;gap:5px;flex-shrink:0;">';
+      var sIn = rec.in ? 'background:#ECFDF3;color:#12B76A;border:1px solid #6CE9A6;' : 'background:#F2F4F7;color:#98A2B3;border:1px solid #EAECF0;';
+      var sOut = rec.out ? 'background:#FEF3F2;color:#F04438;border:1px solid #FDA29B;' : 'background:#F2F4F7;color:#98A2B3;border:1px solid #EAECF0;';
+      h += '<button onclick="toggleDriverAtt(\''+st.id+'\',\'in\')" style="font-size:11px;'+sIn+'padding:6px 10px;border-radius:7px;font-weight:600;cursor:pointer;">출근</button>';
+      h += '<button onclick="toggleDriverAtt(\''+st.id+'\',\'out\')" style="font-size:11px;'+sOut+'padding:6px 10px;border-radius:7px;font-weight:600;cursor:pointer;">퇴근</button>';
+      h += '<button onclick="openStaffEdit(\''+st.id+'\')" style="font-size:11px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;padding:6px 10px;border-radius:7px;font-weight:600;cursor:pointer;">수정</button>';
+      h += '</div></div></div>';
+    });
+  }
+
+  /* ── 이번달 근무 집계 — 기사 다음에 직원 (기사가 0명이어도 항상 나온다, v241) ── */
+  var ym = driverAttViewDate.slice(0,7); // YYYY-MM
+  h += '<div style="background:#EFF4FF;border-radius:10px;padding:12px;margin-top:12px;">';
+  h += '<div style="font-size:12px;font-weight:700;color:#3538CD;margin-bottom:8px;">📊 '+ym.replace('-','년 ')+'월 근무 집계</div>';
+  driverCars.forEach(function(car){
+    var days=0, totalMin=0;
+    Object.keys(att).forEach(function(key){
+      if(key.indexOf(car.id+'_'+ym)===0){
+        var r=att[key];
+        if(r.in){ days++; var mm=calcWorkMinutes(r.in,r.out); if(mm!=null) totalMin+=mm; }
+      }
+    });
+    h += '<div style="font-size:11px;color:#475467;line-height:1.8;">'+escapeMasterHtml(car.driver)+': '+days+'일 · 총 '+fmtWorkMinutes(totalMin)+'</div>';
+  });
+  staffList.forEach(function(st){
+    var days=0, totalMin=0;
+    Object.keys(att).forEach(function(key){
+      if(key.indexOf(st.id+'_'+ym)===0){
+        var r=att[key];
+        if(r.in){ days++; var mm=calcStaffWorkMinutes(r, st); if(mm!=null) totalMin+=mm; }
+      }
+    });
+    h += '<div style="font-size:11px;color:#475467;line-height:1.8;">'+escapeMasterHtml(st.name)+' <span style="color:#98A2B3;">직원</span>: '+days+'일 · 총 '+fmtWorkMinutes(totalMin)+(st.breakAuto===false?'':' <span style="font-size:10px;color:#98A2B3;">(휴게 제외)</span>')+'</div>';
+  });
+  if(driverCars.length===0 && staffList.length===0){
+    h += '<div style="font-size:11px;color:#98A2B3;">기사·직원을 등록하면 여기에 집계가 나와요.</div>';
+  }
+  h += '</div>';
 
   h += '</div>';
   return h;
+}
+
+/* ── 직원 등록·수정 시트 (v241) ──
+   공용 모달(showConfirmModal)은 확인·취소 2단추뿐이라 입력 칸을 담을 수 없고,
+   공용 모달 내부를 고치면 4업종 전체에 번지므로 전용 시트를 따로 만든다.
+   (저장된 명세서 공유 시트 invShareOpenSheet 와 같은 방식) */
+function closeStaffEdit(){
+  var el=document.getElementById('staffEditSheet');
+  if(el) el.remove();
+}
+function openStaffEdit(id){
+  var st = id ? findStaff(id) : null;
+  if(id && !st){ alert('직원을 찾을 수 없어요.'); return; }
+  var isNew = !st;
+  st = st || { id:'', name:'', phone:'', pin:'', hourlyWage:'', mealAllow:'', taxMode:'free33', breakAuto:true };
+  closeStaffEdit();
+  function fld(label, inputHtml){
+    return '<div style="margin-bottom:9px;"><label style="font-size:11px;color:#667085;font-weight:700;">'+label+'</label>'+inputHtml+'</div>';
+  }
+  var IN='width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #EAECF0;border-radius:8px;font-size:14px;margin-top:3px;';
+  var wrap=document.createElement('div');
+  wrap.id='staffEditSheet';
+  wrap.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(16,24,40,.45);display:flex;align-items:flex-end;justify-content:center;overflow:auto;';
+  wrap.innerHTML =
+    '<div style="background:white;width:100%;max-width:420px;border-radius:16px 16px 0 0;padding:18px 16px 20px;box-sizing:border-box;">'
+    + '<div style="font-size:15px;font-weight:800;color:#1D2939;margin-bottom:12px;">👤 '+(isNew?'직원 추가':'직원 정보 수정')+'</div>'
+    + fld('이름 <span style="color:#F04438;">*</span>', '<input id="st-name" type="text" value="'+escapeMasterHtml(st.name||'')+'" placeholder="홍길동" style="'+IN+'"/>')
+    + fld('연락처', '<input id="st-phone" type="tel" value="'+escapeMasterHtml(st.phone||'')+'" placeholder="010-0000-0000" style="'+IN+'"/>')
+    + fld('PIN 4자리 (직원이 PIN 판에서 직접 출퇴근)', '<input id="st-pin" type="text" inputmode="numeric" maxlength="4" value="'+escapeMasterHtml(st.pin||'')+'" placeholder="예) 1234" style="'+IN+'"/>')
+    + '<div style="display:flex;gap:8px;">'
+      + '<div style="flex:1;">'+fld('시급 (원)', '<input id="st-wage" type="number" value="'+(st.hourlyWage||'')+'" placeholder="10030" style="'+IN+'"/>')+'</div>'
+      + '<div style="flex:1;">'+fld('식대 (월, 원)', '<input id="st-meal" type="number" value="'+(st.mealAllow||'')+'" placeholder="200000" style="'+IN+'"/>')+'</div>'
+    + '</div>'
+    + fld('공제 방식', '<select id="st-tax" style="'+IN+'">'
+        + '<option value="free33"'+((st.taxMode||'free33')==='free33'?' selected':'')+'>원천징수 3.3%</option>'
+        + '<option value="insure4"'+(st.taxMode==='insure4'?' selected':'')+'>4대보험</option></select>')
+    + '<label style="display:flex;align-items:center;gap:8px;background:#F9FAFB;border:1px solid #EAECF0;border-radius:9px;padding:10px 11px;margin:4px 0 6px;cursor:pointer;">'
+      + '<input id="st-break" type="checkbox"'+(st.breakAuto===false?'':' checked')+' style="width:18px;height:18px;"/>'
+      + '<span style="font-size:12px;font-weight:700;color:#344054;">휴게시간 자동 차감</span></label>'
+    + '<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:12px;">8시간 이상 근무 → 1시간, 4시간 이상 → 30분을 뺍니다. (기사는 차감하지 않아요)</div>'
+    + '<button onclick="saveStaffEdit(\''+escapeMasterHtml(String(st.id||''))+'\')" style="width:100%;padding:13px;background:#12B76A;color:white;border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;">💾 저장</button>'
+    + (isNew?'':'<button onclick="deleteStaff(\''+escapeMasterHtml(String(st.id))+'\')" style="width:100%;padding:11px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">🗑 삭제</button>')
+    + '<button onclick="closeStaffEdit()" style="width:100%;padding:11px;background:#F2F4F7;color:#667085;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">닫기</button>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  var nm=document.getElementById('st-name'); if(nm) nm.focus();
+}
+function saveStaffEdit(id){
+  var g=function(x){ var e=document.getElementById(x); return e?String(e.value).trim():''; };
+  var name=g('st-name');
+  if(!name){ alert('이름을 넣어 주세요.'); return; }
+  var pin=g('st-pin');
+  if(pin && !/^\d{4}$/.test(pin)){ alert('PIN 은 숫자 4자리로 넣어 주세요.'); return; }
+  /* PIN 중복 검사 — 직원끼리 + 기사 + 회원 (셋이 서로 겹치면 안 된다) */
+  if(pin){
+    var list0=loadStaff();
+    var dupS=list0.find(function(s){ return s.pin===pin && String(s.id)!==String(id); });
+    if(dupS){ alert('⚠ PIN '+pin+' 은(는) 이미 직원('+dupS.name+')이 사용 중이에요'); return; }
+    var dupC=cars.find(function(c){ return c.driverPin===pin; });
+    if(dupC){ alert('⚠ PIN '+pin+' 은(는) 이미 기사('+(dupC.driver||dupC.name)+')가 사용 중이에요'); return; }
+    var dupM=members.find(function(m){ return m.pin===pin; });
+    if(dupM){ alert('⚠ PIN '+pin+' 은(는) 이미 '+T('회원')+'('+dupM.name+')이 사용 중이에요'); return; }
+  }
+  var ck=document.getElementById('st-break');
+  var obj={
+    id: id || ('st'+Date.now()),
+    name: name,
+    phone: g('st-phone'),
+    pin: pin,
+    hourlyWage: Number(g('st-wage'))||0,
+    mealAllow: Number(g('st-meal'))||0,
+    taxMode: (g('st-tax')==='insure4')?'insure4':'free33',
+    breakAuto: ck ? !!ck.checked : true
+  };
+  var list=loadStaff();
+  var i=list.findIndex(function(s){ return String(s.id)===String(obj.id); });
+  if(i>=0) list[i]=obj; else list.push(obj);
+  saveStaff(list);
+  closeStaffEdit();
+  showToast(id?'✅ 직원 정보를 수정했어요':'✅ 직원을 추가했어요');
+  refreshDriverAttHost();
+}
+/* 삭제는 확인 모달을 거친다 (절대규칙 3) */
+function deleteStaff(id){
+  var st=findStaff(id);
+  if(!st) return;
+  closeStaffEdit();
+  showConfirmModal(function(){
+    var list=loadStaff().filter(function(s){ return String(s.id)!==String(id); });
+    saveStaff(list);
+    showToast('🗑 직원을 삭제했어요');
+    refreshDriverAttHost();
+  }, st.name+' 직원을 삭제할까요?\n출퇴근 기록은 남지만 화면·급여상세에서 빠집니다.', '삭제');
 }
 
 /* ── 근태 달력 (4업종 공통 · 관리자) ──
@@ -1596,10 +1781,11 @@ function attCalSelectDate(ds){
   driverAttViewDate=ds;
   refreshDriverAttHost();
 }
-/* 날짜별 출근 인원·미퇴근 여부 (기사 배정된 차량만) */
+/* 날짜별 출근 인원·미퇴근 여부 (기사 배정된 차량 + 직원, v241) */
 function attCalStats(y, mo){
   var att=loadDriverAtt();
   var driverCars=cars.filter(function(c){ return c.driver && c.driver.trim(); });
+  var staffList=activeStaff();
   var days=new Date(y, mo, 0).getDate();
   var out={};
   for(var d=1; d<=days; d++){
@@ -1610,6 +1796,12 @@ function attCalStats(y, mo){
       if(!r || !r.in) return;
       cnt++;
       if(!r.out) warn=true;            /* 출근은 있는데 퇴근 체크가 없음 */
+    });
+    staffList.forEach(function(s){
+      var r=att[attKey(s.id, ds)];
+      if(!r || !r.in) return;
+      cnt++;
+      if(!r.out) warn=true;
     });
     if(cnt>0) out[ds]={count:cnt, warn:warn};
   }
@@ -1670,6 +1862,12 @@ function attCalDetailHtml(ds){
     if(!r || !r.in) return;
     rows.push({car:c, rec:r, odo:odoBy[c.id]||{start:0, end:0}});
   });
+  /* 직원도 같은 표에 (계기판 없음, 근무는 휴게 뺀 값) — v241 */
+  activeStaff().forEach(function(s){
+    var r=att[attKey(s.id, ds)];
+    if(!r || !r.in) return;
+    rows.push({car:{driver:s.name, name:'직원'}, rec:r, odo:{start:0, end:0}, staff:s});
+  });
   var h='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:11px 12px;margin-bottom:10px;">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(rows.length?'8px':'0')+';">';
   h+='<span style="font-size:13px;font-weight:800;color:#344054;">📅 '+ds+' 출근 내역</span>';
@@ -1678,13 +1876,13 @@ function attCalDetailHtml(ds){
     h+='<div style="font-size:12px;color:#98A2B3;padding:6px 0;">이 날은 출근 기록이 없어요.</div>';
   }
   rows.forEach(function(x){
-    var mins=calcWorkMinutes(x.rec.in, x.rec.out);
+    var mins=x.staff ? calcStaffWorkMinutes(x.rec, x.staff) : calcWorkMinutes(x.rec.in, x.rec.out);
     h+='<div style="background:white;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">';
     h+='<div style="font-size:13px;font-weight:700;color:#1D2939;margin-bottom:3px;">'+escapeMasterHtml(x.car.driver||'')+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+escapeMasterHtml(x.car.name||'')+'</span></div>';
     h+='<div style="font-size:11px;color:#475467;line-height:1.6;">';
     h+='출근 <b>'+escapeMasterHtml(x.rec.in)+'</b> · 퇴근 '
       +(x.rec.out ? '<b>'+escapeMasterHtml(x.rec.out)+'</b>' : '<b style="color:#F04438;">미체크</b>');
-    if(mins!=null) h+=' · 근무 <b>'+fmtWorkMinutes(mins)+'</b>';
+    if(mins!=null) h+=' · 근무 <b>'+fmtWorkMinutes(mins)+'</b>'+(x.staff?staffBreakNote(x.rec, x.staff):'');
     /* 출근·퇴근 병기 표기는 차계부 목록(v209)과 같은 규칙 — 퇴근만 있으면 라벨 없이 그대로 */
     var _os=x.odo.start, _oe=x.odo.end;
     if(_os>0 && _oe>0) h+=' · 📏 출근 '+_os.toLocaleString()+' · 퇴근 '+_oe.toLocaleString()+'km';
@@ -2803,7 +3001,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — 이름 검색(쉼표로 여러 명: 강하은,문소율) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. 기사 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에 넣은 「기사 PIN 4자리」를 누르면 기사 출퇴근으로 처리돼요. «회원» PIN과 기사 PIN은 서로 다른 번호로 정하세요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. 기사·직원 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에 넣은 「기사 PIN」이나 근태관리에 넣은 「직원 PIN」을 누르면 출퇴근으로 처리돼요. «회원»·기사·직원 PIN은 서로 다른 번호로 정하세요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -2816,10 +3014,12 @@ var HELP_QA=[
    a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n3-1. 팝업 아래 「7일 동안 알림 팝업 보지 않기」에 체크하고 닫으면 일주일 동안 팝업이 쉬어요 (그 사이에도 대시보드 「💰 정부 지원사업」 카드로 들어가면 목록은 볼 수 있어요)\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 자동으로 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판 사진'], t:'운행기록부 내보내기',
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
+  {role:'admin', keys:['직원','직원근태','기사외','알바','휴게','휴게시간','직원출퇴근','직원급여'], t:'기사 말고 직원 출퇴근은?',
+   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 출퇴근은 기사와 똑같아요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」에서 직원이 자기 PIN 4자리를 눌러도 돼요\n4. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n5. 기사는 휴게를 빼지 않아요 (종전 그대로)\n6. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n7. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n8. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n9. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
-   a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 기사가 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
+   a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사·직원 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 사람이 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업','4대보험','요율','국민연금','건강보험'], t:'급여상세 내보내기',
-   a:'1. 차량 정보에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n9. 인쇄는 가로 A4로 나와요 (날짜가 31칸이라 세로에는 안 들어가요). 기사 한 명당 한 장씩 나오니까 각자에게 그대로 떼어 주시면 돼요 (4대보험 요율표·임시공휴일은 맨 마지막 장에)\n10. 인쇄본은 한 사람을 위아래 2단(앞 15일 / 나머지)으로 나눠 칸을 넓게 쓰고, 날짜는 「1(목)」처럼 요일까지 나와요 (토 파랑·일 빨강, 임시공휴일은 빨강+공휴)'},
+   a:'1. 기사는 차량 정보, 직원은 근태관리 「👤 직원 근태」에 시급·식대·공제 방식(3.3%/4대보험) 입력\n2. 근태 화면 → 「📋 급여상세 보기」 → 완성된 양식이 화면에 그대로 떠요 (제목의 월 표시(▾)를 눌러 월 변경)\n3. 기본/잔업/특근 자동 분류 — 잔업·특근 모두 시급의 1.5배로 계산돼요\n4. 회색 칸(심야·주휴수당·명절휴가비 시간, 심야·명절휴가비 시급)만 눌러 직접 입력하면 바로 저장·재계산\n5. 하단 「임시공휴일」에 날짜를 넣으면 그날 근무는 특근으로 자동 이동\n6. 엑셀은 「📄 급여상세 내보내기」 — 화면과 같은 값으로 만들어져요\n7. 4대보험 요율은 근태 화면에서 매년 수정 (급여상세 버튼 아래 요율 칸 — 양식 하단엔 읽기 전용으로 보여요)\n8. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n9. 인쇄는 가로 A4로 나와요 (날짜가 31칸이라 세로에는 안 들어가요). 기사 한 명당 한 장씩 나오니까 각자에게 그대로 떼어 주시면 돼요 (4대보험 요율표·임시공휴일은 맨 마지막 장에)\n10. 인쇄본은 한 사람을 위아래 2단(앞 15일 / 나머지)으로 나눠 칸을 넓게 쓰고, 날짜는 「1(목)」처럼 요일까지 나와요 (토 파랑·일 빨강, 임시공휴일은 빨강+공휴)'},
   {role:'all', keys:['승인대기','승인','입금','계좌','대기','잠김'], t:'승인 대기 화면이 나와요',
    a:'1. 가입 신청이 접수된 상태예요. 아직 앱은 열리지 않아요\n2. 화면에 나온 계좌로 입금해 주세요 — 입금자명은 업체명으로 해주세요\n3. 입금이 확인되면 열어 드리고, 그때부터 30일 무료가 시작돼요\n4. 이메일로 가입했는데 「이메일 확인 필요」가 같이 보이면, 메일함에서 확인 링크도 눌러 주세요 (버튼으로 다시 보낼 수 있어요)\n5. 계좌가 안 보이면 아직 준비 중이에요 — 📧 cosroad@cosroad.com 으로 문의해 주세요'},
   {role:'admin', keys:['체험','무료','구독','요금','만료','결제'], t:'30일 무료 체험·구독',
@@ -4761,7 +4961,7 @@ function handleExcelFile(file){
         const car=cars.find(c=>c.name===carName)||cars[0];
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name) || pending.find(m=>m.name===name)){skipped++;return;}
-        if(pin && (members.find(m=>m.pin===pin) || pending.find(m=>m.pin===pin) || cars.find(c=>c.driverPin===pin))){skipped++;return;}
+        if(pin && (members.find(m=>m.pin===pin) || pending.find(m=>m.pin===pin) || cars.find(c=>c.driverPin===pin) || activeStaff().find(s=>s.pin===pin))){skipped++;return;}
         var obj={id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:null,lon:null,dropLocation:(dropLocation||location),dropLat:null,dropLon:null,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true};
         if(biz==='delivery'){ obj.courier=courier; obj.invoice=invoice; obj.ordNo=ordNo; obj.sender=sender; obj.senderPhone=senderPhone; }
         if(biz==='logistics'){ obj.bizNo=bizNo; obj.ceo=ceo; obj.bizCat=bizCat; obj.bizItem=bizItem; obj.bizEmail=bizEmail; }
@@ -5153,7 +5353,7 @@ function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_me
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -5200,6 +5400,7 @@ function restoreData(ev){
       var clg = localStorage.getItem('tkd_carlog'); if(clg){ try{ saveToFirebase('carlog', JSON.parse(clg)); }catch(e8){} }
       var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
       var pym = localStorage.getItem('tkd_payroll_manual'); if(pym){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
+      var stf = localStorage.getItem('tkd_staff'); if(stf){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
     }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
@@ -5484,6 +5685,8 @@ function saveMember(){
     if(dupMember){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupMember.name+' 님이 사용 중이에요'); return; }
     var dupCar = cars.find(function(c){ return c.driverPin===pin; });
     if(dupCar){ showToast('⚠ PIN '+pin+' 은(는) 이미 기사('+(dupCar.driver||dupCar.name)+')가 사용 중이에요'); return; }
+    var dupStaff = activeStaff().find(function(s){ return s.pin===pin; });
+    if(dupStaff){ showToast('⚠ PIN '+pin+' 은(는) 이미 직원('+dupStaff.name+')이 사용 중이에요'); return; }
   }
   const regfee=regEl?parseInt(regEl.value)||0:0;
   const monthly=monEl?parseInt(monEl.value)||0:0;
@@ -5559,20 +5762,32 @@ function setAttendance(memberId,status){
 // 학원·공공 출결화면 상단에 넣을 기사 근태 요약 (오늘 기준)
 function driverAttSummaryHtml(){
   var driverCars = cars.filter(function(c){ return c.driver && c.driver.trim(); });
-  if(driverCars.length===0) return '';
+  var staffList = activeStaff();
+  if(driverCars.length===0 && staffList.length===0) return '';   /* 둘 다 0명일 때만 숨김 (v241) */
   var att = loadDriverAtt();
   var today = todayStr();
+  function line(nameHtml, subHtml, stHtml){
+    return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;"><span style="color:#344054;font-weight:600;">'+nameHtml+' <span style="color:#98A2B3;font-weight:400;">'+subHtml+'</span></span>'+stHtml+'</div>';
+  }
   var rows = driverCars.map(function(car){
     var rec = att[attKey(car.id, today)] || {};
     var st;
     if(rec.in && rec.out){ var mm=calcWorkMinutes(rec.in,rec.out); st='<span style="color:#12B76A;">출근 '+rec.in+' · 퇴근 '+rec.out+' · '+fmtWorkMinutes(mm)+'</span>'; }
     else if(rec.in){ st='<span style="color:#F79009;">출근 '+rec.in+' · 근무중</span>'; }
     else { st='<span style="color:#98A2B3;">기록 없음</span>'; }
-    return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;"><span style="color:#344054;font-weight:600;">'+car.driver+' <span style="color:#98A2B3;font-weight:400;">'+car.name+'</span></span>'+st+'</div>';
+    return line(car.driver, car.name, st);
+  }).join('');
+  rows += staffList.map(function(s){
+    var rec = att[attKey(s.id, today)] || {};
+    var st;
+    if(rec.in && rec.out){ var mm=calcStaffWorkMinutes(rec, s); st='<span style="color:#12B76A;">출근 '+rec.in+' · 퇴근 '+rec.out+' · '+fmtWorkMinutes(mm)+staffBreakNote(rec, s)+'</span>'; }
+    else if(rec.in){ st='<span style="color:#F79009;">출근 '+rec.in+' · 근무중</span>'; }
+    else { st='<span style="color:#98A2B3;">기록 없음</span>'; }
+    return line(escapeMasterHtml(s.name), '직원', st);
   }).join('');
   return '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:11px;margin:0 16px 10px;">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-    +'<span style="font-size:12px;font-weight:700;color:#EA580C;">🚐 기사 근태 (오늘)</span>'
+    +'<span style="font-size:12px;font-weight:700;color:#EA580C;">🚐 기사·직원 근태 (오늘)</span>'
     +'</div>'+rows+'</div>';
 }
 
@@ -5767,6 +5982,43 @@ function handleDriverPinCheckin(car){
     }, 20000);
   }
 }
+/* 직원 PIN 출퇴근 처리 (v241) — 기사와 같은 흐름.
+   다른 점: 계기판 km 입력이 없고(차량이 없으니), 근무시간은 휴게를 뺀 값으로 알려 준다. */
+function handleStaffPinCheckin(st){
+  var att=loadDriverAtt();
+  var today=todayStr();
+  var k=attKey(st.id, today);
+  if(!att[k]) att[k]={};
+  var msg, color;
+  if(!att[k].in){
+    att[k].in=nowTimeStr();
+    msg='✅ '+st.name+'님 출근 ('+att[k].in+')';
+    color='#12B76A';
+  } else if(!att[k].out){
+    att[k].out=nowTimeStr();
+    var mins=calcStaffWorkMinutes(att[k], st);
+    var raw=calcWorkMinutes(att[k].in, att[k].out);
+    var note='';
+    if(st.breakAuto!==false){
+      if(raw>=480) note=' (휴게 1시간 제외)';
+      else if(raw>=240) note=' (휴게 30분 제외)';
+    }
+    msg='🏁 '+st.name+'님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins)+note;
+    color='#F04438';
+  } else {
+    msg='이미 출퇴근이 모두 기록되었습니다.';
+    color='#F79009';
+  }
+  saveDriverAtt(att);
+  var r=document.getElementById('pin-result');
+  if(r) r.innerHTML='<div style="color:'+color+';font-size:15px;font-weight:700;text-align:center;padding:14px;">'+msg+'</div>';
+  pinInput='';
+  setTimeout(function(){
+    var rr=document.getElementById('pin-result');
+    if(rr) rr.innerHTML='';
+    renderPinDisplay();
+  }, 2500);
+}
 /* 출퇴근 시 계기판 저장 — 같은 차량·같은 날짜는 덮어쓰기(최신값)
    when: 'start' 출근(주행 전) · 그 외/생략은 기존과 같은 퇴근(주행 후) */
 function savePinOdo(carId, when){
@@ -5788,6 +6040,14 @@ function checkPin(){
     if(cars[d].driverPin && cars[d].driverPin===pinInput){ driverCar=cars[d]; break; }
   }
   if(driverCar){ handleDriverPinCheckin(driverCar); return; }
+
+  // 2) 직원 PIN (v241) — 기사 다음, 회원 앞
+  var staffHit=null;
+  var _stList=activeStaff();
+  for(var s=0;s<_stList.length;s++){
+    if(_stList[s].pin && _stList[s].pin===pinInput){ staffHit=_stList[s]; break; }
+  }
+  if(staffHit){ handleStaffPinCheckin(staffHit); return; }
 
   var member=null;
   for(var i=0;i<members.length;i++){
@@ -12164,6 +12424,8 @@ function saveCarsAndMembers(){
     }
     var dupM=members.find(function(m){ return m.pin===dp; });
     if(dupM){ showToast('⚠ 기사 PIN '+dp+' 은(는) '+T('회원')+'('+dupM.name+')에서 사용 중이에요'); return; }
+    var dupS=activeStaff().find(function(s){ return s.pin===dp; });
+    if(dupS){ showToast('⚠ 기사 PIN '+dp+' 은(는) 직원('+dupS.name+')이 사용 중이에요'); return; }
   }
   saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
 function renderCars(){
@@ -13146,6 +13408,8 @@ async function syncFromFirebase(){
   if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
   var fbPayManual = await loadFromFirebase('payrollManual');
   if(fbPayManual){ localStorage.setItem('tkd_payroll_manual', JSON.stringify(fbPayManual)); }
+  var fbStaff = await loadFromFirebase('staff');
+  if(fbStaff){ localStorage.setItem('tkd_staff', JSON.stringify(fbStaff)); }
   var fbDelivDone = await loadFromFirebase('deliveryDone');
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
@@ -13160,7 +13424,7 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual'];
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual','staff'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -13179,6 +13443,7 @@ function startFirebaseListeners(){
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
       else if(key==='drivelogManual'){ localStorage.setItem('tkd_drivelog_manual',JSON.stringify(data)); }
       else if(key==='payrollManual'){ localStorage.setItem('tkd_payroll_manual',JSON.stringify(data)); }
+      else if(key==='staff'){ localStorage.setItem('tkd_staff',JSON.stringify(data)); }
       renderByTab();
     });
   });
