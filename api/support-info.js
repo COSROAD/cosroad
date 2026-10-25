@@ -53,13 +53,33 @@
 // 키는 Vercel 환경변수에만 둔다: DATA_GO_KR_KEY (정부24) / BIZINFO_KEY (기업마당)
 // ────────────────────────────────────────────────────────────────────────────
 
-/* 업종별 키워드 — 제목 + 분야 문자열을 대상으로 서버에서 필터 */
+/* 업종별 키워드 — 제목 + 분야 + 기관 문자열을 대상으로 서버에서 필터 */
 const BIZ_KEYWORDS = {
   academy:   ['교육', '학원', '교습', '돌봄', '아동', '청소년', '통학'],
   public:    ['요양', '복지', '돌봄', '사회서비스', '노인', '장애'],
   logistics: ['물류', '운송', '화물', '유통'],
   delivery:  ['택배', '배송', '물류', '운송']
 };
+
+/* ── 범위 넓히기 (v245, 사장님 결정 2026-10-25) ───────────────────────────────
+   전에는 업종 키워드만 봐서 소상공인·경영지원·교육부 공고가 대부분 빠졌다.
+   이제 네 가지 중 하나만 맞아도 통과한다:
+     ① 업종 키워드  ② 업종 기관  ③ 공통 키워드  ④ 공통 기관
+   기업마당 분야 대분류(경영·금융·인력)도 공통 키워드로 잡힌다.
+   ★ 범위가 넓어진 만큼 50건 제한에서 업종 공고가 밀릴 수 있어,
+     finalize 가 '업종 매치'를 먼저 담고 '공통만 매치'를 뒤에 담는다. */
+const COMMON_KEYWORDS = [
+  '소상공인', '중소기업', '자영업', '경영', '운영자금', '정책자금',
+  '인건비', '고용', '디지털', '스마트', '금융', '인력'
+];
+/* 업종과 맞닿은 부처·청 — item.org(소관·수행·접수기관)에서 찾는다 */
+const BIZ_ORGS = {
+  academy:   ['교육부', '교육청'],
+  public:    ['보건복지부'],
+  logistics: ['국토교통부'],
+  delivery:  ['국토교통부']
+};
+const COMMON_ORGS = ['중소벤처기업부', '소상공인시장진흥공단'];
 
 const MAX_ITEMS = 50;
 
@@ -171,34 +191,52 @@ function parseEndDate(text) {
   return found.length ? found[found.length - 1] : '';
 }
 
-/* 업종 키워드 / 검색어 필터 — 제목 + 분야 대상 */
-function matchFilter(item, biz, q) {
-  const hay = (String(item.title || '') + ' ' + String(item.field || ''));
-  if (q) return hay.indexOf(q) >= 0;
-  const keys = BIZ_KEYWORDS[biz];
-  if (!keys) return true;
-  for (let i = 0; i < keys.length; i++) { if (hay.indexOf(keys[i]) >= 0) return true; }
+function hasAny(hay, list) {
+  for (let i = 0; i < list.length; i++) { if (hay.indexOf(list[i]) >= 0) return true; }
   return false;
+}
+
+/* 업종 키워드 / 검색어 필터 (v245)
+   검사 대상 = 제목 + 분야 + 기관(item.org).
+   반환: 0 = 제외 / 2 = 업종 매치(업종 키워드·업종 기관) / 1 = 공통만 매치.
+   ★ 검색어(q)가 있을 때 동작은 **종전 그대로** — 제목+분야에서 q 만 찾는다(기관은 안 본다). */
+function matchFilter(item, biz, q) {
+  const titleField = (String(item.title || '') + ' ' + String(item.field || ''));
+  if (q) return titleField.indexOf(q) >= 0 ? 2 : 0;
+  const hay = titleField + ' ' + String(item.org || '');
+  const keys = BIZ_KEYWORDS[biz];
+  if (!keys) return 2;                                   /* 업종 지정이 없으면 전부 통과(종전과 같음) */
+  if (hasAny(hay, keys)) return 2;                       /* ① 업종 키워드 */
+  const orgs = BIZ_ORGS[biz] || [];
+  if (hasAny(String(item.org || ''), orgs)) return 2;    /* ② 업종 기관 */
+  if (hasAny(hay, COMMON_KEYWORDS)) return 1;            /* ③ 공통 키워드 */
+  if (hasAny(String(item.org || ''), COMMON_ORGS)) return 1; /* ④ 공통 기관 */
+  return 0;
 }
 
 /* 공통 마무리: 키워드 필터 → 마감 지난 공고 제외 → 지역 필터 → 50건 제한.
    ★ 50건 제한은 반드시 지역 필터 '뒤'에 온다 — 앞에 두면 타 지역 공고가 50칸을
-     채워 우리 지역 공고가 잘려나간다. */
+     채워 우리 지역 공고가 잘려나간다.
+   ★ v245: 범위를 넓히면서 공통 공고가 50칸을 채워 업종 공고가 밀리는 일이 생긴다 →
+     업종 매치를 먼저 담고 공통만 매치를 뒤에 담은 뒤 50건으로 자른다.
+     (마감·지역 필터 위치는 그대로 — 50건 제한 앞이다) */
 function finalize(items, biz, q, region) {
   const today = todayKST();
   const sidoEntry = region ? findSido(region.sido) : null;
   const sigungu = region ? String(region.sigungu || '').trim() : '';
-  const out = [];
+  const bizHit = [];      /* 업종 키워드·업종 기관 */
+  const commonHit = [];   /* 공통만 */
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     if (!it || !it.title) continue;
-    if (!matchFilter(it, biz, q)) continue;
+    const m = matchFilter(it, biz, q);
+    if (!m) continue;
     if (it.endDate && it.endDate < today) continue;   /* 종료일이 오늘 이전이면 제외 */
     if (!regionPass(regionHay(it), sidoEntry, sigungu)) continue;
-    out.push(it);
-    if (out.length >= MAX_ITEMS) break;
+    (m === 2 ? bizHit : commonHit).push(it);
+    if (bizHit.length >= MAX_ITEMS) break;            /* 업종만으로 이미 50칸이면 더 볼 필요 없다 */
   }
-  return out;
+  return bizHit.concat(commonHit).slice(0, MAX_ITEMS);
 }
 
 /* 응답을 text로 받고 JSON.parse 실패 시 원문을 로그로 남긴다 (검증 3원칙 C) */
