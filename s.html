@@ -44,10 +44,31 @@
   .inv-grand{font-weight:800;font-size:14px;color:#C00;}
   .inv-net{text-align:right;line-height:1.65;white-space:nowrap;}
   .inv-net .inv-grand{border-top:1px solid #C00;padding-top:2px;margin-top:2px;}
+
+  /* ── 알림장 · 급여명세서 (v246) — 거래명세서 표(.inv-*)와 섞이지 않게 따로 둔다 ── */
+  .doc{background:white;border-radius:12px;padding:20px 18px;max-width:640px;margin:0 auto;}
+  .doc h1{margin:0 0 2px;font-size:19px;font-weight:800;}
+  .doc .org{font-size:13px;color:#667085;margin-bottom:14px;}
+  .doc .meta{font-size:13px;color:#475467;line-height:1.9;border-top:1px solid #EAECF0;padding-top:10px;}
+  .doc .meta b{color:#1D2939;}
+  .nt-body{font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:break-word;margin:4px 0 14px;}
+  .nt-img{display:block;width:100%;height:auto;border-radius:10px;border:1px solid #EAECF0;margin-bottom:10px;cursor:pointer;}
+  .ps-tbl{width:100%;border-collapse:collapse;margin:6px 0 2px;}
+  .ps-tbl th,.ps-tbl td{border:1px solid #D0D5DD;font-size:13px;padding:6px 8px;}
+  .ps-tbl th{background:#F9FAFB;color:#344054;font-weight:700;text-align:center;}
+  .ps-tbl td.rgt{text-align:right;}
+  .ps-tbl tr.sum td{background:#F9FAFB;font-weight:800;}
+  .ps-net{display:flex;justify-content:space-between;align-items:baseline;border:2px solid #7C3AED;border-radius:10px;padding:10px 12px;margin:12px 0 4px;}
+  .ps-net span{font-size:13px;font-weight:800;color:#344054;}
+  .ps-net b{font-size:19px;color:#7C3AED;}
+  .ps-sec{font-size:13px;font-weight:800;color:#344054;margin:14px 0 2px;}
+  .small{font-size:11px;color:#98A2B3;line-height:1.6;margin-top:8px;}
   @media print{
     body{background:white;padding:0;}
     .bar,.note{display:none !important;}
     .inv-sheet{border-width:2px;margin:0;}
+    .doc{border-radius:0;padding:0;max-width:none;}
+    .nt-img{break-inside:avoid;}
   }
 </style>
 </head>
@@ -86,6 +107,113 @@ function show(title, lines){
 const token = (location.hash || '').replace(/^#/, '').trim();
 // 우리가 만드는 토큰은 base64url 22자 이상 — 형식이 아니면 조회 자체를 하지 않는다
 const TOKEN_OK = /^[A-Za-z0-9_-]{22,128}$/;
+
+// 만료일 'YYYY-MM-DD' (Firestore Timestamp → 기기 날짜). 못 읽으면 빈 문자열.
+function expStr(d){
+  try{
+    const ed = d.expiresAt && d.expiresAt.toDate ? d.expiresAt.toDate() : null;
+    if(ed) return ed.getFullYear()+'-'+String(ed.getMonth()+1).padStart(2,'0')+'-'+String(ed.getDate()).padStart(2,'0');
+  }catch(e){}
+  return '';
+}
+function barHtml(){
+  return '<div class="bar"><button class="sub" onclick="window.print()">🖨 인쇄 / PDF 저장</button></div>';
+}
+function noteHtml(exp){
+  return exp ? '<div class="note">이 링크는 '+esc(exp)+'까지 볼 수 있어요.</div>' : '';
+}
+
+/* ══════════ 알림장 (kind:'notice', v246) ══════════
+   담긴 값: 기관명 · 작성일 · 본문 · 사진 주소. 받는 대상 이름·연락처는 애초에 담기지 않는다. */
+function renderNotice(d){
+  const org = String((d.org && d.org.name) || '');
+  const date = String(d.date || '');
+  const imgs = Array.isArray(d.images) ? d.images : [];
+  try{ if(org) document.title = org + ' 알림장' + (date ? '_'+date : ''); }catch(e){}
+
+  let pics = '';
+  imgs.forEach(function(u){
+    const s = String(u||'');
+    if(!/^https:\/\//.test(s)) return;      // https 주소만 그린다
+    pics += '<img class="nt-img" src="'+esc(s)+'" onclick="window.open(this.src,\'_blank\')" alt="첨부 사진"/>';
+  });
+
+  root.innerHTML = barHtml()
+    + '<div class="doc">'
+      + '<h1>알림장</h1>'
+      + '<div class="org">'+esc(org)+(date ? '　|　'+esc(date) : '')+'</div>'
+      + '<div class="nt-body">'+esc(d.content||'')+'</div>'
+      + pics
+      + (pics ? '<div class="small">사진을 누르면 원본이 새 창으로 열려요.</div>' : '')
+    + '</div>'
+    + noteHtml(expStr(d));
+}
+
+/* ══════════ 급여명세서 (kind:'payslip', v246) ══════════
+   항목 순서는 임금명세서 양식에 맞춘다 —
+   기관명 / 성명(구분) / 대상 기간 / 지급일 / 지급 내역+식대 / 지급 합계 /
+   공제 내역+합계 / 실지급액 / 근로 정보 / 안내. */
+function renderPayslip(d){
+  const org  = String((d.org && d.org.name) || '');
+  const w    = d.worker || {};
+  const ym   = String(d.ym || '');
+  const y    = ym.slice(0,4), m = Number(ym.slice(5,7));
+  const last = (y && m) ? new Date(Number(y), m, 0).getDate() : 0;
+  const period = (y && m) ? (ym+'-01 ~ '+ym+'-'+String(last).padStart(2,'0')) : '';
+  const lines  = Array.isArray(d.lines) ? d.lines : [];
+  const deds   = Array.isArray(d.deductions) ? d.deductions : [];
+  try{ if(w.name && ym) document.title = '급여명세서_'+String(w.name).replace(/[\\/:*?"<>|]/g,' ').trim()+'_'+ym; }catch(e){}
+
+  let pay = '';
+  lines.forEach(function(l){
+    const h = Number(l.hours)||0, r = Number(l.rate)||0;
+    pay += '<tr><td>'+esc(l.label)+'</td>'
+         + '<td class="rgt">'+(h?h:'')+(h&&r?' × '+won(r)+'원':'')+'</td>'
+         + '<td class="rgt">'+won(l.amount)+'</td></tr>';
+  });
+  if(Number(d.meal)||0){
+    pay += '<tr><td>식대</td><td class="rgt">—</td><td class="rgt">'+won(d.meal)+'</td></tr>';
+  }
+  if(!pay) pay = '<tr><td colspan="3" style="text-align:center;color:#98A2B3;">지급 내역이 없어요</td></tr>';
+
+  let ded = '';
+  deds.forEach(function(x){
+    ded += '<tr><td>'+esc(x.label)+'</td><td class="rgt">'+won(x.amount)+'</td></tr>';
+  });
+  if(!ded) ded = '<tr><td colspan="2" style="text-align:center;color:#98A2B3;">공제 내역이 없어요</td></tr>';
+
+  /* 지급 합계 = 항목 합계(d.total) + 식대. 실지급액(d.net)은 앱이 계산한 값을 그대로 쓴다. */
+  const payTotal = (Number(d.total)||0) + (Number(d.meal)||0);
+  /* 4대보험은 공제가 네 줄로 온다 — 그때만 참고 계산 안내를 붙인다 */
+  const isIns4 = deds.length > 1;
+
+  root.innerHTML = barHtml()
+    + '<div class="doc">'
+      + '<h1>임금명세서</h1>'
+      + '<div class="org">'+esc(org)+'</div>'
+      + '<div class="meta">'
+        + '<div>성명 : <b>'+esc(w.name||'')+'</b>'+(w.role?' ('+esc(w.role)+')':'')+'</div>'
+        + '<div>대상 기간 : <b>'+esc(period)+'</b></div>'
+        + '<div>지급일 : <b>'+esc(d.payDate||'')+'</b></div>'
+      + '</div>'
+      + '<div class="ps-sec">지급 내역</div>'
+      + '<table class="ps-tbl"><thead><tr><th>항목</th><th>계산 방법 (시간 × 시급)</th><th>금액</th></tr></thead>'
+      + '<tbody>'+pay+'</tbody>'
+      + '<tfoot><tr class="sum"><td colspan="2" class="rgt">지급 합계</td><td class="rgt">'+won(payTotal)+'</td></tr></tfoot></table>'
+      + '<div class="ps-sec">공제 내역</div>'
+      + '<table class="ps-tbl"><thead><tr><th>항목</th><th>금액</th></tr></thead>'
+      + '<tbody>'+ded+'</tbody>'
+      + '<tfoot><tr class="sum"><td class="rgt">공제 합계</td><td class="rgt">'+won(d.dedTotal)+'</td></tr></tfoot></table>'
+      + '<div class="ps-net"><span>실지급액</span><b>'+won(d.net)+' 원</b></div>'
+      + '<div class="ps-sec">근로 정보</div>'
+      + '<div class="meta" style="border-top:none;padding-top:0;">'
+        + '<div>출근일수 : <b>'+esc(d.workDays==null?'':d.workDays)+'일</b></div>'
+        + '<div>총 근로시간 : <b>'+esc(d.totalHours==null?'':d.totalHours)+'시간</b></div>'
+      + '</div>'
+      + (isIns4 ? '<div class="small">4대보험은 요율 기준 참고 계산이에요 — 실제 고지액과 다를 수 있어요.</div>' : '')
+    + '</div>'
+    + noteHtml(expStr(d));
+}
 
 function render(d){
   const rows = Array.isArray(d.rows) ? d.rows : [];
@@ -187,7 +315,14 @@ async function load(){
       show('링크가 만료되었거나 주소가 올바르지 않아요', ['보낸 분께 새 링크를 받아 주세요.']);
       return;
     }
-    render(snap.data());
+    /* 문서의 kind 로 화면을 가른다 (v246).
+       kind 가 없거나 'oneInvoice'·'clientRange'(지금까지 만든 문서들)이면
+       **종전 render() 그대로** — 이미 보낸 링크가 그대로 열려야 한다. */
+    const d = snap.data();
+    const kind = String((d && d.kind) || '');
+    if(kind === 'notice')       renderNotice(d);
+    else if(kind === 'payslip') renderPayslip(d);
+    else                        render(d);
   }catch(e){
     // permission-denied = 만료 또는 없는 토큰. 구분해 알려주면 토큰 확인 수단이 되므로 합쳐서 안내한다.
     show('링크가 만료되었거나 주소가 올바르지 않아요', ['보낸 분께 새 링크를 받아 주세요.']);
