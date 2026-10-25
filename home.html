@@ -720,10 +720,6 @@ function sendInquiry(){
   if(!text){ alert('문의 내용을 입력해주세요.'); return; }
   if(!/^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(contact.replace(/\s/g,''))){ alert('회신 받을 연락처를 정확히 입력해주세요.'); return; }
   if(!agree){ alert('개인정보 수집·이용에 동의해 주세요. (필수)'); return; }
-  /* 기기 기준 하루 3건 제한 */
-  var limKey='cosroad_home_inq_'+new Date().toISOString().slice(0,10);
-  var cnt=0; try{ cnt=parseInt(localStorage.getItem(limKey)||'0'); }catch(e){}
-  if(cnt>=3){ alert('문의는 하루 3건까지 보낼 수 있어요. ☎ 010-3660-3911 로 연락 주세요.'); return; }
   /* 저장: 이 페이지는 Firebase 가 이미 연결돼 있어(window._applyDb) 앱과 같은
      inquiries 컬렉션에 남긴다. 규칙 등으로 저장이 막혀도 아래 문자는 그대로 나가
      문의가 유실되지 않는다. */
@@ -745,7 +741,6 @@ function sendInquiry(){
         msg:'[코스로드 홈문의] '+type+(org?' ('+org+')':'')+' — '+text.slice(0,60)+' / 회신 '+contact })
     });
   }catch(e){}
-  try{ localStorage.setItem(limKey, String(cnt+1)); }catch(e){}
   var f=document.getElementById('inq-form'); if(f) f.remove();
   helperPush('bot','✅ 문의가 접수됐어요! 확인 후 '+contact+'(으)로 연락드릴게요.');
 }
