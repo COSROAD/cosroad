@@ -114,6 +114,43 @@ export default async function handler(req, res) {
     } catch (e) { return false; }
   }
 
+  /* 이 기관의 **실제 소유자 uid** 를 찾는다 (v251).
+     규칙의 ownerAlive(ownerUid) 가 users/{ownerUid} 의 승인·만료를 보므로,
+     기사 문서의 ownerUid 는 반드시 **그 업체 소유자** 여야 한다.
+     v250 에서는 호출자 uid 를 그대로 넣었다 — 마스터가 실업체 기사를 만들면
+     ownerUid=마스터가 되고, 마스터는 users 문서가 없어 ownerAlive 가 실패해
+     **그 기사가 자료를 못 봤다.**
+     반환: { uid } | { error:'사람에게 보여줄 문구' } */
+  async function resolveOwnerUid(org) {
+    /* 호출자가 그 업체 소유자면 그 사람이 소유자다 (v250 과 같은 결과) */
+    if (await isOwnerOf(org)) return { uid: callerUid };
+    /* 마스터가 부른 경우 — users 에서 그 기관의 소유자를 찾는다.
+       걸러내는 조건: 기사 문서(role:'driver') 제외 · **승인된** 계정만 · 탈퇴 아님.
+       승인 안 된 계정을 소유자로 넣으면 규칙 ownerAlive(approved==true)가 막아
+       **그 기사가 자료를 못 본다** — 그래서 여기서 미리 가린다. */
+    let owners = [];
+    try {
+      const snap = await A.db.collection('users').where('orgId', '==', org).get();
+      snap.forEach(d => {
+        const u = d.data() || {};
+        if (u.role === 'driver') return;
+        if (u.approved !== true) return;
+        if (u.withdrawn === true) return;
+        owners.push(d.id);
+      });
+    } catch (e) {
+      return { error: '업체 소유자를 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
+    }
+    if (owners.length === 1) return { uid: owners[0] };
+    /* 테스트 공간(_test)은 소유자 계정 없이 쓴다 — 마스터를 소유자로 둔다.
+       규칙이 _test 기관을 따로 열어 두므로(isTestOrg) 자료 접근은 막히지 않는다. */
+    if (/_test$/.test(org)) return { uid: callerUid };
+    if (owners.length === 0) {
+      return { error: '이 업체의 소유자 계정을 찾을 수 없어요. 업체가 먼저 가입·승인돼야 해요.' };
+    }
+    return { error: '이 업체에 소유자 계정이 ' + owners.length + '개 있어요. 정리한 뒤 다시 시도해 주세요.' };
+  }
+
   try {
     /* ── a) 기사 계정 만들기 ── */
     if (action === 'createDriver') {
@@ -139,15 +176,20 @@ export default async function handler(req, res) {
         }
       }
 
+      /* ownerUid — 이 기사가 딸린 업체의 **소유자**. 규칙(isActiveDriver → ownerAlive)이
+         이 값으로 소유자의 승인·만료를 본다. 계정을 만들기 **전에** 정해 둔다 —
+         못 찾으면 계정만 떠도는 일이 없도록 여기서 멈춘다. (v251) */
+      const own = await resolveOwnerUid(org);
+      if (own.error) return fail(res, 409, own.error);
+      const ownerUid = own.uid;
+
       const created = await A.auth.createUser({ email: loginId, password: pw, displayName: name || undefined });
       const now = Date.now();
-      /* ownerUid — 이 기사가 딸린 업체의 소유자. 규칙(isActiveDriver)이 이 값으로
-         소유자의 승인·만료를 본다. 마스터가 만들면 마스터 uid 가 들어간다. */
-      const rec = { role: 'driver', driverOrg: org, ownerUid: callerUid,
+      const rec = { role: 'driver', driverOrg: org, ownerUid: ownerUid,
                     carId: carId, name: name, phone: digits, createdAt: now };
       await A.db.collection('users').doc(created.uid).set(rec);
       await A.db.collection('orgs').doc(org).collection('drivers').doc(created.uid)
-        .set({ carId: carId, name: name, phone: digits, ownerUid: callerUid, createdAt: now });
+        .set({ carId: carId, name: name, phone: digits, ownerUid: ownerUid, createdAt: now });
       return res.status(200).json({ ok: true, driverUid: created.uid, loginPhone: digits });
     }
 

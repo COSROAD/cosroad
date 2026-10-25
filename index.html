@@ -598,7 +598,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 250;
+const APP_VERSION = 251;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -14484,12 +14484,23 @@ function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
   var orgId = getFbOrgId();
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual','staff','attendanceTime'];
+  /* v251: 'rideState' 추가 — v250 에서 탑승·완료 토글을 members 에서 떼어내면서
+     실시간 리스너를 같이 옮기지 않아, 다른 기기의 토글이 안 넘어왔다(v249 회귀).
+     ※ deliveryDone·dropoffDone 은 v250 **이전에도** 리스너가 없었다(이력 확인) — 이번 범위 아님. */
+  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual','staff','attendanceTime','rideState'];
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
       var data = JSON.parse(snap.data().value);
-      if(key==='members'){ members=data; localStorage.setItem('tkd_members',JSON.stringify(data)); }
+      /* v251: members 를 받을 때 탑승·완료 토글을 다시 덮어씌운다.
+         onSnapshot 은 **붙자마자 한 번** 부르고 관리자가 회원을 고칠 때마다 또 부른다.
+         applyRideState 를 안 하면 그때마다 on·offOn 이 members 문서의 옛 값으로 되돌아간다.
+         localStorage 에는 지금처럼 받은 data 를 그대로 둔다(토글은 tkd_ridestate 가 정본). */
+      if(key==='members'){ members=applyRideState(data); localStorage.setItem('tkd_members',JSON.stringify(data)); }
+      else if(key==='rideState'){
+        localStorage.setItem('tkd_ridestate',JSON.stringify(data));
+        members=applyRideState(members);
+      }
       else if(key==='cars'){ cars=data; localStorage.setItem('tkd_cars',JSON.stringify(data)); }
       else if(key==='courses'){ courses=data; localStorage.setItem('tkd_courses',JSON.stringify(data)); }
       else if(key==='org'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
