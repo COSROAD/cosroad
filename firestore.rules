@@ -188,16 +188,54 @@ service cloud.firestore {
     // ── shares/{token} — 카톡 공유 링크 스냅샷 (REPLY_32 확정본) ──────────
     // 여기는 신원이 필요 없어 **완전히 잠글 수 있다.**
     // 방어선 ① 추측 불가 토큰(128비트) ② list 차단 ③ 만료. "로그인됨"은 방어가 아니다.
+    // ── 공유 스냅샷 내용 검사 (v248) ─────────────────────────────────────
+    // 전에는 "로그인했고 · 만료가 미래고 · ownerUid 가 자기 uid" 뿐이어서,
+    // 익명 로그인만 해도 **아무 내용이나** shares 에 넣을 수 있었다.
+    // s.html 은 앱과 같은 cosroad.com 이라, 남이 만든 문서가 열리면 앱까지 위험해진다.
+    // 그래서 ① 종류 ② 키 구성 ③ 만료 상한 ④ 알림장 크기 를 서버에서 가린다.
+    // 키 목록은 index.html 의 발급 함수가 **실제로 저장하는 키**를 뽑아 적었다
+    //   oneInvoice·clientRange 12개 / notice 9개 / payslip 17개
+    // hasOnly 는 부분집합을 허용하므로, ownerUid 가 없는 문서는 아래 ownerUid 검사에서 걸린다.
+    function shKind() { return request.resource.data.kind; }
+    function shKeys() { return request.resource.data.keys(); }
+    function shShapeOk() {
+      return (
+        (shKind() in ['oneInvoice', 'clientRange'])
+        && shKeys().hasOnly(['v','kind','org','client','period','count','rows','totals','net','createdAt','expiresAt','ownerUid'])
+      ) || (
+        shKind() == 'notice'
+        && shKeys().hasOnly(['v','kind','org','date','content','images','createdAt','expiresAt','ownerUid'])
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 5000
+        && request.resource.data.images is list
+        && request.resource.data.images.size() <= 2
+      ) || (
+        shKind() == 'payslip'
+        && shKeys().hasOnly(['v','kind','org','ym','payDate','worker','workDays','totalHours','lines','total','deductions','dedTotal','meal','net','createdAt','expiresAt','ownerUid'])
+      );
+    }
     match /shares/{token} {
       allow get:    if resource.data.expiresAt > request.time;   // 만료되면 못 읽는다
       allow list:   if false;                                    // 토큰 없이 훑기 차단
       allow update: if false;                                    // 스냅샷 변조 차단
       allow create: if signedIn()
                     && request.resource.data.expiresAt > request.time
-                    && request.resource.data.ownerUid == request.auth.uid;
+                    // 만료는 최대 31일 — 앱은 30일(명세서·알림장)·7일(급여)만 쓴다
+                    && request.resource.data.expiresAt <= request.time + duration.value(31, 'd')
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && shShapeOk();
       allow delete: if signedIn()
                     && resource.data.ownerUid == request.auth.uid;   // 만든 본인만 회수
     }
+    // ★ 「만드는 사람」 조건(익명 아님 + 승인된 계정)은 **넣지 않았다** (v248, 사장님께 보고).
+    //   이유: 앱에는 Firebase 계정 없이 들어오는 길이 있다 —
+    //     · index.html 2034행: 로컬 비밀번호(ADMIN_PW, 기본 1234)로 관리자 진입
+    //     · index.html 1994행: loginDriver() 기사 진입
+    //   이 경우 288행의 signInAnonymously 로 **익명 계정**이 되고, users/{uid} 문서가 없다.
+    //   게다가 _test·_demo 는 승인 게이트를 아예 건너뛴다(index.html 2452·2466행).
+    //   그래서 hasUserDoc() && approved 를 걸면 _test 공유는 물론,
+    //   로컬 비밀번호로 쓰는 실사용자의 공유까지 전부 막힌다.
+    //   먼저 앱의 로그인 경로를 정리해야 한다 — 그 뒤에 이 조건을 넣는다.
 
     // ─────────────────────────────────────────────────────────────────────
     // ☆ 기관 격리는 2026-09-29(코스로드6)에 **켰다.** 위 orgs/{orgId}/data·backups 참고.

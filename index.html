@@ -588,7 +588,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 247;
+const APP_VERSION = 248;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1623,7 +1623,7 @@ function buildDriverAttHtml(){
 
       h += '<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px;padding:11px;margin-bottom:8px;">';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-      h += '<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:700;color:#344054;">'+car.driver+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+car.name+'</span></div>';
+      h += '<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:700;color:#344054;">'+escapeMasterHtml(car.driver)+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+escapeMasterHtml(car.name)+'</span></div>';
       h += '<div style="font-size:11px;margin-top:3px;">'+statusLine+'</div></div>';
       h += '<div style="display:flex;gap:5px;flex-shrink:0;">';
       var inOn = rec.in ? 'background:#ECFDF3;color:#12B76A;border:1px solid #6CE9A6;' : 'background:#F2F4F7;color:#98A2B3;border:1px solid #EAECF0;';
@@ -2856,8 +2856,8 @@ function drawMasterPanel(){
       } else {
         h += '<div style="font-size:11px;color:#667085;margin-top:6px;">'+days+'일 경과 · 만료까지 '+(SIGNUP_EXPIRE_DAYS-days)+'일</div>';
       }
-      h += '<button onclick="setUserApproval(\''+u._uid+'\',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
-      h += '<button onclick="deleteSignupUser(\''+u._uid+'\',\''+escapeMasterHtml(String(u.orgName||'').replace(/\'/g,"\\\\'"))+'\')" style="width:100%;margin-top:5px;padding:8px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🗑 신청 삭제</button>';
+      h += '<button onclick="setUserApproval('+jsArg(u._uid)+',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
+      h += '<button onclick="deleteSignupUser('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🗑 신청 삭제</button>';
       h += '</div>';
     });
   }
@@ -2868,7 +2868,7 @@ function drawMasterPanel(){
     approvedList.forEach(function(u){
       h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;">';
       h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span><div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
-      h += '<button onclick="setUserApproval(\''+u._uid+'\',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;">승인취소</button>';
+      h += '<button onclick="setUserApproval('+jsArg(u._uid)+',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;">승인취소</button>';
       h += '</div>';
     });
   }
@@ -2895,7 +2895,7 @@ function drawMasterPanel(){
       h += '<div style="font-size:12px;color:#475467;margin-top:5px;white-space:pre-line;">'+escapeMasterHtml(q.text||'')+'</div>';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">';
       h += '<span style="font-size:11px;color:#667085;">☎ '+escapeMasterHtml(q.contact||'연락처 없음')+'</span>';
-      h += '<button onclick="setInquiryStatus(\''+q._id+'\',\''+next+'\')" style="font-size:11px;padding:4px 10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;cursor:pointer;font-weight:700;color:#475467;">→ '+nextLabel+'</button>';
+      h += '<button onclick="setInquiryStatus('+jsArg(q._id)+','+jsArg(next)+')" style="font-size:11px;padding:4px 10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;cursor:pointer;font-weight:700;color:#475467;">→ '+nextLabel+'</button>';
       h += '</div></div>';
     });
   }
@@ -2938,8 +2938,25 @@ function drawMasterPanel(){
   root.innerHTML = h;
 }
 
+/* HTML escape — **따옴표까지** 바꾼다 (v248 보안, s.html v247 과 같은 순서).
+   v247까지는 & < > 만 바꿨다. 그러면 속성 자리(value="…" · src="…" 등)에 들어간 값이
+   따옴표 하나로 속성을 닫고 onfocus= 같은 것을 끼워 넣을 수 있다(XSS).
+   & 를 먼저 바꾸는 순서는 그대로 — 나중에 바꾸면 &amp;quot; 처럼 두 번 escape 된다. */
 function escapeMasterHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* 이벤트 속성 안의 **JS 문자열 인자**를 만드는 함수 (v248).
+   onclick="f('…')" 꼴은 escape 만으로는 못 막는다 — HTML 파서가 &#39; 를 ' 로 되돌려
+   JS 에 넘기므로, 값에 ' 가 있으면 문자열이 끊기고 코드가 끼어든다.
+   JSON.stringify 가 JS 문자열로서 안전하게 감싸고(따옴표·역슬래시·줄바꿈 처리),
+   그 결과를 다시 HTML escape 해서 속성 안에 넣는다.
+   ★ 쓰는 법: onclick="f("+jsArg(x)+")"  — 바깥에 따옴표를 **직접 넣지 않는다**.
+     (HTML 파서가 &quot; 를 " 로 되돌려 주므로 JS 는 "값" 을 받는다) */
+function jsArg(v){
+  return escapeMasterHtml(JSON.stringify(String(v==null?'':v)));
 }
 
 async function loadMasterCompanies(){
@@ -3343,7 +3360,7 @@ function helperAsk(text){
     if(box2) box2.insertAdjacentHTML('beforeend','<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;">'
       +r.items.map(function(it){ var _t=helperTerm(it.t); return '<button onclick="helperAsk(\''+_t+'\')" style="padding:7px 11px;background:#E0F2FE;color:#0E7090;border:1px solid #B9E6FE;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">'+_t+'</button>'; }).join('')
       /* 고를 게 없으면 물어본 그대로 AI에게 넘기는 보조 버튼 */
-      +'<button onclick="helperAskAI(this.dataset.q)" data-q="'+String(text).replace(/"/g,'&quot;').replace(/</g,'&lt;')+'" style="padding:7px 11px;background:#FFF7ED;color:#EA580C;border:1px solid #FED7AA;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">🤖 코스에게 그대로 물어보기</button>'
+      +'<button onclick="helperAskAI(this.dataset.q)" data-q="'+escapeMasterHtml(text)+'" style="padding:7px 11px;background:#FFF7ED;color:#EA580C;border:1px solid #FED7AA;border-radius:14px;font-size:12px;font-weight:700;cursor:pointer;">🤖 코스에게 그대로 물어보기</button>'
       +'</div>');
   } else {
     /* 문답표에 없을 때만 AI 호출 — 실패하면 helperAskAI 안에서 기존 문의 흐름으로 내려간다 */
@@ -3362,7 +3379,7 @@ function helperShowInquiry(){
     +'<select id="inq-type" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;">'
     +'<option value="사용법">사용법 질문</option><option value="개선">개선 요청</option><option value="오류">오류 신고</option></select>'
     +'<textarea id="inq-text" rows="3" placeholder="내용을 적어주세요" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;resize:none;"></textarea>'
-    +'<input id="inq-contact" type="tel" value="'+contact+'" placeholder="회신 받을 연락처" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>'
+    +'<input id="inq-contact" type="tel" value="'+escapeMasterHtml(contact)+'" placeholder="회신 받을 연락처" style="width:100%;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;"/>'
     +'<button onclick="sendInquiry()" style="width:100%;padding:9px;background:#EA580C;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">보내기</button></div>');
   box.scrollTop=box.scrollHeight;
 }
@@ -3703,7 +3720,7 @@ function renderDrive(){
       ${etaMap[s.id]?`<div class="card-eta">⏱ ${etaMap[s.id]} 도착예정</div>`:''}
     </div>`;
   });
-  if(clsSt.length===0)html+=`<div class="empty-state">오늘(${currentDay}) ${_logiDrive?car.name+' 배송 거래처':(course?.name||'')+' '+car.name+' 이용자'}가 없습니다.</div>`;
+  if(clsSt.length===0)html+=`<div class="empty-state">오늘(${currentDay}) ${_logiDrive?escapeMasterHtml(car.name)+' 배송 거래처':escapeMasterHtml(course?.name||'')+' '+escapeMasterHtml(car.name)+' 이용자'}가 없습니다.</div>`;
   html+=`</div>`;
   content.innerHTML=html;
 }
@@ -4214,10 +4231,10 @@ function renderNotice(){
       var d = new Date(n.ts);
       var dateStr = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
       var targetLabel;
-      if(n.targetLabel){ targetLabel = (n.targetLabel==='전체') ? '📢 전체' : '👥 '+n.targetLabel; }
+      if(n.targetLabel){ targetLabel = (n.targetLabel==='전체') ? '📢 전체' : '👥 '+escapeMasterHtml(n.targetLabel); }
       else if(n.target==='all'){ targetLabel = '📢 전체'; }
-      else { targetLabel = '👤 '+(n.targetName||T('회원')); }
-      if(n.targetLabel && n.targets && n.targets.length===1){ targetLabel = '👤 '+n.targetLabel; }
+      else { targetLabel = '👤 '+escapeMasterHtml(n.targetName||T('회원')); }
+      if(n.targetLabel && n.targets && n.targets.length===1){ targetLabel = '👤 '+escapeMasterHtml(n.targetLabel); }
       var sentBadge = n.sent ? '<span style="font-size:10px;color:#12B76A;background:#ECFDF3;padding:2px 6px;border-radius:4px;">발송됨</span>' : '<span style="font-size:10px;color:#667085;background:#F2F4F7;padding:2px 6px;border-radius:4px;">기록</span>';
       /* 카톡은 공유창을 연 것까지만 앱이 알 수 있다(실제 전송 여부는 카카오가 알려주지 않는다)
          → 문자 「발송됨」과 **따로** 표시한다 (v246) */
@@ -4236,7 +4253,7 @@ function renderNotice(){
       if(n.images && n.images.length){
         h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
         for(var k=0;k<n.images.length;k++){
-          h += '<img src="'+n.images[k]+'" onclick="viewNoticeImage(\''+n.id+'\','+k+')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #EAECF0;cursor:pointer;"/>';
+          h += '<img src="'+escapeMasterHtml(n.images[k])+'" onclick="viewNoticeImage(\''+n.id+'\','+k+')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #EAECF0;cursor:pointer;"/>';
         }
         h += '</div>';
       }
@@ -4248,8 +4265,11 @@ function renderNotice(){
   return h;
 }
 
+/* 알림장 화면용 escape — escapeMasterHtml 과 같은 규칙 (v248 보안: 따옴표 추가) */
 function escapeNoticeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // 회원 선택 패널 접기/펼치기
@@ -4390,7 +4410,7 @@ function renderNoticeImagePreview(){
   var h = '';
   for(var i=0;i<noticeImages.length;i++){
     h += '<div style="position:relative;">';
-    h += '<img src="'+noticeImages[i]+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #EAECF0;"/>';
+    h += '<img src="'+escapeMasterHtml(noticeImages[i])+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #EAECF0;"/>';
     h += '<button onclick="removeNoticeImage('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#F04438;color:white;border:none;font-size:12px;line-height:1;cursor:pointer;">×</button>';
     h += '</div>';
   }
@@ -4661,7 +4681,7 @@ function renderDashboard(){
   var _offWord=_logiD?'미완료':'미탑승';
   var _rateWord=_logiD?'완료율':'탑승률';
   var _subInfo=_logiD
-    ? cars.filter(c=>c.driver&&c.driver.trim()).map(c=>c.name+' '+members.filter(m=>m.carId===c.id).length+'곳').join(' · ')
+    ? cars.filter(c=>c.driver&&c.driver.trim()).map(c=>escapeMasterHtml(c.name)+' '+members.filter(m=>m.carId===c.id).length+'곳').join(' · ')
     : courses.map(c=>c.name+' '+members.filter(m=>m.courseId===c.id).length+'명').join(' · ');
   var _unit=_logiD?'곳':'명';
   /* 서류·인증 도움 링크 — 전 업종 공통 + 업종별 (URL은 확인된 주소 그대로, 임의 변경 금지) */
@@ -4712,7 +4732,7 @@ function renderDashboard(){
         const total2=todayAll.filter(m=>m.carId===car.id).length;
         const on=todayAll.filter(m=>m.carId===car.id&&m.on).length;
         const p=total2?Math.round(on/total2*100):0;
-        return`<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-600);margin-bottom:3px;"><span>${car.name}${car.driver?' ('+car.driver+')':''}</span><span>${on}/${total2}${_unit}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div></div>`;
+        return`<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-600);margin-bottom:3px;"><span>${escapeMasterHtml(car.name)}${car.driver?' ('+escapeMasterHtml(car.driver)+')':''}</span><span>${on}/${total2}${_unit}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div></div>`;
       }).join('')}
     </div>
     <div class="status-card" onclick="openSupportList()" style="cursor:pointer;">
@@ -4764,7 +4784,7 @@ function renderAdminMembers(){
   html+='</div>';
   // 검색 줄
   html+='<div style="display:flex;gap:5px;padding:0 16px 6px;align-items:center;">';
-  html+='<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색" oninput="filterAdminMembers(this.value)" value="'+q+'" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>';
+  html+='<input class="search-input" type="text" id="admin-search" placeholder="🔍 이름 검색" oninput="filterAdminMembers(this.value)" value="'+escapeMasterHtml(q)+'" style="flex:1;min-width:0;padding:7px 10px;font-size:12px;"/>';
   html+='<button onclick="setAdminSort(false)" id="admin-sort-asc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#EAECF0':'#EA580C')+';background:'+(adminSortDesc?'white':'#FFEDD5')+';color:'+(adminSortDesc?'#475467':'#EA580C')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↑가나다</button>';
   html+='<button onclick="setAdminSort(true)" id="admin-sort-desc" style="padding:7px 8px;border-radius:8px;border:1.5px solid '+(adminSortDesc?'#12B76A':'#EAECF0')+';background:'+(adminSortDesc?'#ECFDF3':'white')+';color:'+(adminSortDesc?'#12B76A':'#475467')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↓가나다</button>';
   html+='</div>';
@@ -4774,7 +4794,7 @@ function renderAdminMembers(){
   var tabField = (_bizM==='logistics') ? 'carId' : 'courseId';
   html+='<div id="admin-course-tabs" style="display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto;scrollbar-width:none;">';
   html+='<button onclick="adminFilterCourse=\'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(adminFilterCourse===''?'var(--admin)':'#EAECF0')+';background:'+(adminFilterCourse===''?'var(--admin-light)':'white')+';color:'+(adminFilterCourse===''?'var(--admin)':'#475467')+';">전체 ('+members.length+')</button>';
-  html+=tabItems.map(function(cs){ var cnt=members.filter(function(m){return m[tabField]===cs.id;}).length; var isActive=adminFilterCourse===cs.id; var nm=(_bizM==='logistics')?(cs.name+(cs.driver?' ('+cs.driver+')':'')):cs.name; return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+nm+' ('+cnt+')</button>'; }).join('');
+  html+=tabItems.map(function(cs){ var cnt=members.filter(function(m){return m[tabField]===cs.id;}).length; var isActive=adminFilterCourse===cs.id; var nm=(_bizM==='logistics')?(escapeMasterHtml(cs.name)+(cs.driver?' ('+escapeMasterHtml(cs.driver)+')':'')):escapeMasterHtml(cs.name); return '<button onclick="adminFilterCourse=\''+cs.id+'\';filterAdminMembers(document.getElementById(\'admin-search\').value)" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(isActive?'var(--admin)':'#EAECF0')+';background:'+(isActive?'var(--admin-light)':'white')+';color:'+(isActive?'var(--admin)':'#475467')+';">'+nm+' ('+cnt+')</button>'; }).join('');
   html+='</div>';
   // 선택 삭제 줄 (전체 선택 + 선택 삭제 버튼)
   var _selN=Object.keys(_memberSel).length;
@@ -4804,8 +4824,8 @@ function renderAdminMembers(){
     for(var a=0;a<courses.length;a++){if(courses[a].id===m.courseId){course=courses[a];break;}}
     for(var b=0;b<cars.length;b++){if(cars[b].id===m.carId){car=cars[b];break;}}
     var photo=m.photo
-      ?('<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
-      :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>');
+      ?('<img src="'+escapeMasterHtml(m.photo)+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+      :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+escapeMasterHtml(m.name.slice(0,1))+'</div>');
     var badge=memberStatusBadge(m);
     var dayDots='';
     for(var d=0;d<DAYS.length;d++){
@@ -4817,8 +4837,8 @@ function renderAdminMembers(){
       +'<input type="checkbox" class="member-sel-cb" data-mid="'+m.id+'" onchange="toggleMemberSel('+m.id+',this.checked)" '+(_memberSel[m.id]?'checked':'')+' style="width:18px;height:18px;flex-shrink:0;accent-color:#F04438;cursor:pointer;"/>'
       +photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
-      +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
-      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
+      +'<div class="member-name">'+escapeMasterHtml(m.name)+'</div>'+badge+'</div>'
+      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?escapeMasterHtml(car.name)+(car.driver?' · '+escapeMasterHtml(car.driver):''):'미배정차량'):((course?escapeMasterHtml(course.name):'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
       +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
@@ -4827,11 +4847,11 @@ function renderAdminMembers(){
       +'</label></div></div>'
       +'<div class="member-info">'
       +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+fullLoc(m)+'</span></div>'
-      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
-      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
+      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+escapeMasterHtml(m.phone||'–')+'</span></div>'
+      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+escapeMasterHtml(m.phone2)+'</span></div>':'')
       +'</div><div class="days-row">'+dayDots+'</div>'
-      +'<span class="car-badge">🚐 '+(car?car.name:'미배정')+'</span>'
-      +(m.note?'<div class="member-note">※ '+m.note+'</div>':'')
+      +'<span class="car-badge">🚐 '+(car?escapeMasterHtml(car.name):'미배정')+'</span>'
+      +(m.note?'<div class="member-note">※ '+escapeMasterHtml(m.note)+'</div>':'')
       +'</div>';
   }
   html+='</div>';
@@ -4857,8 +4877,8 @@ function filterAdminMembers(q){
     for(var a=0;a<courses.length;a++){if(courses[a].id===m.courseId){course=courses[a];break;}}
     for(var b=0;b<cars.length;b++){if(cars[b].id===m.carId){car=cars[b];break;}}
     var photo=m.photo
-      ?('<img src="'+m.photo+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
-      :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+m.name.slice(0,1)+'</div>');
+      ?('<img src="'+escapeMasterHtml(m.photo)+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+      :('<div class="member-avatar" style="width:48px;height:48px;font-size:18px;">'+escapeMasterHtml(m.name.slice(0,1))+'</div>');
     var badge=memberStatusBadge(m);
     var dayDots='';
     for(var d=0;d<DAYS.length;d++){
@@ -4870,8 +4890,8 @@ function filterAdminMembers(q){
       +'<input type="checkbox" class="member-sel-cb" data-mid="'+m.id+'" onchange="toggleMemberSel('+m.id+',this.checked)" '+(_memberSel[m.id]?'checked':'')+' style="width:18px;height:18px;flex-shrink:0;accent-color:#F04438;cursor:pointer;"/>'
       +photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
-      +'<div class="member-name">'+m.name+'</div>'+badge+'</div>'
-      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?car.name+(car.driver?' · '+car.driver:''):'미배정차량'):((course?course.name:'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
+      +'<div class="member-name">'+escapeMasterHtml(m.name)+'</div>'+badge+'</div>'
+      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?escapeMasterHtml(car.name)+(car.driver?' · '+escapeMasterHtml(car.driver):''):'미배정차량'):((course?escapeMasterHtml(course.name):'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
       +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
@@ -4880,11 +4900,11 @@ function filterAdminMembers(q){
       +'</label></div></div>'
       +'<div class="member-info">'
       +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+fullLoc(m)+'</span></div>'
-      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
-      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
+      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+escapeMasterHtml(m.phone||'–')+'</span></div>'
+      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+escapeMasterHtml(m.phone2)+'</span></div>':'')
       +'</div><div class="days-row">'+dayDots+'</div>'
-      +'<span class="car-badge">🚐 '+(car?car.name:'미배정')+'</span>'
-      +(m.note?'<div class="member-note">※ '+m.note+'</div>':'')
+      +'<span class="car-badge">🚐 '+(car?escapeMasterHtml(car.name):'미배정')+'</span>'
+      +(m.note?'<div class="member-note">※ '+escapeMasterHtml(m.note)+'</div>':'')
       +'</div>';
   });
   if(filtered.length===0) html='<div class="empty-state">검색 결과가 없습니다.</div>';
@@ -5196,14 +5216,14 @@ function renderDeliverySchedule(){
     var renderItem=function(m){
       var done=isDeliveryDoneToday(m.id);
       var s='<div class="setting-card" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;'+(done?'opacity:0.55;':'')+'">';
-      s+='<div><div style="font-size:13px;font-weight:600;color:#344054;">'+m.name+(done?' <span style="font-size:10px;color:#12B76A;">✔</span>':'')+'</div>';
-      s+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+fullLoc(m)+'</div></div>';
-      s+='<div style="font-size:11px;color:#475467;text-align:right;flex-shrink:0;">'+(m.phone||'')+'</div>';
+      s+='<div><div style="font-size:13px;font-weight:600;color:#344054;">'+escapeMasterHtml(m.name)+(done?' <span style="font-size:10px;color:#12B76A;">✔</span>':'')+'</div>';
+      s+='<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+escapeMasterHtml(fullLoc(m))+'</div></div>';
+      s+='<div style="font-size:11px;color:#475467;text-align:right;flex-shrink:0;">'+escapeMasterHtml(m.phone||'')+'</div>';
       s+='</div>';
       return s;
     };
     var renderGroup=function(car,items){
-      h+='<div style="margin:12px 0 6px;padding:6px 10px;background:#FFF4ED;border-radius:8px;font-size:12px;font-weight:700;color:#EA580C;">🚐 '+car.name+(car.driver?' · '+car.driver:'')+' <span style="color:#98A2B3;font-weight:400;">'+items.length+'곳</span></div>';
+      h+='<div style="margin:12px 0 6px;padding:6px 10px;background:#FFF4ED;border-radius:8px;font-size:12px;font-weight:700;color:#EA580C;">🚐 '+escapeMasterHtml(car.name)+(car.driver?' · '+car.driver:'')+' <span style="color:#98A2B3;font-weight:400;">'+items.length+'곳</span></div>';
       items.forEach(function(m){ h+=renderItem(m); });
     };
     if(deliverySelCar===''){
@@ -5314,7 +5334,7 @@ function renderSettings(){
         <label class="form-label">도장 이미지 (거래명세서 인쇄용)</label>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
           <label style="flex:1;padding:9px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;text-align:center;">🖼 도장 업로드<input type="file" accept="image/*" onchange="uploadStamp(event)" style="display:none;"/></label>
-          ${orgSettings.stamp?'<img src="'+orgSettings.stamp+'" style="width:44px;height:44px;object-fit:contain;border:1px solid #EAECF0;border-radius:8px;"/><button onclick="removeStamp()" style="padding:8px 10px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">삭제</button>':'<span style="font-size:11px;color:#98A2B3;">미등록</span>'}
+          ${orgSettings.stamp?'<img src="'+escapeMasterHtml(orgSettings.stamp)+'" style="width:44px;height:44px;object-fit:contain;border:1px solid #EAECF0;border-radius:8px;"/><button onclick="removeStamp()" style="padding:8px 10px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">삭제</button>':'<span style="font-size:11px;color:#98A2B3;">미등록</span>'}
         </div>
         <label class="form-label">아이콘 (이모지)</label>
         <input class="form-input" id="org-icon-input" value="${orgSettings.icon}" placeholder="예) 🥋 🏫 🏥" style="margin-bottom:0;"/>
@@ -5711,8 +5731,8 @@ function renderMembers(){
 // ── 원생 등록/수정 ──
 function populateSelects(){
   const cs=document.getElementById('m-class');const cv=document.getElementById('m-car');
-  cs.innerHTML=courses.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-  cv.innerHTML=cars.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  cs.innerHTML=courses.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
+  cv.innerHTML=cars.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
 }
 // 물류 거래처용 모달 변환 (물류일 때만 라벨/칸 변경)
 function applyBizModalLayout(){
@@ -6132,7 +6152,7 @@ function renderAttendance(){
   h+='<button onclick="attFilterCourse=\'\';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+allBorder+';background:'+allBg+';color:'+allColor+';">전체</button>';
   for(var ci=0;ci<courses.length;ci++){
     var cs2=courses[ci];var ia=attFilterCourse===cs2.id;
-    h+='<button onclick="attFilterCourse=\''+cs2.id+'\';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+(ia?'var(--admin)':'#EAECF0')+';background:'+(ia?'var(--admin-light)':'white')+';color:'+(ia?'var(--admin)':'#475467')+';">'+cs2.name+'</button>';
+    h+='<button onclick="attFilterCourse=\''+cs2.id+'\';renderAttendance();" style="flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid '+(ia?'var(--admin)':'#EAECF0')+';background:'+(ia?'var(--admin-light)':'white')+';color:'+(ia?'var(--admin)':'#475467')+';">'+escapeMasterHtml(cs2.name)+'</button>';
   }
   h+='</div>';
 
@@ -6158,21 +6178,21 @@ function renderAttendance(){
       var st=data[attViewDate]&&data[attViewDate][m.id];
       var cr=null;for(var k=0;k<courses.length;k++){if(courses[k].id===m.courseId){cr=courses[k];break;}}
       var pe=m.photo
-        ?('<img src="'+m.photo+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
-        :('<div style="width:42px;height:42px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
+        ?('<img src="'+escapeMasterHtml(m.photo)+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+        :('<div style="width:42px;height:42px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+escapeMasterHtml(m.name.slice(0,1))+'</div>');
       var bc=st==='present'?'#12B76A':st==='absent'?'#F04438':'#EAECF0';
       h+='<div style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+bc+';">';
       h+='<div style="display:flex;align-items:center;gap:10px;">'+pe;
-      h+='<div style="flex:1;"><div style="font-size:14px;font-weight:700;">'+m.name+'</div>';
+      h+='<div style="flex:1;"><div style="font-size:14px;font-weight:700;">'+escapeMasterHtml(m.name)+'</div>';
       /* 출석일 때만, 시각이 있으면 붙인다 (v244) */
       var _ti=(st==='present')?attTimeInfo(_atMap, attViewDate, m.id):null;
       var _tiHtml=_ti?('<span style="color:#12B76A;font-weight:700;"> · 🕘 '+_ti.t+' '+(_ti.by==='admin'?'관리자':'PIN')+'</span>'):'';
-      h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?cr.name:'')+(m.phone?' · '+m.phone:'')+(m.pin?' · PIN:'+m.pin:'')+_tiHtml+'</div></div>';
+      h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?escapeMasterHtml(cr.name):'')+(m.phone?' · '+escapeMasterHtml(m.phone):'')+(m.pin?' · PIN:'+m.pin:'')+_tiHtml+'</div></div>';
       h+='<div style="display:flex;gap:6px;">';
       h+='<button onclick="setAttendance('+m.id+',\'present\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='present'?'#12B76A':'#F2F4F7')+';color:'+(st==='present'?'white':'#475467')+';">✅ '+T('출석')+'</button>';
       h+='<button onclick="setAttendance('+m.id+',\'absent\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='absent'?'#F04438':'#F2F4F7')+';color:'+(st==='absent'?'white':'#475467')+';">❌ '+T('결석')+'</button>';
       h+='</div></div>';
-      if(m.note)h+='<div style="font-size:11px;color:#F79009;margin-top:6px;padding-left:52px;">※ '+m.note+'</div>';
+      if(m.note)h+='<div style="font-size:11px;color:#F79009;margin-top:6px;padding-left:52px;">※ '+escapeMasterHtml(m.note)+'</div>';
       h+='</div>';
     }
     h+='</div>';
@@ -6257,13 +6277,13 @@ function handleDriverPinCheckin(car){
   var msg, color, odoAsk='';   /* '' 없음 · 'start' 출근 계기판 · 'end' 퇴근 계기판 (둘 다 선택 입력) */
   if(!att[k].in){
     att[k].in=nowTimeStr();
-    msg='✅ '+car.driver+' 기사님 출근 ('+att[k].in+')';
+    msg='✅ '+escapeMasterHtml(car.driver)+' 기사님 출근 ('+att[k].in+')';
     color='#12B76A';
     odoAsk='start'; /* 출근 시 계기판 km 입력 (선택) — 운행기록부 「주행 전」 실측값 */
   } else if(!att[k].out){
     att[k].out=nowTimeStr();
     var mins=calcWorkMinutes(att[k].in, att[k].out);
-    msg='🏁 '+car.driver+' 기사님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins);
+    msg='🏁 '+escapeMasterHtml(car.driver)+' 기사님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins);
     color='#F04438';
     odoAsk='end';   /* 퇴근 시 계기판 km 입력 (선택) — 운행기록부용 */
   } else {
@@ -6300,7 +6320,7 @@ function handleStaffPinCheckin(st){
   var msg, color;
   if(!att[k].in){
     att[k].in=nowTimeStr();
-    msg='✅ '+st.name+'님 출근 ('+att[k].in+')';
+    msg='✅ '+escapeMasterHtml(st.name)+'님 출근 ('+att[k].in+')';
     color='#12B76A';
   } else if(!att[k].out){
     att[k].out=nowTimeStr();
@@ -6311,7 +6331,7 @@ function handleStaffPinCheckin(st){
       if(raw>=480) note=' (휴게 1시간 제외)';
       else if(raw>=240) note=' (휴게 30분 제외)';
     }
-    msg='🏁 '+st.name+'님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins)+note;
+    msg='🏁 '+escapeMasterHtml(st.name)+'님 퇴근 ('+att[k].out+') · 근무 '+fmtWorkMinutes(mins)+note;
     color='#F04438';
   } else {
     msg='이미 출퇴근이 모두 기록되었습니다.';
@@ -6387,14 +6407,14 @@ function checkPin(){
 
   // 성공 화면
   var photo=member.photo
-    ?('<img src="'+member.photo+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;"/>')
-    :('<div style="width:80px;height:80px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#1A6BFF;margin:0 auto 12px;">'+member.name.slice(0,1)+'</div>');
+    ?('<img src="'+escapeMasterHtml(member.photo)+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;"/>')
+    :('<div style="width:80px;height:80px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#1A6BFF;margin:0 auto 12px;">'+escapeMasterHtml(member.name.slice(0,1))+'</div>');
   // 출석완료 멘트 표시
   document.getElementById('pin-result').innerHTML=
     '<div style="text-align:center;padding:20px;">'
     +'<div style="font-size:48px;margin-bottom:8px;">✅</div>'
     +'<div style="font-size:22px;font-weight:800;color:#12B76A;margin-bottom:6px;">출석 완료!</div>'
-    +'<div style="font-size:18px;font-weight:700;color:#344054;">'+member.name+'</div>'
+    +'<div style="font-size:18px;font-weight:700;color:#344054;">'+escapeMasterHtml(member.name)+'</div>'
     +'<div style="font-size:13px;color:#98A2B3;margin-top:4px;">'+timeStr+' 도착</div>'
     +'</div>';
 
@@ -7033,10 +7053,10 @@ function renderPayment(){
       var course = null;
       for(var i=0;i<courses.length;i++){ if(courses[i].id===m.courseId){course=courses[i];break;} }
       var photo = m.photo
-        ?('<img src="'+m.photo+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+        ?('<img src="'+escapeMasterHtml(m.photo)+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
         :('<div style="width:40px;height:40px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#1A6BFF;flex-shrink:0;">'+m.name.slice(0,1)+'</div>');
 
-      h += '<div class="pay-member-item" data-name="'+m.name+'" style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+(isPaid?'#12B76A':'#EAECF0')+';">';
+      h += '<div class="pay-member-item" data-name="'+escapeMasterHtml(m.name)+'" style="background:white;border-radius:12px;padding:12px 14px;border:1.5px solid '+(isPaid?'#12B76A':'#EAECF0')+';">';
       h += '<div style="display:flex;align-items:center;gap:10px;">'+photo;
       h += '<div style="flex:1;">';
       h += '<div style="font-size:14px;font-weight:700;">'+m.name+'</div>';
@@ -8143,25 +8163,25 @@ function filterDriverMembers(q){
     var course=courses.find(function(c){return c.id===m.courseId;});
     var car=cars.find(function(c){return c.id===m.carId;});
     var photoEl=m.photo
-      ?('<img src="'+m.photo+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
-      :('<div class="member-avatar">'+m.name.slice(0,1)+'</div>');
+      ?('<img src="'+escapeMasterHtml(m.photo)+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>')
+      :('<div class="member-avatar">'+escapeMasterHtml(m.name.slice(0,1))+'</div>');
     var dayDots='';
     for(var d=0;d<DAYS.length;d++){
       dayDots+='<div class="day-dot '+(m.days.indexOf(DAYS[d])>=0?'on':'')+'">'+ DAYS[d]+'</div>';
     }
     html+='<div class="member-card">'
       +'<div class="member-header">'+photoEl
-      +'<div><div class="member-name">'+m.name+'</div><div class="member-class">'+(course?course.name:'–')+'</div></div>'
+      +'<div><div class="member-name">'+escapeMasterHtml(m.name)+'</div><div class="member-class">'+(course?escapeMasterHtml(course.name):'–')+'</div></div>'
       +(currentMode==='admin'?'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button><button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>':'')
       +'</div>'
       +'<div class="member-info">'
       +'<div class="info-row"><span class="info-label">'+(getBizType()==='logistics'?'거래처 주소':getBizType()==='delivery'?'배송지 주소':'픽업 장소')+'</span><span class="info-val">'+fullLoc(m)+'</span></div>'
-      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+(m.phone||'–')+'</span></div>'
-      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+m.phone2+'</span></div>':'')
+      +'<div class="info-row"><span class="info-label">연락처</span><span class="info-val">'+escapeMasterHtml(m.phone||'–')+'</span></div>'
+      +(m.phone2?'<div class="info-row"><span class="info-label">연락처2</span><span class="info-val">'+escapeMasterHtml(m.phone2)+'</span></div>':'')
       +'</div>'
       +'<div class="days-row">'+dayDots+'</div>'
-      +'<span class="car-badge">🚐 '+(car?car.name:'미배정')+'</span>'
-      +(m.note?'<div class="member-note">※ '+m.note+'</div>':'')
+      +'<span class="car-badge">🚐 '+(car?escapeMasterHtml(car.name):'미배정')+'</span>'
+      +(m.note?'<div class="member-note">※ '+escapeMasterHtml(m.note)+'</div>':'')
       +'</div>';
   });
   if(filtered.length===0) html='<div class="empty-state">검색 결과가 없습니다.</div>';
@@ -8843,8 +8863,8 @@ function handleBarcodeValue(raw){
       var uel=document.getElementById('barcode-result');
       if(uel){
         uel.style.display='block'; uel.style.color='#F04438';
-        uel.innerHTML='⚠ 등록되지 않은 바코드예요: '+code
-          +' <button onclick="openBarcodeRegister(\''+code+'\')" style="margin-left:6px;padding:5px 10px;background:#7C3AED;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">＋ 새 품목 등록</button>';
+        uel.innerHTML='⚠ 등록되지 않은 바코드예요: '+escapeMasterHtml(code)
+          +' <button onclick="openBarcodeRegister('+jsArg(code)+')" style="margin-left:6px;padding:5px 10px;background:#7C3AED;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">＋ 새 품목 등록</button>';
       } else { box('⚠ 등록되지 않은 바코드예요: '+code, false); }
       return;
     }
@@ -8889,13 +8909,13 @@ function showBarcodeRegForm(code, name, info){
     ? '<input id="bcreg-inprice" type="text" inputmode="numeric" placeholder="입고가" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>'
     : '<input id="bcreg-price" type="text" inputmode="numeric" placeholder="출고가" oninput="fmtAmountInput(this)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;min-width:0;"/>';
   el.innerHTML='<div style="border:1px solid #DDD6FE;background:#FAF8FF;border-radius:8px;padding:9px;">'
-    +'<div style="font-size:11px;color:#7C3AED;font-weight:700;margin-bottom:4px;">＋ 새 품목 등록 — 바코드 '+code+'</div>'
+    +'<div style="font-size:11px;color:#7C3AED;font-weight:700;margin-bottom:4px;">＋ 새 품목 등록 — 바코드 '+escapeMasterHtml(code)+'</div>'
     +'<div style="font-size:11px;color:#667085;margin-bottom:6px;">'+escapeMasterHtml(info||'')+'</div>'
     +'<input id="bcreg-name" type="text" placeholder="품명" value="'+escapeMasterHtml(name||'')+'" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:13px;margin-bottom:5px;"/>'
     +'<div style="font-size:11px;font-weight:700;color:'+(_isPur?'#F04438':'#1570EF')+';margin-bottom:4px;">'+_priceHint+'</div>'
     +'<div style="display:flex;gap:5px;">'
     +_priceInput
-    +'<button onclick="saveBarcodeProduct(\''+code+'\')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>'
+    +'<button onclick="saveBarcodeProduct('+jsArg(code)+')" style="padding:8px 12px;background:#7C3AED;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>'
     +'<button onclick="var _b=document.getElementById(\'barcode-result\');_b.style.display=\'none\';_b.innerHTML=\'\';" style="padding:8px 10px;background:#F2F4F7;color:#667085;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">취소</button>'
     +'</div></div>';
   var ne=document.getElementById('bcreg-name');
@@ -9719,7 +9739,7 @@ function printInvoice(id){
       +'<table class="inv-party"><tr>'
       +'<td class="ph">공급자</td>'
       +'<td class="pbody"><table class="pin"><tr><td class="k">등록번호</td><td colspan="3" class="ctr">'+esc(org.bizNo||'')+'</td></tr>'
-      +'<tr><td class="k">상호</td><td>'+esc(org.name||'')+'</td><td class="k">성명</td><td class="ceo-cell">'+esc(org.ceo||'')+(org.stamp?'<img src="'+org.stamp+'" class="inv-stamp"/>':'')+'</td></tr>'
+      +'<tr><td class="k">상호</td><td>'+esc(org.name||'')+'</td><td class="k">성명</td><td class="ceo-cell">'+esc(org.ceo||'')+(org.stamp?'<img src="'+escapeMasterHtml(org.stamp)+'" class="inv-stamp"/>':'')+'</td></tr>'
       +'<tr><td class="k">주소</td><td colspan="3">'+esc(org.address||org.destAddr||'')+'</td></tr>'
       +'<tr><td class="k">업태</td><td>'+esc(org.bizCat||'')+'</td><td class="k">종목</td><td>'+esc(org.bizItem||'')+'</td></tr></table></td>'
       +'<td class="ph">공급받는자</td>'
@@ -10626,7 +10646,7 @@ function openPayslipShare(pid){
   var extra =
     '<div style="margin-bottom:12px;">'
     + '<div style="font-size:12px;font-weight:800;color:#344054;margin-bottom:5px;">지급일 <span style="color:#F04438;">*</span></div>'
-    + '<input id="psShareDate" type="date" value="'+String(def).replace(/"/g,'&quot;')+'" onchange="psShareSetPayDate(this.value)" style="width:100%;padding:9px 10px;border:1.5px solid #D0D5DD;border-radius:9px;font-size:13px;box-sizing:border-box;"/>'
+    + '<input id="psShareDate" type="date" value="'+escapeMasterHtml(def)+'" onchange="psShareSetPayDate(this.value)" style="width:100%;padding:9px 10px;border:1.5px solid #D0D5DD;border-radius:9px;font-size:13px;box-sizing:border-box;"/>'
     + '<div style="font-size:11px;color:#98A2B3;margin-top:4px;">여기서 고른 \'일\'을 다음 달부터 기본값으로 기억해요.</div>'
     + '</div>';
 
@@ -10775,7 +10795,7 @@ function invShareShowLink(url, again, msg){
   if(!box) return;
   box.innerHTML =
     '<div style="display:flex;gap:6px;align-items:center;margin-bottom:'+(msg?'6px':'10px')+';">'
-    + '<input id="invShareUrl" readonly value="'+String(url).replace(/"/g,'&quot;')+'" style="flex:1;min-width:0;padding:8px;border:1px solid #D0D5DD;border-radius:8px;font-size:11px;"/>'
+    + '<input id="invShareUrl" readonly value="'+escapeMasterHtml(url)+'" style="flex:1;min-width:0;padding:8px;border:1px solid #D0D5DD;border-radius:8px;font-size:11px;"/>'
     + ((again && navigator.share) ? '<button onclick="invShareAgain()" style="padding:8px 11px;background:#FEE500;color:#3C1E1E;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 다시 공유</button>' : '')
     + '</div>'
     + (msg ? '<div id="invShareMsg" style="font-size:12px;font-weight:700;color:#027A48;margin-bottom:10px;">'+escapeMasterHtml(msg)+'</div>' : '');
@@ -11068,7 +11088,7 @@ function openCertIssueModal(){
     + relOpts + '</select>'
     + _certField('발급 목적 (선택)', 'cert-purpose', '연말정산 제출용', '')
     + '<div style="font-size:11px;color:#98A2B3;margin-top:10px;line-height:1.5;">※ 선택한 연도의 납부 완료 내역이 자동 집계됩니다. 상호·사업자번호·대표자·도장은 <b>설정 탭</b>에서 가져옵니다.'
-    + (_ct.note ? '<br>'+_ct.note : '') + '</div>'
+    + (_ct.note ? '<br>'+escapeMasterHtml(_ct.note) : '') + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:18px;">'
     + '<button onclick="closeCertModal(\'cert-modal\')" style="flex:1;padding:11px;font-size:13px;font-weight:700;background:#F2F4F7;color:#475467;border:none;border-radius:9px;cursor:pointer;">취소</button>'
     + '<button onclick="previewCertificate()" style="flex:1.4;padding:11px;font-size:13px;font-weight:700;background:#EDE9FE;color:#7C3AED;border:none;border-radius:9px;cursor:pointer;">👁 미리보기</button>'
@@ -11202,7 +11222,7 @@ function buildCertHtml(o, m, birth, year, rows, total, purpose, certNo, applican
   if(o.bizCat||o.bizItem) body += '<tr><td style="font-weight:700;color:#555;">업태 / 종목</td><td>'+_certEsc(o.bizCat||'—')+' / '+_certEsc(o.bizItem||'—')+'</td></tr>';
   body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
   body += '</table>';
-  if(o.stamp){ body += '<img src="'+o.stamp+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
+  if(o.stamp){ body += '<img src="'+escapeMasterHtml(o.stamp)+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
   body += '</div>';
   body += '</div>';
   return body;
@@ -11334,7 +11354,7 @@ function buildEnrollHtml(o, m, birth, status, startD, endD, purpose, certNo, ct)
   if(o.tel) body += '<tr><td style="font-weight:700;color:#555;">전화번호</td><td>'+_certEsc(o.tel)+'</td></tr>';
   body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
   body += '</table>';
-  if(o.stamp){ body += '<img src="'+o.stamp+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
+  if(o.stamp){ body += '<img src="'+escapeMasterHtml(o.stamp)+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
   body += '</div></div>';
   return body;
 }
@@ -11404,7 +11424,7 @@ function buildReceiptHtml(o, m, item, amount, date, method, no){
   if(o.tel) body += '<tr><td style="font-weight:700;color:#555;">전화번호</td><td>'+_certEsc(o.tel)+'</td></tr>';
   body += '<tr><td style="font-weight:700;color:#555;">대표자</td><td style="font-weight:700;">'+_certEsc(o.ceo||'')+' &nbsp;(인)</td></tr>';
   body += '</table>';
-  if(o.stamp){ body += '<img src="'+o.stamp+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
+  if(o.stamp){ body += '<img src="'+escapeMasterHtml(o.stamp)+'" style="position:absolute;right:30px;bottom:0;width:70px;height:70px;object-fit:contain;opacity:0.9;">'; }
   body += '</div></div>';
   return body;
 }
@@ -11739,7 +11759,7 @@ function renderCarlogModal(){
       +'<span style="font-size:12px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(item)
       +(st?(st.status==='due'?' <span style="font-size:10px;color:#F04438;font-weight:800;">⚠ 교체 필요</span>':' <span style="font-size:10px;color:#B54708;font-weight:800;">🔔 교체 임박</span>'):'')+'</span>'
       +'<span style="font-size:11px;color:#475467;">다음 '+Number(plans[item]).toLocaleString()+'km '
-      +'<span onclick="removeCarlogPlan(\''+escapeMasterHtml(item).replace(/'/g,"\\'")+'\')" style="font-size:10px;color:#F04438;cursor:pointer;font-weight:700;margin-left:4px;">삭제</span></span></div>';
+      +'<span onclick="removeCarlogPlan('+jsArg(item)+')" style="font-size:10px;color:#F04438;cursor:pointer;font-weight:700;margin-left:4px;">삭제</span></span></div>';
   });
   h+='<div style="display:flex;gap:5px;">'
     +'<input id="cl-plan-item" type="text" placeholder="항목 (예: 엔진오일)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:12px;min-width:0;"/>'
@@ -12738,6 +12758,17 @@ function supportDdayLeft(endDate){
   var a=new Date(t+'T00:00:00'), b=new Date(endDate+'T00:00:00');
   return Math.round((b-a)/86400000);
 }
+/* 지원사업 「원문 보기」 — 외부(정부 API)에서 온 주소를 열기 전에 한 번 더 가린다 (v248).
+   javascript: · data: 같은 주소가 섞여 들어오면 창을 여는 것만으로 코드가 돌 수 있다.
+   http(s) 로 시작하는 주소만 열고, 아니면 열지 않고 안내한다. */
+function supportOpenUrl(url){
+  var u = String(url||'').trim();
+  if(!/^https?:\/\//i.test(u)){
+    try{ showToast('열 수 없는 주소예요 — 공고를 정부24에서 검색해 주세요'); }catch(e){}
+    return;
+  }
+  window.open(u, '_blank');
+}
 function supportBadgeHtml(){
   if(!supportNewCount) return '';
   return '<span style="font-size:10px;background:#F04438;color:white;padding:2px 7px;border-radius:10px;font-weight:800;margin-left:4px;">'+supportNewCount+'건</span>';
@@ -12850,7 +12881,7 @@ function renderSupportList(){
       if(it.period) h+='<div style="font-size:11px;color:#667085;">🗓 '+dlvEsc(it.period)+'</div>';
       if(it.field) h+='<div style="font-size:11px;color:#667085;">🏷 '+dlvEsc(it.field)+'</div>';
       if(it.url){
-        h+='<button onclick="window.open(\''+dlvEsc(it.url)+'\',\'_blank\')" style="margin-top:7px;padding:6px 11px;background:white;border:1px solid #1A6BFF;color:#1A6BFF;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">원문 보기 ↗</button>';
+        h+='<button onclick="supportOpenUrl('+jsArg(it.url)+')" style="margin-top:7px;padding:6px 11px;background:white;border:1px solid #1A6BFF;color:#1A6BFF;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">원문 보기 ↗</button>';
       } else {
         /* 원문 URL이 없는 항목 — 링크 대신 검색 안내 (없는 주소로 보내지 않는다) */
         h+='<div style="margin-top:7px;font-size:11px;color:#667085;background:#F9FAFB;border:1px solid #EAECF0;border-radius:7px;padding:6px 9px;">정부24(gov.kr)에서 「'+dlvEsc(it.title)+'」(으)로 검색하세요</div>';
@@ -13081,19 +13112,19 @@ function renderCars(){
   cars.forEach(function(c,idx){
     var cnt=members.filter(function(m){return m.carId===c.id;}).length;
     var isActive=idx===currentCarTab;
-    html+='<button onclick="setCarTab('+idx+')" style="flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;border-radius:20px;margin:6px 4px;background:'+(isActive?'#ABEFC6':'#F2F4F7')+';color:'+(isActive?'#067647':'#475467')+';">'+c.name+carlogBadgeHtml(c.id)+' <span style="font-size:10px;">('+cnt+')</span></button>';
+    html+='<button onclick="setCarTab('+idx+')" style="flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;border-radius:20px;margin:6px 4px;background:'+(isActive?'#ABEFC6':'#F2F4F7')+';color:'+(isActive?'#067647':'#475467')+';">'+escapeMasterHtml(c.name)+carlogBadgeHtml(c.id)+' <span style="font-size:10px;">('+cnt+')</span></button>';
   });
   html+='</div>';
   html+='</div>';
   // 차량 정보 카드
   html+='<div style="padding:12px 16px 0;">';
-  html+='<div class="status-card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="status-card-title">🚐 '+car.name+' 정보'+carlogBadgeHtml(car.id)+'</div>'
+  html+='<div class="status-card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="status-card-title">🚐 '+escapeMasterHtml(car.name)+' 정보'+carlogBadgeHtml(car.id)+'</div>'
     +'<button onclick="carlogSelCar=\''+car.id+'\';openCarlog();" style="font-size:11px;color:#0E7090;background:#E0F2FE;border:1px solid #B9E6FE;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;">📒 차계부</button></div>';
   html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-  html+='<input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="'+car.driver+'" oninput="cars['+i+'].driver=this.value"/>';
-  html+='<input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="'+car.phone+'" oninput="cars['+i+'].phone=this.value" type="tel"/>';
-  html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="'+car.plate+'" oninput="cars['+i+'].plate=this.value"/>';
-  html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차종 (예: 포터2)" value="'+(car.model||'')+'" oninput="cars['+i+'].model=this.value"/>';
+  html+='<input class="setting-input" style="flex:1;min-width:80px;" placeholder="기사명" value="'+escapeMasterHtml(car.driver)+'" oninput="cars['+i+'].driver=this.value"/>';
+  html+='<input class="setting-input" style="flex:1;min-width:100px;" placeholder="연락처" value="'+escapeMasterHtml(car.phone)+'" oninput="cars['+i+'].phone=this.value" type="tel"/>';
+  html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차량번호" value="'+escapeMasterHtml(car.plate)+'" oninput="cars['+i+'].plate=this.value"/>';
+  html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="차종 (예: 포터2)" value="'+escapeMasterHtml(car.model||'')+'" oninput="cars['+i+'].model=this.value"/>';
   html+='<input class="setting-input" style="flex:1;min-width:90px;" placeholder="기사 PIN 4자리" maxlength="4" inputmode="numeric" value="'+(car.driverPin||'')+'" oninput="cars['+i+'].driverPin=this.value.replace(/[^0-9]/g,\'\')"/>';
   html+='<input class="setting-input" style="flex:1;min-width:110px;" type="number" placeholder="출퇴근 거리(km/일)" value="'+(car.commuteKm||'')+'" oninput="cars['+i+'].commuteKm=Number(this.value)||0"/>';
   html+='<input class="setting-input" style="flex:1;min-width:100px;" type="text" inputmode="numeric" placeholder="시급(원)" value="'+(car.hourlyWage?Number(car.hourlyWage).toLocaleString():'')+'" oninput="fmtAmountInput(this);cars['+i+'].hourlyWage=parseInt(this.value.replace(/[^0-9]/g,\'\'))||0"/>';
@@ -13115,8 +13146,8 @@ function renderCars(){
   carMembers.forEach(function(m){
     html+='<div style="background:#F2F4F7;border-radius:8px;padding:9px 11px;margin-bottom:6px;">';
     html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
-    html+='<span style="font-size:13px;font-weight:700;">'+m.name+'</span>';
-    html+='<div style="display:flex;gap:4px;align-items:center;"><span style="font-size:10px;color:#98A2B3;">'+((courses.find(function(c){return c.id===m.courseId;})||{}).name||'')+'</span>';
+    html+='<span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(m.name)+'</span>';
+    html+='<div style="display:flex;gap:4px;align-items:center;"><span style="font-size:10px;color:#98A2B3;">'+escapeMasterHtml(((courses.find(function(c){return c.id===m.courseId;})||{}).name||''))+'</span>';
     html+='<button onclick="removeMemberFromCar('+m.id+')" style="padding:2px 8px;border:1px solid #F04438;border-radius:5px;font-size:10px;color:#F04438;background:white;cursor:pointer;">해제</button></div></div>';
     html+='<div style="display:flex;gap:4px;">';
     DAYS.forEach(function(d){
@@ -13128,7 +13159,7 @@ function renderCars(){
   html+='</div><div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">➕ '+T('회원')+' 추가</div>';
   if(unassigned.length===0) html+='<div style="font-size:12px;color:#98A2B3;">미배정 '+조사(T('회원'),'이','가')+' 없습니다.</div>';
   else { html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-    unassigned.forEach(function(m){ html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+m.name+' +</button>'; });
+    unassigned.forEach(function(m){ html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+escapeMasterHtml(m.name)+' +</button>'; });
     html+='</div>'; }
   html+='</div>';
   // 학원·공공: 차량관리 안에 기사 근태관리 함께 표시
@@ -13191,9 +13222,9 @@ function renderAttSummary(){
   if(absentMembers.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">🎉 연속 '+T('결석')+' '+조사(T('회원'),'이','가')+' 없습니다!</div>';
   else absentMembers.forEach(function(item){
     h+='<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#FEF3F2;border-radius:8px;margin-bottom:6px;">';
-    h+='<span style="font-size:20px;">⚠️</span><div style="flex:1;"><div style="font-size:13px;font-weight:700;">'+item.m.name+'</div>';
+    h+='<span style="font-size:20px;">⚠️</span><div style="flex:1;"><div style="font-size:13px;font-weight:700;">'+escapeMasterHtml(item.m.name)+'</div>';
     h+='<div style="font-size:11px;color:#F04438;">'+item.count+'일 연속 '+T('결석')+'</div></div>';
-    if(item.m.phone) h+='<a href="tel:'+item.m.phone+'" style="padding:5px 10px;background:#F04438;color:white;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;">📞 연락</a>';
+    if(item.m.phone) h+='<a href="tel:'+escapeMasterHtml(item.m.phone)+'" style="padding:5px 10px;background:#F04438;color:white;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;">📞 연락</a>';
     h+='</div>';
   });
   h+='</div>';
@@ -13214,7 +13245,7 @@ function renderAttSummary(){
   });
   if(perfect.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">'+(_isLogiAtt?('아직 빠짐없이 '+T('출석')+'된 '+조사(T('회원'),'이','가')+' 없습니다.'):('아직 개근 '+조사(T('회원'),'이','가')+' 없습니다.'))+'</div>';
   else { h+='<div style="display:flex;flex-wrap:wrap;gap:6px;">';
-    perfect.forEach(function(m){ h+='<div style="padding:6px 12px;background:#FFFAEB;border:1px solid #FDE68A;border-radius:20px;font-size:12px;font-weight:700;color:#92400E;">🏆 '+m.name+'</div>'; });
+    perfect.forEach(function(m){ h+='<div style="padding:6px 12px;background:#FFFAEB;border:1px solid #FDE68A;border-radius:20px;font-size:12px;font-weight:700;color:#92400E;">🏆 '+escapeMasterHtml(m.name)+'</div>'; });
     h+='</div>'; }
   h+='</div>';
   return h;
@@ -13304,11 +13335,11 @@ function showDashDetail(type){
     h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">👥 전체 '+T('회원')+' ('+members.length+TUnit()+')</div>';
     courses.forEach(function(cs){
       var cms=members.filter(function(m){return m.courseId===cs.id;});
-      h+='<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">'+cs.name+' ('+cms.length+TUnit()+')</div>';
+      h+='<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">'+escapeMasterHtml(cs.name)+' ('+cms.length+TUnit()+')</div>';
       cms.forEach(function(m){
         var car=cars.find(function(c){return c.id===m.carId;});
         h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F2F4F7;border-radius:8px;margin-bottom:4px;">';
-        h+='<span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#98A2B3;">'+(car?car.name:'미배정')+'</span></div>';
+        h+='<span style="font-size:13px;font-weight:700;flex:1;">'+escapeMasterHtml(m.name)+'</span><span style="font-size:10px;color:#98A2B3;">'+(car?car.name:'미배정')+'</span></div>';
       });
       h+='</div>';
     });
@@ -13318,25 +13349,25 @@ function showDashDetail(type){
     h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ '+_ddOnWord+' ('+todayOn.length+TUnit()+')</div>';
     todayOn.forEach(function(m){
       var car=cars.find(function(c){return c.id===m.carId;});
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#027A48;">'+(car?car.name:'')+'</span></div>';
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+escapeMasterHtml(m.name)+'</span><span style="font-size:10px;color:#027A48;">'+(car?car.name:'')+'</span></div>';
     });
     if(todayOff.length>0){
       h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:10px 0 6px;">❌ '+_ddOffWord+' ('+todayOff.length+TUnit()+')</div>';
-      todayOff.forEach(function(m){ h+='<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+m.name+'</div>'; });
+      todayOff.forEach(function(m){ h+='<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+escapeMasterHtml(m.name)+'</div>'; });
     }
   } else {
     var car=cars.find(function(c){return c.id===type;});
     if(!car){h+='차량 정보 없음';h+='</div>';panel.innerHTML=h;return;}
     var carOn=todayAll.filter(function(m){return m.carId===type&&m.on;}); var carOff=todayAll.filter(function(m){return m.carId===type&&!m.on;});
-    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 '+car.name+' 오늘 '+_ddOnWord+' 현황</div>';
-    if(car.driver) h+='<div style="font-size:11px;color:#475467;margin-bottom:8px;">기사: '+car.driver+(car.phone?' · '+car.phone:'')+'</div>';
+    h+='<div style="font-size:12px;font-weight:700;color:#344054;margin-bottom:10px;">🚐 '+escapeMasterHtml(car.name)+' 오늘 '+_ddOnWord+' 현황</div>';
+    if(car.driver) h+='<div style="font-size:11px;color:#475467;margin-bottom:8px;">기사: '+escapeMasterHtml(car.driver)+(car.phone?' · '+car.phone:'')+'</div>';
     h+='<div style="font-size:11px;font-weight:700;color:#12B76A;margin-bottom:6px;">✅ '+_ddOnWord+' ('+carOn.length+TUnit()+')</div>';
     carOn.forEach(function(m){
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+m.name+'</span><span style="font-size:10px;color:#027A48;">'+fullLoc(m)+'</span></div>';
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#ECFDF3;border-radius:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;flex:1;">'+escapeMasterHtml(m.name)+'</span><span style="font-size:10px;color:#027A48;">'+fullLoc(m)+'</span></div>';
     });
     if(carOff.length>0){
       h+='<div style="font-size:11px;font-weight:700;color:#F04438;margin:8px 0 6px;">❌ '+_ddOffWord+' ('+carOff.length+TUnit()+')</div>';
-      carOff.forEach(function(m){ h+='<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+m.name+'</div>'; });
+      carOff.forEach(function(m){ h+='<div style="padding:6px 8px;background:#FEF3F2;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:700;">'+escapeMasterHtml(m.name)+'</div>'; });
     }
     if(carOn.length===0&&carOff.length===0) h+='<div style="text-align:center;padding:12px;color:#98A2B3;font-size:12px;">오늘 배정된 '+조사(T('회원'),'이','가')+' 없습니다.</div>';
   }
@@ -14303,8 +14334,8 @@ function showDestResults(results){
   results.forEach(function(r, i){
     var bb = i===results.length-1 ? 'border-bottom:none;' : '';
     html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
-      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
-      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
+      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+escapeMasterHtml(r.name)+'</div>'
+      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+escapeMasterHtml(r.address)+'</div></div>';
   });
   html += '</div>';
   el.innerHTML = html;
@@ -14316,7 +14347,7 @@ function showDestResults(results){
     if(!r) return;
     document.getElementById('dest-lat').value = r.y;
     document.getElementById('dest-lon').value = r.x;
-    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+escapeMasterHtml(r.name)+' ('+escapeMasterHtml(r.address)+')</span>';
     showToast('✅ 주소 검색 완료!');
   });
 }
@@ -14373,8 +14404,8 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
   results.forEach(function(r, i){
     var bb = i===results.length-1 ? 'border-bottom:none;' : '';
     html += '<div class="addr-ri" data-idx="'+i+'" style="padding:9px 12px;border-bottom:1px solid #F2F4F7;cursor:pointer;'+bb+'">'
-      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+r.name+'</div>'
-      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+r.address+'</div></div>';
+      + '<div style="font-size:13px;font-weight:600;color:#344054;">'+escapeMasterHtml(r.name)+'</div>'
+      + '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+escapeMasterHtml(r.address)+'</div></div>';
   });
   html += '</div>';
   el.innerHTML = html;
@@ -14386,7 +14417,7 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
     if(!r) return;
     var loc = document.getElementById(targetInput);
     if(loc){ loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x); }
-    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+r.name+' ('+r.address+')</span>';
+    el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+escapeMasterHtml(r.name)+' ('+escapeMasterHtml(r.address)+')</span>';
     showToast('✅ 위치 확인 완료!');
   });
 }
