@@ -369,8 +369,15 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <button class="login-btn" onclick="openSignupModal()" style="background:white;color:var(--admin);border:1.5px solid var(--admin);margin-top:8px;">회원가입</button>
     <div style="text-align:center;margin-top:8px;"><span onclick="sendPwReset()" style="font-size:12px;color:#98A2B3;cursor:pointer;text-decoration:underline;">비밀번호를 잊으셨나요?</span></div>
     <div class="login-err" id="login-err">로그인 정보가 올바르지 않습니다.</div>
+    <!-- 둘러보기(_demo) 전용 — 계정 없이 들어간다. _demo 기관에서만 보인다(아래 showDemoEnterBtn).
+         v248까지는 비밀번호 1234 를 넣고 들어갔는데, 기기 비밀번호를 없앴으므로 이 단추로 대신한다.
+         들어간 뒤 화면은 종전과 똑같다(읽기전용은 Storage 래퍼가 막는다). -->
+    <div id="demo-enter-box" style="display:none;margin-top:10px;">
+      <div style="border-top:1px solid var(--gray-200);margin:10px 0;"></div>
+      <button class="login-btn btn-admin" onclick="loginDemo()">👀 둘러보기 시작</button>
+      <div style="text-align:center;margin-top:6px;font-size:11px;color:#98A2B3;">가입 없이 둘러보실 수 있어요 (입력해도 저장되지 않아요)</div>
+    </div>
   </div>
-  <div class="login-hint" id="login-hint">초기 관리자 비밀번호: 1234</div>
   <div style="margin-top:12px;text-align:center;">
     <a href="https://cosroad.com/home.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#fff;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);border-radius:9px;padding:9px 18px;text-decoration:none;">🏠 홈페이지로 가기</a>
   </div>
@@ -523,7 +530,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 // 모든 업종이 같은 키(tkd_members 등)를 쓰면 데이터가 섞이므로,
 // 데이터성 키에는 자동으로 _<orgId>를 붙여 업종별로 완전 분리한다.
 (function(){
-  // 업종별로 분리할 키들 (기기 공통 설정인 tkd_adminpw, tkd_nav_* 등은 제외)
+  // 업종별로 분리할 키들 (기기 공통 설정인 tkd_nav_* 등은 제외)
+  // (tkd_adminpw 는 v249 에서 없앴다 — 기기 비밀번호 진입 폐지)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
   var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_attendance_time'];
   function curOrgId(){
@@ -588,7 +596,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 248;
+const APP_VERSION = 249;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -614,7 +622,9 @@ const dayIdMap={월:'mon',화:'tue',수:'wed',목:'thu',금:'fri',토:'sat',일:
 /* T맵 키는 서버(Vercel)에만 있습니다. 앱에는 없습니다.
    기기에 남아 있을지 모를 옛 키를 지웁니다. */
 try{ localStorage.removeItem('tmapKey'); }catch(e){}
-let ADMIN_PW=localStorage.getItem('tkd_adminpw')||'1234';
+/* ADMIN_PW(기기 비밀번호)는 v249 에서 없앴다 — 계정 로그인으로 통일(사장님 결정 10-25).
+   기기에 남아 있을 수 있는 tkd_adminpw 도 한 번 지운다(쓰는 곳이 없어 남겨 둘 이유가 없다). */
+try{ localStorage.removeItem('tkd_adminpw'); }catch(e){}
 // 운영자(키 관리) 여부: org 없는 기본 접속(cosroad.com) 또는 admin=1 일 때만 키 입력창 노출
 function isKeyManager(){
   try{
@@ -2030,17 +2040,29 @@ function loginAdmin(){
       });
     return;
   }
-  if(pw!==ADMIN_PW){document.getElementById('login-err').style.display='block';return;}
-  var keep=document.getElementById('keep-login');
-  if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
-  else { localStorage.removeItem(keepLoginKey()); }
-  onAdminLoggedIn();
+  /* 아이디가 비면 더 이상 들어갈 길이 없다 (v249 — 기기 비밀번호 진입 폐지).
+     전에는 아이디를 비우고 ADMIN_PW(기기에 저장된 1234)만 맞으면 들어갔다.
+     그러면 Firebase 에서는 **익명 계정**이라 서버 규칙이 「이 사람이 누구인지」를 알 수 없고,
+     공유 링크 규칙처럼 사람을 가려야 하는 기능을 전부 막게 된다(v248 보고). */
+  var el=document.getElementById('login-err');
+  if(el){ el.textContent='아이디(휴대폰 번호·이메일)를 넣어 주세요.'; el.style.display='block'; }
 }
 function onAdminLoggedIn(){
   currentMode='admin';
   document.getElementById('login-screen').classList.add('hide');
   document.getElementById('main-app').style.display='block';
   initApp();
+}
+/* 둘러보기(_demo) 진입 — 계정 없이 들어간다 (v249, 절대규칙 6 예외).
+   데모가 아니면 아무 일도 하지 않는다. 「로그인 유지」는 저장하지 않는다(둘러보기니까). */
+function loginDemo(){
+  if(typeof isDemoMode!=='function' || !isDemoMode()){
+    var el=document.getElementById('login-err');
+    if(el){ el.textContent='둘러보기는 데모 주소에서만 돼요.'; el.style.display='block'; }
+    return;
+  }
+  try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+  onAdminLoggedIn();
 }
 
 // 회원가입 모달
@@ -2590,18 +2612,58 @@ function sendPwReset(){
 }
 function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
-// 저장된 로그인 유지 상태가 있으면 자동 로그인
+/* 「로그인 유지」 자동 로그인 (v249 개정)
+   v248까지는 localStorage 표시('admin')만 보고 **Firebase 로그인 없이** 관리자 화면을 열었다.
+   그래서 표시만 남아 있으면 익명 상태로 앱이 열렸고, 승인·만료 검사도 건너뛰었다.
+   이제는 Firebase 가 **실제 계정 세션**을 되살렸을 때만 연다 —
+   onAuthStateChanged 를 한 번 기다려 계정을 확인하고, loginAdmin 과 **같은 순서**로
+   탈퇴 → 승인 → 만료 게이트를 거친다. 세션이 없으면 표시를 지우고 로그인 화면에 남는다.
+   반환값: true = 로그인 화면을 건너뛰고 기다리는 중 / false = 로그인 화면을 그대로 보여라 */
 function tryAutoLogin(){
-  try{
-    if(localStorage.getItem(keepLoginKey())==='admin'){
-      currentMode='admin';
-      document.getElementById('login-screen').classList.add('hide');
-      document.getElementById('main-app').style.display='block';
-      initApp();
-      return true;
+  var want = false;
+  try{ want = (localStorage.getItem(keepLoginKey())==='admin'); }catch(e){}
+  if(!want) return false;
+  if(!window._auth || !window._authFns || !window._authFns.onAuthStateChanged){
+    /* Firebase 가 아직 없다 — 자동 로그인하지 않는다(표시는 지우지 않는다. 다음 로드에서 다시 본다) */
+    return false;
+  }
+  var done = false;
+  var un = window._authFns.onAuthStateChanged(window._auth, function(user){
+    if(done) return;
+    done = true;
+    try{ if(typeof un==='function') un(); }catch(e){}
+    if(!user || user.isAnonymous){
+      /* 세션이 없거나 익명 — 유지 표시를 지우고 로그인 화면으로 */
+      try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+      autoLoginFailed();
+      return;
     }
+    loadUserProfile(user.uid).then(function(){
+      if(window._userWithdrawn){
+        try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+        try{ window._authFns.signOut(window._auth); }catch(e){}
+        autoLoginFailed();
+        return;
+      }
+      if(!isAccountApproved()){ showPendingScreen(); return; }
+      var st=getTrialStatus();
+      if(st.blocked){ showTrialExpired(); return; }
+      onAdminLoggedIn();
+      if(st.banner) showTrialBanner(st.daysLeft);
+    }).catch(function(){
+      try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+      autoLoginFailed();
+    });
+  });
+  return true;   // 확인하는 동안에는 로그인 화면을 띄우지 않는다
+}
+/* 자동 로그인이 안 됐을 때 — 로그인 화면으로 되돌린다 */
+function autoLoginFailed(){
+  try{
+    currentMode='';
+    var ls=document.getElementById('login-screen'); if(ls) ls.classList.remove('hide');
+    var ma=document.getElementById('main-app'); if(ma) ma.style.display='none';
   }catch(e){}
-  return false;
 }
 
 // ══════════ 마스터(전체 관리자) 업체 관리 ══════════
@@ -3036,7 +3098,7 @@ var HELP_QA=[
   {role:'all', keys:['휴대폰로그인','번호로그인','문자','인증','아이디'], t:'휴대폰 번호로 로그인해요',
    a:'1. 로그인 칸에 가입할 때 쓴 «휴대폰 번호»를 그대로 넣고 비밀번호를 넣으세요\n2. 010-1234-5678 처럼 줄표를 넣어도 되고 숫자만 넣어도 돼요\n3. 문자 인증번호는 안 와요 — 번호는 아이디일 뿐이에요\n4. 비밀번호를 잊으셨으면 cosroad@cosroad.com 으로 알려 주세요 (휴대폰 가입은 재설정 메일이 못 가요)'},
   {role:'all', keys:['로그인비밀번호','계정비밀번호','비번변경','비밀번호바꾸기'], t:'로그인 비밀번호 바꾸기',
-   a:'1. 관리 → 대시보드 오른쪽 위 「비밀번호 변경」\n2. 지금 비밀번호와 새 비밀번호(6자 이상)를 넣으세요\n3. 이건 로그인 계정 비밀번호예요 — 관리자 잠금 번호와는 다른 것이에요\n4. 휴대폰으로 가입한 계정도 비밀번호가 있어요 — 같은 자리에서 바꾸시면 돼요'},
+   a:'1. 관리 → 대시보드 오른쪽 위 「비밀번호 변경」\n2. 지금 비밀번호와 새 비밀번호(6자 이상)를 넣으세요\n3. 로그인할 때 쓰는 비밀번호예요 (기기 비밀번호 1234 는 v249에서 없앴어요 — 이제 계정 로그인만 써요)\n4. 휴대폰으로 가입한 계정도 비밀번호가 있어요 — 같은 자리에서 바꾸시면 돼요'},
   {role:'all', keys:['다른업체','남의자료','격리','보안'], t:'다른 업체 자료는 안 보이나요',
    a:'1. 안 보여요. 계정마다 자기 업체 자료만 열려요\n2. 주소(링크)를 알아도 자기 업체가 아니면 열리지 않아요\n3. 둘러보기(데모)는 누구나 볼 수 있지만 저장은 안 돼요'},
   /* keys에 맨 '등록'·'추가'를 두면 「도장 등록」·「아이콘 추가」 같은 질문까지 끌어와서 뺐다 */
@@ -3133,8 +3195,8 @@ var HELP_QA=[
    a:'1. 관리자 → 현황 탭 아래 「📑 서류·인증 도움」\n2. 운전면허 진위확인(교통민원24) · 자동차 검사 예약(자동차365) · 정부24 바로가기가 있어요\n3. 물류·택배는 화물운송종사자격(TS국가자격시험)이, 학원·공공은 통학버스 관련 링크가 더 나와요\n4. 누르면 해당 사이트가 새 창으로 열려요 — 코스로드가 대신 조회해 주지는 않아요'},
   {role:'admin', keys:['사업자','상호','대표자','도장','계좌'], t:'사업장 정보·도장 등록',
    a:'1. 관리자 → 설정 탭 → 「사용자 정보」\n2. 상호 · 사업자등록번호 · 대표자 · 업태 · 종목 · 주소 · 연락처 · 계좌를 넣어요\n3. 도장 이미지를 올려 두면 거래명세서·증명서에 자동으로 찍혀요\n4. 여기 주소는 지원사업 「우리 지역만 보기」의 자동 인식에도 쓰여요 — 정확히 넣어 두세요'},
-  {role:'admin', keys:['비밀번호','암호'], t:'관리자 비밀번호 변경',
-   a:'1. 관리자 → 설정 탭에서 새 비밀번호를 두 번 넣고 변경하세요\n2. 이 기기의 관리자 잠금 번호예요\n3. «회원» 출석 PIN · 기사 PIN과는 서로 다른 것이에요'},
+  {role:'all', keys:['기기비밀번호','1234','관리자비밀번호','잠금번호'], t:'1234 비밀번호로 안 들어가져요',
+   a:'1. v249(2026-10-25)부터 기기 비밀번호(1234)로 들어가는 길을 없앴어요 — 이제 계정으로만 로그인해요\n2. 로그인 칸에 가입할 때 쓴 휴대폰 번호(또는 이메일)와 비밀번호를 넣으세요\n3. 아직 가입하지 않으셨다면 「회원가입」을 눌러 주세요 — 승인 후 이용하실 수 있어요\n4. 비밀번호를 잊으셨으면 로그인 화면의 「비밀번호를 잊으셨나요?」를 쓰세요\n5. 왜 없앴나요 — 기기 비밀번호로 들어오면 서버가 「누가 들어왔는지」를 알 수 없어서, 공유 링크처럼 사람을 가려야 하는 기능을 지킬 수 없었어요\n6. 설정 탭의 「로그인 비밀번호 변경」은 그대로 있어요 — 그건 계정 비밀번호예요'},
   {role:'admin', keys:['회원수정','삭제','지우기'], t:'«회원» 수정·삭제',
    a:'1. «회원» 목록에서 이름을 누르면 수정 창이 열려요\n2. 주소를 바꿀 땐 반드시 「📍 검색」으로 위치를 다시 잡아 주세요 (위치가 확정돼야 저장돼요)\n3. 삭제는 확인 창을 한 번 거쳐요 — 실수로 지워지지 않게 돼 있어요\n4. 여러 «회원»을 한 번에 지우려면 목록에서 선택한 뒤 삭제하세요'},
   {role:'all', keys:['업데이트','버전','최신','새로고침'], t:'앱 업데이트 (새 버전 반영)',
@@ -5405,13 +5467,13 @@ function renderSettings(){
       </div>
     </div>
     ${(function(){
-      /* 계정 칸 — 로그인 계정으로 들어온 경우에만 보인다(운전자·관리자 잠금번호 모드에는 없다) */
+      /* 계정 칸 — 로그인 계정으로 들어온 경우에만 보인다(기사 진입·데모 둘러보기에는 없다) */
       var _u = window._auth && window._auth.currentUser;
       if(!_u || _u.isAnonymous) return '';
       return '<div class="setting-title" style="margin-top:16px;">계정</div>'
         + '<div class="setting-card">'
         + '<div class="setting-row"><div><div class="setting-row-label">로그인 비밀번호 변경</div>'
-        + '<div class="setting-row-sub">관리자 잠금 번호와는 다른 것이에요</div></div>'
+        + '<div class="setting-row-sub">로그인할 때 쓰는 비밀번호예요</div></div>'
         + '<button onclick="openPwChangeModal()" style="padding:6px 12px;border:1px solid var(--admin);border-radius:6px;font-size:11px;color:var(--admin);background:white;cursor:pointer;font-weight:700;">변경</button></div>'
         + '<div class="setting-row"><div><div class="setting-row-label" style="color:var(--danger);">회원 탈퇴</div>'
         + '<div class="setting-row-sub">로그인이 막힙니다. 자료는 지우지 않아요</div></div>'
@@ -5462,7 +5524,8 @@ function saveOrgInfo(){
   showToast('✅ 사용자 정보 저장됐어요! (업종: '+(BIZ_LABELS[orgSettings.bizType]||'학원')+')');
   if(typeof renderAdminNav==='function') renderAdminNav();
 }
-function changePassword(){const p1=document.getElementById('new-pw').value,p2=document.getElementById('new-pw2').value;if(!p1){alert('비밀번호를 입력해주세요.');return;}if(p1!==p2){alert('비밀번호가 일치하지 않습니다.');return;}ADMIN_PW=p1;localStorage.setItem('tkd_adminpw',ADMIN_PW);alert('✅ 변경되었습니다.');}
+/* changePassword(기기 비밀번호 변경)는 v249 에서 없앴다 — 기기 비밀번호 진입 자체가 사라졌다.
+   로그인 계정 비밀번호는 openPwChangeModal(설정 탭 「계정」)에서 바꾼다. */
 function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_members');members=loadMembers();showToast('초기화됐어요!');renderAdminTab('settings');});}
 
 /* ══════════ 🗓 날짜 점검 (v243) ══════════
@@ -5631,7 +5694,7 @@ function dcOpenInvoice(id){
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_adminpw','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_driver_att','tkd_invoices','tkd_products','tkd_attendance_time'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_driver_att','tkd_invoices','tkd_products','tkd_attendance_time'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -13530,8 +13593,7 @@ function getTourSteps(){
   // 모든 업종 공통: 로그인 안내 (관리자 진입 전)
   var loginSteps = [
     { screen:'login', title:'👋 COSROAD 데모에 오신 걸 환영합니다', body:'실제 화면을 그대로 체험할 수 있어요. 입력해도 저장되지 않으니 마음껏 눌러보세요. 반짝이는 곳을 직접 눌러가며 따라 해보세요.' },
-    { screen:'login', selector:'#admin-pw', title:'① 관리자 로그인', body:'초기 관리자 비밀번호는 "1234" 예요. 반짝이는 칸에 1234를 입력해 보세요. (이메일은 비워도 됩니다)' },
-    { screen:'login', selector:'button[onclick^="loginAdmin"]', title:'② 관리자로 시작', body:'"관리자로 시작" 버튼을 누르면 관리 화면으로 들어가요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true },
+    { screen:'login', selector:'button[onclick^="loginDemo"]', title:'① 둘러보기 시작', body:'가입도 비밀번호도 필요 없어요. 반짝이는 「👀 둘러보기 시작」 버튼을 눌러보세요.', clickAdvance:true },
     { screen:'admin-home', selector:'#tab-admin', title:'③ 관리 메뉴 열기', body:'로그인하면 운행 화면이 먼저 나와요. 우측 위 "👨‍💼 관리" 버튼을 눌러 관리 메뉴로 들어가 보세요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true }
   ];
   var afterSteps = getBizTourSteps(biz);
@@ -14508,19 +14570,19 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
 </div>
 
 <script>
-// 초기 관리자 비밀번호(1234) 안내는 _test·_demo 조직에서만 표시
-// (실서비스 화면에서는 숨김 — 정식 사용자는 이메일 계정으로 로그인)
+// v249: 「초기 관리자 비밀번호: 1234」 안내와 그 숨김 코드는 없앴다 —
+// 기기 비밀번호 진입 자체가 사라져 안내할 것이 없다(계정 로그인으로 통일).
+// _demo 둘러보기 단추만 데모 기관에서 켠다(절대규칙 6 예외 — 계정 없이 들어가야 한다).
 (function(){
-  function toggleHint(){
+  function showDemoEnterBtn(){
     try{
-      var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
-      var isPlayground=/_demo$|_test$/.test(o);
-      var el=document.getElementById('login-hint');
-      if(el && !isPlayground) el.style.display='none';
+      if(typeof isDemoMode!=='function' || !isDemoMode()) return;
+      var box=document.getElementById('demo-enter-box');
+      if(box) box.style.display='block';
     }catch(e){}
   }
-  if(document.readyState!=='loading'){ toggleHint(); }
-  else { document.addEventListener('DOMContentLoaded', toggleHint); }
+  if(document.readyState!=='loading'){ showDemoEnterBtn(); }
+  else { document.addEventListener('DOMContentLoaded', showDemoEnterBtn); }
 })();
 </script>
 

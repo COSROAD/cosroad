@@ -118,7 +118,25 @@ service cloud.firestore {
     match /users/{uid} {
       allow get:    if signedIn() && (request.auth.uid == uid || isAdmin());
       allow list:   if isAdmin();                        // 마스터 가입자 목록 (닫음)
-      allow create: if signedIn() && request.auth.uid == uid;
+      // ── 가입 문서 내용 검사 (v249) ────────────────────────────────────
+      // 전에는 "로그인했고 자기 uid" 뿐이어서, 앱을 거치지 않고 직접 쓰면
+      //   ① approved:true · plan:'paid' 를 스스로 넣어 **입금 없이** 쓸 수 있었고,
+      //   ② orgId 를 남의 업체 번호로 적어 isMyOrg() 를 통과 →
+      //      그 업체의 자료(orgs/{orgId})를 읽고 쓸 수 있었다.
+      // 그래서 앱의 정상 가입(index.html suSaveUserDoc)이 만드는 **그 모양만** 허용한다.
+      //   orgId = bizType + '_' + uid 앞 12자 / approved:false / status·plan:'pending' / trialStart 없음
+      // 나머지 키(orgName·contact·createdAt·email 또는 phone·signupMethod)는 그대로 통과한다.
+      // ※ 승인(approved:true·status:'active'·trialStart·plan:'trial')은 아래 update 의
+      //    마스터 분기에서만 일어난다 — 그쪽은 손대지 않았다.
+      allow create: if signedIn()
+                    && request.auth.uid == uid
+                    && uid.size() >= 12
+                    && request.resource.data.bizType in ['academy','public','logistics','delivery']
+                    && request.resource.data.orgId == request.resource.data.bizType + '_' + uid[0:12]
+                    && request.resource.data.approved == false
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.plan == 'pending'
+                    && !request.resource.data.keys().hasAny(['trialStart']);
       // 본인은 자기 문서를 고칠 수 있다. 단 두 가지를 막는다 —
       //   ① orgId : 바꿀 수 있으면 남의 기관으로 옮겨탄다.
       //   ② approved · status · plan · trialStart :
@@ -223,7 +241,20 @@ service cloud.firestore {
                     // 만료는 최대 31일 — 앱은 30일(명세서·알림장)·7일(급여)만 쓴다
                     && request.resource.data.expiresAt <= request.time + duration.value(31, 'd')
                     && request.resource.data.ownerUid == request.auth.uid
-                    && shShapeOk();
+                    && shShapeOk()
+                    // ── 만드는 사람 (v249) ──────────────────────────────
+                    // v248 에서는 넣지 못했다 — 그때는 앱에 **기기 비밀번호 진입**이 있어서
+                    // 로컬 비밀번호로 들어온 사용자가 익명 계정이었고, 이 조건을 걸면
+                    // 그분들의 공유가 전부 막혔다.
+                    // v249 에서 기기 비밀번호 진입을 없애 모두 계정으로 로그인하므로 이제 넣는다.
+                    //   · 승인된 업체 계정 → 통과
+                    //   · 마스터(admins/{uid}) → 통과 (사장님은 _test 에서도 이쪽으로 통과한다)
+                    //   · 익명·미승인 → 거부
+                    && (
+                         (hasUserDoc()
+                          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true)
+                         || isAdmin()
+                       );
       allow delete: if signedIn()
                     && resource.data.ownerUid == request.auth.uid;   // 만든 본인만 회수
     }
