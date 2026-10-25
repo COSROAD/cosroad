@@ -355,10 +355,11 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   <div class="login-sub">학원·셔틀 픽업, 택배 배송<br/>운행 코스 자동 최적화 앱</div>
   </a>
   <div class="login-card">
-    <div class="login-section-title">🚐 운전자</div>
-    <button class="login-btn btn-driver" onclick="loginDriver()">운전자로 시작</button>
-    <div style="border-top:1px solid var(--gray-200);margin:10px 0;"></div>
-    <div class="login-section-title">👨‍💼 관리자</div>
+    <!-- v250: 계정 없는 「운전자로 시작」을 없앴다 — 기사도 계정으로 로그인한다.
+         기사 계정은 관리자가 차량관리 화면에서 만들어 준다. 둘러보기(_demo)에서는
+         아래 「둘러보기」 칸의 단추로 기사 화면도 체험할 수 있다. -->
+    <div class="login-section-title">🚐 운전자 · 👨‍💼 관리자</div>
+    <div style="font-size:11px;color:#98A2B3;text-align:center;margin:-4px 0 8px;">기사도 아래 칸에 번호·비밀번호를 넣어 로그인해요<br/>(기사 계정은 관리자가 만들어 드려요)</div>
     <input class="login-input" type="text" id="admin-email" placeholder="이메일 또는 휴대폰 번호" onkeydown="if(event.key==='Enter')loginAdmin()"/>
     <input class="login-input" type="password" id="admin-pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')loginAdmin()"/>
     <label style="display:flex;align-items:center;gap:7px;margin:2px 0 10px;cursor:pointer;justify-content:center;">
@@ -374,7 +375,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
          들어간 뒤 화면은 종전과 똑같다(읽기전용은 Storage 래퍼가 막는다). -->
     <div id="demo-enter-box" style="display:none;margin-top:10px;">
       <div style="border-top:1px solid var(--gray-200);margin:10px 0;"></div>
-      <button class="login-btn btn-admin" onclick="loginDemo()">👀 둘러보기 시작</button>
+      <button class="login-btn btn-admin" onclick="loginDemo()">👀 관리자로 둘러보기</button>
+      <button class="login-btn btn-driver" onclick="loginDriver()" style="margin-top:6px;">🚐 기사로 둘러보기</button>
       <div style="text-align:center;margin-top:6px;font-size:11px;color:#98A2B3;">가입 없이 둘러보실 수 있어요 (입력해도 저장되지 않아요)</div>
     </div>
   </div>
@@ -533,7 +535,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_nav_* 등은 제외)
   // (tkd_adminpw 는 v249 에서 없앴다 — 기기 비밀번호 진입 폐지)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_attendance_time'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_attendance_time','tkd_ridestate'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -596,7 +598,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 249;
+const APP_VERSION = 250;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1967,10 +1969,52 @@ function toggleDriverAtt(carId, type){
 let cars=loadCars();
 
 // ── 원생 데이터 ──
+/* ══════════ 탑승·완료 표시 (rideState) — v250 에서 members 에서 떼어냈다 ══════════
+   왜 떼었나: 기사 화면이 저장하는 것은 **탑승·하차·완료 토글(on·offOn)** 뿐인데,
+   그것이 members 안에 있어서 기사에게 members 쓰기 권한을 줘야 했다.
+   members 에는 이름·연락처·주소·PIN·«수강료»가 함께 있어 범위가 너무 넓다.
+   그래서 토글만 별도 키(tkd_ridestate / Firebase 'rideState')로 옮기고,
+   기사 쓰기 권한에서 members 를 뺐다 (사장님 결정 10-25).
+   ★ 화면 코드는 그대로다 — 읽는 곳 22군데는 계속 m.on·m.offOn 을 본다.
+     불러올 때 덮어씌우고(applyRideState), 저장할 때만 이 키로 간다. */
+function loadRideState(){
+  try{ var d=localStorage.getItem('tkd_ridestate'); var o=d?JSON.parse(d):{};
+       return (o && typeof o==='object' && !Array.isArray(o)) ? o : {}; }
+  catch(e){ return {}; }
+}
+function saveRideState(st){
+  localStorage.setItem('tkd_ridestate', JSON.stringify(st||{}));
+  saveToFirebase('rideState', st||{});
+}
+/* 지금 메모리의 members 에서 토글만 뽑아 저장한다 (기사 화면의 세 자리가 이걸 부른다) */
+function saveRideStateFromMembers(){
+  var st={};
+  try{
+    (members||[]).forEach(function(m){
+      if(m && m.id!=null) st[String(m.id)] = { on:(m.on!==false), offOn:(m.offOn!==false) };
+    });
+  }catch(e){}
+  saveRideState(st);
+}
+/* 불러온 members 에 저장된 토글을 덮어씌운다. 없는 «회원»은 members 값을 그대로 둔다
+   (v250 이전 자료 호환 — 그때는 on·offOn 이 members 안에 있었다). */
+function applyRideState(list){
+  try{
+    var st=loadRideState();
+    (list||[]).forEach(function(m){
+      if(!m || m.id==null) return;
+      var r=st[String(m.id)];
+      if(!r) return;
+      if(typeof r.on==='boolean') m.on=r.on;
+      if(typeof r.offOn==='boolean') m.offOn=r.offOn;
+    });
+  }catch(e){}
+  return list;
+}
 function loadMembers(){
   const s=localStorage.getItem('tkd_members');
-  if(s)return JSON.parse(s);
-  if(isDemoMode()){ try{ return getDemoSample().members||[]; }catch(e){} }
+  if(s)return applyRideState(JSON.parse(s));
+  if(isDemoMode()){ try{ return applyRideState(getDemoSample().members||[]); }catch(e){} }
   return [];
 }
 function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);}
@@ -1999,9 +2043,58 @@ let currentMode='';
 const now=new Date();
 
 // ── 로그인 ──
-function keepLoginKey(){ return 'tkd_keeplogin_' + getFbOrgId(); }
+/* v250: getFbOrgId() 가 아니라 orgIdFromUrlOrDefault() 를 쓴다 —
+   기사 업체(driverOrg)에 따라 키가 달라지면 다음 로드의 자동 로그인이 못 찾는다. */
+function keepLoginKey(){ return 'tkd_keeplogin_' + orgIdFromUrlOrDefault(); }
 
-function loginDriver(){currentMode='driver';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();}
+/* 계정 없는 「기사로 시작」은 v250 에서 없앴다 — 기사도 계정으로 로그인한다.
+   둘러보기(_demo)에서만 체험용으로 남긴다(절대규칙 6 예외). */
+function loginDriver(){
+  if(typeof isDemoMode==='function' && !isDemoMode()){
+    var el=document.getElementById('login-err');
+    if(el){ el.textContent='기사도 계정으로 로그인해요. 관리자에게 번호·비밀번호를 받아 위 칸에 넣어 주세요.'; el.style.display='block'; }
+    return;
+  }
+  currentMode='driver';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();
+}
+/* 기사 계정 로그인 성공 — 기사 모드로 앱을 연다 (v250).
+   기관 자료가 안 열리면(업체 만료·계정 끊김) 아래 showDriverBlocked 가 뜬다. */
+function onDriverLoggedIn(){
+  currentMode='driver';
+  document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('main-app').style.display='block';
+  initApp();
+}
+/* 기관 자료 읽기가 막혔을 때 (규칙 isActiveDriver 가 거부) */
+function showDriverBlocked(){
+  var el=document.getElementById('driver-blocked');
+  if(!el){
+    el=document.createElement('div');
+    el.id='driver-blocked';
+    el.style.cssText='position:fixed;inset:0;z-index:99990;background:white;display:flex;align-items:center;justify-content:center;padding:24px;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML='<div style="max-width:340px;text-align:center;">'
+    +'<div style="font-size:40px;margin-bottom:10px;">🔒</div>'
+    +'<div style="font-size:17px;font-weight:800;color:#1D2939;margin-bottom:8px;">지금은 들어갈 수 없어요</div>'
+    +'<div style="font-size:13px;color:#475467;line-height:1.8;">업체 이용 기간이 끝났거나 계정이 끊겼어요.<br>관리자에게 문의해 주세요.</div>'
+    +'<button onclick="logout();var p=document.getElementById(\'driver-blocked\');if(p)p.remove();" style="margin-top:16px;padding:11px 22px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">로그아웃</button>'
+    +'</div>';
+}
+/* 기사 모드에서 기관 자료 읽기가 permission-denied 인지 한 번 확인한다 (v250) */
+async function driverAccessCheck(){
+  if(!window._isDriverAcct) return true;
+  try{
+    if(!window._db || !window._firestore) return true;
+    var { doc, getDoc } = window._firestore;
+    await getDoc(doc(window._db, 'orgs', getFbOrgId(), 'data', 'members'));
+    return true;
+  }catch(e){
+    var m=String((e && e.code) || (e && e.message) || e);
+    if(m.indexOf('permission-denied')>=0){ showDriverBlocked(); return false; }
+    return true;   // 네트워크 문제 등은 막지 않는다
+  }
+}
 function loginAdmin(){
   var emailEl=document.getElementById('admin-email');
   var typed=emailEl?emailEl.value.trim():'';
@@ -2023,6 +2116,13 @@ function loginAdmin(){
         if(window._userWithdrawn){
           alert('탈퇴 처리된 계정이에요.\n다시 쓰시려면 cosroad@cosroad.com 으로 알려 주세요.');
           try{ window._authFns.signOut(window._auth); }catch(e){}
+          return;
+        }
+        /* 기사 계정은 기사 모드로 간다 (v250) — 승인·만료는 업체가 진다 */
+        if(window._isDriverAcct){
+          var keepD=document.getElementById('keep-login');
+          if(keepD && keepD.checked){ localStorage.setItem(keepLoginKey(),'driver'); }
+          onDriverLoggedIn();
           return;
         }
         if(!isAccountApproved()){ showPendingScreen(); return; }
@@ -2384,6 +2484,24 @@ function loadUserProfile(uid){
   return gd(d(window._db, 'users', uid)).then(function(snap){
     if(snap.exists()){
       var u=snap.data();
+      /* ── 기사 계정 (v250) ──
+         관리자가 만들어 준 계정이다. 승인·만료 게이트는 **업체(소유자)** 가 지므로
+         여기서는 기사 모드 표시만 세우고 빠져나간다. 기관은 driverOrg 를 쓴다
+         (getFbOrgId 가 window._driverOrg 를 먼저 본다).
+         자료가 열리는지는 서버 규칙(isActiveDriver)이 정한다 — 업체가 만료·탈퇴면 막힌다. */
+      if(u.role === 'driver'){
+        window._isDriverAcct = true;
+        window._driverOrg = u.driverOrg || null;
+        window._driverCarId = u.carId || null;
+        window._driverName = u.name || '';
+        window._userWithdrawn = false;
+        /* _userOrgId 는 비워 둔다 — orgIdFromUrlOrDefault() 가 이 값을 보므로,
+           기사 업체를 넣으면 「로그인 유지」 키가 또 갈린다. 기관은 _driverOrg 로 쓴다. */
+        window._userOrgId = null;
+        return;
+      }
+      window._isDriverAcct = false;
+      window._driverOrg = null;
       window._userOrgId = u.orgId || null;
       window._userBizType = u.bizType || null;
       window._userApproved = u.approved===true; // 승인 여부 — 앱 진입 게이트가 이걸 본다
@@ -2610,7 +2728,7 @@ function sendPwReset(){
     .then(function(){ alert('📧 비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요.'); })
     .catch(function(e){ alert(e.code==='auth/user-not-found'?'가입되지 않은 이메일입니다.':'전송 실패: '+e.message); });
 }
-function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
+function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvList={};_drvLoaded=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
 /* 「로그인 유지」 자동 로그인 (v249 개정)
    v248까지는 localStorage 표시('admin')만 보고 **Firebase 로그인 없이** 관리자 화면을 열었다.
@@ -2621,7 +2739,7 @@ function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window.
    반환값: true = 로그인 화면을 건너뛰고 기다리는 중 / false = 로그인 화면을 그대로 보여라 */
 function tryAutoLogin(){
   var want = false;
-  try{ want = (localStorage.getItem(keepLoginKey())==='admin'); }catch(e){}
+  try{ var v=localStorage.getItem(keepLoginKey()); want = (v==='admin' || v==='driver'); }catch(e){}
   if(!want) return false;
   if(!window._auth || !window._authFns || !window._authFns.onAuthStateChanged){
     /* Firebase 가 아직 없다 — 자동 로그인하지 않는다(표시는 지우지 않는다. 다음 로드에서 다시 본다) */
@@ -2645,6 +2763,8 @@ function tryAutoLogin(){
         autoLoginFailed();
         return;
       }
+      /* 기사 계정 — 관리자 게이트를 거치지 않고 기사 모드로 (v250) */
+      if(window._isDriverAcct){ onDriverLoggedIn(); return; }
       if(!isAccountApproved()){ showPendingScreen(); return; }
       var st=getTrialStatus();
       if(st.blocked){ showTrialExpired(); return; }
@@ -2677,6 +2797,35 @@ function autoLoginFailed(){
    마스터 계정이 누구인지는 코드에 적지 않는다. 콘솔의 admins 문서가 정한다. */
 var masterCompanies = []; // [{group, name, orgId, createdAt}]
 var BIZ_GROUP_LABELS = { academy:'🏫 학원', logistics:'📦 물류', public:'🏛️ 공공', delivery:'🚚 택배' };
+
+/* 마스터 — 가입자 비밀번호 다시 정하기 (v250).
+   기기 비밀번호를 없앤 뒤(v249) 휴대폰 가입자가 비밀번호를 잊으면 들어갈 길이 없었다.
+   이제 마스터가 콘솔에 들어가지 않고 여기서 다시 정해 줄 수 있다.
+   서버 api/admin-account (masterResetPassword) 가 Admin SDK 로 처리한다. */
+function masterResetPwAsk(targetUid, orgName){
+  var pw = prompt('「'+(orgName||'')+'」 새 비밀번호 (6자 이상)');
+  if(pw===null) return;
+  if(String(pw).length<6){ alert('비밀번호는 6자 이상이어야 해요.'); return; }
+  var pw2 = prompt('새 비밀번호를 한 번 더');
+  if(pw2===null) return;
+  if(pw!==pw2){ alert('비밀번호가 서로 달라요.'); return; }
+  (async function(){
+    var u = window._auth && window._auth.currentUser;
+    if(!u || u.isAnonymous){ alert('마스터 계정으로 로그인한 뒤에 쓸 수 있어요.'); return; }
+    var tok;
+    try{ tok = await u.getIdToken(); }catch(e){ alert('로그인 확인에 실패했어요.'); return; }
+    try{
+      var r = await fetch('https://cosroad.vercel.app/api/admin-account', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
+        body: JSON.stringify({ action:'masterResetPassword', targetUid:targetUid, password:String(pw) })
+      });
+      var j = await r.json();
+      alert(j && j.ok ? '✅ 비밀번호를 다시 정했어요.\n업체에 알려 주세요.'
+                      : ('바꾸지 못했어요.\n\n'+((j&&j.message)||'')));
+    }catch(e){ alert('서버에 연결하지 못했어요.'); }
+  })();
+}
 
 /* 이 계정이 마스터인가 — admins/{uid} 문서가 있으면 마스터다. */
 function checkIsAdmin(uid){
@@ -2919,6 +3068,7 @@ function drawMasterPanel(){
         h += '<div style="font-size:11px;color:#667085;margin-top:6px;">'+days+'일 경과 · 만료까지 '+(SIGNUP_EXPIRE_DAYS-days)+'일</div>';
       }
       h += '<button onclick="setUserApproval('+jsArg(u._uid)+',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
+      h += '<button onclick="masterResetPwAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔑 비밀번호 다시 정하기</button>';
       h += '<button onclick="deleteSignupUser('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🗑 신청 삭제</button>';
       h += '</div>';
     });
@@ -2930,7 +3080,10 @@ function drawMasterPanel(){
     approvedList.forEach(function(u){
       h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;">';
       h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span><div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
-      h += '<button onclick="setUserApproval('+jsArg(u._uid)+',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;flex-shrink:0;">승인취소</button>';
+      h += '<div style="display:flex;gap:4px;flex-shrink:0;">';
+      h += '<button onclick="masterResetPwAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">🔑 비번</button>';
+      h += '<button onclick="setUserApproval('+jsArg(u._uid)+',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">승인취소</button>';
+      h += '</div>';
       h += '</div>';
     });
   }
@@ -3197,6 +3350,18 @@ var HELP_QA=[
    a:'1. 관리자 → 설정 탭 → 「사용자 정보」\n2. 상호 · 사업자등록번호 · 대표자 · 업태 · 종목 · 주소 · 연락처 · 계좌를 넣어요\n3. 도장 이미지를 올려 두면 거래명세서·증명서에 자동으로 찍혀요\n4. 여기 주소는 지원사업 「우리 지역만 보기」의 자동 인식에도 쓰여요 — 정확히 넣어 두세요'},
   {role:'all', keys:['기기비밀번호','1234','관리자비밀번호','잠금번호'], t:'1234 비밀번호로 안 들어가져요',
    a:'1. v249(2026-10-25)부터 기기 비밀번호(1234)로 들어가는 길을 없앴어요 — 이제 계정으로만 로그인해요\n2. 로그인 칸에 가입할 때 쓴 휴대폰 번호(또는 이메일)와 비밀번호를 넣으세요\n3. 아직 가입하지 않으셨다면 「회원가입」을 눌러 주세요 — 승인 후 이용하실 수 있어요\n4. 비밀번호를 잊으셨으면 로그인 화면의 「비밀번호를 잊으셨나요?」를 쓰세요\n5. 왜 없앴나요 — 기기 비밀번호로 들어오면 서버가 「누가 들어왔는지」를 알 수 없어서, 공유 링크처럼 사람을 가려야 하는 기능을 지킬 수 없었어요\n6. 설정 탭의 「로그인 비밀번호 변경」은 그대로 있어요 — 그건 계정 비밀번호예요'},
+  {role:'admin', keys:['기사계정','기사로그인','기사비밀번호','운전자계정','기사계정만들기'], t:'기사 계정 만들어 주기',
+   a:'1. 관리자 → 🚐 차량관리 탭 → 차량 카드를 아래로 내리면 「👤 기사 계정」 칸이 있어요\n2. 기사 휴대폰 번호와 비밀번호(6자 이상)를 두 번 넣고 「＋ 계정 만들기」\n3. 번호는 차량 정보의 연락처가 기본으로 채워져요 — 기사 본인 번호로 맞춰 주세요\n4. 만들면 그 번호와 비밀번호를 기사에게 알려 주세요. 기사는 로그인 화면 같은 칸에 넣어 로그인해요\n5. 기사는 운행 화면과 «회원» 목록만 봐요 — 관리 화면·수납·세무·급여는 안 보여요\n6. 비밀번호를 잊었다면 같은 칸의 「🔑 비밀번호 다시 정하기」로 새로 정해 주세요\n7. 기사가 바뀌면 「계정 끊기」 — 그 계정은 로그인이 막혀요. 출퇴근·차계부 기록은 그대로 남아요\n8. 한 차량에 계정 하나예요. 번호는 한 번만 쓸 수 있어요(이미 쓰는 번호면 알려 줘요)\n9. 둘러보기(데모)에서는 계정을 만들 수 없어요'},
+  {role:'driver', keys:['기사로그인','로그인','번호','비밀번호'], t:'기사는 어떻게 로그인해요?',
+   a:'1. 관리자에게 받은 휴대폰 번호와 비밀번호를 로그인 화면 칸에 넣고 「관리자로 시작」을 누르면 돼요 (기사도 같은 칸을 써요)\n2. 번호는 010-1234-5678 처럼 줄표를 넣어도 되고 숫자만 넣어도 돼요\n3. 들어가면 바로 운행 화면이 나와요 — 운행과 «회원» 목록만 보여요\n4. 「로그인 상태 유지」를 켜 두면 다음부터 바로 들어가요\n5. 비밀번호를 잊었으면 관리자에게 말씀하세요 — 관리자가 다시 정해 줄 수 있어요\n6. v250부터 계정 없이 들어가는 「운전자로 시작」은 없앴어요'},
+  {role:'driver', keys:['기사잠김','들어갈수없어요','이용기간','만료','계정끊김'], t:'「지금은 들어갈 수 없어요」가 나와요',
+   a:'1. 업체의 이용 기간이 끝났거나, 관리자가 계정을 끊은 경우예요\n2. 관리자(업체)에게 문의해 주세요 — 업체가 구독을 이어 가면 다시 들어가져요\n3. 그동안 넣은 출퇴근·차계부 기록은 지워지지 않아요\n4. 업체가 탈퇴했거나 승인이 취소된 경우에도 같은 화면이 나와요'},
+  {role:'admin', keys:['업체만료기사','기사도잠김','구독만료'], t:'업체 이용 기간이 끝나면 기사는?',
+   a:'1. 기사도 함께 잠겨요 — 업체 자료를 볼 수 없게 돼요 (사장님 결정)\n2. 기사 화면에는 「지금은 들어갈 수 없어요」가 나와요\n3. 구독을 이어 가면 기사도 그대로 다시 들어가져요 — 계정을 다시 만들 필요 없어요\n4. 업체가 탈퇴하거나 승인이 취소된 경우도 같아요\n5. 기사 계정을 하나씩 끊고 싶으면 차량관리의 「계정 끊기」를 쓰세요'},
+  {role:'all', keys:['비밀번호잊음','비번분실','재설정','비밀번호찾기'], t:'비밀번호를 잊었어요',
+   a:'1. 이메일로 가입했다면 로그인 화면의 「비밀번호를 잊으셨나요?」로 재설정 메일을 받을 수 있어요\n2. 휴대폰 번호로 가입했다면 메일이 가지 않아요 — 📧 cosroad@cosroad.com 으로 문의해 주세요. 확인 후 다시 정해 드려요\n3. 기사 계정이면 업체 관리자에게 말씀하세요 — 차량관리에서 바로 다시 정해 줄 수 있어요\n4. 본인이 문자 인증으로 직접 재설정하는 기능은 준비 중이에요'},
+  {role:'admin', keys:['회원전체삭제','초기화','전체삭제'], t:'«회원» 전체 삭제',
+   a:'1. 관리자 → 설정 탭 → 「«회원» 전체 삭제」\n2. «회원»만 지워요 — 차량·«출결»·수납·세무·거래명세서는 그대로 남아요\n3. 확인창에 몇 개를 지우는지 숫자로 알려 줘요\n4. 되돌릴 수 없어요 — 먼저 설정 탭에서 「⬇ 백업」을 받아 두세요'},
   {role:'admin', keys:['회원수정','삭제','지우기'], t:'«회원» 수정·삭제',
    a:'1. «회원» 목록에서 이름을 누르면 수정 창이 열려요\n2. 주소를 바꿀 땐 반드시 「📍 검색」으로 위치를 다시 잡아 주세요 (위치가 확정돼야 저장돼요)\n3. 삭제는 확인 창을 한 번 거쳐요 — 실수로 지워지지 않게 돼 있어요\n4. 여러 «회원»을 한 번에 지우려면 목록에서 선택한 뒤 삭제하세요'},
   {role:'all', keys:['업데이트','버전','최신','새로고침'], t:'앱 업데이트 (새 버전 반영)',
@@ -3489,6 +3654,8 @@ function initApp(){
   }
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
   ensureHelperBtn();   /* 도우미 '코스' 버튼+안내 라벨 — 모든 화면·두 모드 공통 */
+  /* 기사 계정: 기관 자료가 열리는지 한 번 확인한다 (업체 만료·계정 끊김이면 안내 화면) — v250 */
+  try{ if(window._isDriverAcct && typeof driverAccessCheck==='function') driverAccessCheck(); }catch(e){}
   // Firebase 동기화 (비동기)
   setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
@@ -3545,6 +3712,8 @@ function switchTab(tab){
     document.getElementById('member-add-area').innerHTML=currentMode==='admin'?`<button class="add-member-btn" onclick="openAddModal()">＋ ${T('회원')} 등록</button>`:'';
     renderMembers();
   } else if(tab==='admin'){
+    /* 기사는 관리 화면에 들어갈 수 없다 (v250) — 헤더에 단추도 없지만 함수로도 막는다 */
+    if(currentMode==='driver'){ currentTab='drive'; switchTab('drive'); return; }
     document.getElementById('admin-screen').classList.add('show');
     document.getElementById('tab-admin')?.classList.add('admin-active');
     renderAdminNav();
@@ -3665,7 +3834,8 @@ function renderDrive(){
     members.forEach(function(m){
       if(!m.on && !isDeliveryDoneToday(m.id)){ m.on=true; _changed=true; }
     });
-    if(_changed){ saveMembers(); }
+    /* v250: 토글은 members 가 아니라 rideState 에 저장한다 */
+    if(_changed){ saveRideStateFromMembers(); }
   }
 
   // 코스 탭 + 차량 탭 → drive-tabs에 별도 렌더링
@@ -3787,7 +3957,8 @@ function renderDrive(){
   content.innerHTML=html;
 }
 
-function toggleStudent(mIdx){ if(isDropLeg()){ members[mIdx].offOn=(members[mIdx].offOn===false); } else { members[mIdx].on=!members[mIdx].on; } optimizedOrder=null;etaMap={};saveMembers();renderDrive();}
+/* 탑승·하차 토글 — v250부터 rideState 에 저장한다(members 는 건드리지 않는다) */
+function toggleStudent(mIdx){ if(isDropLeg()){ members[mIdx].offOn=(members[mIdx].offOn===false); } else { members[mIdx].on=!members[mIdx].on; } optimizedOrder=null;etaMap={};saveRideStateFromMembers();renderDrive();}
 
 // 운행 중 '곧 도착' 문자 발송 (기사 수동)
 // ── 하차(하원) 5분 전 안내 문자 — 학원·공공 전용 ──
@@ -3862,7 +4033,7 @@ function sendDeliveryDone(memberId){
   markDeliveryDone(memberId);
   m.on = false; // 납품 완료 → 토글 off
   optimizedOrder=null; etaMap={};
-  saveMembers();
+  saveRideStateFromMembers();   /* v250: 토글만 rideState 로 */
   showToast('✅ '+m.name+' 알림톡 발송!');
   renderDrive();
   // 2) 알림톡 발송 (비동기, 화면 막지 않음)
@@ -4173,6 +4344,8 @@ function switchAdminTab(tab){
 }
 
 function renderAdminTab(tab){
+  /* 기사는 관리 화면을 그리지 않는다 (v250) */
+  if(currentMode==='driver') return;
   const c=document.getElementById('admin-content');
   if(tab==='dashboard')c.innerHTML=renderDashboard();
   else if(tab==='members')c.innerHTML=renderAdminMembers();
@@ -5462,8 +5635,8 @@ function renderSettings(){
         <button onclick="openDateCheck()" style="padding:6px 12px;border:1px solid #7C3AED;border-radius:6px;font-size:11px;color:#7C3AED;background:white;cursor:pointer;font-weight:700;">점검</button>
       </div>
       <div class="setting-row">
-        <div><div class="setting-row-label" style="color:var(--danger);">${T('회원')} 데이터 초기화</div><div class="setting-row-sub">모든 ${조사(T('회원'),'을','를')} 삭제합니다</div></div>
-        <button onclick="resetData()" style="padding:6px 12px;border:1px solid var(--danger);border-radius:6px;font-size:11px;color:var(--danger);background:white;cursor:pointer;">초기화</button>
+        <div><div class="setting-row-label" style="color:var(--danger);">${T('회원')} 전체 삭제</div><div class="setting-row-sub">${조사(T('회원'),'만','만')} 지워요 (차량·${T('출결')}·수납 등은 남아요)</div></div>
+        <button onclick="resetData()" style="padding:6px 12px;border:1px solid var(--danger);border-radius:6px;font-size:11px;color:var(--danger);background:white;cursor:pointer;">전체 삭제</button>
       </div>
     </div>
     ${(function(){
@@ -5526,7 +5699,17 @@ function saveOrgInfo(){
 }
 /* changePassword(기기 비밀번호 변경)는 v249 에서 없앴다 — 기기 비밀번호 진입 자체가 사라졌다.
    로그인 계정 비밀번호는 openPwChangeModal(설정 탭 「계정」)에서 바꾼다. */
-function resetData(){showConfirmModal(function(){localStorage.removeItem('tkd_members');members=loadMembers();showToast('초기화됐어요!');renderAdminTab('settings');});}
+/* 연관 ③ (v250): 이름·안내를 실제 동작에 맞췄다 — 지우는 것은 «회원» 뿐이다.
+   동작은 종전 그대로(tkd_members 만 제거). 확인 모달에 몇 명인지 적는다. */
+function resetData(){
+  var n=(typeof members!=='undefined' && members) ? members.length : 0;
+  showConfirmModal(function(){
+    localStorage.removeItem('tkd_members');
+    members=loadMembers();
+    showToast(T('회원')+' 전체를 지웠어요');
+    renderAdminTab('settings');
+  }, T('회원')+' '+n+TUnit()+'을 모두 지울까요? '+조사(T('회원'),'만','만')+' 지워지고 차량·'+T('출결')+'·수납 등은 남아요. 되돌릴 수 없어요.', '전체 삭제');
+}
 
 /* ══════════ 🗓 날짜 점검 (v243) ══════════
    v242(2026-10-25) 이전에는 오늘 날짜를 UTC 로 만들어, 한국 아침 9시 전 기록이
@@ -5694,7 +5877,7 @@ function dcOpenInvoice(id){
 
 // 데이터 백업: 전체를 JSON 파일로 내려받기
 function backupData(){
-  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_driver_att','tkd_invoices','tkd_products','tkd_attendance_time'];
+  var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_driver_att','tkd_invoices','tkd_products','tkd_attendance_time','tkd_ridestate'];
   var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
   keys.forEach(function(k){
     var v = localStorage.getItem(k);
@@ -5741,6 +5924,7 @@ function restoreData(ev){
       var clg = localStorage.getItem('tkd_carlog'); if(clg){ try{ saveToFirebase('carlog', JSON.parse(clg)); }catch(e8){} }
       var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
       var pym = localStorage.getItem('tkd_payroll_manual'); if(pym){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
+      var rds = localStorage.getItem('tkd_ridestate'); if(rds){ try{ saveToFirebase('rideState', JSON.parse(rds)); }catch(e11){} }
       var stf = localStorage.getItem('tkd_staff'); if(stf){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
       var dat = localStorage.getItem('tkd_driver_att'); if(dat){ try{ saveToFirebase('driverAtt', JSON.parse(dat)); }catch(e12){} }
       var ivc = localStorage.getItem('tkd_invoices'); if(ivc){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
@@ -13159,8 +13343,134 @@ function saveCarsAndMembers(){
     if(dupS){ showToast('⚠ 기사 PIN '+dp+' 은(는) 직원('+dupS.name+')이 사용 중이에요'); return; }
   }
   saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
+/* ══════════ 기사 계정 (v250) ══════════
+   사장님 결정(10-25): 기사 계정은 **관리자가 만들어 준다**. 기사는 스스로 가입하지 않는다.
+   계정 만들기·비밀번호 바꾸기는 브라우저에서 못 한다(지금 로그인이 그 계정으로 바뀌어 버린다)
+   → 서버 api/admin-account.js 가 Admin SDK 로 처리한다.
+   이 화면은 그 서버를 부르고 결과만 보여 준다. */
+var _drvList = {};        // orgId → { driverUid: {carId,name,phone} }  (서버에서 읽어 둔 명부)
+var _drvLoaded = false;
+
+/* 기관의 기사 명부 읽기 — orgs/{org}/drivers (읽기는 규칙이 소유자·마스터에게 열어 둔다) */
+async function driverAcctLoad(){
+  _drvList = {}; _drvLoaded = false;
+  try{
+    if(!window._db || !window._firestore || !window._firestore.getDocs) return;
+    var { collection, getDocs } = window._firestore;
+    var snap = await getDocs(collection(window._db, 'orgs', getFbOrgId(), 'drivers'));
+    var out = {};
+    snap.forEach(function(d){ out[d.id] = d.data() || {}; });
+    _drvList = out; _drvLoaded = true;
+  }catch(e){ _drvLoaded = false; }
+}
+/* 이 차량에 딸린 기사 계정 찾기 */
+function driverAcctOf(carId){
+  var uids = Object.keys(_drvList);
+  for(var i=0;i<uids.length;i++){
+    if(String(_drvList[uids[i]].carId) === String(carId)) return { uid:uids[i], d:_drvList[uids[i]] };
+  }
+  return null;
+}
+function driverAcctHtml(car){
+  var h = '<div class="status-card" style="margin-top:12px;"><div class="status-card-title">👤 기사 계정</div>';
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    return h + '<div style="font-size:12px;color:#98A2B3;padding:6px 0;">둘러보기에서는 계정을 만들 수 없어요.</div></div>';
+  }
+  if(!_drvLoaded){
+    return h + '<div style="font-size:12px;color:#98A2B3;padding:6px 0;">불러오는 중… '
+      + '<span onclick="driverAcctRefresh()" style="color:#1A6BFF;cursor:pointer;font-weight:700;">다시 시도</span></div></div>';
+  }
+  var found = driverAcctOf(car.id);
+  if(found){
+    h += '<div style="font-size:13px;color:#1D2939;font-weight:700;margin-bottom:2px;">'+escapeMasterHtml(found.d.phone||'')+'</div>';
+    h += '<div style="font-size:11px;color:#98A2B3;margin-bottom:8px;">이 번호와 비밀번호로 기사가 로그인해요'
+       + (found.d.name?(' · '+escapeMasterHtml(found.d.name)):'')+'</div>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    h += '<button onclick="driverAcctResetAsk('+jsArg(found.uid)+')" style="flex:1;min-width:140px;padding:9px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔑 비밀번호 다시 정하기</button>';
+    h += '<button onclick="driverAcctRemoveAsk('+jsArg(found.uid)+')" style="flex:1;min-width:110px;padding:9px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">계정 끊기</button>';
+    h += '</div>';
+  } else {
+    h += '<div style="font-size:11px;color:#667085;margin-bottom:8px;">기사가 쓸 계정을 만들어 주세요. 기사는 이 번호와 비밀번호로 로그인해 운행 화면만 봐요.</div>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+    h += '<input id="drv-phone" class="setting-input" style="flex:1;min-width:130px;" type="tel" placeholder="기사 휴대폰 번호" value="'+escapeMasterHtml(car.phone||'')+'"/>';
+    h += '</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+    h += '<input id="drv-pw" class="setting-input" style="flex:1;min-width:120px;" type="password" placeholder="비밀번호 (6자 이상)"/>';
+    h += '<input id="drv-pw2" class="setting-input" style="flex:1;min-width:120px;" type="password" placeholder="비밀번호 확인"/>';
+    h += '</div>';
+    h += '<button onclick="driverAcctCreate('+jsArg(car.id)+','+jsArg(car.driver||'')+')" style="width:100%;padding:10px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">＋ 계정 만들기</button>';
+  }
+  h += '<div id="drv-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
+  return h + '</div>';
+}
+function driverAcctMsg(txt, ok){
+  var el=document.getElementById('drv-msg');
+  if(el){ el.style.color = ok?'#027A48':'#B42318'; el.textContent = txt; }
+  else { alert(txt); }
+}
+async function driverAcctRefresh(){
+  await driverAcctLoad();
+  try{ renderAdminTab(currentAdminTab); }catch(e){}
+}
+/* 서버 호출 — Firebase ID 토큰을 붙인다(서버가 누구인지 직접 확인한다) */
+async function driverAcctApi(body){
+  var u = window._auth && window._auth.currentUser;
+  if(!u || u.isAnonymous) return { ok:false, message:'계정으로 로그인한 뒤에 쓸 수 있어요.' };
+  var tok;
+  try{ tok = await u.getIdToken(); }catch(e){ return { ok:false, message:'로그인 확인에 실패했어요. 다시 로그인해 주세요.' }; }
+  try{
+    var r = await fetch('https://cosroad.vercel.app/api/admin-account', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
+      body: JSON.stringify(body)
+    });
+    var j = await r.json();
+    return j || { ok:false, message:'서버 응답을 읽지 못했어요.' };
+  }catch(e){ return { ok:false, message:'서버에 연결하지 못했어요. 인터넷을 확인해 주세요.' }; }
+}
+async function driverAcctCreate(carId, carDriverName){
+  if(typeof isDemoMode==='function' && isDemoMode()){ driverAcctMsg('둘러보기에서는 계정을 만들 수 없어요.', false); return; }
+  var phone=((document.getElementById('drv-phone')||{}).value||'').trim();
+  var pw=((document.getElementById('drv-pw')||{}).value||'');
+  var pw2=((document.getElementById('drv-pw2')||{}).value||'');
+  if(pw.length<6){ driverAcctMsg('비밀번호는 6자 이상이어야 해요.', false); return; }
+  if(pw!==pw2){ driverAcctMsg('비밀번호가 서로 달라요.', false); return; }
+  driverAcctMsg('만드는 중…', true);
+  var r = await driverAcctApi({ action:'createDriver', org:getFbOrgId(), carId:carId,
+                                phone:phone, password:pw, name:carDriverName||'' });
+  if(!r.ok){ driverAcctMsg(r.message||'만들지 못했어요.', false); return; }
+  await driverAcctLoad();
+  try{ renderAdminTab(currentAdminTab); }catch(e){}
+  try{ showToast('✅ 기사 계정을 만들었어요'); }catch(e){}
+}
+function driverAcctResetAsk(driverUid){
+  var pw = prompt('새 비밀번호 (6자 이상)');
+  if(pw===null) return;
+  if(String(pw).length<6){ driverAcctMsg('비밀번호는 6자 이상이어야 해요.', false); return; }
+  var pw2 = prompt('새 비밀번호를 한 번 더');
+  if(pw2===null) return;
+  if(pw!==pw2){ driverAcctMsg('비밀번호가 서로 달라요.', false); return; }
+  driverAcctApi({ action:'resetDriverPassword', org:getFbOrgId(), driverUid:driverUid, password:String(pw) })
+    .then(function(r){
+      if(!r.ok){ driverAcctMsg(r.message||'바꾸지 못했어요.', false); return; }
+      driverAcctMsg('✅ 비밀번호를 다시 정했어요. 기사에게 알려 주세요.', true);
+    });
+}
+function driverAcctRemoveAsk(driverUid){
+  showConfirmModal(function(){
+    driverAcctApi({ action:'removeDriver', org:getFbOrgId(), driverUid:driverUid })
+      .then(async function(r){
+        if(!r.ok){ driverAcctMsg(r.message||'끊지 못했어요.', false); return; }
+        await driverAcctLoad();
+        try{ renderAdminTab(currentAdminTab); }catch(e){}
+        try{ showToast('기사 계정을 끊었어요 (기록은 그대로 남아요)'); }catch(e){}
+      });
+  }, '이 기사 계정을 끊을까요? 기사는 더 이상 로그인할 수 없어요. (출퇴근·차계부 기록은 그대로 남아요)', '끊기');
+}
+
 function renderCars(){
   var car=cars[currentCarTab]; var i=currentCarTab;
+  /* 기사 명부를 아직 안 읽었으면 한 번 읽고 다시 그린다 (v250) */
+  if(!_drvLoaded && !isDemoMode()){ driverAcctLoad().then(function(){ try{ renderAdminTab(currentAdminTab); }catch(e){} }); }
   if(!car) return;
   var carMembers=members.filter(function(m){return m.carId===car.id;});
   var unassigned=members.filter(function(m){return m.carId!==car.id;});
@@ -13203,6 +13513,8 @@ function renderCars(){
   html+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#475467;cursor:pointer;"><input type="checkbox" '+(car.licenseVerified?'checked':'')+' onchange="setLicenseVerified('+i+',this.checked)" style="width:16px;height:16px;accent-color:#12B76A;"/> ✅ 면허 확인됨</label>';
   html+='</div>';
   html+='<div style="font-size:11px;color:#98A2B3;margin-top:4px;">이파인에서 무료 조회 후 체크하세요</div>';
+  // ── 기사 계정 (v250) — 서버(api/admin-account)가 만들고 바꾼다 ──
+  html+=driverAcctHtml(car);
   html+='<button onclick="saveCarsAndMembers()" style="width:100%;padding:10px;background:#EA580C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:10px;">💾 저장</button></div>';
   html+='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">👥 배정된 '+T('회원')+' <span style="font-size:12px;font-weight:400;color:#98A2B3;">'+carMembers.length+TUnit()+'</span></div>';
   if(carMembers.length===0) html+='<div style="font-size:12px;color:#98A2B3;padding:8px 0;">배정된 '+조사(T('회원'),'이','가')+' 없습니다.</div>';
@@ -13482,7 +13794,11 @@ function showToast(msg){
 // ══════════════════════════════════════════
 var fbOrgId = 'default'; // 나중에 로그인 기반으로 변경
 
-function getFbOrgId(){
+/* 기사 계정을 빼고 계산한 기관 id (v250).
+   「로그인 유지」 키가 이것을 써야 한다 — 다음 로드에서 tryAutoLogin 이 돌 때는
+   아직 기사 업체(driverOrg)를 모르기 때문이다. 기사 업체로 저장하면
+   다음 번에 다른 키를 읽어 **자동 로그인이 조용히 안 된다**(실제로 겪어서 분리했다). */
+function orgIdFromUrlOrDefault(){
   // 우선순위: URL ?org=그룹_업체  >  파일 고정값(FIXED_ORG_ID)  >  기존 기본값
   var urlOrg = getUrlOrg();
   if(urlOrg){
@@ -13493,6 +13809,13 @@ function getFbOrgId(){
   if(window._userOrgId) return window._userOrgId;
   if(window.FIXED_ORG_ID) return window.FIXED_ORG_ID;
   return localStorage.getItem('tkd_orgId') || 'cosroad_default';
+}
+function getFbOrgId(){
+  /* 기사 계정은 **자기 업체(driverOrg)** 를 쓴다 (v250).
+     주소의 ?org= 가 달라도 기사는 딸린 업체의 자료만 본다 —
+     그래야 기사에게 주소를 알려 주지 않아도 되고, 남의 업체 주소를 넣어도 넘어가지 않는다. */
+  if(window._driverOrg) return window._driverOrg;
+  return orgIdFromUrlOrDefault();
 }
 
 // ===== 데모(읽기 전용) 모드 판별 =====
@@ -14120,7 +14443,10 @@ async function syncFromFirebase(){
   var fbProducts = await loadFromFirebase('products');
   var fbInvoices = await loadFromFirebase('invoices');
 
-  if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = fbMembers; }
+  /* v250: 탑승·완료 토글은 rideState 에 따로 있다 — members 를 내려받은 뒤 덮어씌운다 */
+  var fbRide = await loadFromFirebase('rideState');
+  if(fbRide){ localStorage.setItem('tkd_ridestate', JSON.stringify(fbRide)); }
+  if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = applyRideState(fbMembers); }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
   if(fbCourses){ localStorage.setItem('tkd_courses', JSON.stringify(fbCourses)); courses = fbCourses; }
   if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }

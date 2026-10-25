@@ -70,33 +70,100 @@ service cloud.firestore {
              && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
     // 이메일·휴대폰 가입 계정은 users/{uid}.orgId 에 자기 기관이 저장돼 있다(index.html 가입 흐름).
+    // v250: .orgId 를 직접 읽으면 **기사 계정에서 터진다** — 기사 users 문서에는
+    //   orgId 가 없고 driverOrg 가 있다. 터지면 || 뒤의 isActiveDriver 까지 못 가서
+    //   기사가 자료를 못 읽는다. 그래서 .get(필드, 기본값) 으로 안전하게 읽는다.
     function isMyOrg(orgId) {
       return hasUserDoc()
-             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId;
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', '') == orgId;
     }
 
     // ── orgs/{orgId}/data/{key} — 기관 자료 본체 ──────────────────────────
     // 회원·거래명세서·수납·세무·근태 등 앱 자료 전부. (12148 set · 12185 get · 12242 onSnapshot)
     // 두 모드(테스트 ?org=..._test · 개통 업체 ?org=...)가 모두 여기로 들어온다.
+    // ── orgs/{orgId}/drivers/{uid} — 기사 계정 명부 (v250) ────────────────
+    // **서버(api/admin-account.js)만 쓴다.** 클라이언트 쓰기를 열면 기사가 스스로를
+    // 등록하거나 ownerUid 를 바꿔 남의 업체 자료를 열 수 있다.
+    match /orgs/{orgId}/drivers/{driverUid} {
+      allow read:  if signedIn() && (isMyOrg(orgId) || isAdmin() || request.auth.uid == driverUid);
+      allow write: if false;                              // Admin SDK 전용
+    }
+
+    // ── 기사 권한 (v250) ──────────────────────────────────────────────────
+    // 기사는 users/{uid}.role=='driver' 이고 orgs/{org}/drivers/{uid} 에 있는 계정이다.
+    // **업체(소유자)가 살아 있을 때만** 열린다 — 사장님 결정: 업체 만료·탈퇴면 기사도 잠김.
+    // 소유자 활성 판정은 앱의 getTrialStatus·loadUserProfile 과 같은 뜻으로 맞췄다:
+    //   · approved 가 아니면 닫는다
+    //   · withdrawn(탈퇴)이면 닫는다
+    //   · plan=='paid' → 무기한
+    //   · trialStart 가 없는데 approved 면 앱이 'paid' 로 본다(loadUserProfile) → 무기한
+    //   · trialStart 가 있으면 그때부터 30일
+    // trialStart 는 Date.now() 로 넣은 **밀리초 숫자**라 request.time.toMillis() 와 비교한다.
+    function driverDoc(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/drivers/$(request.auth.uid)).data;
+    }
+    function ownerAlive(ownerUid) {
+      return exists(/databases/$(database)/documents/users/$(ownerUid))
+             && get(/databases/$(database)/documents/users/$(ownerUid)).data.approved == true
+             && get(/databases/$(database)/documents/users/$(ownerUid)).data.get('withdrawn', false) != true
+             && (
+                  get(/databases/$(database)/documents/users/$(ownerUid)).data.get('plan', '') == 'paid'
+                  || !('trialStart' in get(/databases/$(database)/documents/users/$(ownerUid)).data)
+                  || request.time.toMillis()
+                     < get(/databases/$(database)/documents/users/$(ownerUid)).data.trialStart + 2592000000
+                );
+    }
+    function isActiveDriver(orgId) {
+      return signedIn()
+             && exists(/databases/$(database)/documents/orgs/$(orgId)/drivers/$(request.auth.uid))
+             && ownerAlive(driverDoc(orgId).ownerUid);
+    }
+    // 기사 화면이 **실제로 저장하는** 키만 쓰게 한다 (코드에서 전수 추출 — v250 보고서 표).
+    //   driverAtt       출퇴근 (PIN·단추)
+    //   carlog          차계부·계기판
+    //   attendance      PIN 출석 체크
+    //   attendanceTime  출석 시각
+    //   deliveryDone    납품·배송 완료 표시
+    //   dropoffDone     하차 완료 표시
+    //   rideState       탑승·하차·완료 토글 (v250에서 members 에서 떼어낸 키)
+    // ★ members 는 **넣지 않는다** (사장님 결정 10-25).
+    //   기사 화면이 저장하던 것은 토글(on·offOn)뿐이었는데 그것이 members 안에 있어서
+    //   이름·연락처·주소·PIN·«수강료»까지 쓰기 권한이 열렸다. 토글을 rideState 로 떼어
+    //   members 는 기사가 **읽기만** 한다(운행에 이름·주소·연락처가 필요하다).
+    function driverWritableKey(key) {
+      return key in ['driverAtt', 'carlog', 'attendance', 'attendanceTime',
+                     'deliveryDone', 'dropoffDone', 'rideState'];
+    }
+
     match /orgs/{orgId}/data/{key} {
       // 기관 격리(코스로드6): 남의 주소(?org=)를 알아도 자기 users.orgId 와 다르면 거부된다.
       allow read:  if signedIn()
-                   && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId));
+                   && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId)
+                       || isActiveDriver(orgId));
       allow write: if signedIn()
                    && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
-                   && (isMyOrg(orgId) || isTestOrg(orgId));
+                   && (isMyOrg(orgId) || isTestOrg(orgId)
+                       || (isActiveDriver(orgId) && driverWritableKey(key)));
     }
 
     // ── orgs/{orgId}/backups/{backupId} — 자동 백업 ───────────────────────
     // (12120 create · 12124 list · 12134 delete)
     match /orgs/{orgId}/backups/{backupId} {
       // 자료 본체와 같은 격리를 건다. 백업만 열려 있으면 격리가 뚫린다.
+      // saveToFirebase 가 덮어쓰기 직전에 백업을 함께 만들므로(_backupBeforeSave),
+      // 기사도 **같은 조건**으로 열어야 기사 저장이 백업 단계에서 막히지 않는다 (v250).
+      // 백업 문서 id 는 `<key>_<시각>` 꼴이라, 키를 가리려면 id 앞부분을 본다.
       allow read:   if signedIn()
-                    && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId));
+                    && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId)
+                        || isActiveDriver(orgId));
+      // 백업 문서에는 어느 키의 백업인지 `key` 필드가 있다(_backupBeforeSave) —
+      // 문서 id(`<key>__<시각>`)를 쪼개는 대신 그 필드를 본다.
       allow create: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || isTestOrg(orgId));
+                    && (isMyOrg(orgId) || isTestOrg(orgId)
+                        || (isActiveDriver(orgId) && driverWritableKey(request.resource.data.key)));
       allow delete: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || isTestOrg(orgId));
+                    && (isMyOrg(orgId) || isTestOrg(orgId)
+                        || (isActiveDriver(orgId) && driverWritableKey(resource.data.key)));
       allow update: if false;                            // 백업은 덮어쓰지 않는다
     }
 
@@ -145,10 +212,16 @@ service cloud.firestore {
       //      본인이 고칠 수 있는 것은 기관명·연락처·탈퇴표시 같은 자기 정보뿐이다.
       allow update: if signedIn()
                     && (
+                         // v250: bizType 도 본인이 못 바꾸게 했다(연관 ②) —
+                         //   바꿀 수 있으면 orgId 접두(academy_…)와 어긋난 문서가 생기고
+                         //   화면 용어·탭 구성이 통째로 달라진다.
+                         // v250: 기사 문서(role:'driver')는 role·driverOrg·ownerUid·carId 도 잠근다 —
+                         //   기사가 driverOrg 를 바꾸면 **남의 업체 자료**를 열 수 있다.
                          (request.auth.uid == uid
                           && request.resource.data.orgId == resource.data.orgId
                           && !request.resource.data.diff(resource.data).affectedKeys()
-                                .hasAny(['approved','status','plan','trialStart']))
+                                .hasAny(['approved','status','plan','trialStart','bizType',
+                                         'role','driverOrg','ownerUid','carId']))
                          // ★ 마스터 승인 — 승인 한 번에 네 값이 함께 바뀐다
                          //   (approved:true · status:'active' · trialStart=승인시각 · plan:'trial').
                          //   approved 하나만 허용하면 승인 자체가 막힌다(고쳐서 넓힘).

@@ -9,6 +9,11 @@
   - `rc-quick.js` 티맵(검색·경로·경유지 최적화·역지오코딩) — ROADJOB과 공용
   - `kakao-search.js` 주소검색 (카카오 정확도+거리 병합, 카카오에 없으면 네이버 보조)
   - `send-sms.js`·`send-alimtalk.js` 알리고 문자·알림톡 (허용 출처 검사 있음 — 완화 금지)
+  - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
+    환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
+- **로그인: 관리자·기사 모두 계정으로 한다** (기기 비밀번호 없음, v249·v250).
+  기사 계정은 관리자가 차량관리에서 만들어 주고, 서버 `api/admin-account` 가 처리한다.
+  둘러보기(`_demo`)만 계정 없이 들어간다.
 - 배포: GitHub push → Vercel 자동 배포. 정적 페이지는 GitHub Pages(cosroad.com)
 - 데이터: localStorage(기관별 키) + Firebase 동기화. `_demo` 기관은 읽기전용 샘플, `_test`는 테스트용
 - 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),

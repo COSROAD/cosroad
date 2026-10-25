@@ -1,0 +1,9 @@
+{
+  "name": "cosroad",
+  "private": true,
+  "version": "1.0.0",
+  "description": "COSROAD — 서버리스 함수(api/)용 의존성. 정적 페이지(index.html 등)는 GitHub Pages 가 그대로 서비스한다.",
+  "dependencies": {
+    "firebase-admin": "12.7.0"
+  }
+}
