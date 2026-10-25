@@ -96,7 +96,18 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const root = document.getElementById('root');
-function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* HTML escape — **따옴표까지** 바꾼다 (v247 보안).
+   v246까지는 & < > 만 바꿨다. 그러면 속성 자리(src="…")에 들어간 값이
+   따옴표 하나로 속성을 닫고 onerror= 같은 것을 끼워 넣을 수 있다(XSS).
+   s.html 은 앱(index.html)과 같은 cosroad.com 이라 앱의 localStorage·로그인 정보까지 위험해진다.
+   shares 문서는 로그인한 누구나 만들 수 있으므로(규칙이 ownerUid 만 본다)
+   **문서 값은 전부 남이 쓴 글로 보고** 다룬다.
+   & 를 먼저 바꾸는 순서는 그대로 — 나중에 바꾸면 &amp;quot; 처럼 두 번 escape 된다. */
+function esc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function won(n){ return (Number(n)||0).toLocaleString(); }
 function show(title, lines){
   root.innerHTML = '<div class="msg"><h2>'+esc(title)+'</h2>'
@@ -134,7 +145,13 @@ function renderNotice(d){
   let pics = '';
   imgs.forEach(function(u){
     const s = String(u||'');
-    if(!/^https:\/\//.test(s)) return;      // https 주소만 그린다
+    /* 우리 Firebase Storage 가 준 주소만 그린다 (v247 보안).
+       앱의 getDownloadURL(SDK 10.12.0)은 반드시
+         https://firebasestorage.googleapis.com/v0/b/<버킷>/o/<경로>?alt=media&token=…
+       형태를 돌려준다(SDK 안의 _host="firebasestorage.googleapis.com" · makeUrl 실측 확인).
+       v246의 `^https://` 검사는 아무 https 주소나 통과시켰다 — 남이 만든 문서로
+       외부 주소를 심을 수 있었다. 여기서 호스트를 못 박고, esc 가 따옴표까지 막는다. */
+    if(s.indexOf('https://firebasestorage.googleapis.com/') !== 0) return;
     pics += '<img class="nt-img" src="'+esc(s)+'" onclick="window.open(this.src,\'_blank\')" alt="첨부 사진"/>';
   });
 
@@ -208,7 +225,7 @@ function renderPayslip(d){
       + '<div class="ps-sec">근로 정보</div>'
       + '<div class="meta" style="border-top:none;padding-top:0;">'
         + '<div>출근일수 : <b>'+esc(d.workDays==null?'':d.workDays)+'일</b></div>'
-        + '<div>총 근로시간 : <b>'+esc(d.totalHours==null?'':d.totalHours)+'시간</b></div>'
+        + '<div>총 근로시간 (출퇴근 기록 기준) : <b>'+esc(d.totalHours==null?'':d.totalHours)+'시간</b></div>'
       + '</div>'
       + (isIns4 ? '<div class="small">4대보험은 요율 기준 참고 계산이에요 — 실제 고지액과 다를 수 있어요.</div>' : '')
     + '</div>'
