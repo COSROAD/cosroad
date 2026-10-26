@@ -368,7 +368,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     </label>
     <button class="login-btn btn-admin" onclick="loginAdmin()">관리자로 시작</button>
     <button class="login-btn" onclick="openSignupModal()" style="background:white;color:var(--admin);border:1.5px solid var(--admin);margin-top:8px;">회원가입</button>
-    <div style="text-align:center;margin-top:8px;"><span onclick="sendPwReset()" style="font-size:12px;color:#98A2B3;cursor:pointer;text-decoration:underline;">비밀번호를 잊으셨나요?</span></div>
+    <div style="text-align:center;margin-top:8px;"><span onclick="openPwResetSheet()" style="font-size:12px;color:#98A2B3;cursor:pointer;text-decoration:underline;">비밀번호를 잊었어요</span></div>
     <div class="login-err" id="login-err">로그인 정보가 올바르지 않습니다.</div>
     <!-- 둘러보기(_demo) 전용 — 계정 없이 들어간다. _demo 기관에서만 보인다(아래 showDemoEnterBtn).
          v248까지는 비밀번호 1234 를 넣고 들어갔는데, 기기 비밀번호를 없앴으므로 이 단추로 대신한다.
@@ -598,7 +598,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 251;
+const APP_VERSION = 252;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2728,6 +2728,159 @@ function sendPwReset(){
     .then(function(){ alert('📧 비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요.'); })
     .catch(function(e){ alert(e.code==='auth/user-not-found'?'가입되지 않은 이메일입니다.':'전송 실패: '+e.message); });
 }
+/* ── 비밀번호를 잊었어요 — 본인 문자 인증으로 직접 재설정 (v252) ──────────
+   v251까지는 길이 두 개뿐이었다. 이메일 가입자는 재설정 메일, 휴대폰 가입자는
+   **문의(사람 손)** — 그래서 휴대폰 가입자가 비밀번호를 잊으면 사장님이 직접
+   다시 정해 줘야 들어갈 수 있었다. 이제 본인이 문자로 받은 6자리로 바꾼다.
+   ★ 인증번호를 만들고 맞추는 일은 전부 서버(api/otp)가 한다 —
+     화면은 「번호」와 사람이 문자로 받아 입력한 「6자리」만 보낸다.
+     화면에서 코드를 만들면 그 코드가 이미 화면 안에 있어 인증이 아니게 된다. */
+var _pwrLock = 0;      // 「인증번호 받기」 다시 누를 수 있기까지 남은 초
+var _pwrTimer = null;
+
+function openPwResetSheet(){
+  var m=document.getElementById('pwr-modal'); if(m) m.remove();
+  if(_pwrTimer){ clearInterval(_pwrTimer); _pwrTimer=null; }
+  _pwrLock = 0;
+  /* 로그인 칸에 이미 번호를 적었다면 그대로 가져온다 */
+  var pre='';
+  try{
+    var t=(document.getElementById('admin-email')||{}).value||'';
+    if(looksLikePhoneId(t)) pre=t.trim();
+  }catch(e){}
+  var ipt='width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;';
+  var html='<div id="pwr-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;">'
+    +'<div style="background:white;border-radius:16px;padding:22px;max-width:360px;width:100%;box-sizing:border-box;">'
+    +'<div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:4px;">비밀번호를 잊었어요</div>'
+    +'<div style="font-size:12px;color:#98A2B3;margin-bottom:14px;line-height:1.6;">가입할 때 쓴 휴대폰 번호로 인증번호를 보내 드려요.</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">휴대폰 번호</label>'
+    +'<input id="pwr-phone" type="tel" value="'+escapeMasterHtml(pre)+'" placeholder="010-1234-5678" style="'+ipt+'"/>'
+    +'<button id="pwr-send" onclick="pwrSendCode()" style="width:100%;padding:12px;background:var(--admin);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px;">인증번호 받기</button>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">받은 인증번호 6자리</label>'
+    +'<input id="pwr-code" type="tel" inputmode="numeric" maxlength="6" placeholder="123456" style="'+ipt+'letter-spacing:4px;"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">새 비밀번호 (6자 이상)</label>'
+    +'<input id="pwr-pw" type="password" oninput="pwrCheckMatch()" placeholder="새 비밀번호" style="'+ipt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">새 비밀번호 확인</label>'
+    +'<input id="pwr-pw2" type="password" oninput="pwrCheckMatch()" placeholder="새 비밀번호를 한 번 더" style="'+ipt+'"/>'
+    +'<div id="pwr-match" style="display:none;font-size:12px;margin:-8px 0 10px;"></div>'
+    +'<div id="pwr-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;line-height:1.6;"></div>'
+    +'<div id="pwr-info" style="display:none;color:#027A48;font-size:12px;margin:6px 0;line-height:1.6;"></div>'
+    +'<button id="pwr-go" onclick="pwrDoReset()" style="width:100%;padding:13px;background:#12B76A;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;">바꾸기</button>'
+    +'<div style="border-top:1px solid var(--gray-200);margin:14px 0 10px;"></div>'
+    /* 이메일 가입자·기사 — 이 길로는 안 된다. 한 줄로 어디로 가야 하는지 적는다. */
+    +'<div style="font-size:11px;color:#98A2B3;line-height:1.7;">'
+    +'· <b>이메일로 가입</b>하셨다면 <span onclick="pwrMailPath()" style="color:#EA580C;text-decoration:underline;cursor:pointer;font-weight:700;">재설정 메일 받기</span>를 쓰세요 (번호로는 문자가 가지 않아요).<br/>'
+    +'· <b>기사 계정</b>이면 업체 관리자에게 말씀하세요 — 차량관리에서 바로 다시 정해 줄 수 있어요.'
+    +'</div>'
+    +'<button onclick="pwrClose()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:8px;">닫기</button>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function pwrClose(){
+  if(_pwrTimer){ clearInterval(_pwrTimer); _pwrTimer=null; }
+  var m=document.getElementById('pwr-modal'); if(m) m.remove();
+}
+function pwrMsg(kind, msg){
+  var e=document.getElementById('pwr-err'), i=document.getElementById('pwr-info');
+  if(e){ e.style.display=(kind==='err'&&msg)?'block':'none'; if(kind==='err') e.textContent=msg||''; }
+  if(i){ i.style.display=(kind==='info'&&msg)?'block':'none'; if(kind==='info') i.textContent=msg||''; }
+}
+function pwrCheckMatch(){
+  var a=(document.getElementById('pwr-pw')||{}).value||'';
+  var b=(document.getElementById('pwr-pw2')||{}).value||'';
+  var m=document.getElementById('pwr-match'); if(!m) return;
+  if(!b){ m.style.display='none'; return; }
+  if(a===b){ m.textContent='✓ 비밀번호가 일치합니다'; m.style.color='#027A48'; }
+  else     { m.textContent='비밀번호가 일치하지 않습니다'; m.style.color='#F04438'; }
+  m.style.display='block';
+}
+/* 「인증번호 받기」를 60초 동안 다시 못 누르게 잠근다 — 남은 초를 단추에 보여준다.
+   서버도 같은 번호 1분 1회로 막지만, 화면에서 먼저 막아 헛걸음을 줄인다. */
+function pwrStartLock(){
+  _pwrLock = 60;
+  if(_pwrTimer) clearInterval(_pwrTimer);
+  var paint=function(){
+    var btn=document.getElementById('pwr-send');
+    if(!btn){ clearInterval(_pwrTimer); _pwrTimer=null; return; }
+    if(_pwrLock>0){ btn.disabled=true; btn.style.opacity='0.5'; btn.style.cursor='default';
+                    btn.textContent='다시 받기 ('+_pwrLock+'초)'; }
+    else { btn.disabled=false; btn.style.opacity='1'; btn.style.cursor='pointer';
+           btn.textContent='인증번호 다시 받기'; clearInterval(_pwrTimer); _pwrTimer=null; }
+  };
+  paint();
+  _pwrTimer=setInterval(function(){ _pwrLock--; paint(); }, 1000);
+}
+function pwrSendCode(){
+  var raw=(document.getElementById('pwr-phone')||{}).value||'';
+  var digits=phoneDigits(raw);
+  if(!/^01\d{8,9}$/.test(digits)){ pwrMsg('err','휴대폰 번호를 정확히 넣어 주세요. (예: 010-1234-5678)'); return; }
+  if(_pwrLock>0) return;
+  pwrMsg('info','보내는 중…');
+  var btn=document.getElementById('pwr-send');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.5'; }
+  fetch('https://cosroad.vercel.app/api/otp', {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ action:'send', purpose:'reset', phone:digits })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if(j && j.ok){
+      /* 가입되지 않은 번호·기사·탈퇴 계정도 **같은 문구**가 나온다 —
+         서버가 일부러 성공과 똑같이 답한다(남의 가입 여부를 캐낼 수 없게). */
+      pwrMsg('info','📩 인증번호를 보냈어요. 5분 안에 넣어 주세요.\n문자가 오지 않으면 가입한 번호가 맞는지 확인해 주세요.');
+      pwrStartLock();
+    } else {
+      pwrMsg('err', (j&&j.message)||'보내지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+      if(btn){ btn.disabled=false; btn.style.opacity='1'; }
+    }
+  }).catch(function(){
+    pwrMsg('err','서버에 연결하지 못했어요.');
+    if(btn){ btn.disabled=false; btn.style.opacity='1'; }
+  });
+}
+function pwrDoReset(){
+  var digits=phoneDigits((document.getElementById('pwr-phone')||{}).value||'');
+  var code=String((document.getElementById('pwr-code')||{}).value||'').replace(/[^0-9]/g,'');
+  var pw=(document.getElementById('pwr-pw')||{}).value||'';
+  var pw2=(document.getElementById('pwr-pw2')||{}).value||'';
+  if(!/^01\d{8,9}$/.test(digits)){ pwrMsg('err','휴대폰 번호를 정확히 넣어 주세요.'); return; }
+  if(!/^\d{6}$/.test(code)){ pwrMsg('err','문자로 받은 인증번호 6자리를 넣어 주세요.'); return; }
+  if(pw.length<6){ pwrMsg('err','새 비밀번호는 6자 이상이어야 해요.'); return; }
+  if(pw!==pw2){ pwrMsg('err','새 비밀번호가 서로 달라요.'); return; }
+  pwrMsg('info','바꾸는 중…');
+  var go=document.getElementById('pwr-go');
+  if(go){ go.disabled=true; go.style.opacity='0.5'; }
+  fetch('https://cosroad.vercel.app/api/otp', {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ action:'verify-reset', phone:digits, code:code, newPassword:pw })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if(go){ go.disabled=false; go.style.opacity='1'; }
+    if(j && j.ok){
+      pwrClose();
+      /* 로그인 칸에 번호를 채워 둔다 — 바로 새 비밀번호로 들어갈 수 있게 */
+      try{
+        var ae=document.getElementById('admin-email'); if(ae) ae.value=digits;
+        var ap=document.getElementById('admin-pw'); if(ap){ ap.value=''; ap.focus(); }
+      }catch(e){}
+      alert('✅ 비밀번호를 바꿨어요.\n새 비밀번호로 로그인해 주세요.\n(다른 기기에 남아 있던 로그인은 끊겼어요)');
+    } else {
+      pwrMsg('err', (j&&j.message)||'바꾸지 못했어요.');
+    }
+  }).catch(function(){
+    if(go){ go.disabled=false; go.style.opacity='1'; }
+    pwrMsg('err','서버에 연결하지 못했어요.');
+  });
+}
+/* 이메일로 가입한 분 — 종전 재설정 메일 길을 그대로 쓴다 */
+function pwrMailPath(){
+  var em=prompt('가입할 때 쓴 이메일 주소를 넣어 주세요.');
+  if(em===null) return;
+  em=String(em).trim();
+  if(!em || em.indexOf('@')<0){ pwrMsg('err','이메일 주소를 정확히 넣어 주세요.'); return; }
+  if(!window._auth || !window._authFns){ pwrMsg('err','잠시 후 다시 시도해 주세요.'); return; }
+  window._authFns.sendPasswordResetEmail(window._auth, em)
+    .then(function(){ pwrMsg('info','📧 비밀번호 재설정 메일을 보냈어요. 메일함을 확인해 주세요.'); })
+    .catch(function(e){ pwrMsg('err', e.code==='auth/user-not-found' ? '가입되지 않은 이메일이에요.' : ('보내지 못했어요: '+e.message)); });
+}
+
 function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvList={};_drvLoaded=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
 /* 「로그인 유지」 자동 로그인 (v249 개정)
@@ -2825,6 +2978,127 @@ function masterResetPwAsk(targetUid, orgName){
                       : ('바꾸지 못했어요.\n\n'+((j&&j.message)||'')));
     }catch(e){ alert('서버에 연결하지 못했어요.'); }
   })();
+}
+
+/* ── 마스터 — 가입자 휴대폰 번호 바꾸기 (v252) ──────────────────────────
+   번호를 잃거나 바꾼 업체는 **로그인 아이디 자체가 번호**라 들어갈 길이 없었다.
+   그렇다고 마스터가 번호를 그냥 바꿔 주면, 전화로 "제 번호 바꿔 주세요" 한 마디에
+   남의 계정을 빼앗을 수 있다. 그래서 **새 번호로 보낸 인증번호**를 맞춰야 바꾼다 —
+   그 번호를 실제로 들고 있는 사람만 통과한다(설계문 8장).
+   순서: 새 번호 넣기 → 그 번호로 문자 발송 → 가입자가 전화로 알려 준 6자리 → 바꾸기 */
+var _mcpLock = 0, _mcpTimer = null, _mcpUid = '', _mcpName = '';
+
+function masterChangePhoneAsk(targetUid, orgName, curPhone){
+  var m=document.getElementById('mcp-modal'); if(m) m.remove();
+  if(_mcpTimer){ clearInterval(_mcpTimer); _mcpTimer=null; }
+  _mcpLock=0; _mcpUid=String(targetUid||''); _mcpName=String(orgName||'');
+  var ipt='width:100%;padding:11px;border:1.5px solid #EAECF0;border-radius:10px;font-size:14px;margin:5px 0 12px;box-sizing:border-box;';
+  var html='<div id="mcp-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;">'
+    +'<div style="background:white;border-radius:16px;padding:22px;max-width:360px;width:100%;box-sizing:border-box;">'
+    +'<div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:4px;">📱 번호 바꾸기</div>'
+    +'<div style="font-size:12px;color:#667085;margin-bottom:4px;">「'+escapeMasterHtml(_mcpName)+'」</div>'
+    +'<div style="font-size:11px;color:#98A2B3;margin-bottom:14px;">지금 번호: '+escapeMasterHtml(curPhone||'(없음)')+'</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">새 휴대폰 번호</label>'
+    +'<input id="mcp-phone" type="tel" placeholder="010-1234-5678" style="'+ipt+'"/>'
+    +'<button id="mcp-send" onclick="mcpSendCode()" style="width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:6px;">새 번호로 인증번호 보내기</button>'
+    +'<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:12px;">문자는 <b>새 번호</b>로 갑니다. 가입자에게 전화로 6자리를 받아 아래에 넣어 주세요.</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">가입자가 알려 준 인증번호 6자리</label>'
+    +'<input id="mcp-code" type="tel" inputmode="numeric" maxlength="6" placeholder="123456" style="'+ipt+'letter-spacing:4px;"/>'
+    +'<div id="mcp-err" style="display:none;color:#F04438;font-size:12px;margin:6px 0;line-height:1.6;"></div>'
+    +'<div id="mcp-info" style="display:none;color:#027A48;font-size:12px;margin:6px 0;line-height:1.6;"></div>'
+    /* 확인 단계 — 마스터 화면에는 공용 확인 모달(#confirm-modal)이 없어 이 칸으로 대신한다 */
+    +'<div id="mcp-confirm" style="display:none;background:#FEF3F2;border:1px solid #FECDCA;border-radius:10px;padding:12px;margin:8px 0;">'
+    +'<div style="font-size:12px;font-weight:800;color:#B42318;margin-bottom:6px;">이대로 바꿀까요?</div>'
+    +'<div id="mcp-confirm-text" style="font-size:12px;color:#912018;line-height:1.7;"></div>'
+    +'<div style="display:flex;gap:6px;margin-top:10px;">'
+    +'<button onclick="mcpDoChange()" style="flex:1;padding:11px;background:#F04438;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">네, 바꿉니다</button>'
+    +'<button onclick="document.getElementById(\'mcp-confirm\').style.display=\'none\'" style="flex:1;padding:11px;background:#fff;color:#475467;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>'
+    +'</div></div>'
+    +'<button onclick="mcpAskConfirm()" style="width:100%;padding:13px;background:#12B76A;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;">바꾸기</button>'
+    +'<button onclick="mcpClose()" style="width:100%;padding:11px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;margin-top:4px;">닫기</button>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function mcpClose(){
+  if(_mcpTimer){ clearInterval(_mcpTimer); _mcpTimer=null; }
+  var m=document.getElementById('mcp-modal'); if(m) m.remove();
+}
+function mcpMsg(kind, msg){
+  var e=document.getElementById('mcp-err'), i=document.getElementById('mcp-info');
+  if(e){ e.style.display=(kind==='err'&&msg)?'block':'none'; if(kind==='err') e.textContent=msg||''; }
+  if(i){ i.style.display=(kind==='info'&&msg)?'block':'none'; if(kind==='info') i.textContent=msg||''; }
+}
+function mcpStartLock(){
+  _mcpLock=60;
+  if(_mcpTimer) clearInterval(_mcpTimer);
+  var paint=function(){
+    var btn=document.getElementById('mcp-send');
+    if(!btn){ clearInterval(_mcpTimer); _mcpTimer=null; return; }
+    if(_mcpLock>0){ btn.disabled=true; btn.style.opacity='0.5'; btn.style.cursor='default';
+                    btn.textContent='다시 보내기 ('+_mcpLock+'초)'; }
+    else { btn.disabled=false; btn.style.opacity='1'; btn.style.cursor='pointer';
+           btn.textContent='새 번호로 다시 보내기'; clearInterval(_mcpTimer); _mcpTimer=null; }
+  };
+  paint();
+  _mcpTimer=setInterval(function(){ _mcpLock--; paint(); }, 1000);
+}
+/* 마스터 전용 서버 호출 — ID 토큰을 붙인다(서버가 admins/{uid} 를 직접 확인한다) */
+async function mcpApi(body){
+  var u = window._auth && window._auth.currentUser;
+  if(!u || u.isAnonymous) return { ok:false, message:'마스터 계정으로 로그인한 뒤에 쓸 수 있어요.' };
+  var tok;
+  try{ tok = await u.getIdToken(); }catch(e){ return { ok:false, message:'로그인 확인에 실패했어요.' }; }
+  try{
+    var r = await fetch('https://cosroad.vercel.app/api/otp', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
+      body: JSON.stringify(body)
+    });
+    return await r.json();
+  }catch(e){ return { ok:false, message:'서버에 연결하지 못했어요.' }; }
+}
+function mcpSendCode(){
+  var digits=phoneDigits((document.getElementById('mcp-phone')||{}).value||'');
+  if(!/^01\d{8,9}$/.test(digits)){ mcpMsg('err','새 휴대폰 번호를 정확히 넣어 주세요. (예: 010-1234-5678)'); return; }
+  if(_mcpLock>0) return;
+  mcpMsg('info','보내는 중…');
+  var btn=document.getElementById('mcp-send');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.5'; }
+  mcpApi({ action:'send', purpose:'changeNew', phone:digits }).then(function(j){
+    if(j && j.ok){ mcpMsg('info','📩 새 번호로 인증번호를 보냈어요. 5분 안에 넣어 주세요.'); mcpStartLock(); }
+    else {
+      mcpMsg('err', (j&&j.message)||'보내지 못했어요.');
+      if(btn){ btn.disabled=false; btn.style.opacity='1'; }
+    }
+  });
+}
+function mcpAskConfirm(){
+  var digits=phoneDigits((document.getElementById('mcp-phone')||{}).value||'');
+  var code=String((document.getElementById('mcp-code')||{}).value||'').replace(/[^0-9]/g,'');
+  if(!/^01\d{8,9}$/.test(digits)){ mcpMsg('err','새 휴대폰 번호를 정확히 넣어 주세요.'); return; }
+  if(!/^\d{6}$/.test(code)){ mcpMsg('err','가입자가 알려 준 인증번호 6자리를 넣어 주세요.'); return; }
+  mcpMsg('', '');
+  var t=document.getElementById('mcp-confirm-text');
+  if(t){ t.innerHTML='「'+escapeMasterHtml(_mcpName)+'」의 로그인 번호를 <b>'+escapeMasterHtml(digits)+'</b> 로 바꿉니다.<br/>'
+        +'· <b>기존 번호로는 더 이상 로그인할 수 없어요.</b><br/>'
+        +'· 다른 기기에 남아 있던 로그인도 끊깁니다.<br/>'
+        +'· 비밀번호는 그대로예요.'; }
+  var c=document.getElementById('mcp-confirm'); if(c) c.style.display='block';
+}
+function mcpDoChange(){
+  var digits=phoneDigits((document.getElementById('mcp-phone')||{}).value||'');
+  var code=String((document.getElementById('mcp-code')||{}).value||'').replace(/[^0-9]/g,'');
+  var c=document.getElementById('mcp-confirm'); if(c) c.style.display='none';
+  mcpMsg('info','바꾸는 중…');
+  mcpApi({ action:'changePhone', targetUid:_mcpUid, newPhone:digits, code:code }).then(async function(j){
+    if(j && j.ok){
+      mcpClose();
+      try{ await loadSignupUsers(); drawMasterPanel(); }catch(e){}
+      alert('✅ 로그인 번호를 바꿨어요.\n\n새 번호: '+((j.loginPhone)||digits)+'\n비밀번호는 그대로예요.\n기존 번호로는 로그인할 수 없다고 알려 주세요.');
+    } else {
+      mcpMsg('err', (j&&j.message)||'바꾸지 못했어요.');
+    }
+  });
 }
 
 /* 이 계정이 마스터인가 — admins/{uid} 문서가 있으면 마스터다. */
@@ -3069,6 +3343,10 @@ function drawMasterPanel(){
       }
       h += '<button onclick="setUserApproval('+jsArg(u._uid)+',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
       h += '<button onclick="masterResetPwAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔑 비밀번호 다시 정하기</button>';
+      /* 번호 바꾸기는 **휴대폰으로 가입한 계정만** — 이메일 가입 계정은 아이디가 번호가 아니다 (v252) */
+      if(u.signupMethod==='phone'){
+        h += '<button onclick="masterChangePhoneAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+jsArg(u.phone||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#EFF8FF;color:#175CD3;border:1px solid #B2DDFF;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">📱 번호 바꾸기</button>';
+      }
       h += '<button onclick="deleteSignupUser('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🗑 신청 삭제</button>';
       h += '</div>';
     });
@@ -3082,6 +3360,9 @@ function drawMasterPanel(){
       h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span><div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
       h += '<div style="display:flex;gap:4px;flex-shrink:0;">';
       h += '<button onclick="masterResetPwAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">🔑 비번</button>';
+      if(u.signupMethod==='phone'){
+        h += '<button onclick="masterChangePhoneAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+jsArg(u.phone||'')+')" style="font-size:11px;color:#175CD3;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">📱 번호</button>';
+      }
       h += '<button onclick="setUserApproval('+jsArg(u._uid)+',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">승인취소</button>';
       h += '</div>';
       h += '</div>';
@@ -3249,7 +3530,7 @@ var HELP_QA=[
   {role:'all', keys:['가입','회원가입','계정','휴대폰가입','이메일가입'], t:'회원가입 — 이메일 또는 휴대폰',
    a:'1. 회원가입 창 맨 위에서 「📧 이메일로 가입」 또는 「📱 휴대폰으로 가입」을 고르세요\n2. 업종·업체명·연락처(휴대폰)를 넣어요 — 연락처는 입금 확인과 승인 안내에 써요\n3. 어느 쪽이든 비밀번호를 두 번 넣어 확인해요 (6자 이상)\n4. 확인 메일도, 문자 인증번호도 없어요 — 바로 접수됩니다\n5. 휴대폰으로 가입하면 다음부터 «휴대폰 번호 + 비밀번호»로 로그인해요\n6. 가입하면 바로 열리는 게 아니라 「승인 대기」예요 — 로그인하면 입금 계좌를 안내해 드려요\n7. 입금이 확인되어 승인되면 그때부터 30일 무료가 시작돼요'},
   {role:'all', keys:['휴대폰로그인','번호로그인','문자','인증','아이디'], t:'휴대폰 번호로 로그인해요',
-   a:'1. 로그인 칸에 가입할 때 쓴 «휴대폰 번호»를 그대로 넣고 비밀번호를 넣으세요\n2. 010-1234-5678 처럼 줄표를 넣어도 되고 숫자만 넣어도 돼요\n3. 문자 인증번호는 안 와요 — 번호는 아이디일 뿐이에요\n4. 비밀번호를 잊으셨으면 cosroad@cosroad.com 으로 알려 주세요 (휴대폰 가입은 재설정 메일이 못 가요)'},
+   a:'1. 로그인 칸에 가입할 때 쓴 «휴대폰 번호»를 그대로 넣고 비밀번호를 넣으세요\n2. 010-1234-5678 처럼 줄표를 넣어도 되고 숫자만 넣어도 돼요\n3. 문자 인증번호는 안 와요 — 번호는 아이디일 뿐이에요\n4. 비밀번호를 잊으셨으면 로그인 화면의 「비밀번호를 잊었어요」를 쓰세요 — 문자 인증으로 본인이 바로 바꿉니다 (v252)'},
   {role:'all', keys:['로그인비밀번호','계정비밀번호','비번변경','비밀번호바꾸기'], t:'로그인 비밀번호 바꾸기',
    a:'1. 관리 → 대시보드 오른쪽 위 「비밀번호 변경」\n2. 지금 비밀번호와 새 비밀번호(6자 이상)를 넣으세요\n3. 로그인할 때 쓰는 비밀번호예요 (기기 비밀번호 1234 는 v249에서 없앴어요 — 이제 계정 로그인만 써요)\n4. 휴대폰으로 가입한 계정도 비밀번호가 있어요 — 같은 자리에서 바꾸시면 돼요'},
   {role:'all', keys:['다른업체','남의자료','격리','보안'], t:'다른 업체 자료는 안 보이나요',
@@ -3349,7 +3630,7 @@ var HELP_QA=[
   {role:'admin', keys:['사업자','상호','대표자','도장','계좌'], t:'사업장 정보·도장 등록',
    a:'1. 관리자 → 설정 탭 → 「사용자 정보」\n2. 상호 · 사업자등록번호 · 대표자 · 업태 · 종목 · 주소 · 연락처 · 계좌를 넣어요\n3. 도장 이미지를 올려 두면 거래명세서·증명서에 자동으로 찍혀요\n4. 여기 주소는 지원사업 「우리 지역만 보기」의 자동 인식에도 쓰여요 — 정확히 넣어 두세요'},
   {role:'all', keys:['기기비밀번호','1234','관리자비밀번호','잠금번호'], t:'1234 비밀번호로 안 들어가져요',
-   a:'1. v249(2026-10-25)부터 기기 비밀번호(1234)로 들어가는 길을 없앴어요 — 이제 계정으로만 로그인해요\n2. 로그인 칸에 가입할 때 쓴 휴대폰 번호(또는 이메일)와 비밀번호를 넣으세요\n3. 아직 가입하지 않으셨다면 「회원가입」을 눌러 주세요 — 승인 후 이용하실 수 있어요\n4. 비밀번호를 잊으셨으면 로그인 화면의 「비밀번호를 잊으셨나요?」를 쓰세요\n5. 왜 없앴나요 — 기기 비밀번호로 들어오면 서버가 「누가 들어왔는지」를 알 수 없어서, 공유 링크처럼 사람을 가려야 하는 기능을 지킬 수 없었어요\n6. 설정 탭의 「로그인 비밀번호 변경」은 그대로 있어요 — 그건 계정 비밀번호예요'},
+   a:'1. v249(2026-10-25)부터 기기 비밀번호(1234)로 들어가는 길을 없앴어요 — 이제 계정으로만 로그인해요\n2. 로그인 칸에 가입할 때 쓴 휴대폰 번호(또는 이메일)와 비밀번호를 넣으세요\n3. 아직 가입하지 않으셨다면 「회원가입」을 눌러 주세요 — 승인 후 이용하실 수 있어요\n4. 비밀번호를 잊으셨으면 로그인 화면의 「비밀번호를 잊었어요」를 쓰세요 — 문자 인증으로 본인이 바로 바꿉니다 (v252)\n5. 왜 없앴나요 — 기기 비밀번호로 들어오면 서버가 「누가 들어왔는지」를 알 수 없어서, 공유 링크처럼 사람을 가려야 하는 기능을 지킬 수 없었어요\n6. 설정 탭의 「로그인 비밀번호 변경」은 그대로 있어요 — 그건 계정 비밀번호예요'},
   {role:'admin', keys:['기사계정','기사로그인','기사비밀번호','운전자계정','기사계정만들기'], t:'기사 계정 만들어 주기',
    a:'1. 관리자 → 🚐 차량관리 탭 → 차량 카드를 아래로 내리면 「👤 기사 계정」 칸이 있어요\n2. 기사 휴대폰 번호와 비밀번호(6자 이상)를 두 번 넣고 「＋ 계정 만들기」\n3. 번호는 차량 정보의 연락처가 기본으로 채워져요 — 기사 본인 번호로 맞춰 주세요\n4. 만들면 그 번호와 비밀번호를 기사에게 알려 주세요. 기사는 로그인 화면 같은 칸에 넣어 로그인해요\n5. 기사는 운행 화면과 «회원» 목록만 봐요 — 관리 화면·수납·세무·급여는 안 보여요\n6. 비밀번호를 잊었다면 같은 칸의 「🔑 비밀번호 다시 정하기」로 새로 정해 주세요\n7. 기사가 바뀌면 「계정 끊기」 — 그 계정은 로그인이 막혀요. 출퇴근·차계부 기록은 그대로 남아요\n8. 한 차량에 계정 하나예요. 번호는 한 번만 쓸 수 있어요(이미 쓰는 번호면 알려 줘요)\n9. 둘러보기(데모)에서는 계정을 만들 수 없어요'},
   {role:'driver', keys:['기사로그인','로그인','번호','비밀번호'], t:'기사는 어떻게 로그인해요?',
@@ -3358,8 +3639,10 @@ var HELP_QA=[
    a:'1. 업체의 이용 기간이 끝났거나, 관리자가 계정을 끊은 경우예요\n2. 관리자(업체)에게 문의해 주세요 — 업체가 구독을 이어 가면 다시 들어가져요\n3. 그동안 넣은 출퇴근·차계부 기록은 지워지지 않아요\n4. 업체가 탈퇴했거나 승인이 취소된 경우에도 같은 화면이 나와요'},
   {role:'admin', keys:['업체만료기사','기사도잠김','구독만료'], t:'업체 이용 기간이 끝나면 기사는?',
    a:'1. 기사도 함께 잠겨요 — 업체 자료를 볼 수 없게 돼요 (사장님 결정)\n2. 기사 화면에는 「지금은 들어갈 수 없어요」가 나와요\n3. 구독을 이어 가면 기사도 그대로 다시 들어가져요 — 계정을 다시 만들 필요 없어요\n4. 업체가 탈퇴하거나 승인이 취소된 경우도 같아요\n5. 기사 계정을 하나씩 끊고 싶으면 차량관리의 「계정 끊기」를 쓰세요'},
-  {role:'all', keys:['비밀번호잊음','비번분실','재설정','비밀번호찾기'], t:'비밀번호를 잊었어요',
-   a:'1. 이메일로 가입했다면 로그인 화면의 「비밀번호를 잊으셨나요?」로 재설정 메일을 받을 수 있어요\n2. 휴대폰 번호로 가입했다면 메일이 가지 않아요 — 📧 cosroad@cosroad.com 으로 문의해 주세요. 확인 후 다시 정해 드려요\n3. 기사 계정이면 업체 관리자에게 말씀하세요 — 차량관리에서 바로 다시 정해 줄 수 있어요\n4. 본인이 문자 인증으로 직접 재설정하는 기능은 준비 중이에요'},
+  {role:'all', keys:['비밀번호잊음','비번분실','재설정','비밀번호찾기','문자인증'], t:'비밀번호를 잊었어요',
+   a:'1. 로그인 화면의 「비밀번호를 잊었어요」를 누르세요 — 문자 인증으로 본인이 바로 바꿀 수 있어요 (v252)\n2. 가입할 때 쓴 휴대폰 번호를 넣고 「인증번호 받기」 → 문자로 온 6자리 → 새 비밀번호를 두 번 넣고 「바꾸기」\n3. 인증번호는 5분 동안만 쓸 수 있고, 다시 받기는 1분에 한 번이에요\n4. 바꾸면 다른 기기에 남아 있던 로그인은 끊겨요 — 새 비밀번호로 다시 로그인하세요\n5. 문자가 오지 않으면 가입한 번호가 맞는지 확인해 주세요 (없는 번호여도 같은 안내가 나와요 — 남의 가입 여부를 알 수 없게 일부러 그렇게 해 뒀어요)\n6. 이메일로 가입했다면 같은 창의 「재설정 메일 받기」를 쓰세요 — 번호로는 문자가 가지 않아요\n7. 기사 계정이면 업체 관리자에게 말씀하세요 — 차량관리에서 바로 다시 정해 줄 수 있어요'},
+  {role:'admin', keys:['번호바꿈','번호변경','휴대폰바뀜','번호교체','폰번호'], t:'휴대폰 번호를 바꿨어요',
+   a:'1. 로그인 아이디가 휴대폰 번호라, 번호가 바뀌면 📧 cosroad@cosroad.com 으로 알려 주세요\n2. 같은 번호를 그대로 다시 개통하셨다면 아무것도 안 하셔도 돼요 — 비밀번호만 있으면 그대로 로그인돼요\n3. 번호를 아예 바꾸셨다면 COSROAD 관리자가 바꿔 드려요. 바꿀 때 «새 번호»로 인증번호 문자가 가니, 받은 6자리를 알려 주세요\n4. 그 확인은 생략할 수 없어요 — 새 번호를 실제로 쓰고 계신지 확인해야 남이 계정을 가져갈 수 없어요\n5. 바꾸면 기존 번호로는 로그인이 안 되고, 비밀번호는 그대로예요\n6. 이메일로 가입한 계정은 아이디가 번호가 아니라서 이 작업이 필요 없어요'},
   {role:'admin', keys:['회원전체삭제','초기화','전체삭제'], t:'«회원» 전체 삭제',
    a:'1. 관리자 → 설정 탭 → 「«회원» 전체 삭제」\n2. «회원»만 지워요 — 차량·«출결»·수납·세무·거래명세서는 그대로 남아요\n3. 확인창에 몇 개를 지우는지 숫자로 알려 줘요\n4. 되돌릴 수 없어요 — 먼저 설정 탭에서 「⬇ 백업」을 받아 두세요'},
   {role:'admin', keys:['회원수정','삭제','지우기'], t:'«회원» 수정·삭제',

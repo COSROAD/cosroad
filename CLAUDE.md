@@ -11,6 +11,11 @@
   - `send-sms.js`·`send-alimtalk.js` 알리고 문자·알림톡 (허용 출처 검사 있음 — 완화 금지)
   - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
     환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
+  - `otp.js` 문자 인증번호 공통 기반 (firebase-admin, v252) — `send` / `verify-reset` / `changePhone`
+    환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET`·`ALIGO_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER` 필요
+    인증번호는 **서버에서만** 만들고 맞춘다 (화면은 번호·6자리만 보낸다) · 코드 원문은 저장·로그 금지(해시만)
+    Firestore `otp` 컬렉션에 보관 — 규칙은 `read, write: if false` (Admin SDK 만 접근)
+    쓰임새(`purpose`)로 나눠 둔다: `reset`(본인 비번 재설정) · `changeNew`(마스터 번호 교체) · `signup`은 다음 회차
 - **로그인: 관리자·기사 모두 계정으로 한다** (기기 비밀번호 없음, v249·v250).
   기사 계정은 관리자가 차량관리에서 만들어 주고, 서버 `api/admin-account` 가 처리한다.
   둘러보기(`_demo`)만 계정 없이 들어간다.
