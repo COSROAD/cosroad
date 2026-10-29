@@ -16,11 +16,18 @@
     인증번호는 **서버에서만** 만들고 맞춘다 (화면은 번호·6자리만 보낸다) · 코드 원문은 저장·로그 금지(해시만)
     Firestore `otp` 컬렉션에 보관 — 규칙은 `read, write: if false` (Admin SDK 만 접근)
     쓰임새(`purpose`)로 나눠 둔다: `reset`(본인 비번 재설정) · `changeNew`(마스터 번호 교체) · `signup`은 다음 회차
+    v253: 코드 확인(`checkCode`)은 **한 트랜잭션** — 따로 읽고 쓰면 동시 요청이 「5회 틀리면 폐기」를
+    무력화한다. 확인 쪽 빈도 제한도 별도(`rl.v.*` 번호 10분 10회 · `rl.vi.*` IP 10분 30회).
+    요청자 IP 는 `clientIp()` 하나로 — `x-vercel-forwarded-for` → `x-forwarded-for` → `x-real-ip` 순
+    (Vercel 공식 문서: `x-forwarded-for` 는 플랫폼이 덮어써 위조를 막고, `x-vercel-...` 는 프록시에도 안 덮인다)
 - **로그인: 관리자·기사 모두 계정으로 한다** (기기 비밀번호 없음, v249·v250).
   기사 계정은 관리자가 차량관리에서 만들어 주고, 서버 `api/admin-account` 가 처리한다.
   둘러보기(`_demo`)만 계정 없이 들어간다.
 - 배포: GitHub push → Vercel 자동 배포. 정적 페이지는 GitHub Pages(cosroad.com)
-- 데이터: localStorage(기관별 키) + Firebase 동기화. `_demo` 기관은 읽기전용 샘플, `_test`는 테스트용
+- 데이터: localStorage(기관별 키) + Firebase 동기화. `_demo` 기관은 읽기전용 샘플,
+  **`_test` 는 마스터 전용**(규칙·앱 모두, v253) — 규칙 `testOrgAdmin()` = `_test && isAdmin()`,
+  앱은 로그인 직후 `testOrgBlockedIfNotMaster()` 로 막는다. 마스터가 만든 `_test` 기사는
+  `ownerAlive` 에 「소유자가 마스터면 살아 있음」을 두어 통과한다.
 - 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),
   만료 시 차단 + 구독 안내 (plan: trial/paid). 농협 구독료 월 45,000 / 년 540,000.
 - 모델 B (v232 `350f960`)

@@ -29,10 +29,17 @@ const PURPOSES = ['reset', 'changeNew'];
 const CODE_TTL_MS = 5 * 60 * 1000;   // 5분
 const MAX_TRIES   = 5;               // 5회 틀리면 그 인증번호를 버린다
 
-/* 번호별 빈도 제한 — [창(ms), 허용 횟수] */
+/* 번호별 **보내기** 빈도 제한 — [창(ms), 허용 횟수] */
 const PHONE_LIMITS = [[60 * 1000, 1], [10 * 60 * 1000, 3], [24 * 3600 * 1000, 10]];
-/* IP별 빈도 제한 */
+/* IP별 **보내기** 빈도 제한 */
 const IP_LIMIT = [3600 * 1000, 20];
+/* ── v253: **확인(맞추기)** 쪽 빈도 제한 ──────────────────────────────────
+   보내기만 막아도 구멍이 남는다 — 남의 번호로 재설정 문자를 **한 번** 보내게 한 뒤,
+   5분 안에 6자리를 대량으로 **동시에** 대입하면 「5회 틀리면 폐기」가
+   따로따로 읽고 쓰는 구조에서는 무력해졌다(아래 checkCode 트랜잭션과 함께 막는다).
+   그래서 확인 횟수 자체에도 제한을 건다. */
+const VERIFY_PHONE_LIMIT = [10 * 60 * 1000, 10];
+const VERIFY_IP_LIMIT    = [10 * 60 * 1000, 30];
 
 /* 서비스 계정 — 함수가 깨어 있는 동안 한 번만 초기화한다 (admin-account.js 와 같은 모양) */
 function admin() {
@@ -80,6 +87,29 @@ const otpId = (digits, purpose) => sha256(digits + purpose);
    인증번호 문서는 성공·초과 때 지워지므로, 제한 기록은 **따로** 남겨야 살아 있다. */
 const rlPhoneId = (digits) => 'rl.p.' + sha256(digits);
 const rlIpId     = (ip)     => 'rl.i.' + sha256(ip);
+/* 확인(맞추기) 쪽 기록은 보내기 쪽과 **따로** 센다 (v253) */
+const rlVerifyPhoneId = (digits) => 'rl.v.'  + sha256(digits);
+const rlVerifyIpId    = (ip)     => 'rl.vi.' + sha256(ip);
+
+/* 요청자 IP — Vercel 공식 문서 대조 (2026-10-30, /docs/headers/request-headers)
+     · x-forwarded-for         "The public IP address of the client that made the request."
+       그리고 "we currently overwrite the X-Forwarded-For header and do not forward
+       external IPs. This restriction is in place to prevent IP spoofing."
+       → Vercel 이 덮어쓰므로 **브라우저가 위조할 수 없다.**
+     · x-vercel-forwarded-for  "identical to the x-forwarded-for header. However,
+       x-forwarded-for could be overwritten if you're using a proxy on top of Vercel."
+       → 위에 프록시가 끼어도 안 덮이는 쪽.
+     · x-real-ip               "identical to the x-forwarded-for header."
+   그래서 x-vercel-forwarded-for 를 먼저 보고, 없으면 나머지 순서로 내려간다.
+   세 헤더 모두 쉼표 목록일 수 있어 **첫 값**을 쓴다. 보내기·확인이 같은 함수를 쓴다. */
+function clientIp(req) {
+  const pick = (v) => String(v || '').split(',')[0].trim();
+  const h = (req && req.headers) || {};
+  return pick(h['x-vercel-forwarded-for'])
+      || pick(h['x-forwarded-for'])
+      || pick(h['x-real-ip'])
+      || String((req && req.socket && req.socket.remoteAddress) || 'unknown');
+}
 
 const fail = (res, code, message) => res.status(code).json({ ok: false, message });
 
@@ -159,9 +189,8 @@ export default async function handler(req, res) {
   const action = String(b.action || '');
   const otpCol = A.db.collection('otp');
 
-  /* 호출한 곳의 IP — x-forwarded-for 의 **첫 값**이 실제 요청자다 */
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-             || String((req.socket && req.socket.remoteAddress) || 'unknown');
+  /* 호출한 곳의 IP (v253 — Vercel 공식 문서 대조 결과를 clientIp 에 모았다) */
+  const ip = clientIp(req);
 
   /* 마스터인가 — Bearer ID 토큰으로 서버가 직접 확인한다.
      반환: { uid } | { error, code } */
@@ -218,29 +247,70 @@ export default async function handler(req, res) {
     }
   }
 
-  /* 인증번호 맞추기 — 공통. 반환: { ok:true } | { error, code } */
+  /* 확인(맞추기) 쪽 빈도 제한 (v253) — 보내기 쪽 rateLimited 와 같은 방식.
+     ★ checkCode **전에** 센다. 아니면 대량 대입이 제한에 걸리기 전에 판정을 다 써 버린다.
+     반환: null = 통과 / 문구 = 막혔다 */
+  async function verifyRateLimited(digits) {
+    const now = Date.now();
+    const pRef = otpCol.doc(rlVerifyPhoneId(digits));
+    const iRef = otpCol.doc(rlVerifyIpId(ip));
+    const keep = Math.max(VERIFY_PHONE_LIMIT[0], VERIFY_IP_LIMIT[0]);
+    try {
+      return await A.db.runTransaction(async (tx) => {
+        const [ps, is] = await tx.getAll(pRef, iRef);
+        const pAt = (((ps.exists && ps.data()) || {}).at || []).filter(t => now - t < keep);
+        const iAt = (((is.exists && is.data()) || {}).at || []).filter(t => now - t < keep);
+        if (pAt.filter(t => now - t < VERIFY_PHONE_LIMIT[0]).length >= VERIFY_PHONE_LIMIT[1]
+         || iAt.filter(t => now - t < VERIFY_IP_LIMIT[0]).length >= VERIFY_IP_LIMIT[1]) {
+          return '잠시 뒤 다시 시도해 주세요.';
+        }
+        pAt.push(now); iAt.push(now);
+        tx.set(pRef, { at: pAt.slice(-60), updatedAt: now });
+        tx.set(iRef, { at: iAt.slice(-60), updatedAt: now });
+        return null;
+      });
+    } catch (e) {
+      console.log('[otp] 확인 빈도 기록 실패');
+      return '잠시 뒤 다시 시도해 주세요.';
+    }
+  }
+
+  /* 인증번호 맞추기 — 공통. 반환: { ok:true } | { error, code }
+     ── v253: 전부 **한 트랜잭션** 안에서 한다 ──────────────────────────────
+     전에는 읽기 → 비교 → update 를 따로따로 했다. 그래서 같은 인증번호에 틀린 코드가
+     **동시에** 여러 건 들어오면 모두 tries=0 을 읽어 각자 1 로 올렸고,
+     「5회 틀리면 폐기」가 무력해져 6자리를 대량 대입할 수 있었다.
+     트랜잭션 안에서 읽고 쓰면 Firestore 가 충돌을 직렬화하므로
+     한 인증번호당 판정은 최대 5번이고 그 뒤에는 문서가 사라진다.
+     ※ 문구·응답 모양은 v252 와 똑같다. */
   async function checkCode(digits, purpose, code) {
     const ref = otpCol.doc(otpId(digits, purpose));
-    let snap;
-    try { snap = await ref.get(); }
-    catch (e) { return { error: '잠시 뒤 다시 시도해 주세요.', code: 500 }; }
-
-    const d = (snap.exists && snap.data()) || null;
-    /* 없는 경우와 만료된 경우를 **같은 문구**로 답한다 — 번호 있고 없고를 알려 주지 않는다 */
-    if (!d || !d.expiresAt || d.expiresAt < Date.now()) {
-      return { error: '인증번호가 만료됐어요. 다시 받아 주세요.', code: 400 };
+    const want = sha256(String(code) + secret);
+    try {
+      return await A.db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const d = (snap.exists && snap.data()) || null;
+        /* 없는 경우와 만료된 경우를 **같은 문구**로 답한다 — 번호 있고 없고를 알려 주지 않는다 */
+        if (!d || !d.expiresAt || d.expiresAt < Date.now()) {
+          return { error: '인증번호가 만료됐어요. 다시 받아 주세요.', code: 400 };
+        }
+        if (sameHash(d.codeHash, want)) {
+          tx.delete(ref);                           // 한 번 쓰면 버린다(재사용 금지)
+          return { ok: true };
+        }
+        const tries = Number(d.tries || 0) + 1;
+        if (tries > MAX_TRIES) {
+          tx.delete(ref);
+          return { error: '인증번호를 너무 여러 번 틀렸어요. 다시 받아 주세요.', code: 400 };
+        }
+        tx.update(ref, { tries: tries });
+        return { error: '인증번호가 맞지 않아요. (' + (MAX_TRIES + 1 - tries) + '번 더 넣을 수 있어요)', code: 400 };
+      });
+    } catch (e) {
+      /* 충돌이 거듭돼 트랜잭션이 끝내 실패한 경우 — 판정하지 않고 멈춘다(열어 주지 않는다) */
+      console.log('[otp] 인증번호 확인 실패');
+      return { error: '잠시 뒤 다시 시도해 주세요.', code: 500 };
     }
-    if (sameHash(d.codeHash, sha256(String(code) + secret))) {
-      try { await ref.delete(); } catch (e) {}      // 한 번 쓰면 버린다(재사용 금지)
-      return { ok: true };
-    }
-    const tries = Number(d.tries || 0) + 1;
-    if (tries > MAX_TRIES) {
-      try { await ref.delete(); } catch (e) {}
-      return { error: '인증번호를 너무 여러 번 틀렸어요. 다시 받아 주세요.', code: 400 };
-    }
-    try { await ref.update({ tries: tries }); } catch (e) {}
-    return { error: '인증번호가 맞지 않아요. (' + (MAX_TRIES + 1 - tries) + '번 더 넣을 수 있어요)', code: 400 };
   }
 
   try {
@@ -322,6 +392,10 @@ export default async function handler(req, res) {
       if (!/^\d{6}$/.test(code))       return fail(res, 400, '인증번호 6자리를 넣어 주세요.');
       if (pw.length < 6)               return fail(res, 400, '새 비밀번호는 6자 이상이어야 해요.');
 
+      /* 대량 대입 막기 (v253) — 판정을 쓰기 **전에** 센다 */
+      const vBlocked = await verifyRateLimited(digits);
+      if (vBlocked) return fail(res, 429, vBlocked);
+
       const ck = await checkCode(digits, 'reset', code);
       if (ck.error) return fail(res, ck.code, ck.error);
 
@@ -383,6 +457,10 @@ export default async function handler(req, res) {
           return fail(res, 500, '번호 확인에 실패했어요. 잠시 뒤 다시 시도해 주세요.');
         }
       }
+
+      /* 대량 대입 막기 (v253) — 마스터 1분 10회 제한과 **별도**로, 판정 쓰기 전에 센다 */
+      const vBlocked = await verifyRateLimited(digits);
+      if (vBlocked) return fail(res, 429, vBlocked);
 
       /* **새 번호로** 보낸 코드를 맞춰야 바꾼다 — 그 번호를 실제로 들고 있다는 증거다 */
       const ck = await checkCode(digits, 'changeNew', code);

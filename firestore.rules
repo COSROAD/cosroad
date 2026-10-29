@@ -54,10 +54,19 @@ service cloud.firestore {
     function isDemoOrg(orgId) {
       return orgId.matches('.*_demo');
     }
-    // 테스트 공간(?org=..._test) — 사장님이 여러 테스트 기관을 오가며 쓰므로 격리 예외.
+    // 테스트 공간(?org=..._test) — 주소가 _test 로 끝나는가. 이름만 가린다.
     // 실서비스 가입은 _test 로 만들지 않는다.
     function isTestOrg(orgId) {
       return orgId.matches('.*_test');
+    }
+    // ── v253: _test 는 **마스터 전용**이다 (사장님 결정 10-29 · 설계문 v2 1장) ──
+    // v252 까지는 자료 규칙이 isTestOrg(orgId) 만 보았다. 그래서 **로그인한 누구나**
+    // _test 주소만 알면 사장님 테스트 자료를 읽고 쓸 수 있었다(기관 격리 우회).
+    // 아래 자료·백업 규칙의 isTestOrg 자리를 **전부** 이 함수로 바꿨다.
+    //   · _demo(둘러보기)는 그대로 둔다 — 가입 없이 보여 주는 것이 목적이다.
+    //   · 마스터가 만든 _test 기사는 isActiveDriver 로 들어온다(ownerAlive 아래 참고).
+    function testOrgAdmin(orgId) {
+      return isTestOrg(orgId) && isAdmin();
     }
     function hasUserDoc() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
@@ -102,15 +111,25 @@ service cloud.firestore {
     function driverDoc(orgId) {
       return get(/databases/$(database)/documents/orgs/$(orgId)/drivers/$(request.auth.uid)).data;
     }
+    // v253: 마스터가 소유자인 경우를 먼저 본다.
+    //   마스터가 _test 기관의 기사 계정을 만들면 ownerUid = 마스터 uid 가 된다
+    //   (api/admin-account resolveOwnerUid 의 _test 분기, v251). 마스터는 users 문서가
+    //   없으므로 아래 users 검사에서 전부 막힌다 — _test 를 마스터 전용으로 좁힌 뒤에는
+    //   그 기사가 자료를 **전혀** 못 보게 된다. 그래서 「소유자가 마스터면 살아 있음」을 더한다.
+    //   ※ 실업체 기사는 resolveOwnerUid 가 **실제 소유자**를 넣으므로 이 분기에 걸리지 않는다.
+    //   ※ drivers 문서는 allow write:false(Admin SDK 전용)라 ownerUid 를 사람이 못 적는다.
     function ownerAlive(ownerUid) {
-      return exists(/databases/$(database)/documents/users/$(ownerUid))
-             && get(/databases/$(database)/documents/users/$(ownerUid)).data.approved == true
-             && get(/databases/$(database)/documents/users/$(ownerUid)).data.get('withdrawn', false) != true
-             && (
-                  get(/databases/$(database)/documents/users/$(ownerUid)).data.get('plan', '') == 'paid'
-                  || !('trialStart' in get(/databases/$(database)/documents/users/$(ownerUid)).data)
-                  || request.time.toMillis()
-                     < get(/databases/$(database)/documents/users/$(ownerUid)).data.trialStart + 2592000000
+      return exists(/databases/$(database)/documents/admins/$(ownerUid))
+             || (
+                  exists(/databases/$(database)/documents/users/$(ownerUid))
+                  && get(/databases/$(database)/documents/users/$(ownerUid)).data.approved == true
+                  && get(/databases/$(database)/documents/users/$(ownerUid)).data.get('withdrawn', false) != true
+                  && (
+                       get(/databases/$(database)/documents/users/$(ownerUid)).data.get('plan', '') == 'paid'
+                       || !('trialStart' in get(/databases/$(database)/documents/users/$(ownerUid)).data)
+                       || request.time.toMillis()
+                          < get(/databases/$(database)/documents/users/$(ownerUid)).data.trialStart + 2592000000
+                     )
                 );
     }
     function isActiveDriver(orgId) {
@@ -138,11 +157,11 @@ service cloud.firestore {
     match /orgs/{orgId}/data/{key} {
       // 기관 격리(코스로드6): 남의 주소(?org=)를 알아도 자기 users.orgId 와 다르면 거부된다.
       allow read:  if signedIn()
-                   && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId)
+                   && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
                        || isActiveDriver(orgId));
       allow write: if signedIn()
                    && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
-                   && (isMyOrg(orgId) || isTestOrg(orgId)
+                   && (isMyOrg(orgId) || testOrgAdmin(orgId)
                        || (isActiveDriver(orgId) && driverWritableKey(key)));
     }
 
@@ -154,15 +173,15 @@ service cloud.firestore {
       // 기사도 **같은 조건**으로 열어야 기사 저장이 백업 단계에서 막히지 않는다 (v250).
       // 백업 문서 id 는 `<key>_<시각>` 꼴이라, 키를 가리려면 id 앞부분을 본다.
       allow read:   if signedIn()
-                    && (isMyOrg(orgId) || isDemoOrg(orgId) || isTestOrg(orgId)
+                    && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
                         || isActiveDriver(orgId));
       // 백업 문서에는 어느 키의 백업인지 `key` 필드가 있다(_backupBeforeSave) —
       // 문서 id(`<key>__<시각>`)를 쪼개는 대신 그 필드를 본다.
       allow create: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || isTestOrg(orgId)
+                    && (isMyOrg(orgId) || testOrgAdmin(orgId)
                         || (isActiveDriver(orgId) && driverWritableKey(request.resource.data.key)));
       allow delete: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || isTestOrg(orgId)
+                    && (isMyOrg(orgId) || testOrgAdmin(orgId)
                         || (isActiveDriver(orgId) && driverWritableKey(resource.data.key)));
       allow update: if false;                            // 백업은 덮어쓰지 않는다
     }
@@ -270,7 +289,11 @@ service cloud.firestore {
       allow create: if signedIn();
       allow read:   if isAdmin();
       allow update: if isAdmin();
-      allow delete: if false;
+      // v253: 처리가 끝난 문의는 마스터가 지울 수 있다 (설계문 10장 · 마스터 패널 🗑).
+      // **완료(status=='done')만** 열어 둔다 — 신규·처리중을 지우면 접수 기록이 사라진다.
+      // status 필드가 없는 옛 문서도 있으므로 .get(기본값) 으로 읽는다
+      // (직접 읽으면 필드가 없을 때 규칙이 터져 거부된다 — 어차피 거부지만 뜻을 또렷하게 둔다).
+      allow delete: if isAdmin() && resource.data.get('status', '') == 'done';
     }
 
     // ── orgs/_master/data/{key} — 마스터 자료 (개통 대장 · 입금 계좌 안내) ──

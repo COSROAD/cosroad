@@ -598,7 +598,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 252;
+const APP_VERSION = 253;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2066,6 +2066,47 @@ function onDriverLoggedIn(){
   initApp();
 }
 /* 기관 자료 읽기가 막혔을 때 (규칙 isActiveDriver 가 거부) */
+/* ── 테스트 공간(_test)은 마스터 전용 (v253) ─────────────────────────────
+   v252 까지는 규칙이 isTestOrg 만 보아 **로그인한 누구나** _test 주소만 알면
+   사장님 테스트 자료를 읽고 쓸 수 있었다. 규칙을 마스터 전용으로 좁혔으므로
+   (firestore.rules testOrgAdmin), 앱에서도 같은 자리에서 가려 준다 —
+   아니면 들어가진 뒤 화면마다 permission-denied 가 나서 왜 안 되는지 알 수 없다.
+   ★ 기사 계정은 여기 오지 않는다 — 기사 분기(onDriverLoggedIn)가 먼저 끝난다.
+     마스터가 만든 _test 기사는 규칙의 isActiveDriver 로 통과한다(ownerAlive 에 마스터 추가).
+   마스터 판정은 앱에 이미 있는 checkIsAdmin(uid) 를 쓴다 — 규칙과 **같은 문서**(admins/{uid})를 본다. */
+function isTestOrgUrl(){
+  try{
+    var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
+    return /_test$/.test(o);
+  }catch(e){ return false; }
+}
+/* 반환: true = 막았다(로그인 화면으로 돌려보냈다) / false = 그냥 진행하라 */
+async function testOrgBlockedIfNotMaster(uid){
+  if(!isTestOrgUrl()) return false;
+  var ok=false;
+  try{ ok = await checkIsAdmin(uid); }catch(e){ ok=false; }
+  if(ok) return false;
+  showTestOrgBlocked();
+  try{ if(window._authFns && window._auth) window._authFns.signOut(window._auth); }catch(e){}
+  try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+  return true;
+}
+function showTestOrgBlocked(){
+  var el=document.getElementById('testorg-blocked');
+  if(!el){
+    el=document.createElement('div');
+    el.id='testorg-blocked';
+    el.style.cssText='position:fixed;inset:0;z-index:99990;background:white;display:flex;align-items:center;justify-content:center;padding:24px;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML='<div style="max-width:340px;text-align:center;">'
+    +'<div style="font-size:40px;margin-bottom:10px;">🧪</div>'
+    +'<div style="font-size:17px;font-weight:800;color:#1D2939;margin-bottom:8px;">테스트 공간은 관리자 전용이에요</div>'
+    +'<div style="font-size:13px;color:#475467;line-height:1.8;">업체 계정으로는 자기 업체 주소로 들어가 주세요.</div>'
+    +'<button onclick="var p=document.getElementById(\'testorg-blocked\');if(p)p.remove();location.reload();" style="margin-top:16px;padding:11px 22px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">확인</button>'
+    +'</div>';
+}
+
 function showDriverBlocked(){
   var el=document.getElementById('driver-blocked');
   if(!el){
@@ -2104,8 +2145,10 @@ function loginAdmin(){
     /* 휴대폰 번호로 가입한 계정은 내부 아이디(숫자@phone.cosroad.com)로 로그인한다.
        사용자는 번호만 치면 되고, 여기서 바꿔 준다(코스로드8 개정 — 문자 인증 없음). */
     var email = looksLikePhoneId(typed) ? phoneLoginId(typed) : typed;
+    var _loginUid = '';                      // v253 _test 게이트에서 쓴다
     window._authFns.signInWithEmailAndPassword(window._auth, email, pw)
       .then(function(cred){
+        _loginUid = cred.user.uid;
         return loadUserProfile(cred.user.uid);
       })
       .then(function(){
@@ -2125,14 +2168,20 @@ function loginAdmin(){
           onDriverLoggedIn();
           return;
         }
-        if(!isAccountApproved()){ showPendingScreen(); return; }
-        var keep=document.getElementById('keep-login');
-        if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
-        /* 30일 무료: 승인 시각부터 시작, 만료 시 안내 화면 (paid·데모는 검사 제외) */
-        var st=getTrialStatus();
-        if(st.blocked){ showTrialExpired(); return; }
-        onAdminLoggedIn();
-        if(st.banner) showTrialBanner(st.daysLeft);
+        /* 테스트 공간은 마스터 전용 (v253) — 승인·만료 검사보다 **먼저** 가린다.
+           _test 는 승인·만료가 면제된 공간(isAccountApproved·getTrialStatus)이라
+           뒤에 두면 비마스터 계정이 그냥 들어가 버린다. */
+        return testOrgBlockedIfNotMaster(_loginUid).then(function(blocked){
+          if(blocked) return;
+          if(!isAccountApproved()){ showPendingScreen(); return; }
+          var keep=document.getElementById('keep-login');
+          if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
+          /* 30일 무료: 승인 시각부터 시작, 만료 시 안내 화면 (paid·데모는 검사 제외) */
+          var st=getTrialStatus();
+          if(st.blocked){ showTrialExpired(); return; }
+          onAdminLoggedIn();
+          if(st.banner) showTrialBanner(st.daysLeft);
+        });
       })
       .catch(function(e){
         var el=document.getElementById('login-err');
@@ -2918,11 +2967,16 @@ function tryAutoLogin(){
       }
       /* 기사 계정 — 관리자 게이트를 거치지 않고 기사 모드로 (v250) */
       if(window._isDriverAcct){ onDriverLoggedIn(); return; }
-      if(!isAccountApproved()){ showPendingScreen(); return; }
-      var st=getTrialStatus();
-      if(st.blocked){ showTrialExpired(); return; }
-      onAdminLoggedIn();
-      if(st.banner) showTrialBanner(st.daysLeft);
+      /* 테스트 공간은 마스터 전용 (v253) — loginAdmin 과 **같은 순서**로 둔다.
+         막으면 로그인 유지 표시도 지우므로 다음 접속에 또 들어가려 하지 않는다. */
+      return testOrgBlockedIfNotMaster(user.uid).then(function(blocked){
+        if(blocked){ autoLoginFailed(); return; }
+        if(!isAccountApproved()){ showPendingScreen(); return; }
+        var st=getTrialStatus();
+        if(st.blocked){ showTrialExpired(); return; }
+        onAdminLoggedIn();
+        if(st.banner) showTrialBanner(st.daysLeft);
+      });
     }).catch(function(){
       try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
       autoLoginFailed();
@@ -3099,6 +3153,65 @@ function mcpDoChange(){
       mcpMsg('err', (j&&j.message)||'바꾸지 못했어요.');
     }
   });
+}
+
+/* ── 마스터 패널 「🚪 나가기」 (v253) ─────────────────────────────────────
+   ★ 기존 logout() 을 그대로 부르면 깨진다 — showMasterGate 가 document.body 를
+     master-root 하나로 통째로 바꿔서 login-screen·main-app·admin-pw 같은 칸이 없다.
+     logout() 은 그것들을 getElementById 로 바로 만지므로 중간에 멈춘다.
+   그래서 마스터 전용 길을 따로 둔다: 확인 칸 → signOut → 로그인 유지 표시 지움 →
+   ?org=admin 으로 다시 들어가기(마스터 로그인 화면). logout() 은 손대지 않았다. */
+function masterLogout(){
+  var box=document.getElementById('mlo-confirm');
+  if(box){ box.style.display='block'; return; }
+  var root=document.getElementById('master-root');
+  if(!root) return;
+  root.insertAdjacentHTML('afterbegin',
+    '<div id="mlo-confirm" style="background:#FEF3F2;border:1px solid #FECDCA;border-radius:12px;padding:14px;margin-bottom:12px;">'
+    +'<div style="font-size:14px;font-weight:800;color:#B42318;margin-bottom:4px;">나가시겠어요?</div>'
+    +'<div style="font-size:12px;color:#912018;line-height:1.7;">관리자 로그인 화면으로 돌아갑니다. 다시 들어오려면 관리자 이메일·비밀번호가 필요해요.</div>'
+    +'<div style="display:flex;gap:6px;margin-top:10px;">'
+    +'<button onclick="masterLogoutGo()" style="flex:1;padding:11px;background:#F04438;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">네, 나갑니다</button>'
+    +'<button onclick="var b=document.getElementById(\'mlo-confirm\');if(b)b.remove();" style="flex:1;padding:11px;background:#fff;color:#475467;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>'
+    +'</div></div>');
+}
+function masterLogoutGo(){
+  try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+  var go=function(){ try{ location.replace('?org=admin'); }catch(e){ location.href='?org=admin'; } };
+  try{
+    if(window._auth && window._authFns && window._authFns.signOut){
+      window._authFns.signOut(window._auth).then(go).catch(go);
+      return;
+    }
+  }catch(e){}
+  go();
+}
+
+/* ── 문의함 — 처리 끝난 문의 지우기 (v253) ───────────────────────────────
+   v252 까지는 상태 순환(setInquiryStatus)만 있고 지우는 길이 없어 문의함이 계속 쌓였다.
+   **완료(done)인 줄에만** 단추를 낸다. 규칙도 같은 조건으로 막는다
+   (firestore.rules inquiries delete: isAdmin() && status=='done').
+   확인 문구 방식은 deleteSignupUser 와 같게 맞췄다. */
+async function deleteInquiry(id){
+  var q=masterInquiries.find(function(x){ return x._id===id; }) || {};
+  if(!confirm('이 문의를 삭제할까요?\n\n되돌릴 수 없습니다.\n\n'
+            + '· 업체: '+(q.orgName||q.orgId||'(모름)')+'\n'
+            + '· 연락처: '+(q.contact||'(없음)')+'\n'
+            + '· 처리 상태가 «완료»인 문의만 지울 수 있어요')) return;
+  try{
+    var d=window._firestore.doc, dd=window._firestore.deleteDoc;
+    await dd(d(window._db, 'inquiries', id));
+    await loadInquiries();
+    drawMasterPanel();
+    alert('🗑 문의를 삭제했습니다.');
+  }catch(e){
+    var m=String((e&&e.code)||(e&&e.message)||e);
+    if(m.indexOf('permission-denied')>=0){
+      alert('삭제할 수 없습니다.\n\nFirebase 보안 규칙이 아직 게시되지 않았어요.\n(inquiries delete 를 마스터에게 여는 규칙이 필요합니다)');
+    } else {
+      alert('삭제 실패: '+m);
+    }
+  }
 }
 
 /* 이 계정이 마스터인가 — admins/{uid} 문서가 있으면 마스터다. */
@@ -3298,7 +3411,11 @@ function drawMasterPanel(){
   var h = '';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0;">';
   h += '<div style="font-size:20px;font-weight:800;color:#1D2939;">🏢 업체 관리</div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;">';
   h += '<span style="font-size:13px;color:#667085;">총 '+masterCompanies.length+'개</span>';
+  /* 나가기 — 마스터 화면에는 종전까지 로그아웃 길이 없었다 (v253, 설계문 10장) */
+  h += '<button onclick="masterLogout()" style="font-size:12px;color:#475467;background:#F2F4F7;border:1px solid #EAECF0;border-radius:8px;padding:6px 11px;cursor:pointer;font-weight:700;">🚪 나가기</button>';
+  h += '</div>';
   h += '</div>';
 
   /* ── 💳 입금 계좌 안내 (승인 대기 화면에 그대로 나간다) ──
@@ -3391,7 +3508,13 @@ function drawMasterPanel(){
       h += '<div style="font-size:12px;color:#475467;margin-top:5px;white-space:pre-line;">'+escapeMasterHtml(q.text||'')+'</div>';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">';
       h += '<span style="font-size:11px;color:#667085;">☎ '+escapeMasterHtml(q.contact||'연락처 없음')+'</span>';
+      h += '<div style="display:flex;gap:5px;">';
       h += '<button onclick="setInquiryStatus('+jsArg(q._id)+','+jsArg(next)+')" style="font-size:11px;padding:4px 10px;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;cursor:pointer;font-weight:700;color:#475467;">→ '+nextLabel+'</button>';
+      /* 완료된 문의만 지울 수 있다 (v253) — 규칙도 status=='done' 만 열어 둔다 */
+      if(st==='done'){
+        h += '<button onclick="deleteInquiry('+jsArg(q._id)+')" style="font-size:11px;padding:4px 10px;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;cursor:pointer;font-weight:700;color:#F04438;">🗑 삭제</button>';
+      }
+      h += '</div>';
       h += '</div></div>';
     });
   }
