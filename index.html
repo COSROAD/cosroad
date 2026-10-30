@@ -2080,9 +2080,20 @@ function isTestOrgUrl(){
     return /_test$/.test(o);
   }catch(e){ return false; }
 }
-/* 반환: true = 막았다(로그인 화면으로 돌려보냈다) / false = 그냥 진행하라 */
+/* 반환: true = 막았다(로그인 화면으로 돌려보냈다) / false = 그냥 진행하라
+   들어갈 수 있는 사람 둘 (v253 보정2):
+     ① 마스터 — admins/{uid} 문서가 있다 (규칙 isAdmin 과 같은 문서)
+     ② 「🧪 테스트 출입」을 마스터가 켜 준 **승인된** 계정 — users/{uid}.testAccess==true
+   ②를 둔 이유: 사장님 휴대폰 계정으로도 _test 를 쓰고 싶지만, 휴대폰 계정은
+   문자 인증만으로 비번을 바꿀 수 있어(v252) 마스터로 올리면 그 길이 마스터 문이 된다.
+   판정에 실패하면 **막는 쪽**이다(안전한 방향). */
 async function testOrgBlockedIfNotMaster(uid){
   if(!isTestOrgUrl()) return false;
+  /* ② 먼저 — loadUserProfile 이 이미 읽어 둔 값이라 추가 읽기가 없다.
+     값이 없으면(undefined) 통과하지 못한다 = 막는 쪽 */
+  if(window._userTestAccess===true && window._userApproved===true && window._userWithdrawn!==true){
+    return false;
+  }
   var ok=false;
   try{ ok = await checkIsAdmin(uid); }catch(e){ ok=false; }
   if(ok) return false;
@@ -2554,6 +2565,9 @@ function loadUserProfile(uid){
       window._userOrgId = u.orgId || null;
       window._userBizType = u.bizType || null;
       window._userApproved = u.approved===true; // 승인 여부 — 앱 진입 게이트가 이걸 본다
+      /* v253 보정2: 「🧪 테스트 출입」 — 마스터가 켜 준 계정만 _test 에 들어간다.
+         켜고 끄는 것은 마스터뿐이다(규칙 users update 가 본인 변경을 막는다). */
+      window._userTestAccess = u.testAccess===true;
       window._userWithdrawn = u.withdrawn===true;  // 탈퇴한 계정인가 (코스로드8 ③)
       window._userStatus = u.status || (u.approved===true ? 'active' : 'pending');
       window._userOrgName = u.orgName || '';
@@ -3187,6 +3201,65 @@ function masterLogoutGo(){
   go();
 }
 
+/* ── 「🧪 테스트 출입」 켜고 끄기 (v253 보정2) ───────────────────────────
+   마스터만 쓴다. users/{uid}.testAccess 를 true 로 켜거나 **필드를 지워** 끈다.
+   규칙도 같은 조건으로 막는다 — 본인은 못 켜고(users update 본인 분기에서 차단),
+   마스터 분기만 testAccess 를 바꿀 수 있다.
+   ★ 승인된 업체 줄에만 단추를 낸다. 승인 대기·기사 계정에는 내지 않는다 —
+     미승인·탈퇴·기사는 규칙 testAccessOk() 가 어차피 막는다(표시만 남아 헷갈리지 않게). */
+function masterTestAccessAsk(targetUid, orgName, on){
+  var box=document.getElementById('mta-'+targetUid);
+  if(box){ box.remove(); return; }
+  var holder=document.getElementById('mta-box-'+targetUid);
+  if(!holder) return;
+  var turnOn = !on;
+  holder.insertAdjacentHTML('beforeend',
+    '<div id="mta-'+escapeMasterHtml(targetUid)+'" style="background:'+(turnOn?'#F0F9FF':'#FEF3F2')
+    +';border:1px solid '+(turnOn?'#B9E6FE':'#FECDCA')+';border-radius:10px;padding:11px;margin-top:6px;">'
+    +'<div style="font-size:12px;font-weight:800;color:'+(turnOn?'#0E7090':'#B42318')+';margin-bottom:4px;">'
+    +(turnOn?'테스트 출입을 켤까요?':'테스트 출입을 끌까요?')+'</div>'
+    +'<div style="font-size:12px;color:#475467;line-height:1.7;">「'+escapeMasterHtml(orgName||'')+'」'
+    +(turnOn
+      ? ' 계정이 <b>_test 공간의 자료를 보고 바꿀 수 있게</b> 됩니다.<br/>마스터 권한은 주지 않아요 — 업체 관리 화면에는 못 들어갑니다.'
+      : ' 계정은 다시 _test 공간에 들어갈 수 없게 됩니다.<br/>자기 업체 자료는 그대로예요.')
+    +'</div>'
+    +'<div style="display:flex;gap:6px;margin-top:10px;">'
+    +'<button onclick="masterTestAccessGo('+jsArg(targetUid)+','+(turnOn?'true':'false')+')" style="flex:1;padding:10px;background:'
+    +(turnOn?'#0E7090':'#F04438')+';color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">'
+    +(turnOn?'네, 켭니다':'네, 끕니다')+'</button>'
+    +'<button onclick="var b=document.getElementById('+jsArg('mta-'+targetUid)+');if(b)b.remove();" style="flex:1;padding:10px;background:#fff;color:#475467;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">취소</button>'
+    +'</div></div>');
+}
+async function masterTestAccessGo(targetUid, turnOn){
+  var b=document.getElementById('mta-'+targetUid); if(b) b.remove();
+  try{
+    /* 읽기 → 고치기 → 전체 setDoc — setUserApproval 과 **같은 방식**이다.
+       (updateDoc·deleteField 는 이 앱이 import 하지 않는다. 규칙의 마스터 분기는
+        diff().affectedKeys() 로 **실제로 바뀐 키만** 보므로 전체 저장도 통과한다.) */
+    var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
+    var ref=d(window._db, 'users', targetUid);
+    var snap=await gd(ref);
+    if(!snap.exists()){ alert('그 계정을 찾을 수 없어요.'); return; }
+    var u=snap.data();
+    if(u.role==='driver'){ alert('기사 계정에는 테스트 출입을 줄 수 없어요.'); return; }
+    if(u.approved!==true){ alert('먼저 승인된 업체여야 해요.'); return; }
+    /* 끌 때는 **필드를 지운다** — false 로 남겨 두면 「켠 적 있음」이 흔적으로 남는다 */
+    if(turnOn){ u.testAccess = true; } else { delete u.testAccess; }
+    await sd(ref, u);
+    await loadSignupUsers();
+    drawMasterPanel();
+    alert(turnOn ? '🧪 테스트 출입을 켰어요.\n이 계정으로 _test 주소에 들어갈 수 있어요.'
+                 : '테스트 출입을 껐어요.');
+  }catch(e){
+    var m=String((e&&e.code)||(e&&e.message)||e);
+    if(m.indexOf('permission-denied')>=0){
+      alert('바꿀 수 없습니다.\n\nFirebase 보안 규칙이 아직 게시되지 않았어요.\n(users update 의 마스터 분기에 testAccess 를 여는 규칙이 필요합니다)');
+    } else {
+      alert('바꾸지 못했어요: '+m);
+    }
+  }
+}
+
 /* ── 문의함 — 처리 끝난 문의 지우기 (v253) ───────────────────────────────
    v252 까지는 상태 순환(setInquiryStatus)만 있고 지우는 길이 없어 문의함이 계속 쌓였다.
    **완료(done)인 줄에만** 단추를 낸다. 규칙도 같은 조건으로 막는다
@@ -3473,9 +3546,19 @@ function drawMasterPanel(){
     h += '<div style="font-size:12px;color:#98A2B3;">없음</div>';
   } else {
     approvedList.forEach(function(u){
-      h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;">';
-      h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span><div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
+      /* v253 보정2: 줄을 겉상자로 한 번 감싼다 — 「테스트 출입」 확인 칸이
+         이 상자 **아래**에 붙어야 가로 배치(flex)가 깨지지 않는다. */
+      var hasTA = (u.testAccess===true);
+      h += '<div id="mta-box-'+escapeMasterHtml(u._uid)+'" style="margin-bottom:5px;">';
+      h += '<div style="background:white;border:1px solid #EAECF0;border-radius:10px;padding:10px;display:flex;justify-content:space-between;align-items:center;">';
+      h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span>'
+        +(hasTA?' <span style="font-size:10px;color:#0E7090;background:#F0F9FF;border:1px solid #B9E6FE;border-radius:9px;padding:2px 7px;font-weight:800;">🧪 테스트 허용</span>':'')
+        +'<div style="font-size:11px;color:#98A2B3;">'+escapeMasterHtml(u.email||'')+'</div></div>';
       h += '<div style="display:flex;gap:4px;flex-shrink:0;">';
+      /* 🧪 테스트 출입 — 승인된 업체 줄에만. 기사·승인 대기 줄에는 내지 않는다 */
+      h += '<button onclick="masterTestAccessAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+(hasTA?'true':'false')+')" style="font-size:11px;color:'
+        +(hasTA?'#B54708':'#0E7090')+';background:'+(hasTA?'#FFFAEB':'#F0F9FF')+';border:1px solid '+(hasTA?'#FEDF89':'#B9E6FE')
+        +';border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">🧪 '+(hasTA?'출입 끄기':'테스트 출입')+'</button>';
       h += '<button onclick="masterResetPwAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">🔑 비번</button>';
       if(u.signupMethod==='phone'){
         h += '<button onclick="masterChangePhoneAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+jsArg(u.phone||'')+')" style="font-size:11px;color:#175CD3;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">📱 번호</button>';
@@ -3483,6 +3566,7 @@ function drawMasterPanel(){
       h += '<button onclick="setUserApproval('+jsArg(u._uid)+',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">승인취소</button>';
       h += '</div>';
       h += '</div>';
+      h += '</div>';   /* mta-box — 확인 칸이 여기 아래에 붙는다 */
     });
   }
   h += '</div>';

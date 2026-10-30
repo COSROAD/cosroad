@@ -65,8 +65,24 @@ service cloud.firestore {
     // 아래 자료·백업 규칙의 isTestOrg 자리를 **전부** 이 함수로 바꿨다.
     //   · _demo(둘러보기)는 그대로 둔다 — 가입 없이 보여 주는 것이 목적이다.
     //   · 마스터가 만든 _test 기사는 isActiveDriver 로 들어온다(ownerAlive 아래 참고).
+    //
+    // ── v253 보정2: 「🧪 테스트 출입」 표시 (사장님 결정 10-30) ──────────────
+    // 사장님 휴대폰 계정(승인됨)으로도 _test 에 들어가고 싶다는 요청.
+    // 마스터로 올리지 않는다 — 휴대폰 계정은 **문자 인증만으로 비번을 바꿀 수 있어서**
+    // (v252 api/otp verify-reset) 마스터 권한을 얹으면 그 길이 마스터로 가는 문이 된다.
+    // 그래서 _test **출입만** 여는 표시를 users 문서에 둔다. 켜고 끄는 것은 마스터만.
+    //   ※ 이름은 testOrgAdmin 그대로 두었다(부르는 자리 5곳이 그대로라). 뜻은 이제
+    //     「마스터이거나 테스트 출입이 허용된 계정」이다 — 아래 testAccessOk 참고.
+    function testAccessOk() {
+      return signedIn() && hasUserDoc()
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('testAccess', false) == true
+             // 승인된 계정만 — 미승인·탈퇴 계정은 표시가 있어도 못 들어간다.
+             // 기사 문서에는 approved 가 없으므로 **기사는 이 조건에서 막힌다**(2-c).
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('approved', false) == true
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('withdrawn', false) != true;
+    }
     function testOrgAdmin(orgId) {
-      return isTestOrg(orgId) && isAdmin();
+      return isTestOrg(orgId) && (isAdmin() || testAccessOk());
     }
     function hasUserDoc() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
@@ -239,19 +255,26 @@ service cloud.firestore {
                          (request.auth.uid == uid
                           && request.resource.data.orgId == resource.data.orgId
                           && !request.resource.data.diff(resource.data).affectedKeys()
+                         // v253 보정2: testAccess 도 본인이 못 켜게 막는다 —
+                         //   켤 수 있으면 아무 계정이나 스스로 _test 출입을 허가한다.
                                 .hasAny(['approved','status','plan','trialStart','bizType',
-                                         'role','driverOrg','ownerUid','carId']))
+                                         'role','driverOrg','ownerUid','carId','testAccess']))
                          // ★ 마스터 승인 — 승인 한 번에 네 값이 함께 바뀐다
                          //   (approved:true · status:'active' · trialStart=승인시각 · plan:'trial').
                          //   approved 하나만 허용하면 승인 자체가 막힌다(고쳐서 넓힘).
                          //   orgId·email 은 그대로여야 한다 = 남의 기관으로 옮기거나
                          //   아이디를 바꿔치기하는 쓰기는 여전히 거부된다.
                          //   email 은 휴대폰 가입 계정에 없을 수 있어 get(,'') 로 읽는다.
+                         // v253 보정2: testAccess 를 **마스터만** 켜고 끌 수 있게 더했다.
+                         //   끄기는 필드를 지우는 것인데, affectedKeys() 는 더한 키·바뀐 키·
+                         //   **지운 키**를 모두 세므로 이 목록 하나로 켜기·끄기가 다 덮인다.
+                         //   ※ 이 분기는 orgId 가 있는 문서에서만 통한다(기사 문서에는 orgId 가
+                         //     없어 비교 자체가 터진다) → 마스터도 기사 문서엔 testAccess 를 못 쓴다.
                          || (isAdmin()
                              && request.resource.data.orgId == resource.data.orgId
                              && request.resource.data.get('email','') == resource.data.get('email','')
                              && request.resource.data.diff(resource.data).affectedKeys()
-                                .hasOnly(['approved','status','plan','trialStart']))
+                                .hasOnly(['approved','status','plan','trialStart','testAccess']))
                        );
       // 탈퇴해도 본인은 지우지 못한다(사장님 결정) — withdrawn 표시만 남기고 로그인을 막는다.
       // 다만 **승인 대기(미승인) 신청은 마스터가 정리할 수 있다**(대기 목록 청소용, v232).

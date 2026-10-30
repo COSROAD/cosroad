@@ -25,9 +25,13 @@
   둘러보기(`_demo`)만 계정 없이 들어간다.
 - 배포: GitHub push → Vercel 자동 배포. 정적 페이지는 GitHub Pages(cosroad.com)
 - 데이터: localStorage(기관별 키) + Firebase 동기화. `_demo` 기관은 읽기전용 샘플,
-  **`_test` 는 마스터 전용**(규칙·앱 모두, v253) — 규칙 `testOrgAdmin()` = `_test && isAdmin()`,
-  앱은 로그인 직후 `testOrgBlockedIfNotMaster()` 로 막는다. 마스터가 만든 `_test` 기사는
-  `ownerAlive` 에 「소유자가 마스터면 살아 있음」을 두어 통과한다.
+  **`_test` 는 마스터 + 마스터가 「🧪 테스트 출입」을 켠 승인 계정만**(규칙·앱 모두, v253) —
+  규칙 `testOrgAdmin()` = `_test && (isAdmin() || testAccessOk())`,
+  `testAccessOk()` = `users/{uid}.testAccess==true && approved && !withdrawn` (기사는 `approved` 가 없어 막힘).
+  `testAccess` 는 **마스터만** 켜고 끈다(본인 변경은 users update 보호 목록으로 차단).
+  마스터 권한을 안 주는 이유: 휴대폰 계정은 문자 인증만으로 비번을 바꿀 수 있다(v252).
+  앱은 로그인 직후 `testOrgBlockedIfNotMaster()` 로 막는다(마스터·출입 허용 계정만 통과).
+  마스터가 만든 `_test` 기사는 `ownerAlive` 에 「소유자가 마스터면 살아 있음」을 두어 통과한다.
 - 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),
   만료 시 차단 + 구독 안내 (plan: trial/paid). 농협 구독료 월 45,000 / 년 540,000.
 - 모델 B (v232 `350f960`)
