@@ -598,7 +598,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 253;
+const APP_VERSION = 254;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2944,7 +2944,7 @@ function pwrMailPath(){
     .catch(function(e){ pwrMsg('err', e.code==='auth/user-not-found' ? '가입되지 않은 이메일이에요.' : ('보내지 못했어요: '+e.message)); });
 }
 
-function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvList={};_drvLoaded=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
+function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvList={};_drvLoaded=false;_drvErr=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
 /* 「로그인 유지」 자동 로그인 (v249 개정)
    v248까지는 localStorage 표시('admin')만 보고 **Firebase 로그인 없이** 관리자 화면을 열었다.
@@ -13917,18 +13917,32 @@ function saveCarsAndMembers(){
    이 화면은 그 서버를 부르고 결과만 보여 준다. */
 var _drvList = {};        // orgId → { driverUid: {carId,name,phone} }  (서버에서 읽어 둔 명부)
 var _drvLoaded = false;
+/* ★ v254 — 읽기가 **실패했다**는 것을 기억한다.
+   전에는 실패해도 _drvLoaded=false 로만 남아서, renderCars 가 「안 읽혔네」로 보고
+   또 읽고 → 또 거부 → **끝없이 되풀이**했다(Firestore 요청이 계속 나갔다).
+   화면은 그 실패를 「불러오는 중…」으로 보여 줘서 무엇이 잘못됐는지 알 수 없었다.
+   이제 실패는 실패로 적고, 자동 재시도를 하지 않는다 — 다시 읽는 것은 사람이 누를 때만. */
+var _drvErr = false;
+var _drvLoading = false;  // 같은 시각에 두 번 읽지 않도록
 
-/* 기관의 기사 명부 읽기 — orgs/{org}/drivers (읽기는 규칙이 소유자·마스터에게 열어 둔다) */
+/* 기관의 기사 명부 읽기 — orgs/{org}/drivers
+   (읽기는 규칙이 소유자·마스터·「🧪 테스트 출입」 계정·본인에게 열어 둔다 — v254) */
 async function driverAcctLoad(){
-  _drvList = {}; _drvLoaded = false;
+  if(_drvLoading) return;
+  _drvLoading = true;
+  _drvList = {}; _drvLoaded = false; _drvErr = false;
   try{
-    if(!window._db || !window._firestore || !window._firestore.getDocs) return;
+    if(!window._db || !window._firestore || !window._firestore.getDocs){ _drvErr = true; return; }
     var { collection, getDocs } = window._firestore;
     var snap = await getDocs(collection(window._db, 'orgs', getFbOrgId(), 'drivers'));
     var out = {};
     snap.forEach(function(d){ out[d.id] = d.data() || {}; });
     _drvList = out; _drvLoaded = true;
-  }catch(e){ _drvLoaded = false; }
+  }catch(e){
+    _drvLoaded = false; _drvErr = true;
+    console.log('기사 명부 읽기 실패:', (e && e.code) || (e && e.message) || e);
+  }
+  finally{ _drvLoading = false; }
 }
 /* 이 차량에 딸린 기사 계정 찾기 */
 function driverAcctOf(carId){
@@ -13942,6 +13956,11 @@ function driverAcctHtml(car){
   var h = '<div class="status-card" style="margin-top:12px;"><div class="status-card-title">👤 기사 계정</div>';
   if(typeof isDemoMode==='function' && isDemoMode()){
     return h + '<div style="font-size:12px;color:#98A2B3;padding:6px 0;">둘러보기에서는 계정을 만들 수 없어요.</div></div>';
+  }
+  /* 실패했으면 **실패라고 적는다** (v254) — 전에는 실패도 「불러오는 중…」으로 보였다 */
+  if(_drvErr){
+    return h + '<div style="font-size:12px;color:#B42318;padding:6px 0;line-height:1.7;">기사 계정을 불러오지 못했어요 (권한 또는 연결 문제) · '
+      + '<span onclick="driverAcctRefresh()" style="color:#1A6BFF;cursor:pointer;font-weight:700;">다시 시도</span></div></div>';
   }
   if(!_drvLoaded){
     return h + '<div style="font-size:12px;color:#98A2B3;padding:6px 0;">불러오는 중… '
@@ -13975,6 +13994,7 @@ function driverAcctMsg(txt, ok){
   else { alert(txt); }
 }
 async function driverAcctRefresh(){
+  _drvErr = false;              // 사람이 눌렀으니 다시 시도한다 (v254)
   await driverAcctLoad();
   try{ renderAdminTab(currentAdminTab); }catch(e){}
 }
@@ -14037,7 +14057,9 @@ function driverAcctRemoveAsk(driverUid){
 function renderCars(){
   var car=cars[currentCarTab]; var i=currentCarTab;
   /* 기사 명부를 아직 안 읽었으면 한 번 읽고 다시 그린다 (v250) */
-  if(!_drvLoaded && !isDemoMode()){ driverAcctLoad().then(function(){ try{ renderAdminTab(currentAdminTab); }catch(e){} }); }
+  /* v254: 실패 뒤에는 **자동으로 다시 읽지 않는다**(_drvErr) — 거부가 끝없이 되풀이되던 것.
+     다시 읽는 것은 사람이 「다시 시도」를 누를 때만(driverAcctRefresh). */
+  if(!_drvLoaded && !_drvErr && !_drvLoading && !isDemoMode()){ driverAcctLoad().then(function(){ try{ renderAdminTab(currentAdminTab); }catch(e){} }); }
   if(!car) return;
   var carMembers=members.filter(function(m){return m.carId===car.id;});
   var unassigned=members.filter(function(m){return m.carId!==car.id;});

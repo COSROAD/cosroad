@@ -114,6 +114,33 @@ export default async function handler(req, res) {
     } catch (e) { return false; }
   }
 
+  /* 「🧪 테스트 출입」이 켜진 계정인가 (v254) — **_test 기관에서만** 통한다.
+     규칙의 testAccessOk() 와 같은 뜻이고, 거기에 **기사 제외**를 더했다
+     (기사 문서에는 approved 가 없어 어차피 막히지만 뜻을 또렷하게 둔다).
+     사장님 결정 10-31(A안): 출입 허용 계정도 _test 에서 기사 계정을 다룰 수 있게 한다.
+     ★ 실업체(_test 아닌 org)에는 **절대 열리지 않는다** — org 이름을 먼저 본다. */
+  async function isTestAccessFor(org) {
+    if (!org || !/_test$/.test(org)) return false;
+    try {
+      const s = await A.db.collection('users').doc(callerUid).get();
+      if (!s.exists) return false;
+      const u = s.data() || {};
+      return u.testAccess === true && u.approved === true
+             && u.withdrawn !== true && u.role !== 'driver';
+    } catch (e) { return false; }
+  }
+
+  /* 마스터 uid 하나 — admins 컬렉션의 문서 id (v254).
+     _test 기사의 소유자로 쓴다. 반환: uid | null */
+  async function findMasterUid() {
+    try {
+      const snap = await A.db.collection('admins').limit(1).get();
+      let uid = null;
+      snap.forEach(d => { if (!uid) uid = d.id; });
+      return uid;
+    } catch (e) { return null; }
+  }
+
   /* 이 기관의 **실제 소유자 uid** 를 찾는다 (v251).
      규칙의 ownerAlive(ownerUid) 가 users/{ownerUid} 의 승인·만료를 보므로,
      기사 문서의 ownerUid 는 반드시 **그 업체 소유자** 여야 한다.
@@ -142,9 +169,17 @@ export default async function handler(req, res) {
       return { error: '업체 소유자를 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
     }
     if (owners.length === 1) return { uid: owners[0] };
-    /* 테스트 공간(_test)은 소유자 계정 없이 쓴다 — 마스터를 소유자로 둔다.
-       규칙이 _test 기관을 따로 열어 두므로(isTestOrg) 자료 접근은 막히지 않는다. */
-    if (/_test$/.test(org)) return { uid: callerUid };
+    /* 테스트 공간(_test)은 소유자 계정 없이 쓴다 — **소유자는 항상 마스터**로 둔다 (v254).
+       규칙 ownerAlive 가 admins/{ownerUid} 가 있으면 살아 있다고 보므로(v253) 막히지 않는다.
+       ★ 출입 허용 계정(휴대폰)을 소유자로 두면 안 된다 — 그 계정의 체험 30일이 끝나거나
+         출입을 끄면 ownerAlive 가 거짓이 되어 **_test 기사가 같이 잠긴다.**
+       호출자가 마스터면 그 사람이 마스터다. 출입 허용 계정이면 admins 에서 찾아 쓴다. */
+    if (/_test$/.test(org)) {
+      if (isMaster) return { uid: callerUid };
+      const m = await findMasterUid();
+      if (m) return { uid: m };
+      return { error: '테스트 공간 관리자 계정을 찾지 못했어요.' };
+    }
     if (owners.length === 0) {
       return { error: '이 업체의 소유자 계정을 찾을 수 없어요. 업체가 먼저 가입·승인돼야 해요.' };
     }
@@ -162,7 +197,7 @@ export default async function handler(req, res) {
       const digits = phoneDigits(b.phone);
 
       if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
-      if (!(isMaster || await isOwnerOf(org))) return fail(res, 403, '이 업체의 기사 계정을 만들 권한이 없어요.');
+      if (!(isMaster || await isOwnerOf(org) || await isTestAccessFor(org))) return fail(res, 403, '이 업체의 기사 계정을 만들 권한이 없어요.');
       if (digits.length < 10 || digits.indexOf('0') !== 0) return fail(res, 400, '휴대폰 번호를 정확히 넣어 주세요. (예: 010-1234-5678)');
       if (pw.length < 6) return fail(res, 400, '비밀번호는 6자 이상이어야 해요.');
 
@@ -199,7 +234,7 @@ export default async function handler(req, res) {
       const driverUid = String(b.driverUid || '').trim();
       const pw = String(b.password || '');
       if (!org || !driverUid) return fail(res, 400, '기관·기사 정보가 빠졌어요.');
-      if (!(isMaster || await isOwnerOf(org))) return fail(res, 403, '이 업체의 기사 비밀번호를 바꿀 권한이 없어요.');
+      if (!(isMaster || await isOwnerOf(org) || await isTestAccessFor(org))) return fail(res, 403, '이 업체의 기사 비밀번호를 바꿀 권한이 없어요.');
       if (pw.length < 6) return fail(res, 400, '비밀번호는 6자 이상이어야 해요.');
       const d = await A.db.collection('orgs').doc(org).collection('drivers').doc(driverUid).get();
       if (!d.exists) return fail(res, 404, '이 업체의 기사 계정이 아니에요.');
@@ -212,7 +247,7 @@ export default async function handler(req, res) {
       const org = String(b.org || '').trim();
       const driverUid = String(b.driverUid || '').trim();
       if (!org || !driverUid) return fail(res, 400, '기관·기사 정보가 빠졌어요.');
-      if (!(isMaster || await isOwnerOf(org))) return fail(res, 403, '이 업체의 기사 계정을 끊을 권한이 없어요.');
+      if (!(isMaster || await isOwnerOf(org) || await isTestAccessFor(org))) return fail(res, 403, '이 업체의 기사 계정을 끊을 권한이 없어요.');
       const d = await A.db.collection('orgs').doc(org).collection('drivers').doc(driverUid).get();
       if (!d.exists) return fail(res, 404, '이 업체의 기사 계정이 아니에요.');
       /* 계정은 **지우지 않고 잠근다** — 출퇴근·차계부 기록이 그 uid 로 남아 있다 */

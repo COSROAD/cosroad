@@ -79,7 +79,15 @@ service cloud.firestore {
              // 승인된 계정만 — 미승인·탈퇴 계정은 표시가 있어도 못 들어간다.
              // 기사 문서에는 approved 가 없으므로 **기사는 이 조건에서 막힌다**(2-c).
              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('approved', false) == true
-             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('withdrawn', false) != true;
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('withdrawn', false) != true
+             // v254: 기사 제외를 **조건으로 못 박았다.**
+             //   v253 에서는 "기사 문서에는 approved 가 없으니 위 줄에서 막힌다"는
+             //   **자료 모양 가정**에 기댔다. 그 가정이 깨진 문서(approved·testAccess 가
+             //   함께 있는 기사 문서)를 에뮬레이터에 심어 보니 **통과했다.**
+             //   지금 그런 문서를 만들 길은 없지만(createDriver 가 두 필드를 넣지 않고,
+             //   users update 의 마스터 분기는 orgId 가 없는 기사 문서에서 평가 오류가 난다),
+             //   가정 대신 조건으로 적는다. api/admin-account 의 isTestAccessFor 와 같은 뜻이 된다.
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') != 'driver';
     }
     function testOrgAdmin(orgId) {
       return isTestOrg(orgId) && (isAdmin() || testAccessOk());
@@ -109,8 +117,12 @@ service cloud.firestore {
     // ── orgs/{orgId}/drivers/{uid} — 기사 계정 명부 (v250) ────────────────
     // **서버(api/admin-account.js)만 쓴다.** 클라이언트 쓰기를 열면 기사가 스스로를
     // 등록하거나 ownerUid 를 바꿔 남의 업체 자료를 열 수 있다.
+    // v254: testOrgAdmin 을 더했다 — 보정2(v253)에서 「🧪 테스트 출입」을 만들 때
+    //   자료·백업 다섯 자리만 바꾸고 **이 명부를 빼먹었다.** 그래서 출입 허용 계정으로
+    //   _test 차량관리를 열면 기사 명부 읽기가 거부돼 「불러오는 중…」에서 멈췄다.
+    //   (마스터는 isAdmin 으로 통과해서 증상이 안 보였다)
     match /orgs/{orgId}/drivers/{driverUid} {
-      allow read:  if signedIn() && (isMyOrg(orgId) || isAdmin() || request.auth.uid == driverUid);
+      allow read:  if signedIn() && (isMyOrg(orgId) || isAdmin() || testOrgAdmin(orgId) || request.auth.uid == driverUid);
       allow write: if false;                              // Admin SDK 전용
     }
 

@@ -32,6 +32,10 @@
   마스터 권한을 안 주는 이유: 휴대폰 계정은 문자 인증만으로 비번을 바꿀 수 있다(v252).
   앱은 로그인 직후 `testOrgBlockedIfNotMaster()` 로 막는다(마스터·출입 허용 계정만 통과).
   마스터가 만든 `_test` 기사는 `ownerAlive` 에 「소유자가 마스터면 살아 있음」을 두어 통과한다.
+  **v254: 출입 허용 계정도 `_test` 에서 기사 계정을 만들고·비번 바꾸고·끊는다**
+  (규칙 `drivers` read 에 `testOrgAdmin` · `api/admin-account` 의 `isTestAccessFor(org)` —
+  `_test` 기관에서만 열린다). `_test` 기사의 `ownerUid` 는 **항상 마스터**다
+  (출입 허용 계정을 소유자로 두면 그 계정 체험이 끝날 때 기사가 같이 잠긴다).
 - 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),
   만료 시 차단 + 구독 안내 (plan: trial/paid). 농협 구독료 월 45,000 / 년 540,000.
 - 모델 B (v232 `350f960`)
