@@ -3572,8 +3572,18 @@ function drawMasterPanel(){
   h += '<button onclick="saveBillingInfo()" style="width:100%;padding:10px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button>';
   h += '</div>';
 
-  var pending = signupUsers.filter(function(u){ return u.approved!==true; });
-  var approvedList = signupUsers.filter(function(u){ return u.approved===true; });
+  /* ★ v253 보정4 — 기사 계정 문서를 마스터 목록에서 **먼저 걸러낸다.**
+     signupUsers 는 users 컬렉션 전체다. 기사 문서(role:'driver')에는 approved 가 없어서
+     (api/admin-account createDriver 가 role·driverOrg·ownerUid·carId·name·phone·createdAt 만 넣는다)
+     approved!==true 인 「승인 대기」로 섞여 나왔다 — 가입 신청처럼 보이고, 그 줄의
+     「🗑 신청 삭제」를 누르면 그 기사의 users 문서가 지워져 **로그인이 깨졌다.**
+     (v250 기사 계정 도입 이후 줄곧 그랬다. 규칙에서도 함께 막았다 — users delete)
+     기사 계정 정리는 종전대로 업체 화면 차량관리 「계정 끊기」(removeDriver)로만 한다.
+     ※ 아래 네 자리가 모두 이 걸러낸 목록을 쓴다 —
+       대기 목록 · 승인 목록 · 두 목록의 건수 · 「⚠ 같은 이름」 판정(masterIdLine 의 둘째 인자). */
+  var orgUsers = signupUsers.filter(function(u){ return u && u.role !== 'driver'; });
+  var pending = orgUsers.filter(function(u){ return u.approved!==true; });
+  var approvedList = orgUsers.filter(function(u){ return u.approved===true; });
   var bizLabel={academy:'🏫 학원',logistics:'📦 물류',public:'🏛️ 공공',delivery:'🚚 택배'};
   h += '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:14px;margin-bottom:16px;">';
   h += '<div style="font-size:14px;font-weight:800;color:#EA580C;margin-bottom:10px;">🔔 승인 대기 ('+pending.length+')</div>';
@@ -3586,7 +3596,7 @@ function drawMasterPanel(){
       h += '<div style="background:white;border:1px solid #FED7AA;border-radius:10px;padding:11px;margin-bottom:6px;">';
       h += '<div style="font-size:14px;font-weight:700;color:#1D2939;">'+escapeMasterHtml(u.orgName||'(이름없음)')+' <span style="font-size:11px;color:#98A2B3;font-weight:400;">'+(bizLabel[u.bizType]||u.bizType||'')+'</span></div>';
       // 입금 확인용 — 로그인 아이디·가입일·uid 끝 6자리 (v253 보정3: 같은 이름 구분)
-      h += '<div style="margin-top:3px;">'+masterIdLine(u, signupUsers)+'</div>';
+      h += '<div style="margin-top:3px;">'+masterIdLine(u, orgUsers)+'</div>';
       h += '<div style="font-size:12px;color:#344054;margin-top:2px;">📞 <b>'+escapeMasterHtml(u.contact||u.phone||'(연락처 없음)')+'</b></div>';
       h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">입금자명으로 확인: <b>'+escapeMasterHtml(u.orgName||'')+'</b></div>';
       /* 신청 후 얼마나 지났나 — 7일이 지나면 '기한 만료'로 강조해 정리 판단을 돕는다.
@@ -3620,7 +3630,7 @@ function drawMasterPanel(){
       h += '<div><span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(u.orgName||'')+'</span> <span style="font-size:11px;color:#98A2B3;">'+(bizLabel[u.bizType]||'')+'</span>'
         +(hasTA?' <span style="font-size:10px;color:#0E7090;background:#F0F9FF;border:1px solid #B9E6FE;border-radius:9px;padding:2px 7px;font-weight:800;">🧪 테스트 허용</span>':'')
         /* v253 보정3: 로그인 아이디·가입일·uid 끝 6자리 (🧪 배지 **아래** 줄 — 겹치지 않게) */
-        +'<div style="margin-top:2px;">'+masterIdLine(u, signupUsers)+'</div></div>';
+        +'<div style="margin-top:2px;">'+masterIdLine(u, orgUsers)+'</div></div>';
       h += '<div style="display:flex;gap:4px;flex-shrink:0;">';
       /* 🧪 테스트 출입 — 승인된 업체 줄에만. 기사·승인 대기 줄에는 내지 않는다 */
       h += '<button onclick="masterTestAccessAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+(hasTA?'true':'false')+')" style="font-size:11px;color:'

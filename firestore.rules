@@ -287,7 +287,15 @@ service cloud.firestore {
       // approved 필드가 아예 없는 옛 문서도 지울 수 있어야 한다 —
       // resource.data.approved 로 바로 읽으면 없는 필드에서 평가 오류가 나 거부된다.
       // (email 을 get(,'') 로 읽는 위 규칙과 같은 이유·같은 방식)
-      allow delete: if isAdmin() && resource.data.get('approved', false) != true;
+      //
+      // ★ v253: 기사 문서는 **api/admin-account(removeDriver)로만** 정리한다 —
+      //   마스터 패널에서 지우면 기사 로그인이 깨진다.
+      //   기사 문서에는 approved 가 없어(createDriver 가 넣지 않는다) 위 조건만으로는
+      //   「미승인 신청」으로 보여 지울 수 있었다. 앱에서도 목록에서 걸러내지만(drawMasterPanel
+      //   orgUsers), 규칙에서도 막아 두 겹으로 지킨다.
+      allow delete: if isAdmin()
+                    && resource.data.get('approved', false) != true
+                    && resource.data.get('role', '') != 'driver';
     }
 
     // ── admins/{uid} — 전체 관리자 명단 ───────────────────────────────────
