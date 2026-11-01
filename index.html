@@ -628,7 +628,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 257;
+const APP_VERSION = 258;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2124,7 +2124,8 @@ function keepLoginKey(){ return 'tkd_keeplogin_' + orgIdFromUrlOrDefault(); }
 function loginDriver(){
   if(typeof isDemoMode==='function' && !isDemoMode()){
     var el=document.getElementById('login-err');
-    if(el){ el.textContent='기사도 계정으로 로그인해요. 관리자에게 번호·비밀번호를 받아 위 칸에 넣어 주세요.'; el.style.display='block'; }
+    /* v258: v250 시절 문구(「기사도 계정으로 … 번호·비밀번호」)를 고쳤다 — 기사는 비밀번호가 없다 */
+    if(el){ el.textContent='기사는 첫 화면 「🚐 기사 로그인」에서 업체 번호와 PIN 으로 들어와요.'; el.style.display='block'; }
     return;
   }
   currentMode='driver';document.getElementById('login-screen').classList.add('hide');document.getElementById('main-app').style.display='block';initApp();
@@ -4158,7 +4159,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림톡','카카오','sms','lms','문자언제'], t:'알림톡·문자는 언제 나가나요',
    a:'1. 카카오 알림톡: 하차 완료 · 납품 완료 · PIN 체크인 알림에 나가요 — 실패하면 문자로 자동 재발송돼요\n2. 문자(LMS): «알림장» 발송, 미납 알림, 「🚐 곧도착」 안내에 쓰여요\n3. 발송 설정은 서버에만 있어서 앱에는 키가 저장되지 않아요\n4. 안 나갈 땐 받는 분 연락처가 등록돼 있는지 먼저 확인해 주세요'},
   {role:'driver', keys:['기사화면','내화면','오늘운행','내차량','자기차량','차량탭','다른차량','회원탭','명단','탑승','카드'], t:'기사 운행 화면 사용법',
-   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n5. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n6. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n7. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n8. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n9. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
+   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n5. 배정된 차량이 없으면 운행 화면·«회원» 탭에 「배정된 차량이 없어요」만 나와요 — 관리자가 차량을 배정해 주면 바로 보여요\n6. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n7. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n8. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n9. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n10. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
   {role:'driver', keys:['기사차계부','내차계부','주유기록'], t:'기사 차계부 (내 차량 기록)',
    a:'1. 운행 화면 → 「⛽ 차계부」 — 배정된 내 차량에 바로 기록돼요\n2. 주유 · 정비 · 기타를 넣을 수 있어요\n3. 잘못 넣었으면 관리자에게 요청하세요 — 기사 화면에서는 수정·삭제가 안 돼요\n4. 관리자와 같은 기록을 함께 봐요'}
 ];
@@ -4654,13 +4655,23 @@ function renderDrive(){
      열어 볼 수 있었다(사장님 11-01 캡처). 로그인 토큰에 박힌 자기 차량으로 못 박는다.
      ★ 둘러보기(_demo)는 체험이라 종전대로 모든 차량을 본다. */
   var _lockCar = driverLockedCarId();
+  /* ── v258: 배정 차량이 **아예 없을 때**도 회원 탭과 같게 막는다 ──────────────
+     v257 까지는 _lockCar 가 빈 값이면 차량 탭에 **모든 차량**이 나왔다.
+     지금 서버(api/driver-auth)는 PIN 이 맞는 차량이 없으면 로그인을 거부하고
+     토큰에 carId 가 없으면 출퇴근도 거부하므로 실제로 일어나지는 않지만,
+     화면 원칙(기사는 자기 차량 한 대)을 코드로도 못 박는다.
+     출근·퇴근·차계부 단추도 이 자리에서 돌아가므로 함께 안 나온다(누를 차량이 없다). */
+  if(currentMode==='driver' && !_lockCar){
+    document.getElementById('drive-tabs').innerHTML = '';
+    content.innerHTML = driverNoCarHtml();
+    return;
+  }
   if(_lockCar){
     currentCarId = _lockCar;                 // 다시 그릴 때마다 자기 차량으로 되돌린다
     if(!cars.some(function(c){ return c.id===_lockCar; })){
-      /* 관리자가 그 차량을 지웠을 때 — 빈 화면 대신 까닭을 적어 준다 */
+      /* 관리자가 그 차량을 지웠을 때 — 빈 화면 대신 까닭을 적어 준다 (문구는 한 곳에서) */
       document.getElementById('drive-tabs').innerHTML = '';
-      content.innerHTML = '<div class="empty-state" style="padding:40px 24px;line-height:1.8;">'
-        + '배정된 차량이 없어요.<br>관리자에게 문의하세요.</div>';
+      content.innerHTML = driverNoCarHtml();
       return;
     }
   }
@@ -15716,9 +15727,17 @@ async function loadFromFirebase(key){
 }
 
 /* 기사가 읽어도 되는 키 — firestore.rules 의 driverReadableKey 와 **같은 목록**이어야 한다.
-   한쪽만 고치면 ① 앱이 더 넓으면 permission-denied 가 쏟아지고 ② 규칙이 더 넓으면 구멍이 남는다. */
+   한쪽만 고치면 ① 앱이 더 넓으면 permission-denied 가 쏟아지고 ② 규칙이 더 넓으면 구멍이 남는다.
+   ── v258: attendance·attendanceTime 을 **뺐다** (12키 → 10키) ─────────────────
+   기사 화면에는 «회원» 출결을 **읽는 자리도 쓰는 자리도 없다**(v257 에서 쓰기를 뺐다).
+   그런데도 덩어리 동기화(syncFromFirebase)와 리스너(startFirebaseListeners)가
+   키 목록을 그대로 훑어서, 업체의 **출결 기록 전체가 기사 폰에 내려오고 있었다.**
+   목록에서 빼면 loadFromFirebase 의 기사 가드가 **부르기 전에** 막는다
+   (서버에 요청이 안 가므로 permission-denied 도 나지 않는다).
+   확인한 길(호출 그래프 + 실제 실행): 기사 화면 입구 16개에서
+   loadAttendance·loadAttendanceTime·getAttendanceToday·attTimeInfo 에 닿는 길 0개. */
 var DRIVER_READ_KEYS = ['members','cars','courses','org',
-                        'attendance','attendanceTime','notices','rideState',
+                        'notices','rideState',
                         'carlog','deliveryDone','dropoffDone','driverAtt'];
 function driverKeyAllowed(key){ return DRIVER_READ_KEYS.indexOf(key) >= 0; }
 

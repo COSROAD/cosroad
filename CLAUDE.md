@@ -53,9 +53,12 @@
   `_test` 기관에서만 열린다). `_test` 기사의 `ownerUid` 는 **항상 마스터**다
   (출입 허용 계정을 소유자로 두면 그 계정 체험이 끝날 때 기사가 같이 잠긴다).
 - **v255 기사 읽기·쓰기 범위** (규칙 `firestore.rules`)
-  - 읽기 `driverReadableKey` 12개만: `members`·`cars`·`courses`·`org`·`attendance`·`attendanceTime`
+  - 읽기 `driverReadableKey` **10개**(v258): `members`·`cars`·`courses`·`org`
     ·`notices`·`rideState`·`carlog`·`deliveryDone`·`dropoffDone`·`driverAtt`
     → `payments`·`tax`·`payrollManual`·`staff`·`drivelogManual`·**`driverPay`** 는 막힌다.
+    **v258: `attendance`·`attendanceTime` 도 뺐다** — 기사 화면에는 «회원» 출결을 읽는 자리가
+    없는데 덩어리 동기화·리스너가 키 목록을 훑어 **출결 기록 전체가 기사 폰에 내려오고 있었다.**
+    목록에서 빼면 `loadFromFirebase` 의 기사 가드가 **부르기 전에** 막아 요청이 안 나간다.
     앱도 `loadFromFirebase`·리스너에서 같은 목록(`DRIVER_READ_KEYS`)으로 한 번 더 막는다 — **두 곳을 같이 고쳐야 한다.**
   - 쓰기 `driverWritableKey` **4개**(v257): `carlog`·`deliveryDone`·`dropoffDone`·`rideState`
     → `driverAtt` 를 뺐고(v255 — 기사 출퇴근은 서버가 트랜잭션으로 쓴다),
@@ -127,7 +130,9 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
   「사용하는 앱 창은 항상 간결하고 직관적으로 — 버튼이 많으면 사용자가 불편」.
   기사 화면에 단추를 더하기 전에 먼저 되물을 것. 회원 출석 PIN 판은 **관리자 화면에만** 있다.
   차량 탭도 기사에게는 **자기 차량 한 칸**만 보인다(`driverLockedCarId()` — 토큰의 carId, 화면에서 못 바꿈).
-- **기사 화면은 「자기 차량 한 대」가 전부다 — 운행·회원 두 탭이 **같은 기준**을 쓴다** (v257).
+- **기사 화면은 「자기 차량 한 대」가 전부다 — 운행·회원 두 탭이 **같은 기준**을 쓴다** (v257·v258).
+  **차량이 없으면 두 화면 모두 `driverNoCarHtml()` 안내만** 내고 돌아간다(v258) —
+  차량 탭·출근·퇴근·차계부가 아예 안 나온다. 문구는 그 함수 한 곳에서만 쓴다.
   기준 함수는 `driverLockedCarId()` 하나(토큰의 carId · 둘러보기는 `demoDriverCarId()`),
   회원 목록은 `driverScopeMembers()` 로 거른다. 회원 목록을 그리는 함수는 **둘**이다 —
   `renderMembers()`(처음)와 `filterDriverMembers()`(검색·정렬). **한쪽만 고치면 새어 나간다.**

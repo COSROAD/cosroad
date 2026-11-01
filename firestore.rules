@@ -205,9 +205,20 @@ service cloud.firestore {
     //            invoices · products · certificates · **driverPay**(급여 값, v255 신설)
     //   ※ products·invoices 는 기사 화면에서 쓰지 않음을 확인했다 —
     //     loadProducts·loadInvoices 호출자가 전부 관리 탭 기능이다(거래명세서·품목·수납·점검).
+    // ── v258: 읽기에서도 **출결을 뺐다** (12키 → 10키) ────────────────────
+    //   v257 에서 쓰기를 뺀 뒤 읽기를 다시 보니, 기사 화면에는 «회원» 출결을
+    //   **읽는 자리가 없었다.** 그런데도 앱의 덩어리 동기화(syncFromFirebase)와
+    //   리스너(startFirebaseListeners)가 키 목록을 그대로 훑어서, 업체의 출결 기록
+    //   전체가 기사 폰에 내려오고 있었다(리스너가 두 자리에 붙는 것을 실측).
+    //   전수 확인(코드 호출 그래프 + 실제 실행, 보고문 참조): 기사 화면 입구 16개에서
+    //     loadAttendance · loadAttendanceTime · getAttendanceToday · attTimeInfo
+    //   에 닿는 길 0개. 대조로 관리자 입구(출결관리·날짜 점검·PIN 체크인)는 닿는다.
+    //   앱 쪽 같은 목록: index.html 의 DRIVER_READ_KEYS — **두 곳을 같이 고쳐야 한다.**
+    //   ※ 관리자·소유자 읽기·쓰기는 그대로다. 기사 출퇴근(driverAtt)은 남겨 둔다 —
+    //     기사 화면이 자기 출근·퇴근 시각을 보여 준다(driverPunchBarHtml).
     function driverReadableKey(key) {
       return key in ['members', 'cars', 'courses', 'org',
-                     'attendance', 'attendanceTime', 'notices', 'rideState',
+                     'notices', 'rideState',
                      'carlog', 'deliveryDone', 'dropoffDone', 'driverAtt'];
     }
 
