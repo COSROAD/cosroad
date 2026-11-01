@@ -143,7 +143,9 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
 - **한국어 줄바꿈은 5개 파일 `body` 에 모두 같은 두 줄** (v256 보정3) —
   `index.html`·`s.html`·`home.html`·`terms.html`·`privacy.html` 전부 `word-break:keep-all; overflow-wrap:anywhere;`.
   **인쇄·PDF 표 칸도 같은 두 줄**(거래명세서·거래내역·급여명세서). 낱글자로 쪼개지 않는다.
-  **`break-all` 로 남기는 자리는 URL 상자 둘뿐** — `.share-link-box`(235) · 공유 링크 미리보기(3916).
+  **`break-all` 로 남기는 자리는 URL 상자 `.share-link-box`(235) 한 곳뿐** (v259에 바로잡음).
+  보정3 때 「공유 링크 미리보기(3916)」로 적어 둔 둘째 자리는 소스로 보면
+  **마스터 패널 「개통 대장」의 `?org=` 주소 줄**이었고, v259가 그 묶음을 화면에서 빼면서 함께 없어졌다.
 - **한국어 줄바꿈 `keep-all` 은 `body` 에 전체 적용 — 새 화면도 따로 끄지 말 것** (v256).
   `index.html` `body{word-break:keep-all; overflow-wrap:anywhere;}` 한 자리에서 걸고,
   JS 로 만드는 화면(문자열 HTML)은 상속으로 함께 받는다. 둘을 **같이** 써야 한다 —
