@@ -183,9 +183,18 @@ service cloud.firestore {
     //   ② 기사 둘이 같은 순간에 찍으면 키 하나를 통째로 덮어 **앞 기록이 사라진다.**
     //   ★ 관리자(소유자·마스터·_test 출입)의 driverAtt 쓰기는 **그대로 열려 있다** —
     //     직원 출퇴근(같은 키, attKey(staffId,날짜))과 관리자 수동 토글이 거기로 들어온다.
+    // ── v257: 기사 쓰기에서 **출결을 뺐다** ──────────────────────────────
+    //   v256 보정2 에서 기사 화면의 PIN 판을 없애(출석은 관리자 화면만) v257 에서
+    //   둘러보기까지 같게 맞췄다. 그래서 기사 화면에는 출결을 저장하는 길이 **0개**다.
+    //   전수 확인(코드 호출 그래프 + 실제로 돌려 보기, 보고문 참조):
+    //     · 운행 화면 카드 토글(toggleStudent)은 rideState 에만 쓴다 — attendance 는 안 건드린다
+    //     · 출석/결석 단추(setAttendance)·날짜 점검(dcMoveAttendance)·백업 복원(restoreData)은
+    //       모두 관리 화면 기능이고, 기사는 switchTab 가드로 관리 화면에 못 들어간다
+    //     · PIN 판(checkPin)은 openPinCheckin 가드로 기사 모드에서 안 열린다
+    //   앱 쪽 같은 목록: index.html 의 DRIVER_WRITE_KEYS — **두 곳을 같이 고쳐야 한다.**
+    //   ※ 관리자·소유자의 attendance 쓰기는 그대로다(직원 근태·수기 토글이 같은 키를 쓴다).
     function driverWritableKey(key) {
-      return key in ['carlog', 'attendance', 'attendanceTime',
-                     'deliveryDone', 'dropoffDone', 'rideState'];
+      return key in ['carlog', 'deliveryDone', 'dropoffDone', 'rideState'];
     }
 
     // ── v255: 기사는 **운행에 필요한 키만** 읽는다 ───────────────────────

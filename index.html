@@ -628,7 +628,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 256;
+const APP_VERSION = 257;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4055,7 +4055,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에서 정한 「기사 PIN」이나 근태관리에 넣은 「직원 PIN」을 누르면 출퇴근으로 처리돼요 (기사 PIN 은 서버가 맞춰 봐요). «회원»·기사·직원 PIN은 서로 다른 번호로 정하세요\n9. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에서 정한 「기사 PIN」이나 근태관리에 넣은 「직원 PIN」을 누르면 출퇴근으로 처리돼요 (기사 PIN 은 서버가 맞춰 봐요). «회원»·기사·직원 PIN은 서로 다른 번호로 정하세요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -4084,7 +4084,7 @@ var HELP_QA=[
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각도 함께 들어가요'},
   {role:'admin', keys:['날짜점검','날짜','하루전','전날','어제날짜','점검'], t:'날짜 점검 (예전 기록이 하루 전 날짜예요)',
    a:'1. 2026년 10월 하순 이전에는 앱이 오늘 날짜를 세계표준시로 만들어서, 한국 아침 9시 전에 넣은 기록이 「전날 날짜」로 들어갔을 수 있어요\n2. 설정 탭 → 데이터 → 「🗓 날짜 점검」 → 「점검」을 누르면 의심 건만 모아 보여줘요\n3. «출결»은 이렇게 찾아요 — 그날이 그 «회원»의 수업 요일이 아니고, 바로 다음 날이 수업 요일이며, 다음 날엔 기록이 없는 경우\n4. 거래명세서는 이렇게 찾아요 (거래명세서가 있는 업종만) — 만든 시각이 0~8시인데 적힌 날짜가 만든 날의 하루 전인 경우\n5. 「하루 뒤로」를 누르면 한 번 더 물어본 뒤 다음 날짜로 옮겨요 (결석 같은 다른 표시도 그대로 옮겨져요)\n6. 거래명세서는 「열기」를 누르면 그 명세서가 수정 화면으로 열려요 — 날짜만 고쳐 저장하시면 수납·세무도 같이 맞춰져요\n7. 일부러 그 날짜로 넣으신 것이면 「그대로」를 누르세요 — 그 기기에서 다시 안 보여요\n8. 세무 입력은 시각 기록이 없어서 찾을 수 없어요 — 직접 확인해 주세요'},
-  {role:'driver', keys:['출근','퇴근','출퇴근','계기판','근태','출근단추','퇴근단추'], t:'출근·퇴근 기록하기',
+  {role:'driver', keys:['출근','퇴근','출퇴근','계기판','근태','출근단추','퇴근단추','둘러보기출퇴근'], t:'출근·퇴근 기록하기',
    a:'1. 운행 화면 맨 위의 「🌅 출근」·「🌆 퇴근」 단추를 쓰세요 (PIN 을 다시 넣지 않아요 — 기사 화면에는 PIN 판이 아예 없어요)\n2. 로그인과 출근은 따로예요 — 로그인만 해 두면 출근으로 세지 않아요. 일을 시작할 때 「출근」을 눌러 주세요\n3. 시각은 서버가 한국시간으로 찍어요 — 폰 시계를 바꿔도 기록은 바뀌지 않아요\n4. 눌러서 기록되면 단추에 시각이 함께 보여요 (출근 08:30 ✓). 하루에 출근 한 번, 퇴근 한 번이에요\n5. 출근·퇴근 바로 뒤에 「계기판 km」 칸이 떠요 (선택 — 안 넣어도 출퇴근 기록은 그대로 남아요)\n6. 출근 때 넣은 값이 운행기록부의 「주행 전」으로 실측 기록돼요 (안 넣으면 전날 마지막 값을 자동으로 써요)\n7. 퇴근 때 넣은 값은 「주행 후」가 돼요\n8. 「지금은 들어갈 수 없어요」가 뜨면 업체 이용 기간이 끝났거나 내 PIN 이 지워진 거예요 — 관리자에게 말씀해 주세요'},
   {role:'driver', keys:['기사로그인','업체번호','내pin','pin','로그인','기기','번호','비밀번호','탭','운전자'], t:'기사 로그인 (업체 번호 + PIN)',
    a:'1. 첫 화면에서 <b>「🚐 기사 로그인」</b> 탭을 고르세요 (옆은 관리자용이에요)\n2. 관리자에게 받은 <b>업체 번호 6자리</b>와 <b>내 PIN 4자리</b>를 넣고 「🚐 기사로 시작」\n3. 업체 번호는 같은 업체 기사가 모두 같고, PIN 은 사람마다 달라요. 기사는 비밀번호가 없어요\n4. 번호·PIN 을 모르면 관리자에게 물어보세요 — 기사는 스스로 가입하지 않아요. PIN 을 잊었어도 관리자가 바로 다시 정해 줘요\n5. 「로그인 상태 유지」를 켜 두면 다음부터 바로 들어가요\n6. 처음 로그인한 폰에 묶여요 — 폰을 바꿨으면 관리자에게 「📱 기기 풀기」를 요청한 뒤 다시 로그인하세요\n7. 로그인할 때 <b>시각과 위치</b>가 기록돼요 (거부해도 로그인은 돼요 — 「위치 없음」으로 남아요)\n8. 여러 번 틀리면 10분 동안 잠겨요. 10분 뒤에 다시 해 주세요\n9. 들어가면 바로 운행 화면이에요 — 운행과 «회원» 목록만 보여요 (관리·수납·세무·급여는 안 보여요)\n10. 로그인은 출근이 아니에요 — 출근은 운행 화면의 「🌅 출근」 단추로 해요'},
@@ -4146,7 +4146,7 @@ var HELP_QA=[
   {role:'all', keys:['설치','홈화면','아이콘','앱으로'], t:'홈 화면에 아이콘 추가 (앱처럼 쓰기)',
    a:'1. 설치가 아니라 홈 화면에 아이콘을 만드는 방식이에요\n2. 아이폰: 사파리 아래 공유 ⬆️ → 「홈 화면에 추가」 → 「추가」\n3. 안드로이드: 크롬 오른쪽 위 메뉴 ⋮ → 「홈 화면에 추가」(또는 「앱 설치」) → 「추가」\n4. 추가하면 앱처럼 전체 화면으로 열려요'},
   {role:'all', keys:['데모','샘플','둘러보기','체험판'], t:'데모(샘플) 계정',
-   a:'1. 데모는 둘러보기 전용이라 «회원»·기록이 저장되지 않아요\n2. 무엇을 눌러도 안전해요 — 새로고침하면 원래 샘플로 돌아와요\n3. 실제로 쓰시려면 가입해서 본 계정으로 들어오세요 (30일 무료)'},
+   a:'1. 데모는 둘러보기 전용이라 «회원»·기록이 저장되지 않아요\n2. 무엇을 눌러도 안전해요 — 새로고침하면 원래 샘플로 돌아와요\n3. 기사 화면도 실제와 같은 모양이에요 — 「🌅 출근」·「🌆 퇴근」 단추와 「⛽ 차계부」, 차량은 한 대만 보여요\n4. 둘러보기에서 누른 출근·퇴근은 <b>저장되지 않아요</b> — 화면에만 보이고 새로고침하면 처음 상태예요\n5. 실제로 쓰시려면 가입해서 본 계정으로 들어오세요 (30일 무료)'},
   {role:'all', keys:['투어','사용법','따라하기'], t:'사용법 투어 (따라 하기)',
    a:'1. 처음 들어오면 화면을 하나씩 짚어 주는 안내가 자동으로 시작돼요\n2. 다시 보고 싶으면 「📖 사용법 보기」를 누르세요\n3. 「다음」으로 넘기고, 중간에 닫아도 괜찮아요'},
   {role:'all', keys:['문의','건의','오류','신고','개선'], t:'문의 보내기',
@@ -4157,8 +4157,8 @@ var HELP_QA=[
    a:'1. 기사: 운행 화면의 「🌅 출근」·「🌆 퇴근」을 누른 바로 뒤에 뜨는 칸에 넣어요 (선택)\n2. 관리자: 차량관리 → 「📒 차계부」 → 「📏 계기판」에서 「🌅 출근 시 / 🌆 퇴근 시」를 골라 넣어요\n3. 출근 값은 운행기록부의 「주행 전」, 퇴근 값은 「주행 후」가 돼요\n4. 주유·정비를 적을 때 넣는 계기판 km는 연비·정비 이력용이에요'},
   {role:'admin', keys:['알림톡','카카오','sms','lms','문자언제'], t:'알림톡·문자는 언제 나가나요',
    a:'1. 카카오 알림톡: 하차 완료 · 납품 완료 · PIN 체크인 알림에 나가요 — 실패하면 문자로 자동 재발송돼요\n2. 문자(LMS): «알림장» 발송, 미납 알림, 「🚐 곧도착」 안내에 쓰여요\n3. 발송 설정은 서버에만 있어서 앱에는 키가 저장되지 않아요\n4. 안 나갈 땐 받는 분 연락처가 등록돼 있는지 먼저 확인해 주세요'},
-  {role:'driver', keys:['기사화면','내화면','오늘운행','내차량','자기차량','차량탭','다른차량','탑승','카드'], t:'기사 운행 화면 사용법',
-   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n5. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n6. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n7. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n8. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
+  {role:'driver', keys:['기사화면','내화면','오늘운행','내차량','자기차량','차량탭','다른차량','회원탭','명단','탑승','카드'], t:'기사 운행 화면 사용법',
+   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n5. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n6. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n7. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n8. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n9. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
   {role:'driver', keys:['기사차계부','내차계부','주유기록'], t:'기사 차계부 (내 차량 기록)',
    a:'1. 운행 화면 → 「⛽ 차계부」 — 배정된 내 차량에 바로 기록돼요\n2. 주유 · 정비 · 기타를 넣을 수 있어요\n3. 잘못 넣었으면 관리자에게 요청하세요 — 기사 화면에서는 수정·삭제가 안 돼요\n4. 관리자와 같은 기록을 함께 봐요'}
 ];
@@ -4604,8 +4604,34 @@ function getActiveStudents(){
    둘러보기(_demo)는 체험이라 비운다. */
 function driverLockedCarId(){
   if(currentMode!=='driver') return '';
-  try{ if(typeof isDemoMode==='function' && isDemoMode()) return ''; }catch(e){}
+  /* v257: 둘러보기(_demo)도 **한 차량**으로 못 박는다 — 실서비스와 같은 모양으로 보이게.
+     v256 보정2 에서는 둘러보기만 모든 차량을 보여 줬다(체험이라 열어 뒀던 것). */
+  try{ if(typeof isDemoMode==='function' && isDemoMode()) return demoDriverCarId(); }catch(e){}
   return String(window._driverCarId||'');
+}
+/* 둘러보기 기사 차량 — 샘플 차량 중 **기사 이름이 적힌 첫 차량** 하나.
+   없으면 첫 차량. 차량이 아예 없으면 빈 문자열(그러면 「배정된 차량이 없어요」로 간다). */
+function demoDriverCarId(){
+  try{
+    var list = (typeof cars!=='undefined' && cars && cars.length) ? cars : loadCars();
+    for(var i=0;i<list.length;i++){ if(list[i].driver && String(list[i].driver).trim()) return String(list[i].id); }
+    return list.length ? String(list[0].id) : '';
+  }catch(e){ return ''; }
+}
+/* ── v257: 기사 「회원」 탭도 운행 화면과 **같은 기준** — 자기 차량 것만 ──────────
+   ★ 이것은 **화면에서 거르는 것**이다. members 는 기관 키 하나에 통째로 들어 있어
+     규칙(firestore.rules)으로는 차량별로 나눌 수 없다 — 기사 폰에는 여전히 전체
+     명단이 내려간다. 차량별로 막으려면 자료를 차량별 문서로 쪼개야 한다(보고문 참조).
+   배정 차량이 없으면 **아무도 안 보인다**(운행 화면과 같은 안내 문구를 띄운다). */
+function driverScopeMembers(list){
+  if(currentMode!=='driver') return list||[];
+  var lock = driverLockedCarId();
+  if(!lock) return [];
+  return (list||[]).filter(function(m){ return String(m.carId||'')===lock; });
+}
+function driverNoCarHtml(){
+  return '<div class="empty-state" style="padding:40px 24px;line-height:1.8;">'
+       + '배정된 차량이 없어요.<br>관리자에게 문의하세요.</div>';
 }
 function renderDrive(){
   cars=loadCars(); members=loadMembers(); courses=loadCourses();
@@ -4686,9 +4712,8 @@ function renderDrive(){
      둘러보기(_demo)는 서버를 부르지 않아 종전 PIN 판 그대로 둔다(이번 회차 범위 밖). */
   if(currentMode==='driver'){
     if(typeof isDemoMode==='function' && isDemoMode()){
-      if(cars.some(function(c){return c.driver&&c.driver.trim();})){
-        html+=`<div style="padding:10px 16px 0;"><button onclick="openPinCheckin()" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🔢 기사 PIN 출퇴근 체크</button></div>`;
-      }
+      /* v257: 둘러보기도 실서비스와 같은 모양 — 출근·퇴근 단추. PIN 판은 없다. */
+      html+=demoPunchBarHtml();
     } else {
       html+=driverPunchBarHtml();
     }
@@ -6769,11 +6794,18 @@ function restoreData(ev){
 function renderMembers(){
   cars=loadCars(); members=loadMembers(); courses=loadCourses();
   const query=document.getElementById('search-input').value.trim().toLowerCase();
+  /* v257: 기사는 자기 차량 회원만 — 목록·검색·칩이 모두 이 묶음 하나를 본다 */
+  const scope=driverScopeMembers(members);
+  const scopeCourses=(currentMode==='driver')
+    ? courses.filter(c=>scope.some(m=>m.courseId===c.id))
+    : courses;
+  /* 기사 화면에는 차량 칩을 넣지 않는다 — 차량이 하나뿐이라 누를 뜻이 없다 (간결 원칙) */
+  const scopeCars=(currentMode==='driver') ? [] : cars;
   document.getElementById('filter-chips').innerHTML=`<button class="chip ${filterCourse===''?'on':''}" onclick="filterCourse='';renderMembers()">전체</button>`+
-    courses.map(c=>`<button class="chip ${filterCourse===c.id?'on':''}" onclick="filterCourse='${c.id}';renderMembers()">${c.name}</button>`).join('')+
-    cars.map(c=>`<button class="chip ${filterCar===c.id?'on':''}" onclick="filterCar='${c.id}';renderMembers()">${c.name}</button>`).join('');
+    scopeCourses.map(c=>`<button class="chip ${filterCourse===c.id?'on':''}" onclick="filterCourse='${c.id}';renderMembers()">${c.name}</button>`).join('')+
+    scopeCars.map(c=>`<button class="chip ${filterCar===c.id?'on':''}" onclick="filterCar='${c.id}';renderMembers()">${c.name}</button>`).join('');
   var frb=document.getElementById('filter-riding-btn');if(frb)frb.classList.toggle('active',filterRiding);
-  let filtered=members.filter(m=>{
+  let filtered=scope.filter(m=>{
     if(query&&!m.name.toLowerCase().includes(query))return false;
     if(filterRiding&&!m.on)return false;
     if(filterCourse&&m.courseId!==filterCourse)return false;
@@ -6781,6 +6813,8 @@ function renderMembers(){
     return true;
   });
   const listEl=document.getElementById('member-list');
+  /* 기사인데 배정 차량이 없으면 까닭을 적어 준다 (운행 화면과 같은 문구) */
+  if(currentMode==='driver' && !driverLockedCarId()){ listEl.innerHTML=driverNoCarHtml(); return; }
   if(filtered.length===0){listEl.innerHTML=`<div class="empty-state">검색 결과가 없습니다.</div>`;return;}
   listEl.innerHTML=filtered.map(m=>{
     const course=courses.find(c=>c.id===m.courseId);const car=cars.find(c=>c.id===m.carId);
@@ -7312,8 +7346,9 @@ var pinCheckinOpen=false;
 function openPinCheckin(){
   /* v256 보정2: 실서비스 기사 화면에는 PIN 판이 **없다**(단추를 뺐다).
      단추 말고 다른 길(도우미·단축·옛 화면)로도 열리지 않게 여기서 한 번 더 막는다.
-     둘러보기(_demo) 기사 화면은 체험용 PIN 판이 그대로라 막지 않는다. */
-  if(currentMode==='driver' && !(typeof isDemoMode==='function' && isDemoMode())){
+     v257: 둘러보기(_demo) 기사 화면도 출근·퇴근 단추로 바꿨으므로 **같이 막는다**.
+     («회원» 출석 PIN 은 관리자 화면에만 있다 — 둘러보기 관리자 화면은 그대로다.) */
+  if(currentMode==='driver'){
     try{ showToast('회원 출석 PIN 은 관리자 화면에서 써요'); }catch(e){}
     return;
   }
@@ -7487,6 +7522,38 @@ async function padDriverPinApi(pin){
   }catch(e){ return { why:'net', message:'서버에 연결하지 못했어요. 인터넷을 확인해 주세요.' }; }
 }
 
+/* ── v257: 둘러보기(_demo) 기사 출퇴근 — 체험용 ───────────────────────────────
+   실서비스와 **같은 모양**(🌅 출근 / 🌆 퇴근)이지만
+     · 서버를 부르지 않는다 (api/driver-auth 호출 0)
+     · 저장하지 않는다 (localStorage·Firebase 0) → 새로고침하면 처음 상태
+     · 처음 누를 때 한 번 「둘러보기에서는 저장되지 않아요」를 알려 준다 */
+var _demoPunch = { in:'', out:'', noticed:false };
+function demoPunchBarHtml(){
+  var inOk=!!_demoPunch.in, outOk=!!_demoPunch.out;
+  var btn=function(label,on,fn,bg){
+    return '<button '+(on?('onclick="'+fn+'"'):'disabled')+' style="flex:1;padding:13px;border:none;border-radius:12px;'
+      +'font-size:14px;font-weight:800;cursor:'+(on?'pointer':'default')+';'
+      +'background:'+(on?bg:'#EAECF0')+';color:'+(on?'#fff':'#98A2B3')+';">'+label+'</button>';
+  };
+  var note = outOk ? '둘러보기라 저장되지 않아요 — 새로고침하면 처음 상태로 돌아와요'
+           : (inOk ? '일을 마치면 「퇴근」을 눌러 주세요 (둘러보기라 저장되지 않아요)'
+                   : '로그인과 출근은 따로예요 — 일을 시작할 때 「출근」을 눌러 주세요');
+  return '<div style="padding:10px 16px 0;"><div style="display:flex;gap:6px;">'
+    + btn('🌅 출근'+(inOk?(' '+_demoPunch.in+' ✓'):''), !inOk, "demoPunch('checkin')", '#12B76A')
+    + btn('🌆 퇴근'+(outOk?(' '+_demoPunch.out+' ✓'):''), (inOk&&!outOk), "demoPunch('checkout')", '#F04438')
+    + '</div><div id="drv-punch-msg" style="font-size:11px;color:#98A2B3;text-align:center;padding:6px 0 0;line-height:1.5;">'
+    + note + '</div></div>';
+}
+function demoPunch(which){
+  var t=nowTimeStr();
+  if(which==='checkin'){ if(_demoPunch.in) return; _demoPunch.in=t; }
+  else { if(!_demoPunch.in || _demoPunch.out) return; _demoPunch.out=t; }
+  if(!_demoPunch.noticed){
+    _demoPunch.noticed=true;
+    try{ showToast('👀 둘러보기에서는 저장되지 않아요'); }catch(e){}
+  }
+  renderDrive();
+}
 /* 기사 화면 「출근·퇴근」 단추 (v255) — 오늘 상태를 함께 보여 준다.
    읽는 값은 driverAtt(기사도 읽을 수 있는 키), 쓰는 일은 서버만 한다. */
 function driverPunchBarHtml(){
@@ -9393,7 +9460,9 @@ function filterDriverMembers(q){
   q = q.toLowerCase();
   var listEl = document.getElementById('member-list');
   if(!listEl){ renderMembers(); return; }
-  var filtered = members.filter(function(m){
+  /* v257: 검색·정렬도 renderMembers 와 **같은 묶음**을 본다 (기사는 자기 차량만) */
+  if(currentMode==='driver' && !driverLockedCarId()){ listEl.innerHTML=driverNoCarHtml(); return; }
+  var filtered = driverScopeMembers(members).filter(function(m){
     if(!m.name.toLowerCase().includes(q)) return false;
     if(filterRiding && !m.on) return false;
     if(filterCourse && m.courseId!==filterCourse) return false;
@@ -15589,6 +15658,12 @@ async function saveToFirebase(key, data){
   try{
     // 데모(읽기전용) 모드: 서버 저장 차단 → 방문자끼리 데이터 안 섞임
     if(isDemoMode()){ demoBlockNotice(); return; }
+    /* v257: 기사 모드는 규칙이 허락한 키만 쓴다 (규칙에서 거부당해 콘솔만 더럽히는 일을 막는다).
+       목록은 firestore.rules 의 driverWritableKey 와 같다 — 한쪽만 고치지 말 것. */
+    if(currentMode==='driver' && !driverWriteAllowed(key)){
+      console.warn('기사 모드에서는 저장하지 않는 키:', key);
+      return;
+    }
     if(!window._db || !window._firestore) return;
     var { doc, setDoc, getDoc } = window._firestore;
     // 알리고 설정은 전역 공통(프리존 계정 1개)이라 고정 위치에 저장
@@ -15646,6 +15721,13 @@ var DRIVER_READ_KEYS = ['members','cars','courses','org',
                         'attendance','attendanceTime','notices','rideState',
                         'carlog','deliveryDone','dropoffDone','driverAtt'];
 function driverKeyAllowed(key){ return DRIVER_READ_KEYS.indexOf(key) >= 0; }
+
+/* 기사가 **써도 되는** 키 — firestore.rules 의 driverWritableKey 와 **같은 목록**이어야 한다.
+   v257: attendance·attendanceTime 을 뺐다. 기사 화면에는 출결을 저장하는 길이 없다
+   (운행 화면의 카드 토글은 rideState 에만 쓴다 — toggleStudent → saveRideStateFromMembers).
+   ★ 규칙과 이 목록은 **같이** 고쳐야 한다. 읽기 쪽 DRIVER_READ_KEYS 와 같은 규칙이다. */
+var DRIVER_WRITE_KEYS = ['carlog','deliveryDone','dropoffDone','rideState'];
+function driverWriteAllowed(key){ return DRIVER_WRITE_KEYS.indexOf(key) >= 0; }
 
 async function syncFromFirebase(){
   console.log('🔄 Firebase 동기화 중...');

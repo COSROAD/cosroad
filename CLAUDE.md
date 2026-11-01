@@ -57,9 +57,14 @@
     ·`notices`·`rideState`·`carlog`·`deliveryDone`·`dropoffDone`·`driverAtt`
     → `payments`·`tax`·`payrollManual`·`staff`·`drivelogManual`·**`driverPay`** 는 막힌다.
     앱도 `loadFromFirebase`·리스너에서 같은 목록(`DRIVER_READ_KEYS`)으로 한 번 더 막는다 — **두 곳을 같이 고쳐야 한다.**
-  - 쓰기 `driverWritableKey` 6개: `carlog`·`attendance`·`attendanceTime`·`deliveryDone`·`dropoffDone`·`rideState`
-    → **`driverAtt` 를 뺐다**(v255). 기사 출퇴근은 서버가 트랜잭션으로 쓴다. 관리자·소유자 쓰기는 그대로다
-    (직원 근태·수기 토글이 같은 키를 쓴다).
+  - 쓰기 `driverWritableKey` **4개**(v257): `carlog`·`deliveryDone`·`dropoffDone`·`rideState`
+    → `driverAtt` 를 뺐고(v255 — 기사 출퇴근은 서버가 트랜잭션으로 쓴다),
+    **`attendance`·`attendanceTime` 도 뺐다**(v257 — 기사 화면에 출결을 저장하는 길이 0개임을
+    호출 그래프 + 실제 실행으로 전수 확인했다. 카드 토글은 `rideState` 에만 쓴다).
+    앱도 같은 목록(`DRIVER_WRITE_KEYS`, `saveToFirebase` 가드)으로 한 번 더 막는다 —
+    **두 곳을 같이 고쳐야 한다**(읽기 `DRIVER_READ_KEYS` 와 같은 규칙).
+    백업 create 규칙도 이 목록을 따라가므로 자동으로 좁아진다.
+    관리자·소유자 쓰기는 그대로다(직원 근태·수기 토글이 같은 키를 쓴다).
   - 백업: 기사는 `backups` read·delete 안 되고 **create 만** 된다(쓰기 전 백업을 남겨야 하므로).
   - 급여 4값(시급·식대·공제방식·출퇴근거리)은 `cars` → **`driverPay`** 로 옮겼다
     (`{ carId: {hourlyWage, mealAllow, taxMode, commuteKm} }`). `carPay(car)` 가 옛 값도 함께 봐서
@@ -122,6 +127,14 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
   「사용하는 앱 창은 항상 간결하고 직관적으로 — 버튼이 많으면 사용자가 불편」.
   기사 화면에 단추를 더하기 전에 먼저 되물을 것. 회원 출석 PIN 판은 **관리자 화면에만** 있다.
   차량 탭도 기사에게는 **자기 차량 한 칸**만 보인다(`driverLockedCarId()` — 토큰의 carId, 화면에서 못 바꿈).
+- **기사 화면은 「자기 차량 한 대」가 전부다 — 운행·회원 두 탭이 **같은 기준**을 쓴다** (v257).
+  기준 함수는 `driverLockedCarId()` 하나(토큰의 carId · 둘러보기는 `demoDriverCarId()`),
+  회원 목록은 `driverScopeMembers()` 로 거른다. 회원 목록을 그리는 함수는 **둘**이다 —
+  `renderMembers()`(처음)와 `filterDriverMembers()`(검색·정렬). **한쪽만 고치면 새어 나간다.**
+  ★ 이것은 **화면에서 거르는 것**이다. `members` 는 기관 키 하나라 규칙으로는 차량별로
+  못 나눈다 — 기사 폰에는 전체 명단이 내려간다. 자료를 차량별로 쪼개야 막힌다.
+- **둘러보기(`_demo`) 기사 화면도 실서비스와 같은 모양** (v257) — 출근·퇴근 단추 + 차계부,
+  차량 한 대, 출석 PIN 판 없음. 다만 `demoPunch()` 는 **서버·저장을 안 부른다**(새로고침하면 처음).
 - **한국어 줄바꿈은 5개 파일 `body` 에 모두 같은 두 줄** (v256 보정3) —
   `index.html`·`s.html`·`home.html`·`terms.html`·`privacy.html` 전부 `word-break:keep-all; overflow-wrap:anywhere;`.
   **인쇄·PDF 표 칸도 같은 두 줄**(거래명세서·거래내역·급여명세서). 낱글자로 쪼개지 않는다.
