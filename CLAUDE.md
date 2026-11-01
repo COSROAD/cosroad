@@ -11,6 +11,18 @@
   - `send-sms.js`·`send-alimtalk.js` 알리고 문자·알림톡 (허용 출처 검사 있음 — 완화 금지)
   - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
     환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
+    v255 추가: 기사 로그인 관리 — `issueOrgCode`(업체 번호 6자리) · `setDriverPin` · `checkPinDup`
+    · `removeDriverPin` · `unbindDevice` · `driverInfo`(PIN 설정 여부·기기·최근 로그인 5건)
+    · `migrateDriverData`(옛 `cars[].driverPin` → 해시). 권한은 모두 **마스터 · 소유자 · `_test` 출입 계정** 세 갈래.
+    PIN 해시 = `sha256(pin|org|OTP_SECRET)` — 새 환경변수 없음. **PIN 원문·해시는 응답·로그에 넣지 않는다.**
+  - `driver-auth.js` 기사 로그인·출퇴근 (firebase-admin, v255) — `login` / `checkin` / `checkout` / `pinCheckin`
+    환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET` 필요
+    `login`: 업체 번호 + PIN → 해시 대조 → 기기 묶기 → `createCustomToken(drv_<org>_<carId>, {driver,org,carId})`
+    없는 번호·틀린 PIN 은 **같은 문구**(업체 존재 여부가 새지 않게) · 10분 5회 잠금 · IP 1시간 60회
+    `checkin`/`checkout`: carId·org 는 **토큰 claim 만** 쓴다(본문 값 불신) · `driverAtt` 를 트랜잭션으로 고친다
+    시각은 **서버 KST**(`new Date(ms+9h)` 후 UTC getter) — 폰 시계를 바꿔도 안 바뀐다
+    `pinCheckin`: 관리자 공용 패드용. 기사 PIN 이 아니면 404 `why:'notdriver'` → 앱이 직원·회원 PIN 으로 이어 본다
+    서버 전용 컬렉션(규칙 `read, write: if false`): `orgCodes`·`driverPins`·`driverDevices`·`driverLogins`·`driverRl`
   - `otp.js` 문자 인증번호 공통 기반 (firebase-admin, v252) — `send` / `verify-reset` / `changePhone`
     환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET`·`ALIGO_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER` 필요
     인증번호는 **서버에서만** 만들고 맞춘다 (화면은 번호·6자리만 보낸다) · 코드 원문은 저장·로그 금지(해시만)
@@ -20,9 +32,13 @@
     무력화한다. 확인 쪽 빈도 제한도 별도(`rl.v.*` 번호 10분 10회 · `rl.vi.*` IP 10분 30회).
     요청자 IP 는 `clientIp()` 하나로 — `x-vercel-forwarded-for` → `x-forwarded-for` → `x-real-ip` 순
     (Vercel 공식 문서: `x-forwarded-for` 는 플랫폼이 덮어써 위조를 막고, `x-vercel-...` 는 프록시에도 안 덮인다)
-- **로그인: 관리자·기사 모두 계정으로 한다** (기기 비밀번호 없음, v249·v250).
-  기사 계정은 관리자가 차량관리에서 만들어 주고, 서버 `api/admin-account` 가 처리한다.
-  둘러보기(`_demo`)만 계정 없이 들어간다.
+- **로그인: 입구가 둘이다 (v255).** 로그인 화면에서 「🚐 기사 로그인」·「👨‍💼 관리자 로그인」을 고른다.
+  - 관리자: 휴대폰 번호(또는 이메일) + 비밀번호 — 계정 로그인 (기기 비밀번호 없음, v249)
+  - 기사: **업체 번호 6자리 + 내 PIN 4자리** — 서버가 맞추고 custom token 을 준다(`api/driver-auth`).
+    기사는 스스로 가입하지 않는다. 관리자가 차량관리에서 PIN 을 정해 준다.
+    v250~v254 의 기사 계정(휴대폰+비밀번호)은 없앴다 — `createDriver` 등 api 는 남아 있지만 화면에서 부르지 않는다.
+  - **로그인 ≠ 출근.** 근태로 세는 출퇴근은 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로만 기록한다.
+  - 둘러보기(`_demo`)만 계정 없이 들어간다 — 기사 둘러보기는 종전 PIN 판(앱 자료) 그대로다.
 - 배포: GitHub push → Vercel 자동 배포. 정적 페이지는 GitHub Pages(cosroad.com)
 - 데이터: localStorage(기관별 키) + Firebase 동기화. `_demo` 기관은 읽기전용 샘플,
   **`_test` 는 마스터 + 마스터가 「🧪 테스트 출입」을 켠 승인 계정만**(규칙·앱 모두, v253) —
@@ -36,6 +52,18 @@
   (규칙 `drivers` read 에 `testOrgAdmin` · `api/admin-account` 의 `isTestAccessFor(org)` —
   `_test` 기관에서만 열린다). `_test` 기사의 `ownerUid` 는 **항상 마스터**다
   (출입 허용 계정을 소유자로 두면 그 계정 체험이 끝날 때 기사가 같이 잠긴다).
+- **v255 기사 읽기·쓰기 범위** (규칙 `firestore.rules`)
+  - 읽기 `driverReadableKey` 12개만: `members`·`cars`·`courses`·`org`·`attendance`·`attendanceTime`
+    ·`notices`·`rideState`·`carlog`·`deliveryDone`·`dropoffDone`·`driverAtt`
+    → `payments`·`tax`·`payrollManual`·`staff`·`drivelogManual`·**`driverPay`** 는 막힌다.
+    앱도 `loadFromFirebase`·리스너에서 같은 목록(`DRIVER_READ_KEYS`)으로 한 번 더 막는다 — **두 곳을 같이 고쳐야 한다.**
+  - 쓰기 `driverWritableKey` 6개: `carlog`·`attendance`·`attendanceTime`·`deliveryDone`·`dropoffDone`·`rideState`
+    → **`driverAtt` 를 뺐다**(v255). 기사 출퇴근은 서버가 트랜잭션으로 쓴다. 관리자·소유자 쓰기는 그대로다
+    (직원 근태·수기 토글이 같은 키를 쓴다).
+  - 백업: 기사는 `backups` read·delete 안 되고 **create 만** 된다(쓰기 전 백업을 남겨야 하므로).
+  - 급여 4값(시급·식대·공제방식·출퇴근거리)은 `cars` → **`driverPay`** 로 옮겼다
+    (`{ carId: {hourlyWage, mealAllow, taxMode, commuteKm} }`). `carPay(car)` 가 옛 값도 함께 봐서
+    「옮기기」 전에도 급여가 맞게 나온다. 급여 계산 코드는 `buildPayrollData` 에서 차량에 붙여 주므로 한 줄도 안 바뀌었다.
 - 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),
   만료 시 차단 + 구독 안내 (plan: trial/paid). 농협 구독료 월 45,000 / 년 540,000.
 - 모델 B (v232 `350f960`)

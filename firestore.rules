@@ -177,16 +177,36 @@ service cloud.firestore {
     //   기사 화면이 저장하던 것은 토글(on·offOn)뿐이었는데 그것이 members 안에 있어서
     //   이름·연락처·주소·PIN·«수강료»까지 쓰기 권한이 열렸다. 토글을 rideState 로 떼어
     //   members 는 기사가 **읽기만** 한다(운행에 이름·주소·연락처가 필요하다).
+    // ── v255: driverAtt 를 **뺐다** ──────────────────────────────────────
+    //   출퇴근은 이제 api/driver-auth(checkin·checkout·pinCheckin)가 **서버 시각**으로
+    //   트랜잭션으로 쓴다. 기사 폰이 직접 쓰면 ① 폰 시각을 바꿔 출근 시각을 속일 수 있고
+    //   ② 기사 둘이 같은 순간에 찍으면 키 하나를 통째로 덮어 **앞 기록이 사라진다.**
+    //   ★ 관리자(소유자·마스터·_test 출입)의 driverAtt 쓰기는 **그대로 열려 있다** —
+    //     직원 출퇴근(같은 키, attKey(staffId,날짜))과 관리자 수동 토글이 거기로 들어온다.
     function driverWritableKey(key) {
-      return key in ['driverAtt', 'carlog', 'attendance', 'attendanceTime',
+      return key in ['carlog', 'attendance', 'attendanceTime',
                      'deliveryDone', 'dropoffDone', 'rideState'];
+    }
+
+    // ── v255: 기사는 **운행에 필요한 키만** 읽는다 ───────────────────────
+    //   v254 까지는 read 가 키를 가리지 않아서, 기사 한 명이 업체의 **수납·세무·
+    //   급여수기·직원명부**를 전부 읽을 수 있었다(앱 리스너가 17키를 통째로 받았다).
+    //   아래 12키는 기사 화면(운행·회원 두 탭)이 실제로 쓰는 것만 골랐다.
+    //   막은 것: payments · tax · payrollManual · staff · drivelogManual ·
+    //            invoices · products · certificates · **driverPay**(급여 값, v255 신설)
+    //   ※ products·invoices 는 기사 화면에서 쓰지 않음을 확인했다 —
+    //     loadProducts·loadInvoices 호출자가 전부 관리 탭 기능이다(거래명세서·품목·수납·점검).
+    function driverReadableKey(key) {
+      return key in ['members', 'cars', 'courses', 'org',
+                     'attendance', 'attendanceTime', 'notices', 'rideState',
+                     'carlog', 'deliveryDone', 'dropoffDone', 'driverAtt'];
     }
 
     match /orgs/{orgId}/data/{key} {
       // 기관 격리(코스로드6): 남의 주소(?org=)를 알아도 자기 users.orgId 와 다르면 거부된다.
       allow read:  if signedIn()
                    && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
-                       || isActiveDriver(orgId));
+                       || (isActiveDriver(orgId) && driverReadableKey(key)));
       allow write: if signedIn()
                    && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
                    && (isMyOrg(orgId) || testOrgAdmin(orgId)
@@ -197,20 +217,25 @@ service cloud.firestore {
     // (12120 create · 12124 list · 12134 delete)
     match /orgs/{orgId}/backups/{backupId} {
       // 자료 본체와 같은 격리를 건다. 백업만 열려 있으면 격리가 뚫린다.
-      // saveToFirebase 가 덮어쓰기 직전에 백업을 함께 만들므로(_backupBeforeSave),
-      // 기사도 **같은 조건**으로 열어야 기사 저장이 백업 단계에서 막히지 않는다 (v250).
-      // 백업 문서 id 는 `<key>_<시각>` 꼴이라, 키를 가리려면 id 앞부분을 본다.
+      // ── v255: 기사 **읽기를 막았다** ────────────────────────────────────
+      //   백업에는 막아야 할 키(수납·세무·급여)의 **지난 값**이 들어 있다.
+      //   본체 read 를 12키로 좁혀도 백업이 열려 있으면 그 길로 다 읽힌다.
+      //   ※ 기사 저장은 깨지지 않는다 — _backupBeforeSave 는 백업을 만든 뒤
+      //     오래된 것을 지우려고 목록을 읽는데, 그 읽기가 막히면 catch 가 삼키고
+      //     「백업 실패(저장은 계속)」만 찍는다(index.html:14966). 본 저장은 그대로다.
+      //   delete 도 기사에게서 뺐다 — 목록을 못 읽으니 어차피 못 쓰는 길이고,
+      //     문서 id 를 찍어 지우는 길까지 닫는다. 오래된 백업 정리는 관리자 쪽에서 된다.
       allow read:   if signedIn()
-                    && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
-                        || isActiveDriver(orgId));
+                    && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId));
       // 백업 문서에는 어느 키의 백업인지 `key` 필드가 있다(_backupBeforeSave) —
       // 문서 id(`<key>__<시각>`)를 쪼개는 대신 그 필드를 본다.
+      // create 는 **남긴다** — 기사가 쓰는 키(carlog·rideState 등)를 저장할 때
+      // 덮어쓰기 직전 백업이 여기로 들어온다. 막으면 기사 저장 때마다 백업이 빠진다.
       allow create: if signedIn() && !isDemoOrg(orgId)
                     && (isMyOrg(orgId) || testOrgAdmin(orgId)
                         || (isActiveDriver(orgId) && driverWritableKey(request.resource.data.key)));
       allow delete: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || testOrgAdmin(orgId)
-                        || (isActiveDriver(orgId) && driverWritableKey(resource.data.key)));
+                    && (isMyOrg(orgId) || testOrgAdmin(orgId));
       allow update: if false;                            // 백업은 덮어쓰지 않는다
     }
 
@@ -327,6 +352,27 @@ service cloud.firestore {
     match /otp/{id} {
       allow read, write: if false;
     }
+
+    // ── 기사 로그인 (v255) — 다섯 컬렉션 **전부 서버 전용** ────────────────
+    // 앱은 이 컬렉션들을 보지도 쓰지도 않는다. api/driver-auth.js 와
+    // api/admin-account.js(Admin SDK)만 다룬다 — Admin SDK 는 이 규칙을 거치지 않는다.
+    // 관리자가 보는 것(PIN 설정 여부·기기 묶임·최근 로그인)은 api driverInfo 가 골라 준다.
+    //
+    // orgCodes/{6자리}      { orgId }            — 업체 번호 → 기관 대응표
+    //   ★ 열면 번호를 훑어 **남의 업체를 찾아** PIN 대입을 시작할 수 있다.
+    // driverPins/{org}_{car} { pinHash, carId }  — PIN 해시
+    //   ★ 4자리라 해시가 새면 **오프라인에서 1만 번**이면 뚫린다.
+    // driverDevices/{org}_{car} { deviceId }     — 첫 로그인 기기 묶기
+    //   ★ 열면 기기 id 를 베껴 기기 묶기가 무의미해진다.
+    // driverLogins/{자동id}  { at, ok, lat, lng } — 로그인 기록(**위치 포함**)
+    //   ★ 사람의 위치 기록이다. 가장 세게 닫는다.
+    // driverRl/{해시}        { at:[…] }          — 틀린 횟수·IP 제한 (otp rl.* 와 같은 꼴)
+    //   ★ 지울 수 있으면 잠금이 무의미해져 PIN 대입이 공짜가 된다.
+    match /orgCodes/{code}      { allow read, write: if false; }
+    match /driverPins/{id}      { allow read, write: if false; }
+    match /driverDevices/{id}   { allow read, write: if false; }
+    match /driverLogins/{id}    { allow read, write: if false; }
+    match /driverRl/{id}        { allow read, write: if false; }
 
     // ── inquiries/{id} — 문의 ─────────────────────────────────────────────
     // 보내기는 누구나(익명 로그인 포함) 되어야 한다 — 로그인 전 화면에서도 문의한다.
