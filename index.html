@@ -1609,7 +1609,8 @@ function pvPrint(){
      좌 12.03mm / 우 12.17mm 로 이미 좌우가 같았다. 즉 HTML·html2canvas·jsPDF 어디에도
      왼쪽으로 미는 요인이 없고, 남은 원인은 프린터의 급지 오프셋(용지가 오른쪽으로 물려
      들어가 인쇄가 왼쪽으로 밀림)뿐이다. 그래서 왼쪽만 6mm 더 줘 18mm로 띄운다. */
-  var css='.pdf-page{padding:8mm 12mm 8mm 18mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;}';
+  /* v256 보정3: 인쇄 표도 앱과 같은 두 줄 — keep-all 은 v238 부터 있었고 overflow-wrap 을 더했다 */
+  var css='.pdf-page{padding:8mm 12mm 8mm 18mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;overflow-wrap:anywhere;}';
   var groups=[];
   for(var i=0;i<D.cars.length;i+=PV_BLOCKS_PER_PAGE) groups.push(D.cars.slice(i,i+PV_BLOCKS_PER_PAGE));
   if(!groups.length) groups=[[]];
@@ -6422,7 +6423,7 @@ function renderSettings(){
       <div style="font-size:11.5px;color:var(--gray-400);line-height:1.7;">
         T맵 인증정보는 <b>서버에만</b> 보관됩니다. 이 앱에는 키가 저장되지 않습니다.<br>
         T맵 연결이 안 되면 <b>직선거리</b>로 임시 정렬되며, 화면에 안내가 표시됩니다.<br>
-        <span style="color:var(--gray-300);">설정 변경이 필요하면 관리자에게 문의하세요.</span>
+        <span style="color:var(--gray-400);">설정 변경이 필요하면 관리자에게 문의하세요.</span>
       </div>
     </div>
     <div class="setting-title" style="margin-top:16px;">💬 알림톡 · 문자</div>
@@ -6433,7 +6434,7 @@ function renderSettings(){
       <div style="font-size:11.5px;color:var(--gray-400);line-height:1.7;">
         알리고 인증정보는 <b>서버에만</b> 보관됩니다. 이 앱에는 키가 저장되지 않습니다.<br>
         도착·하차 시 <b>카카오 알림톡</b>이 나가고, 실패하면 <b>문자(SMS)</b>로 자동 재발송됩니다.<br>
-        <span style="color:var(--gray-300);">설정 변경이 필요하면 관리자에게 문의하세요.</span>
+        <span style="color:var(--gray-400);">설정 변경이 필요하면 관리자에게 문의하세요.</span>
       </div>
     </div>
     ` : ''}
@@ -11263,7 +11264,8 @@ function printClientRange(){
     +'.inv-bal .bv{text-align:left;}.inv-bal .rgt{text-align:right;}'
     // 요약표 전용
     +'.range-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;}'
-    +'.range-tbl th,.range-tbl td{border:1px solid #C00;font-size:11px;padding:4px 5px;text-align:center;overflow:hidden;word-break:break-all;}'
+    /* v256 보정3: 낱글자로 쪼개던 것을 **단어 단위**로 (긴 품목명·주소가 읽기 좋게) */
+    +'.range-tbl th,.range-tbl td{border:1px solid #C00;font-size:11px;padding:4px 5px;text-align:center;overflow:hidden;word-break:keep-all;overflow-wrap:anywhere;}'
     +'.range-tbl col.rc-date{width:12%;}.range-tbl col.rc-kind{width:7%;}.range-tbl col.rc-item{width:33%;}.range-tbl col.rc-num{width:12%;}'
     +'.range-tbl td.item{text-align:left;white-space:normal;line-height:1.4;}'
     +'.range-tbl th{background:#FEF2F2;color:#C00;}'
@@ -13804,7 +13806,8 @@ function dlvPrint(){
   var D=buildDriveLogData(dlvCarId, dlvYm);
   if(!D) return;
   var fname='운행기록부_'+(D.car.name||'차량')+'_'+dlvYm+'.pdf';
-  var css='.pdf-page{padding:8mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:break-all;}';
+  /* v256 보정3: 낱글자로 쪼개던 것을 **단어 단위**로 (급여명세서 PDF 와 같은 꼴로 맞췄다) */
+  var css='.pdf-page{padding:8mm;box-sizing:border-box;} table{border-collapse:collapse;} td{word-break:keep-all;overflow-wrap:anywhere;}';
   /* 1쪽 = 본표(사진 없음) / 2쪽 = 주유·정비 표 + 계기판 사진 크게 */
   function go(src){
     var html='<div class="pdf-page">'+dlvFormHtml(D,'print','','page1')+'</div>'

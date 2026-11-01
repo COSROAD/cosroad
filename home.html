@@ -31,7 +31,8 @@
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   html{scroll-behavior:smooth;}
-  body{font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,sans-serif;background:var(--cream);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;word-break:keep-all;}
+  /* v256 보정3: keep-all 은 있었고 overflow-wrap 을 더했다 — 긴 URL·번호가 넘치지 않게 (앱과 같은 두 줄) */
+  body{font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,sans-serif;background:var(--cream);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere;}
   a{text-decoration:none;color:inherit;}
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px;}
   header{position:sticky;top:0;z-index:50;background:rgba(255,248,243,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}

@@ -116,6 +116,10 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
   「사용하는 앱 창은 항상 간결하고 직관적으로 — 버튼이 많으면 사용자가 불편」.
   기사 화면에 단추를 더하기 전에 먼저 되물을 것. 회원 출석 PIN 판은 **관리자 화면에만** 있다.
   차량 탭도 기사에게는 **자기 차량 한 칸**만 보인다(`driverLockedCarId()` — 토큰의 carId, 화면에서 못 바꿈).
+- **한국어 줄바꿈은 5개 파일 `body` 에 모두 같은 두 줄** (v256 보정3) —
+  `index.html`·`s.html`·`home.html`·`terms.html`·`privacy.html` 전부 `word-break:keep-all; overflow-wrap:anywhere;`.
+  **인쇄·PDF 표 칸도 같은 두 줄**(거래명세서·거래내역·급여명세서). 낱글자로 쪼개지 않는다.
+  **`break-all` 로 남기는 자리는 URL 상자 둘뿐** — `.share-link-box`(235) · 공유 링크 미리보기(3916).
 - **한국어 줄바꿈 `keep-all` 은 `body` 에 전체 적용 — 새 화면도 따로 끄지 말 것** (v256).
   `index.html` `body{word-break:keep-all; overflow-wrap:anywhere;}` 한 자리에서 걸고,
   JS 로 만드는 화면(문자열 HTML)은 상속으로 함께 받는다. 둘을 **같이** 써야 한다 —

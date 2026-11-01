@@ -15,7 +15,11 @@
 -->
 <style>
   *{box-sizing:border-box;}
-  body{margin:0;padding:10px;background:#F2F4F7;font-family:"Malgun Gothic","맑은 고딕",-apple-system,sans-serif;color:#1D2939;}
+  /* v256 보정3: 한국어 줄바꿈을 **이 페이지 전체에** — 앱(index.html body)과 같은 두 줄.
+     keep-all = 낱글자로 쪼개지 않고 어절 단위로 넘긴다 /
+     overflow-wrap:anywhere = 띄어쓰기 없는 긴 URL·번호가 화면 밖으로 삐져나가지 않게.
+     둘을 **같이** 써야 한다 (keep-all 만 쓰면 긴 URL 이 가로 스크롤을 만든다). */
+  body{margin:0;padding:10px;background:#F2F4F7;font-family:"Malgun Gothic","맑은 고딕",-apple-system,sans-serif;color:#1D2939;word-break:keep-all;overflow-wrap:anywhere;}
   .wrap{max-width:900px;margin:0 auto;}
   .msg{background:white;border-radius:12px;padding:28px 20px;text-align:center;line-height:1.7;}
   .msg h2{margin:0 0 8px;font-size:17px;color:#1D2939;}
@@ -36,7 +40,8 @@
   .range-tbl th{background:#FEF2F2;color:#C00;text-align:center;}
   .range-tbl td.ctr{text-align:center;}
   .range-tbl td.rgt{text-align:right;}
-  .range-tbl td.item{text-align:left;word-break:break-all;}
+  /* v256 보정3: 품목 칸도 **단어 단위**로 (index.html 의 같은 표와 맞췄다) */
+  .range-tbl td.item{text-align:left;word-break:keep-all;overflow-wrap:anywhere;}
   .range-tbl tr.subt td{background:#FFFBFA;font-weight:700;}
   .range-tbl tfoot td{background:#FEF2F2;font-weight:800;}
   .rc-date{width:13%;}.rc-kind{width:7%;}.rc-item{width:28%;}.rc-num{width:10.4%;}
