@@ -628,7 +628,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 259;
+const APP_VERSION = 260;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -759,11 +759,11 @@ function loadCars(){
   var _stored=localStorage.getItem('tkd_cars');
   if(!_stored && isDemoMode()){ try{ var _s=getDemoSample(); if(_s.cars) return _s.cars; }catch(e){} }
   return JSON.parse(_stored||'null')||[
-    {id:'car1',name:'1호차',driver:'',phone:'',plate:'',driverPin:''},
-    {id:'car2',name:'2호차',driver:'',phone:'',plate:'',driverPin:''},
-    {id:'car3',name:'3호차',driver:'',phone:'',plate:'',driverPin:''},
-    {id:'car4',name:'4호차',driver:'',phone:'',plate:'',driverPin:''},
-    {id:'car5',name:'5호차',driver:'',phone:'',plate:'',driverPin:''},
+    {id:'car1',name:'1호차',driver:'',phone:'',plate:''},
+    {id:'car2',name:'2호차',driver:'',phone:'',plate:''},
+    {id:'car3',name:'3호차',driver:'',phone:'',plate:''},
+    {id:'car4',name:'4호차',driver:'',phone:'',plate:''},
+    {id:'car5',name:'5호차',driver:'',phone:'',plate:''},
   ];
 }
 function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveToFirebase('cars',c);}
@@ -3225,7 +3225,6 @@ function autoLoginFailed(){
    이제 마스터도 Firebase 계정으로 들어오고, **admins/{uid} 문서가 있는 계정만** 통과한다.
    규칙도 같은 문서를 본다(isAdmin()) — 그래서 그 세 곳을 닫을 수 있게 됐다.
    마스터 계정이 누구인지는 코드에 적지 않는다. 콘솔의 admins 문서가 정한다. */
-var masterCompanies = []; // [{group, name, orgId, createdAt}]
 var BIZ_GROUP_LABELS = { academy:'🏫 학원', logistics:'📦 물류', public:'🏛️ 공공', delivery:'🚚 택배' };
 
 /* 마스터 — 가입자 비밀번호 다시 정하기 (v250).
@@ -3760,7 +3759,7 @@ function drawMasterPanel(){
   h += '<div style="font-size:20px;font-weight:800;color:#1D2939;">🏢 업체 관리</div>';
   h += '<div style="display:flex;align-items:center;gap:8px;">';
   /* ── v259: 맨 위 수를 「승인된 업체 수」로 바꿨다 ──────────────────────────
-     v258 까지는 **옛 개통 대장**(masterCompanies) 수를 보여 줬다. 개통(주소 발급)은
+     v258 까지는 **옛 개통 대장** 수를 보여 줬다. 개통(주소 발급)은
      코스로드6 에서 폐기해 그 대장이 0건이라, 실제 가입 업체가 몇이든 늘 「총 0개」였다.
      이제 가입자 목록(signupUsers)에서 **기사 문서를 빼고**(role!=='driver' — 아래
      orgUsers 와 같은 기준) approved===true 를 업종별로 센다.
@@ -3910,13 +3909,13 @@ function drawMasterPanel(){
   }
   h += '</div>';
 
-  /* ── v259: 「개통 대장」 묶음을 화면에서 뺐다 ─────────────────────────────
+  /* ── v259: 「개통 대장」 묶음을 화면에서 뺐다 · v260: 그 코드까지 지웠다 ──────
      개통(주소 발급)은 코스로드6(2026-09-29)에 폐기했고, 그 뒤로 이 자리에는
      노란 안내 칸과 「(0) 등록된 업체 없음」 네 묶음만 남아 있었다(지난 기록, 0건).
-     ★ 자료(orgs/_master/data/companies)는 **지우지 않는다** — 규칙도 그대로다.
-       화면에서 쓰지 않으므로 로더(loadMasterCompanies)도 부르지 않는다(showMasterPanel).
-       addMasterCompany·deleteMasterCompany 는 코스로드6 이후 단추가 없어 닿지 못하지만,
-       혹시 불렸을 때 **빈 목록으로 덮어쓰지 않도록** 그 안에서 먼저 읽게 해 두었다. */
+     v260: 화면에서 닿지 못하던 다섯 함수(목록 읽기·저장·추가·삭제·주소 복사)와
+     그 배열 선언도 지웠다 — 부르는 곳이 0임을 먼저 전수 확인했다.
+     ★ 자료(orgs/_master/data/companies)는 **그대로 있다** — 규칙도 그대로고,
+       이제 앱에는 그 자리를 읽거나 쓰는 코드가 **하나도 없다**(지우는 코드도 없다). */
   root.innerHTML = h;
 }
 
@@ -3940,68 +3939,6 @@ function escapeMasterHtml(s){
 function jsArg(v){
   return escapeMasterHtml(JSON.stringify(String(v==null?'':v)));
 }
-
-async function loadMasterCompanies(){
-  try{
-    if(window._db && window._firestore){
-      var { doc, getDoc } = window._firestore;
-      var snap = await getDoc(doc(window._db, 'orgs', '_master', 'data', 'companies'));
-      if(snap.exists()){ masterCompanies = JSON.parse(snap.data().value)||[]; return; }
-    }
-  }catch(e){ console.log('업체 목록 로드 실패:', e.message); }
-  masterCompanies = [];
-}
-
-async function saveMasterCompanies(){
-  try{
-    if(window._db && window._firestore){
-      var { doc, setDoc } = window._firestore;
-      await setDoc(doc(window._db, 'orgs', '_master', 'data', 'companies'), { value: JSON.stringify(masterCompanies), updatedAt: Date.now() });
-    }
-  }catch(e){ console.log('업체 목록 저장 실패:', e.message); alert('저장 중 오류가 발생했습니다.'); }
-}
-
-async function addMasterCompany(){
-  /* v259: 화면에서 개통 대장을 뺀 뒤로는 masterCompanies 를 미리 읽지 않는다.
-     이 함수는 코스로드6 이후 단추가 없어 닿지 못하지만, 혹시 불리면 빈 목록에
-     한 줄만 넣어 **저장된 지난 기록을 덮어쓸** 수 있다 → 먼저 읽는다. */
-  await loadMasterCompanies();
-  var group = document.getElementById('new-co-group').value;
-  var name = document.getElementById('new-co-name').value.trim();
-  var rawId = document.getElementById('new-co-id').value.trim().toLowerCase();
-  if(!name){ alert('업체 이름을 입력해주세요.'); return; }
-  if(!rawId || !/^[a-z0-9_]+$/.test(rawId)){ alert('주소 ID는 영문 소문자/숫자/밑줄(_)만 사용하세요.'); return; }
-  var orgId = group + '_' + rawId;
-  if(masterCompanies.some(function(c){ return c.orgId===orgId; })){
-    alert('이미 같은 주소 ID의 업체가 있습니다.'); return;
-  }
-  masterCompanies.push({ group:group, name:name, orgId:orgId, createdAt:Date.now() });
-  await saveMasterCompanies();
-  drawMasterPanel();
-}
-
-// 업체 삭제 (addMasterCompany의 반대 동작)
-async function deleteMasterCompany(orgId){
-  /* v259: 위 addMasterCompany 와 같은 까닭 — 먼저 읽고 나서 지운다 */
-  await loadMasterCompanies();
-  var target = masterCompanies.find(function(c){ return c.orgId===orgId; });
-  if(!target){ return; }
-  if(!confirm('"'+ (target.name||orgId) +'" 업체를 삭제할까요?\n삭제하면 목록에서 사라지며 되돌릴 수 없습니다.')){ return; }
-  masterCompanies = masterCompanies.filter(function(c){ return c.orgId!==orgId; });
-  await saveMasterCompanies();
-  drawMasterPanel();
-}
-
-function copyMasterUrl(orgId){
-  var url = 'https://cosroad.com/?org='+orgId;
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(function(){ alert('주소가 복사됐어요!\n'+url); },
-      function(){ window.prompt('아래 주소를 복사하세요:', url); });
-  } else {
-    window.prompt('아래 주소를 복사하세요:', url);
-  }
-}
-
 
 // ══════════════════════
 // 코스로드 도우미 '코스' 챗 — 내장 도움말 봇(비용 0) + 문의 창구
@@ -14546,6 +14483,8 @@ function orgCodeCardHtml(){
 function drvWhyText(w, ok){
   if(w==='nocode'||w==='badpin') return '업체 번호·PIN 틀림';
   if(w==='locked')   return '여러 번 틀려 잠김';
+  /* v260: 업체 번호 단위 상한 — 새 기기에서 1시간 20회 틀리면 그 업체의 **새 기기 로그인만** 멈춘다 */
+  if(w==='orglock')  return '새 기기 로그인 잠시 멈춤';
   if(w==='expired')  return '업체 이용 기간 끝';
   if(w==='device')   return '다른 기기';
   if(w==='punch:in') return '출근';

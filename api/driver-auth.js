@@ -29,6 +29,15 @@ const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://
 const FAIL_WINDOW = 10 * 60 * 1000;   // 10분
 const FAIL_MAX    = 5;                // 5회 틀리면 잠금
 const IP_LIMIT    = [3600 * 1000, 60];  // IP 1시간 60회 (한 업체에 기사가 여럿일 수 있다)
+/* ── v260: 업체 번호 단위 실패 상한 ──────────────────────────────────────────
+   지금까지의 잠금은 「업체 번호 + 기기」 10분 5회와 「IP」 1시간 60회였다.
+   그러면 기기 id 를 바꿔 가며 여러 IP 로 나눠 시도할 때, **아직 한 번도 로그인하지 않은
+   기사**의 PIN(1만 가지)을 맞혀 그 기기로 먼저 묶어 버릴 수 있다.
+   그래서 업체 번호 단위로도 센다 — 단, **아직 묶이지 않은 기기의 실패만** 센다.
+   넘으면 그 업체의 **새 기기 로그인만** 1시간 멈추고,
+   **이미 묶인 기기(평소 쓰는 기사 폰)는 그대로 로그인된다**(공격으로 업체가 멈추지 않게). */
+const ORG_FAIL_WINDOW = 3600 * 1000;   // 1시간
+const ORG_FAIL_MAX    = 20;            // 새 기기에서 1시간 20회 틀리면 새 기기 로그인만 멈춤
 /* 로그인 기록은 지우지 않고 쌓아 둔다 — 한 번 로그인에 문서 하나로 작고,
    「언제 어디서 들어왔나」는 지난 것도 남아 있어야 쓸모가 있다.
    관리자 화면은 api driverInfo 가 **최근 5건만** 골라 준다. */
@@ -174,6 +183,46 @@ export default async function handler(req, res) {
         tx.set(fRef, { at: at.slice(-20), updatedAt: now });
       });
     } catch (e) { console.log('[driver-auth] 실패 기록 못 남김'); }
+  }
+  /* ── v260: 업체 번호 단위 실패 (새 기기만) ──
+     기록 자리: driverRl/o.<sha256(orgId)> — 기존 f.*·i.* 와 같은 꼴(서버 전용 컬렉션).
+     orgOverLimit: 넘었나 본다(세지는 않는다) / bumpOrgFail: 한 번 센다
+     clearOrgFail: **새 기기가 제대로 묶였을 때** 비운다 — 기사 여럿이 첫 로그인에서
+       잘못 눌러 20회가 차는 일이 있어도, 한 명이 제대로 들어오면 바로 풀리게. */
+  const orgRlRef = (org) => A.db.collection('driverRl').doc('o.' + sha256(String(org)));
+  async function orgOverLimit(org) {
+    const now = Date.now();
+    try {
+      const s = await orgRlRef(org).get();
+      const at = (((s.exists && s.data()) || {}).at || []).filter(t => now - t < ORG_FAIL_WINDOW);
+      return at.length >= ORG_FAIL_MAX;
+    } catch (e) { console.log('[driver-auth] 업체 상한 읽기 실패'); return false; }
+  }
+  async function bumpOrgFail(org) {
+    const now = Date.now();
+    try {
+      await A.db.runTransaction(async (tx) => {
+        const ref = orgRlRef(org);
+        const s = await tx.get(ref);
+        const at = (((s.exists && s.data()) || {}).at || []).filter(t => now - t < ORG_FAIL_WINDOW);
+        at.push(now);
+        tx.set(ref, { at: at.slice(-(ORG_FAIL_MAX + 5)), updatedAt: now });
+      });
+    } catch (e) { console.log('[driver-auth] 업체 실패 기록 못 남김'); }
+  }
+  async function clearOrgFail(org) {
+    try { await orgRlRef(org).delete(); } catch (e) {}
+  }
+  /* 이 기기가 그 업체의 **어느 차량에든 이미 묶여 있나** — PIN 을 맞추기 전에 알 수 있다.
+     (묶인 기기면 업체 단위 상한을 건너뛴다) */
+  async function deviceBoundToOrg(org, deviceId) {
+    if (!deviceId) return false;
+    try {
+      const snap = await A.db.collection('driverDevices').where('org', '==', org).get();
+      let found = false;
+      snap.forEach(d => { if (String((d.data() || {}).deviceId || '') === deviceId) found = true; });
+      return found;
+    } catch (e) { console.log('[driver-auth] 기기 묶임 확인 실패'); return false; }
   }
   async function clearFail(codeKey, deviceId) {
     try {
@@ -330,9 +379,21 @@ export default async function handler(req, res) {
         if (s.exists) org = String((s.data() || {}).orgId || '') || null;
       } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
       if (!org) {
+        /* 없는 번호는 **업체 단위로 세지 않는다** — 셀 업체가 없다.
+           없는 번호로 미리 카운트를 쌓아 「앞으로 만들 번호」를 막는 길도 막는다.
+           번호 찍어보기는 기기 10분 5회·IP 1시간 60회가 이미 누른다. 문구·상태코드도 같다. */
         await bumpFail(code, deviceId);
         await writeLogin('', '', false, 'nocode', deviceId, loc);
         return fail(res, 401, SAME);     // 없는 번호도 **같은 문구**
+      }
+
+      /* ── v260: 업체 단위 상한 — **묶이지 않은 기기**만 걸린다 ──
+         이미 묶인 기기는 건너뛴다(평소 쓰는 기사 폰은 공격 중에도 그대로 들어온다). */
+      const bound = await deviceBoundToOrg(org, deviceId);
+      if (!bound && await orgOverLimit(org)) {
+        await writeLogin(org, '', false, 'orglock', deviceId, loc);
+        /* 기존 잠금과 **같은 꼴**로 답한다 — 업체가 있는지 없는지 새지 않게 */
+        return fail(res, 429, '잠시 뒤 다시 시도해 주세요.', 'locked');
       }
 
       /* 그 업체 기사 PIN 들과 대조 — 해시 비교 */
@@ -347,6 +408,8 @@ export default async function handler(req, res) {
       } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
       if (!carId) {
         await bumpFail(code, deviceId);
+        /* v260: 묶이지 않은 기기의 실패만 업체 단위로 센다 */
+        if (!bound) await bumpOrgFail(org);
         await writeLogin(org, '', false, 'badpin', deviceId, loc);
         return fail(res, 401, SAME);     // 틀린 PIN 도 **같은 문구**
       }
@@ -369,6 +432,9 @@ export default async function handler(req, res) {
           }
         } else {
           await devRef.set({ org: org, carId: carId, deviceId: deviceId, boundAt: Date.now() });
+          /* v260: 새 기기가 **제대로** 묶였다 — 업체 단위 실패 수를 비운다.
+             (기사 여럿이 첫 로그인에서 잘못 눌러 20회가 차도 한 명이 들어오면 풀린다) */
+          await clearOrgFail(org);
         }
       } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
 

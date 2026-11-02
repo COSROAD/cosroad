@@ -19,6 +19,15 @@
     환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET` 필요
     `login`: 업체 번호 + PIN → 해시 대조 → 기기 묶기 → `createCustomToken(drv_<org>_<carId>, {driver,org,carId})`
     없는 번호·틀린 PIN 은 **같은 문구**(업체 존재 여부가 새지 않게) · 10분 5회 잠금 · IP 1시간 60회
+    **v260 — 업체 번호 단위 상한 하나 더**: `ORG_FAIL_MAX 20` / `ORG_FAIL_WINDOW 1시간`.
+    기기 id 를 바꿔 가며 여러 IP 로 나눠 시도하면 「아직 한 번도 로그인 안 한 기사」의 PIN 을
+    맞혀 그 기기로 먼저 묶을 수 있었다. 그래서 **아직 묶이지 않은 기기의 실패만** 업체 단위로 센다
+    (`driverRl/o.<sha256(org)>`). 넘으면 그 업체는 **새 기기 로그인만** 1시간 멈추고,
+    **이미 묶인 기기는 그대로 로그인된다**(공격으로 업체가 멈추지 않게).
+    없는 번호는 세지 않는다(셀 업체가 없고, 앞으로 만들 번호를 미리 막는 길도 막는다).
+    새 기기가 제대로 묶이면 그 수를 **비운다**(기사 여럿이 첫 로그인에서 잘못 눌러도 한 명이
+    들어오면 풀린다). 멈춘 동안 응답은 기존 잠금과 **같은 꼴**(`why:'orglock'` 은 기록에만 남고
+    차량관리 「최근 로그인」에 「새 기기 로그인 잠시 멈춤」으로 보인다).
     `checkin`/`checkout`: carId·org 는 **토큰 claim 만** 쓴다(본문 값 불신) · `driverAtt` 를 트랜잭션으로 고친다
     시각은 **서버 KST**(`new Date(ms+9h)` 후 UTC getter) — 폰 시계를 바꿔도 안 바뀐다
     `pinCheckin`: 관리자 공용 패드용. 기사 PIN 이 아니면 404 `why:'notdriver'` → 앱이 직원·회원 PIN 으로 이어 본다
@@ -36,7 +45,11 @@
   - 관리자: 휴대폰 번호(또는 이메일) + 비밀번호 — 계정 로그인 (기기 비밀번호 없음, v249)
   - 기사: **업체 번호 6자리 + 내 PIN 4자리** — 서버가 맞추고 custom token 을 준다(`api/driver-auth`).
     기사는 스스로 가입하지 않는다. 관리자가 차량관리에서 PIN 을 정해 준다.
-    v250~v254 의 기사 계정(휴대폰+비밀번호)은 없앴다 — `createDriver` 등 api 는 남아 있지만 화면에서 부르지 않는다.
+    v250~v254 의 기사 계정(휴대폰+비밀번호)은 없앴다 — **v260 에 그 api 세 동작까지 지웠다**
+    (`createDriver`·`resetDriverPassword`·`removeDriver`). 그 이름으로 요청이 오면 400 「알 수 없는 요청이에요」.
+    기사 정리는 「PIN 지우기」(`removeDriverPin`)·「기기 풀기」(`unbindDevice`)로 한다.
+    새 차량 기본값에도 `driverPin` 칸이 없다(v260) — PIN 은 서버 `driverPins` 에만 둔다.
+    (둘러보기 `_demo` 샘플 차량의 `driverPin` 은 체험용이라 그대로 남아 있다.)
   - **로그인 ≠ 출근.** 근태로 세는 출퇴근은 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로만 기록한다.
   - 둘러보기(`_demo`)만 계정 없이 들어간다 — 기사 둘러보기는 종전 PIN 판(앱 자료) 그대로다.
 - 배포: GitHub push → Vercel 자동 배포. 정적 페이지는 GitHub Pages(cosroad.com)

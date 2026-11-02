@@ -197,75 +197,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    /* ── a) 기사 계정 만들기 ── */
-    if (action === 'createDriver') {
-      const org = String(b.org || '').trim();
-      const carId = String(b.carId || '').trim();
-      const name = String(b.name || '').trim();
-      const pw = String(b.password || '');
-      const loginId = phoneLoginId(b.phone);
-      const digits = phoneDigits(b.phone);
-
-      if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
-      if (!(isMaster || await isOwnerOf(org) || await isTestAccessFor(org))) return fail(res, 403, '이 업체의 기사 계정을 만들 권한이 없어요.');
-      if (digits.length < 10 || digits.indexOf('0') !== 0) return fail(res, 400, '휴대폰 번호를 정확히 넣어 주세요. (예: 010-1234-5678)');
-      if (pw.length < 6) return fail(res, 400, '비밀번호는 6자 이상이어야 해요.');
-
-      /* 이미 쓰는 번호인가 */
-      try {
-        await A.auth.getUserByEmail(loginId);
-        return fail(res, 409, '이미 쓰는 번호예요. 다른 번호를 쓰거나, 그 기사 계정의 비밀번호를 다시 정해 주세요.');
-      } catch (e) {
-        if (!e || e.code !== 'auth/user-not-found') {
-          return fail(res, 500, '번호 확인에 실패했어요. 잠시 뒤 다시 시도해 주세요.');
-        }
-      }
-
-      /* ownerUid — 이 기사가 딸린 업체의 **소유자**. 규칙(isActiveDriver → ownerAlive)이
-         이 값으로 소유자의 승인·만료를 본다. 계정을 만들기 **전에** 정해 둔다 —
-         못 찾으면 계정만 떠도는 일이 없도록 여기서 멈춘다. (v251) */
-      const own = await resolveOwnerUid(org);
-      if (own.error) return fail(res, 409, own.error);
-      const ownerUid = own.uid;
-
-      const created = await A.auth.createUser({ email: loginId, password: pw, displayName: name || undefined });
-      const now = Date.now();
-      const rec = { role: 'driver', driverOrg: org, ownerUid: ownerUid,
-                    carId: carId, name: name, phone: digits, createdAt: now };
-      await A.db.collection('users').doc(created.uid).set(rec);
-      await A.db.collection('orgs').doc(org).collection('drivers').doc(created.uid)
-        .set({ carId: carId, name: name, phone: digits, ownerUid: ownerUid, createdAt: now });
-      return res.status(200).json({ ok: true, driverUid: created.uid, loginPhone: digits });
-    }
-
-    /* ── b) 기사 비밀번호 다시 정하기 ── */
-    if (action === 'resetDriverPassword') {
-      const org = String(b.org || '').trim();
-      const driverUid = String(b.driverUid || '').trim();
-      const pw = String(b.password || '');
-      if (!org || !driverUid) return fail(res, 400, '기관·기사 정보가 빠졌어요.');
-      if (!(isMaster || await isOwnerOf(org) || await isTestAccessFor(org))) return fail(res, 403, '이 업체의 기사 비밀번호를 바꿀 권한이 없어요.');
-      if (pw.length < 6) return fail(res, 400, '비밀번호는 6자 이상이어야 해요.');
-      const d = await A.db.collection('orgs').doc(org).collection('drivers').doc(driverUid).get();
-      if (!d.exists) return fail(res, 404, '이 업체의 기사 계정이 아니에요.');
-      await A.auth.updateUser(driverUid, { password: pw, disabled: false });
-      return res.status(200).json({ ok: true });
-    }
-
-    /* ── c) 기사 계정 끊기 ── */
-    if (action === 'removeDriver') {
-      const org = String(b.org || '').trim();
-      const driverUid = String(b.driverUid || '').trim();
-      if (!org || !driverUid) return fail(res, 400, '기관·기사 정보가 빠졌어요.');
-      if (!(isMaster || await isOwnerOf(org) || await isTestAccessFor(org))) return fail(res, 403, '이 업체의 기사 계정을 끊을 권한이 없어요.');
-      const d = await A.db.collection('orgs').doc(org).collection('drivers').doc(driverUid).get();
-      if (!d.exists) return fail(res, 404, '이 업체의 기사 계정이 아니에요.');
-      /* 계정은 **지우지 않고 잠근다** — 출퇴근·차계부 기록이 그 uid 로 남아 있다 */
-      await A.auth.updateUser(driverUid, { disabled: true });
-      await A.db.collection('orgs').doc(org).collection('drivers').doc(driverUid).delete();
-      return res.status(200).json({ ok: true });
-    }
-
+    /* ── v260: 옛 기사 계정 세 동작을 지웠다 (createDriver · resetDriverPassword · removeDriver) ──
+       v250~v254 의 기사 계정(휴대폰 번호 + 비밀번호)을 v255 에서 없앴다(업체 번호 + PIN).
+       화면에서 부르는 곳이 0임을 먼저 전수 확인한 뒤 지웠다(앱·다른 api·문답표 모두 0).
+       지운 이름으로 요청이 오면 아래 맨 끝의 **모르는 action 처리**로 떨어져 400 이 된다.
+       기사 정리는 「PIN 지우기」(removeDriverPin)·「기기 풀기」(unbindDevice)로 한다. */
     /* ══════════ 기사 로그인 (v255) ══════════
        권한은 전부 **세 갈래**로 같다: 마스터 · 그 업체 소유자 · _test 출입 허용 계정.
        PIN 원문은 응답·로그 어디에도 담지 않는다. */
