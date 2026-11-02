@@ -32,15 +32,44 @@
     시각은 **서버 KST**(`new Date(ms+9h)` 후 UTC getter) — 폰 시계를 바꿔도 안 바뀐다
     `pinCheckin`: 관리자 공용 패드용. 기사 PIN 이 아니면 404 `why:'notdriver'` → 앱이 직원·회원 PIN 으로 이어 본다
     서버 전용 컬렉션(규칙 `read, write: if false`): `orgCodes`·`driverPins`·`driverDevices`·`driverLogins`·`driverRl`
-  - `otp.js` 문자 인증번호 공통 기반 (firebase-admin, v252) — `send` / `verify-reset` / `changePhone`
+  - `signup.js` **가입** (firebase-admin, v261) — `bizCheck` / `create`
+    환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET`·`ALIGO_*`·**`DATA_GO_KR_KEY`**(국세청) 필요
+    순서: 인증번호 확인(`purpose:'signup'`) → **국세청 진위+계속사업자 확인을 서버에서 다시**
+    → `createUser` → `users/{uid}` → 문자 2건(마스터 알림·신청자 계좌). users 쓰기가 실패하면
+    **방금 만든 계정을 지운다**(반쪽 계정 금지). 응답은 `{ok:true}` 뿐 — 토큰·비번·uid 를 안 준다.
+    국세청: `POST https://api.odcloud.kr/api/nts-businessman/v1/validate` · `serviceKey`·`returnType` 은 쿼리,
+    본문 `{businesses:[{b_no,start_dt,p_nm}]}` — **선택 칸은 보내지 않는다**(`p_nm2` 를 넣으면 진위확인이 안 된다).
+    `valid=='01'` AND `status.b_stt_cd=='01'`(계속사업자)만 통과 · **장애·키 없음이면 가입을 막는다**(조용히 통과 금지).
+    체크섬(`bizNoChecksumOk`)에서 걸리면 국세청을 **부르지 않는다**. 미리 확인(`bizCheck`)은 IP 1시간 30회.
+    같은 사업자번호는 **막지 않고** `bizNoDup` 으로 표시만 한다(지점 운영이 있다 — 사장님 결정).
+    마스터 알림 받을 번호는 `orgs/_master/data/billing.notifyPhone`(비면 `010-3660-3911`).
+  - `otp.js` 문자 인증번호 (firebase-admin, v252 · v261 공용 분리) — `send` / `verify-reset` / `changePhone`
     환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET`·`ALIGO_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER` 필요
     인증번호는 **서버에서만** 만들고 맞춘다 (화면은 번호·6자리만 보낸다) · 코드 원문은 저장·로그 금지(해시만)
     Firestore `otp` 컬렉션에 보관 — 규칙은 `read, write: if false` (Admin SDK 만 접근)
-    쓰임새(`purpose`)로 나눠 둔다: `reset`(본인 비번 재설정) · `changeNew`(마스터 번호 교체) · `signup`은 다음 회차
+    쓰임새(`purpose`): `reset`(본인 비번 재설정) · `changeNew`(마스터 번호 교체) · **`signup`(가입, v261)**
+    `reset` 은 **없는 번호도 성공처럼** 답한다(남의 가입 여부 감추기). `signup` 은 반대로 이미 가입된 번호면 409 —
+    가입 창이라 숨길 이유가 없고, 숨기면 왜 안 되는지 알 수 없다.
+  - `lib/otp-core.js` 인증번호 공용 한 벌 (v261) — `otp.js`·`signup.js` 가 **같은 코드**로 맞춘다
+    만들기·맞추기(`checkCode`)·빈도 제한·번호 규칙(`phoneDigits`·`phoneLoginId`)·`clientIp`·알리고 호출.
+    **왜 `api/` 밖인가** — Vercel 공식 문서대로다: `api/` 안의 파일은 **그 자체가 함수 주소로 열린다**
+    (「Keep shared utilities and route modules outside `api/`」). 밑줄(`_`) 예외는 공식 문서에 없다.
+    ★ 맞추는 코드를 복사하면 두 파일이 서로 다른 셈을 해 v253 의 「5회 틀리면 폐기」가 반쪽이 된다.
     v253: 코드 확인(`checkCode`)은 **한 트랜잭션** — 따로 읽고 쓰면 동시 요청이 「5회 틀리면 폐기」를
     무력화한다. 확인 쪽 빈도 제한도 별도(`rl.v.*` 번호 10분 10회 · `rl.vi.*` IP 10분 30회).
     요청자 IP 는 `clientIp()` 하나로 — `x-vercel-forwarded-for` → `x-forwarded-for` → `x-real-ip` 순
     (Vercel 공식 문서: `x-forwarded-for` 는 플랫폼이 덮어써 위조를 막고, `x-vercel-...` 는 프록시에도 안 덮인다)
+- **가입: 사업자만, 한 길 (v261).** 가입 창은 업종·업체명 → **휴대폰 문자 인증 6자리**
+  → **사업자등록번호·대표자·개업일자 + 「🔎 사업자 확인」**(국세청) → 비밀번호 → 약관 → 「가입 신청」.
+  「사업자 확인」을 통과해야 「가입 신청」 단추가 열리고, 사업자 칸을 고치면 다시 잠긴다.
+  **계정과 `users/{uid}` 는 서버(`api/signup.js`)만 만든다** — 규칙도 `users create: if false` 로 닫았다.
+  화면이 보내온 사업자 확인 결과는 **서버가 다시** 물어 확인한다(화면 값 불신).
+  가입 뒤에는 그 번호·비밀번호로 `loginAdmin()` 을 한 번 불러 **승인 대기 화면**으로 간다.
+  `users` 에 더해진 칸: `bizNo`·`bizCeo`·`bizOpenDate`·`bizCheckedAt`·`bizNoDup`(+`phone`·`signupMethod`).
+  **이 일곱은 본인이 못 바꾼다**(규칙 update 보호 목록 17개). 연락처 칸은 없앴다 — 인증한 번호가 연락처다.
+  **이메일 가입은 없앴지만 이미 이메일로 가입한 계정은 그대로** — 이메일 로그인과
+  재설정 메일(`pwrMailPath`)은 남겨 뒀다. v260 이전 가입자는 사업자 칸이 없어 마스터 패널에
+  「사업자 확인 전」으로 나온다.
 - **로그인: 입구가 둘이다 (v255).** 로그인 화면에서 「🚐 기사 로그인」·「👨‍💼 관리자 로그인」을 고른다.
   - 관리자: 휴대폰 번호(또는 이메일) + 비밀번호 — 계정 로그인 (기기 비밀번호 없음, v249)
   - 기사: **업체 번호 6자리 + 내 PIN 4자리** — 서버가 맞추고 custom token 을 준다(`api/driver-auth`).

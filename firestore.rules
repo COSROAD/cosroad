@@ -281,25 +281,16 @@ service cloud.firestore {
     match /users/{uid} {
       allow get:    if signedIn() && (request.auth.uid == uid || isAdmin());
       allow list:   if isAdmin();                        // 마스터 가입자 목록 (닫음)
-      // ── 가입 문서 내용 검사 (v249) ────────────────────────────────────
-      // 전에는 "로그인했고 자기 uid" 뿐이어서, 앱을 거치지 않고 직접 쓰면
-      //   ① approved:true · plan:'paid' 를 스스로 넣어 **입금 없이** 쓸 수 있었고,
-      //   ② orgId 를 남의 업체 번호로 적어 isMyOrg() 를 통과 →
-      //      그 업체의 자료(orgs/{orgId})를 읽고 쓸 수 있었다.
-      // 그래서 앱의 정상 가입(index.html suSaveUserDoc)이 만드는 **그 모양만** 허용한다.
-      //   orgId = bizType + '_' + uid 앞 12자 / approved:false / status·plan:'pending' / trialStart 없음
-      // 나머지 키(orgName·contact·createdAt·email 또는 phone·signupMethod)는 그대로 통과한다.
-      // ※ 승인(approved:true·status:'active'·trialStart·plan:'trial')은 아래 update 의
-      //    마스터 분기에서만 일어난다 — 그쪽은 손대지 않았다.
-      allow create: if signedIn()
-                    && request.auth.uid == uid
-                    && uid.size() >= 12
-                    && request.resource.data.bizType in ['academy','public','logistics','delivery']
-                    && request.resource.data.orgId == request.resource.data.bizType + '_' + uid[0:12]
-                    && request.resource.data.approved == false
-                    && request.resource.data.status == 'pending'
-                    && request.resource.data.plan == 'pending'
-                    && !request.resource.data.keys().hasAny(['trialStart']);
+      // ── v261: 가입 문서 만들기를 **서버 전용으로 닫았다** ──────────────────
+      //   v249~v260 은 「앱이 만드는 그 모양」만 허용했다(approved:false·plan:'pending' 등).
+      //   그래도 **브라우저가 직접** 계정을 만들고 이 문서를 쓸 수 있었으므로,
+      //   휴대폰 인증과 사업자 확인을 **건너뛴 가입**이 가능했다.
+      //   또 모양 검사는 role·driverOrg·ownerUid·carId·testAccess 같은 키를 막지 않았다.
+      //   이제 가입은 **api/signup.js(Admin SDK)** 만 만든다 —
+      //   인증번호 확인 → 국세청 사업자 진위·계속사업자 확인 → 계정 → 이 문서 순서로,
+      //   문서 쓰기가 실패하면 방금 만든 계정을 지운다(반쪽 계정 금지).
+      //   Admin SDK 는 규칙을 거치지 않으므로 false 로 닫아도 가입은 된다.
+      allow create: if false;                            // 서버(api/signup.js)만
       // 본인은 자기 문서를 고칠 수 있다. 단 두 가지를 막는다 —
       //   ① orgId : 바꿀 수 있으면 남의 기관으로 옮겨탄다.
       //   ② approved · status · plan · trialStart :
@@ -318,8 +309,15 @@ service cloud.firestore {
                           && !request.resource.data.diff(resource.data).affectedKeys()
                          // v253 보정2: testAccess 도 본인이 못 켜게 막는다 —
                          //   켤 수 있으면 아무 계정이나 스스로 _test 출입을 허가한다.
+                         // v261: 사업자 확인 결과와 로그인 번호도 본인이 못 바꾸게 막는다 —
+                         //   바꿀 수 있으면 「확인된 사업자」가 아닌 값으로 갈아 끼울 수 있고,
+                         //   phone 을 고치면 로그인 아이디(번호@phone.cosroad.com)와 어긋난다.
+                         //   사업자 정보는 api/signup.js 가 국세청 응답으로만 적고,
+                         //   번호 바꾸기는 마스터가 api/otp.js changePhone 으로 한다(둘 다 Admin).
                                 .hasAny(['approved','status','plan','trialStart','bizType',
-                                         'role','driverOrg','ownerUid','carId','testAccess']))
+                                         'role','driverOrg','ownerUid','carId','testAccess',
+                                         'bizNo','bizCeo','bizOpenDate','bizCheckedAt','bizNoDup',
+                                         'signupMethod','phone']))
                          // ★ 마스터 승인 — 승인 한 번에 네 값이 함께 바뀐다
                          //   (approved:true · status:'active' · trialStart=승인시각 · plan:'trial').
                          //   approved 하나만 허용하면 승인 자체가 막힌다(고쳐서 넓힘).
