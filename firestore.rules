@@ -111,6 +111,36 @@ service cloud.firestore {
              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', '') == orgId;
     }
 
+    // ── v263: 이용 기간 판정을 **한 줄**로 모았다 ──────────────────────────
+    // v262 까지는 같은 뜻을 세 곳이 따로 셌다 —
+    //   규칙(기사) ownerAlive · 앱 getTrialStatus · 앱 loadUserProfile.
+    // 그래서 한 곳만 고치면 어긋났고, 소유자 쪽은 **아예 판정이 없었다**
+    //   (isMyOrg 는 orgId 만 봤다 → 미입금·탈퇴·만료 업체도 앱 밖에서 읽고 쓸 수 있었다).
+    // 이제 세 곳이 **이 한 줄과 같은 뜻**을 쓴다:
+    //     살아 있음 = approved && !withdrawn && paidUntil > 지금
+    // paidUntil 은 **밀리초 숫자**다(서버 api/admin-account 가 KST 23:59:59.999 로 넣는다).
+    //   · 없으면 0 으로 읽어 「기간 없음」 = 막힘. 실사용 업체가 0곳이라 옛 계정 분기를 두지 않았다
+    //     (사장님 결정 11-03). 사장님 계정·예제 업체는 마스터가 「기간 정하기」로 넣는다.
+    //   · plan 글자('paid' 등)로는 **판정하지 않는다** — 오타 하나로 영구 무료가 된다.
+    // ★ get 호출 수: 아래 셋은 전부 **users/{내 uid} 한 문서**만 본다(isMyOrg 가 이미 읽는 그 문서).
+    //   그래서 새로 읽는 문서가 0개다 — 규칙 한 번에 10회(공식 문서) 한도에 여유가 생긴다.
+    function userApprovedAlive(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.get('approved', false) == true
+             && get(/databases/$(database)/documents/users/$(uid)).data.get('withdrawn', false) != true;
+    }
+    function userPaidNow(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.get('paidUntil', 0) > request.time.toMillis();
+    }
+    // 읽기용 — **만료돼도 자기 자료는 볼 수 있다**(사장님 결정: 만료 업체 = 읽기만).
+    //   미입금(승인 대기)·탈퇴는 읽기도 막는다.
+    function isMyOrgReadable(orgId) {
+      return isMyOrg(orgId) && userApprovedAlive(request.auth.uid);
+    }
+    // 쓰기용 — 기간이 살아 있을 때만.
+    function isMyOrgActive(orgId) {
+      return isMyOrgReadable(orgId) && userPaidNow(request.auth.uid);
+    }
+
     // ── orgs/{orgId}/data/{key} — 기관 자료 본체 ──────────────────────────
     // 회원·거래명세서·수납·세무·근태 등 앱 자료 전부. (12148 set · 12185 get · 12242 onSnapshot)
     // 두 모드(테스트 ?org=..._test · 개통 업체 ?org=...)가 모두 여기로 들어온다.
@@ -122,20 +152,20 @@ service cloud.firestore {
     //   _test 차량관리를 열면 기사 명부 읽기가 거부돼 「불러오는 중…」에서 멈췄다.
     //   (마스터는 isAdmin 으로 통과해서 증상이 안 보였다)
     match /orgs/{orgId}/drivers/{driverUid} {
-      allow read:  if signedIn() && (isMyOrg(orgId) || isAdmin() || testOrgAdmin(orgId) || request.auth.uid == driverUid);
+      allow read:  if signedIn() && (isMyOrgReadable(orgId) || isAdmin() || testOrgAdmin(orgId) || request.auth.uid == driverUid);
       allow write: if false;                              // Admin SDK 전용
     }
 
     // ── 기사 권한 (v250) ──────────────────────────────────────────────────
     // 기사는 users/{uid}.role=='driver' 이고 orgs/{org}/drivers/{uid} 에 있는 계정이다.
     // **업체(소유자)가 살아 있을 때만** 열린다 — 사장님 결정: 업체 만료·탈퇴면 기사도 잠김.
-    // 소유자 활성 판정은 앱의 getTrialStatus·loadUserProfile 과 같은 뜻으로 맞췄다:
-    //   · approved 가 아니면 닫는다
-    //   · withdrawn(탈퇴)이면 닫는다
-    //   · plan=='paid' → 무기한
-    //   · trialStart 가 없는데 approved 면 앱이 'paid' 로 본다(loadUserProfile) → 무기한
-    //   · trialStart 가 있으면 그때부터 30일
-    // trialStart 는 Date.now() 로 넣은 **밀리초 숫자**라 request.time.toMillis() 와 비교한다.
+    // ── v263: 소유자 활성 판정을 **위의 한 줄**로 바꿨다 ────────────────────
+    //   전(v262): approved && !withdrawn && (plan=='paid' || trialStart 없음 || now < trialStart+30일)
+    //     → get(users/소유자) 를 **5번** 썼고, 「plan 글자」와 「trialStart 없음」이
+    //       사실상 **무기한 통과**를 만들었다.
+    //   후(v263): approved && !withdrawn && paidUntil > 지금  (get 3번)
+    //   앱(getTrialStatus)·소유자 규칙(isMyOrgActive)과 **글자까지 같은 뜻**이다.
+    //   paidUntil 은 밀리초 숫자라 request.time.toMillis() 와 바로 견준다.
     function driverDoc(orgId) {
       return get(/databases/$(database)/documents/orgs/$(orgId)/drivers/$(request.auth.uid)).data;
     }
@@ -150,14 +180,8 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/admins/$(ownerUid))
              || (
                   exists(/databases/$(database)/documents/users/$(ownerUid))
-                  && get(/databases/$(database)/documents/users/$(ownerUid)).data.approved == true
-                  && get(/databases/$(database)/documents/users/$(ownerUid)).data.get('withdrawn', false) != true
-                  && (
-                       get(/databases/$(database)/documents/users/$(ownerUid)).data.get('plan', '') == 'paid'
-                       || !('trialStart' in get(/databases/$(database)/documents/users/$(ownerUid)).data)
-                       || request.time.toMillis()
-                          < get(/databases/$(database)/documents/users/$(ownerUid)).data.trialStart + 2592000000
-                     )
+                  && userApprovedAlive(ownerUid)
+                  && userPaidNow(ownerUid)
                 );
     }
     function isActiveDriver(orgId) {
@@ -225,11 +249,11 @@ service cloud.firestore {
     match /orgs/{orgId}/data/{key} {
       // 기관 격리(코스로드6): 남의 주소(?org=)를 알아도 자기 users.orgId 와 다르면 거부된다.
       allow read:  if signedIn()
-                   && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
+                   && (isMyOrgReadable(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
                        || (isActiveDriver(orgId) && driverReadableKey(key)));
       allow write: if signedIn()
                    && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
-                   && (isMyOrg(orgId) || testOrgAdmin(orgId)
+                   && (isMyOrgActive(orgId) || testOrgAdmin(orgId)
                        || (isActiveDriver(orgId) && driverWritableKey(key)));
     }
 
@@ -246,16 +270,16 @@ service cloud.firestore {
       //   delete 도 기사에게서 뺐다 — 목록을 못 읽으니 어차피 못 쓰는 길이고,
       //     문서 id 를 찍어 지우는 길까지 닫는다. 오래된 백업 정리는 관리자 쪽에서 된다.
       allow read:   if signedIn()
-                    && (isMyOrg(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId));
+                    && (isMyOrgReadable(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId));
       // 백업 문서에는 어느 키의 백업인지 `key` 필드가 있다(_backupBeforeSave) —
       // 문서 id(`<key>__<시각>`)를 쪼개는 대신 그 필드를 본다.
       // create 는 **남긴다** — 기사가 쓰는 키(carlog·rideState 등)를 저장할 때
       // 덮어쓰기 직전 백업이 여기로 들어온다. 막으면 기사 저장 때마다 백업이 빠진다.
       allow create: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || testOrgAdmin(orgId)
+                    && (isMyOrgActive(orgId) || testOrgAdmin(orgId)
                         || (isActiveDriver(orgId) && driverWritableKey(request.resource.data.key)));
       allow delete: if signedIn() && !isDemoOrg(orgId)
-                    && (isMyOrg(orgId) || testOrgAdmin(orgId));
+                    && (isMyOrgActive(orgId) || testOrgAdmin(orgId));
       allow update: if false;                            // 백업은 덮어쓰지 않는다
     }
 
@@ -314,10 +338,14 @@ service cloud.firestore {
                          //   phone 을 고치면 로그인 아이디(번호@phone.cosroad.com)와 어긋난다.
                          //   사업자 정보는 api/signup.js 가 국세청 응답으로만 적고,
                          //   번호 바꾸기는 마스터가 api/otp.js changePhone 으로 한다(둘 다 Admin).
+                         // v263: 이용 기간 값 네 개도 본인이 못 바꾸게 막는다 —
+                         //   paidUntil 은 **규칙이 보는 단 하나의 값**이다. 본인이 쓸 수 있으면
+                         //   10년 뒤로 적어 영원히 쓸 수 있다. 서버(api/admin-account)만 쓴다.
                                 .hasAny(['approved','status','plan','trialStart','bizType',
                                          'role','driverOrg','ownerUid','carId','testAccess',
                                          'bizNo','bizCeo','bizOpenDate','bizCheckedAt','bizNoDup',
-                                         'signupMethod','phone']))
+                                         'signupMethod','phone',
+                                         'paidUntil','trialEnd','contractMonths','paidAt']))
                          // ★ 마스터 승인 — 승인 한 번에 네 값이 함께 바뀐다
                          //   (approved:true · status:'active' · trialStart=승인시각 · plan:'trial').
                          //   approved 하나만 허용하면 승인 자체가 막힌다(고쳐서 넓힘).
@@ -329,11 +357,16 @@ service cloud.firestore {
                          //   **지운 키**를 모두 세므로 이 목록 하나로 켜기·끄기가 다 덮인다.
                          //   ※ 이 분기는 orgId 가 있는 문서에서만 통한다(기사 문서에는 orgId 가
                          //     없어 비교 자체가 터진다) → 마스터도 기사 문서엔 testAccess 를 못 쓴다.
+                         // ── v263: 마스터가 **화면에서** 쓸 수 있는 것은 testAccess 하나뿐 ──
+                         //   승인·승인취소·기간(돈이 걸린 값)은 **서버(api/admin-account)** 가 쓴다.
+                         //   Admin SDK 는 규칙을 거치지 않으므로 여기서 닫아도 승인은 된다.
+                         //   닫는 이유: 마스터 브라우저가 털리면 그 자리에서 paidUntil 을
+                         //   10년 뒤로 적을 수 있었다. 이제 그 길이 없다.
                          || (isAdmin()
                              && request.resource.data.orgId == resource.data.orgId
                              && request.resource.data.get('email','') == resource.data.get('email','')
                              && request.resource.data.diff(resource.data).affectedKeys()
-                                .hasOnly(['approved','status','plan','trialStart','testAccess']))
+                                .hasOnly(['testAccess']))
                        );
       // 탈퇴해도 본인은 지우지 못한다(사장님 결정) — withdrawn 표시만 남기고 로그인을 막는다.
       // 다만 **승인 대기(미승인) 신청은 마스터가 정리할 수 있다**(대기 목록 청소용, v232).
@@ -369,6 +402,17 @@ service cloud.firestore {
     // (지울 수 있으면 빈도 제한이 무의미해져 문자 폭탄 구멍이 된다).
     match /otp/{id} {
       allow read, write: if false;
+    }
+
+    // ── billingLog/{uid}/items/{id} — 승인·연장 기록 (v263) ────────────────
+    // 마스터가 「언제 얼마를 받아 몇 달을 열어 줬나」를 보는 자리다.
+    // **쓰기는 서버(api/admin-account, Admin SDK)만** — 금액이 적힌 자리를 브라우저가
+    //   쓸 수 있으면 기록 자체를 믿을 수 없게 된다.
+    // 업체 본인에게는 **읽기도 열지 않는다** — 받은 금액·메모는 업체가 볼 이유가 없고,
+    //   users 문서(본인이 읽을 수 있다)에는 요약 값(paidUntil·trialEnd·contractMonths)만 둔다.
+    match /billingLog/{uid}/items/{itemId} {
+      allow read:  if isAdmin();
+      allow write: if false;                             // Admin SDK 전용
     }
 
     // ── 기사 로그인 (v255) — 다섯 컬렉션 **전부 서버 전용** ────────────────
@@ -466,9 +510,13 @@ service cloud.firestore {
                     //   · 승인된 업체 계정 → 통과
                     //   · 마스터(admins/{uid}) → 통과 (사장님은 _test 에서도 이쪽으로 통과한다)
                     //   · 익명·미승인 → 거부
+                    // v263: approved 만 보던 것을 **활성 한 줄**로 바꿨다 —
+                    //   전에는 만료·탈퇴한 업체도 공유 링크(거래명세서·급여명세서·알림장)를
+                    //   계속 발급할 수 있었다. 읽기(get)는 그대로다 — 이미 나간 링크는 만료일까지 열린다.
                     && (
                          (hasUserDoc()
-                          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true)
+                          && userApprovedAlive(request.auth.uid)
+                          && userPaidNow(request.auth.uid))
                          || isAdmin()
                        );
       allow delete: if signedIn()

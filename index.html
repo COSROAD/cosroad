@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 262;
+const APP_VERSION = 263;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2395,7 +2395,7 @@ function loginAdmin(){
           if(!isAccountApproved()){ showPendingScreen(); return; }
           var keep=document.getElementById('keep-login');
           if(keep && keep.checked){ localStorage.setItem(keepLoginKey(),'admin'); }
-          /* 30일 무료: 승인 시각부터 시작, 만료 시 안내 화면 (paid·데모는 검사 제외) */
+          /* v263: 이용 기간 — 끝났으면 안내 화면(거기서 「읽기 전용」으로 들어간다) */
           var st=getTrialStatus();
           if(st.blocked){ showTrialExpired(); return; }
           onAdminLoggedIn();
@@ -2711,7 +2711,7 @@ function suSignupDone(digits, pw){
   alert('✅ 관리자에게 승인 요청했습니다.\n\n'
         + '① 이어서 열리는 화면에서 입금 계좌를 안내해 드려요.\n'
         + '② 입금·확인 후 관리자가 승인하면 이용하실 수 있어요.\n'
-        + '③ 승인되는 그때부터 30일 무료가 시작됩니다.\n\n문의: cosroad@cosroad.com');
+        + '③ 승인되면 체험 기간과 계약 기간 동안 이용하실 수 있어요.\n\n문의: cosroad@cosroad.com');
   try{ loginAdmin(); }catch(e){}
   try{ if(typeof showInstallGuide==='function') setTimeout(showInstallGuide, 400); }catch(e){}
 }
@@ -2797,26 +2797,17 @@ function loadUserProfile(uid){
       window._userStatus = u.status || (u.approved===true ? 'active' : 'pending');
       window._userOrgName = u.orgName || '';
       window._userContact = u.contact || u.phone || '';
-      window._userPlan = u.plan || null;
-      window._userTrialStart = u.trialStart || null;
-      /* ── 기존 계정 보호 (2026-09-29 개정 — **쓰지 않고 판단만 한다**) ──
-         예전에는 여기서 users/{uid} 를 고쳐 썼다. 그런데 이번 규칙 (b) 로 본인은
-         approved·status·plan·trialStart 를 못 바꾸게 막았다(스스로 승인하는 구멍 차단).
-         그 두 가지가 부딪히므로, 고쳐 쓰는 대신 **읽은 값으로 그 자리에서 판단**한다.
-         저장이 없어도 결과가 같은 이유 —
-           · 이미 승인된(유료) 계정   : plan 을 'paid' 로 **본다** → 만료 검사에서 영구 제외
-           · 모델 B 전(2026-09-29) 미승인 계정 : 예전 규칙대로 **열어 준다**.
-             무료 시작점은 가입일(createdAt)로 고정한다 — Date.now() 로 잡으면 접속할 때마다
-             30일이 처음부터 다시 시작돼 영원히 안 끝난다(저장을 안 하므로 더 그렇다).
-           · 모델 B 후 가입 계정      : 손대지 않는다. 마스터 승인을 기다린다. */
-      if(!u.trialStart && u.plan!=='paid'){
-        if(u.approved===true){
-          window._userPlan='paid';
-        } else if((u.createdAt||0) < MODEL_B_START){
-          window._userApproved=true; window._userStatus='active';
-          window._userPlan='trial'; window._userTrialStart=u.createdAt || null;
-        }
-      }
+      window._userPlan = u.plan || null;             /* 표시용만 — 판정에는 쓰지 않는다 */
+      /* ── v263: 이용 기간은 paidUntil **하나**로 판정한다 ──────────────────
+         전(v262)에는 여기에 「옛 계정 보호」 두 갈래가 있었다 —
+           · approved 인데 trialStart 가 없으면 plan 을 'paid' 로 **간주** → 사실상 무기한
+           · MODEL_B_START(2026-09-29) 전 가입이면 **스스로 승인된 것처럼** 열어 줌
+         실사용 업체가 0곳이라(사장님 확인 11-03) 두 갈래를 **지웠다**. 값이 없으면 막힌다.
+         사장님 계정·예제 업체는 마스터가 「📅 기간 정하기」로 넣는다.
+         paidUntil·trialEnd 는 서버(api/admin-account)가 KST 23:59:59.999 로 넣은 밀리초다. */
+      window._userPaidUntil = (typeof u.paidUntil === 'number') ? u.paidUntil : null;
+      window._userTrialEnd  = (typeof u.trialEnd  === 'number') ? u.trialEnd  : null;
+      window._userContractMonths = u.contractMonths || null;
     }
   }).catch(function(e){ console.log('사용자 정보 로드 실패:', e.message); });
 }
@@ -2868,10 +2859,10 @@ function doWithdraw(){
     .catch(function(err){ showErr('탈퇴 실패: '+((err&&err.message)?err.message:'')); });
 }
 
-/* ══════════ 모델 B — 승인 대기 게이트 (2026-09-29) ══════════
-   가입 → 본인확인 → 승인 대기 → (입금) → 마스터 승인 → 그때부터 30일 무료.
-   이 시각 이전에 만들어진 계정은 예전 규칙(가입 즉시 무료)을 그대로 적용한다. */
-var MODEL_B_START = 1790607600000;   // 2026-09-29 00:00 KST. 이 값보다 먼저 만들어진 계정은 예전 규칙으로 보호한다.
+/* ══════════ 승인 대기 게이트 ══════════
+   가입 → 입금 → 마스터가 입금을 확인하고 승인 → 체험 기간 + 계약 기간 동안 이용.
+   v263: 옛 계정 보호값 MODEL_B_START 를 **지웠다** — 실사용 업체가 0곳이라
+   옛 계정 분기를 두지 않기로 했다(사장님 결정 11-03). 부르던 자리도 함께 없앴다. */
 
 /* 앱에 들어가도 되는 계정인가 — 데모·테스트 공간은 예외(둘러보기·시험용) */
 function isAccountApproved(){
@@ -2928,7 +2919,7 @@ function showPendingScreen(){
     var h='<div style="max-width:360px;width:100%;margin:auto;text-align:center;">'
       +'<div style="font-size:44px;">🕐</div>'
       +'<div style="font-size:19px;font-weight:800;color:#1D2939;margin-top:10px;">가입 신청이 접수됐습니다</div>'
-      +'<div style="font-size:13px;color:#475467;margin-top:8px;line-height:1.7;">아래 계좌로 입금해 주시면<br>확인 후 관리자가 승인해 드립니다.<br>승인되는 그때부터 30일 무료가 시작돼요.</div>';
+      +'<div style="font-size:13px;color:#475467;margin-top:8px;line-height:1.7;">아래 계좌로 입금해 주시면<br>확인 후 관리자가 승인해 드립니다.<br>승인되면 체험 기간과 계약 기간 동안 이용하실 수 있어요.</div>';
     h+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-top:14px;text-align:left;font-size:13px;color:#344054;line-height:1.9;">';
     if(b.bank || b.account){
       h+='<div style="font-size:12px;font-weight:800;color:#6941C6;margin-bottom:6px;">입금 계좌</div>'
@@ -2951,51 +2942,120 @@ function showPendingScreen(){
   loadBillingInfo().then(draw);
 }
 
-/* ── 30일 무료 상태 계산 — 로그인/앱 로드 시 호출 ──
-   반환: {blocked, banner, daysLeft}
-   · plan='paid' → 검사 제외 (기존 유료 계정 보호)
-   · _demo·_test 조직 → 검사 제외
-   · trialStart 정보가 없으면 차단하지 않음 (안전 기본값 — 자동로그인 등) */
+/* ── 이용 기간 상태 (v263) ────────────────────────────────────────────────
+   **판정은 한 줄이다** — 규칙(firestore.rules isMyOrgActive·ownerAlive)과 같은 뜻:
+       살아 있음 = approved && !withdrawn && paidUntil > 지금
+   반환: {blocked, banner, daysLeft, trialing, untilStr, trialEndStr}
+     · blocked   이용 기간이 지났다 → 읽기 전용
+     · banner    끝까지 10일 이내
+     · trialing  아직 체험 기간 안이다(trialEnd 전)
+   · _demo·_test 는 검사 제외(둘러보기·시험용) · 마스터도 제외(users 문서가 없다)
+   ★ v262 까지와 달라진 것: plan 글자·trialStart+30일 계산·「값 없으면 통과」를 **버렸다.**
+     값이 없으면 **막는다**(사장님 결정 11-03 — 실사용 업체 0곳이라 옛 계정 분기 없음). */
+function periodDayStr(ms){
+  try{ return ms ? localDateStr(new Date(ms)) : ''; }catch(e){ return ''; }
+}
 function getTrialStatus(){
   try{
     var o=(typeof getUrlOrg==='function' && getUrlOrg())||'';
-    if(/_demo$|_test$/.test(o)) return {blocked:false, banner:false, daysLeft:null};
-    if(window._userPlan==='paid') return {blocked:false, banner:false, daysLeft:null};
-    var ts=window._userTrialStart;
-    if(!ts) return {blocked:false, banner:false, daysLeft:null};
-    var daysLeft=30-Math.floor((Date.now()-ts)/86400000);
-    if(daysLeft<=0) return {blocked:true, banner:false, daysLeft:0};
-    return {blocked:false, banner:daysLeft<=10, daysLeft:daysLeft};
-  }catch(e){ return {blocked:false, banner:false, daysLeft:null}; }
+    if(/_demo$|_test$/.test(o)) return {blocked:false, banner:false, daysLeft:null, trialing:false, untilStr:'', trialEndStr:''};
+    if(!window._userUid || window._isDriverAcct) return {blocked:false, banner:false, daysLeft:null, trialing:false, untilStr:'', trialEndStr:''};
+    var until=window._userPaidUntil, tEnd=window._userTrialEnd, now=Date.now();
+    var untilStr=periodDayStr(until), trialEndStr=periodDayStr(tEnd);
+    if(!until) return {blocked:true, banner:false, daysLeft:0, trialing:false, untilStr:untilStr, trialEndStr:trialEndStr};
+    if(until<=now) return {blocked:true, banner:false, daysLeft:0, trialing:false, untilStr:untilStr, trialEndStr:trialEndStr};
+    /* 남은 날 — 끝이 그날 23:59:59.999 라 올림해서 「오늘까지면 1일 남음」이 되게 한다 */
+    var daysLeft=Math.ceil((until-now)/86400000);
+    return {blocked:false, banner:daysLeft<=10, daysLeft:daysLeft,
+            trialing:!!(tEnd && now<=tEnd), untilStr:untilStr, trialEndStr:trialEndStr};
+  }catch(e){ return {blocked:false, banner:false, daysLeft:null, trialing:false, untilStr:'', trialEndStr:''}; }
 }
 
-/* 만료 안내 화면 — 앱 대신 표시 */
+/* ── 이용 기간이 끝난 업체 안내 (v263) ───────────────────────────────────
+   ★ v262 까지는 **로그아웃**시킨 뒤 안내만 띄웠다. 그러면 「내 자료 보기」로 이어질 수 없다
+     (자료를 읽으려면 로그인 상태여야 한다). 그래서 로그아웃을 뺐다.
+   사장님 결정 11-03: 만료 업체는 **읽기만** 된다 — 자료는 그대로 있고, 연장하면 바로 다시 쓴다.
+   ※ 금액·일수는 적지 않는다(요금 미정). 계좌는 마스터가 넣어 둔 billing 값을 그대로 보여 준다. */
 function showTrialExpired(){
-  if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}
   var old=document.getElementById('trial-expired'); if(old) old.remove();
   var el=document.createElement('div');
   el.id='trial-expired';
   el.style.cssText='position:fixed;inset:0;background:white;z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;-webkit-overflow-scrolling:touch;';
-  el.innerHTML='<div style="margin:auto;max-width:340px;text-align:center;">'
-    +'<div style="font-size:44px;">⏰</div>'
-    +'<div style="font-size:19px;font-weight:800;color:#1D2939;margin-top:10px;">30일 무료 기간이 끝났어요</div>'
-    +'<div style="font-size:13px;color:#475467;margin-top:8px;line-height:1.7;">구독 신청 후 계속 이용하실 수 있습니다.<br>지금까지의 데이터는 그대로 보관돼요.</div>'
-    +'<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-top:14px;text-align:left;font-size:12px;color:#344054;line-height:1.8;">'
-    +'<b>구독 신청 방법</b><br>1) 아래 메일로 업체명·연락처를 보내주세요<br>2) 입금 안내에 따라 구독료를 입금하시면<br>3) 확인 즉시 계속 이용하실 수 있어요<br>'
-    +'📧 <a href="mailto:cosroad@cosroad.com" style="color:#1A6BFF;font-weight:700;">cosroad@cosroad.com</a></div>'
-    +'<button onclick="document.getElementById(\'trial-expired\').remove()" style="margin-top:14px;padding:11px 22px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">닫기</button>'
-    +'</div>';
+  function draw(){
+    var b=_billingInfo||{};
+    var st=(typeof getTrialStatus==='function') ? getTrialStatus() : {};
+    var h='<div style="margin:auto;max-width:360px;text-align:center;">'
+      +'<div style="font-size:44px;">⏰</div>'
+      +'<div style="font-size:19px;font-weight:800;color:#1D2939;margin-top:10px;">이용 기간이 끝났어요</div>'
+      +'<div style="font-size:13px;color:#475467;margin-top:8px;line-height:1.7;">지금까지 넣으신 자료는 <b>그대로 있어요.</b><br>연장하시면 바로 다시 쓰실 수 있어요.</div>';
+    if(st.untilStr){
+      h+='<div style="font-size:12px;color:#98A2B3;margin-top:6px;">이용 끝 '+escapeMasterHtml(st.untilStr)+'</div>';
+    }
+    h+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:12px;padding:14px;margin-top:14px;text-align:left;font-size:12px;color:#344054;line-height:1.9;">'
+      +'<b>연장하는 방법</b><br>1) 아래 계좌로 입금해 주세요<br>2) 입금이 확인되면 바로 다시 열립니다<br>';
+    if(b.bank || b.account){
+      h+='<div style="margin-top:6px;border-top:1px dashed #EAECF0;padding-top:6px;"><b>'+escapeMasterHtml(b.bank||'')+'</b> '+escapeMasterHtml(b.account||'')+'</div>'
+        +(b.holder?'<div style="font-size:11px;color:#667085;">예금주 '+escapeMasterHtml(b.holder)+'</div>':'')
+        +(b.fee?'<div style="margin-top:4px;">'+escapeMasterHtml(String(b.fee))+'</div>':'')
+        +'<div style="font-size:11px;color:#98A2B3;">입금자명은 업체명('+escapeMasterHtml(window._userOrgName||'')+')으로 부탁드려요.</div>';
+    }
+    h+='<div style="margin-top:6px;">문의 📧 <a href="mailto:cosroad@cosroad.com" style="color:#1A6BFF;font-weight:700;">cosroad@cosroad.com</a></div></div>'
+      +'<button onclick="enterReadOnly()" style="width:100%;margin-top:14px;padding:13px;background:var(--admin);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">📂 내 자료 보기 (읽기 전용)</button>'
+      +'<button onclick="logout();var p=document.getElementById(\'trial-expired\');if(p)p.remove();" style="width:100%;margin-top:8px;padding:11px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">나가기</button>'
+      +'</div>';
+    el.innerHTML=h;
+  }
+  draw();
   document.body.appendChild(el);
+  try{ loadBillingInfo().then(draw); }catch(e){}
 }
 
-/* 만료 10일 전부터 관리자 화면 상단 카운터 배너 */
+/* ── 읽기 전용 모드 (v263) ───────────────────────────────────────────────
+   만료 업체가 「📂 내 자료 보기」를 누르면 앱을 열되 **서버로 나가는 쓰기를 전부 막는다.**
+   규칙(isMyOrgActive)이 이미 막지만, 화면에서도 막아 「저장된 줄 알았는데 안 됨」을 없앤다. */
+var _readOnlyMode = false;
+function isReadOnlyMode(){ return _readOnlyMode === true; }
+function enterReadOnly(){
+  _readOnlyMode = true;
+  var p=document.getElementById('trial-expired'); if(p) p.remove();
+  onAdminLoggedIn();
+  showReadOnlyBar();
+}
+function showReadOnlyBar(){
+  try{
+    if(document.getElementById('readonly-bar')) return;
+    var b=document.createElement('div');
+    b.id='readonly-bar';
+    b.style.cssText='position:sticky;top:0;z-index:9998;background:#FEF3F2;border-bottom:1px solid #FECDCA;color:#B42318;padding:8px 14px;font-size:12px;font-weight:700;text-align:center;';
+    b.textContent='🔒 이용 기간이 끝났어요 — 보기만 됩니다. 연장하면 바로 다시 쓰실 수 있어요';
+    var app=document.getElementById('main-app');
+    if(app) app.insertBefore(b, app.firstChild);
+  }catch(e){}
+}
+/* 쓰기를 막았을 때 — 안내하고 **화면·로컬을 서버 자료로 되돌린다.**
+   되돌리지 않으면 화면에는 고쳐진 채로 남아 「저장됐다」고 믿게 된다(조용한 자료 손실). */
+var _roNoticeAt = 0;
+function readOnlyBlocked(what){
+  try{
+    var now=Date.now();
+    if(now - _roNoticeAt > 1500){      // 한 동작에서 여러 번 불려도 안내는 한 번만
+      _roNoticeAt = now;
+      alert('🔒 이용 기간이 끝나 읽기 전용이에요.\n\n방금 '+(what||'바꾼 내용')+'은 저장하지 않았어요.\n화면을 저장된 자료로 되돌립니다.\n\n연장하시면 바로 다시 쓰실 수 있어요.');
+      if(typeof syncFromFirebase==='function'){ syncFromFirebase(); }
+    }
+  }catch(e){}
+}
+
+/* 기간이 얼마 안 남았을 때 위에 띠를 보여 준다 (끝 10일 이내) */
 function showTrialBanner(daysLeft){
   try{
     if(document.getElementById('trial-banner')) return;
+    var st=(typeof getTrialStatus==='function') ? getTrialStatus() : {};
     var b=document.createElement('div');
     b.id='trial-banner';
     b.style.cssText='position:sticky;top:0;z-index:9998;background:#FFFAEB;border-bottom:1px solid #FEDF89;color:#B54708;padding:8px 14px;font-size:12px;font-weight:700;text-align:center;';
-    b.innerHTML='⏰ 무료 기간 D-'+daysLeft+' — 계속 쓰시려면 구독을 신청하세요 · 📧 <a href="mailto:cosroad@cosroad.com" style="color:#B54708;">cosroad@cosroad.com</a>';
+    b.textContent='⏰ 이용 기간 D-'+daysLeft+(st.untilStr?(' · 이용 끝 '+st.untilStr):'')
+      +' — 연장은 관리자에게 문의해 주세요';
     var app=document.getElementById('main-app');
     if(app) app.insertBefore(b, app.firstChild);
   }catch(e){}
@@ -3457,7 +3517,9 @@ function masterTestAccessAsk(targetUid, orgName, on){
 async function masterTestAccessGo(targetUid, turnOn){
   var b=document.getElementById('mta-'+targetUid); if(b) b.remove();
   try{
-    /* 읽기 → 고치기 → 전체 setDoc — setUserApproval 과 **같은 방식**이다.
+    /* 읽기 → 고치기 → 전체 setDoc.
+       v263: 규칙의 마스터 분기는 이제 **testAccess 하나만** 허용한다 —
+       이 자리는 testAccess 만 바꾸므로 그대로 통과한다(승인·기간은 서버가 쓴다).
        (updateDoc·deleteField 는 이 앱이 import 하지 않는다. 규칙의 마스터 분기는
         diff().affectedKeys() 로 **실제로 바뀐 키만** 보므로 전체 저장도 통과한다.) */
     var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
@@ -3704,33 +3766,176 @@ async function deleteSignupUser(uid, orgName){
   }
 }
 
-async function setUserApproval(uid, approved){
+/* ══════════ 이용 기간 — 마스터 (v263) ══════════════════════════════════
+   ★ v262 까지는 이 화면이 users 문서를 **직접** 고쳤다(승인·기간). 돈이 걸린 값이라
+     이제 **서버(api/admin-account)** 가 쓴다 — 규칙의 마스터 쓰기도 testAccess 하나로 좁혔다.
+   화면이 하는 일: 값을 받아 보여 주고 → api 를 부르고 → 결과를 다시 그린다.
+   ※ 날짜 미리 보기는 **보여 주기용**이다. 실제 저장값은 언제나 서버(lib/period.js)가 정한다. */
+function periodPreview(trialDays, months){
+  /* 서버 lib/period.js 와 **같은 셈** — 오늘+체험일수, 그 뒤 months 달(없는 날짜는 말일) */
   try{
-    var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
-    var ref=d(window._db, 'users', uid);
-    var snap=await gd(ref);
-    if(snap.exists()){
-      var u=snap.data();
-      u.approved=approved;
-      /* 모델 B: **승인하는 이 순간부터 30일 무료가 시작된다.**
-         이미 trialStart 가 있으면 덮지 않는다 — 승인취소 후 재승인으로 무료가
-         처음부터 다시 시작되는 것을 막기 위함이다(원하면 마스터가 따로 처리). */
-      if(approved){
-        u.status='active';
-        if(!u.trialStart){ u.trialStart = Date.now(); }
-        /* 가입 때 넣어 둔 plan:'pending' 이 그대로 남으면 무료 계정이 아니게 된다.
-           이미 유료(paid)인 계정만 건드리지 않는다. */
-        if(u.plan!=='paid'){ u.plan='trial'; }
-      } else {
-        u.status='pending';
-      }
-      await sd(ref, u);
-      alert(approved
-        ? ('✅ 승인 완료\n\n' + (u.orgName||'') + ' — 지금부터 30일 무료가 시작됩니다.')
-        : '승인이 취소되었습니다. 이 업체는 다시 승인 대기 상태가 됩니다.');
-      renderMasterPanel();
-    }
-  }catch(e){ alert('처리 실패: '+e.message); }
+    var n=new Date(); n.setHours(0,0,0,0);
+    var t=new Date(n.getTime() + Number(trialDays||0)*86400000);
+    var y=t.getFullYear(), m=t.getMonth(), d=t.getDate();
+    var total=(y*12+m)+Number(months||0);
+    var y2=Math.floor(total/12), m2=total%12;
+    var last=new Date(y2, m2+1, 0).getDate();
+    var p=new Date(y2, m2, Math.min(d, last));
+    return { trialEnd: localDateStr(t), paidUntil: localDateStr(p) };
+  }catch(e){ return { trialEnd:'', paidUntil:'' }; }
+}
+function masterPeriodBox(id, title, bodyHtml){
+  var old=document.getElementById(id); if(old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div id="'+id+'" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100002;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;">'
+    +'<div style="margin:auto;background:#fff;border-radius:16px;padding:20px;max-width:360px;width:100%;box-sizing:border-box;">'
+    +'<div style="font-size:16px;font-weight:800;color:#1D2939;margin-bottom:10px;">'+title+'</div>'
+    +bodyHtml+'</div></div>');
+}
+var _mpIpt='width:100%;padding:10px;border:1.5px solid #EAECF0;border-radius:9px;font-size:14px;margin:4px 0 10px;box-sizing:border-box;';
+
+/* ── ① 입금 확인·승인 ── */
+function masterApproveAsk(uid, orgName){
+  masterPeriodBox('mp-approve', '✅ 입금 확인 · 승인',
+    '<div style="font-size:13px;color:#475467;margin-bottom:10px;">'+escapeMasterHtml(orgName||'')+'</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">체험 일수</label>'
+    +'<input id="mp-trial" type="tel" inputmode="numeric" value="30" oninput="masterApprovePreview()" style="'+_mpIpt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">계약 개월수</label>'
+    +'<input id="mp-months" type="tel" inputmode="numeric" placeholder="예) 6" oninput="masterApprovePreview()" style="'+_mpIpt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">받은 금액 (원)</label>'
+    +'<input id="mp-amount" type="tel" inputmode="numeric" placeholder="예) 180000" style="'+_mpIpt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">메모 (선택)</label>'
+    +'<input id="mp-memo" type="text" placeholder="입금자명 등" style="'+_mpIpt+'"/>'
+    +'<div id="mp-prev" style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:9px;padding:10px;font-size:12px;color:#344054;line-height:1.8;margin-bottom:10px;">개월수를 넣으면 기간을 미리 보여 드려요.</div>'
+    +'<div id="mp-err" style="display:none;color:#F04438;font-size:12px;margin-bottom:8px;"></div>'
+    +'<button onclick="masterApproveGo('+jsArg(uid)+')" style="width:100%;padding:12px;background:#12B76A;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">승인합니다</button>'
+    +'<button onclick="var b=document.getElementById(\'mp-approve\');if(b)b.remove();" style="width:100%;margin-top:6px;padding:10px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;">취소</button>');
+  masterApprovePreview();
+}
+function masterApprovePreview(){
+  var t=Number((document.getElementById('mp-trial')||{}).value||0);
+  var m=Number((document.getElementById('mp-months')||{}).value||0);
+  var el=document.getElementById('mp-prev'); if(!el) return;
+  if(!(m>=1)){ el.textContent='계약 개월수를 넣으면 기간을 미리 보여 드려요.'; return; }
+  var p=periodPreview(t, m);
+  el.innerHTML='승인하면 — 체험 끝 <b>'+p.trialEnd+'</b><br>이용 끝 <b>'+p.paidUntil+'</b> 까지';
+}
+function masterPeriodErr(id, msg){
+  var e=document.getElementById(id);
+  if(e){ e.textContent=msg||''; e.style.display=msg?'block':'none'; }
+}
+async function masterApproveGo(uid){
+  var trialDays=Number((document.getElementById('mp-trial')||{}).value||0);
+  var months=Number((document.getElementById('mp-months')||{}).value||0);
+  var amount=Number(String((document.getElementById('mp-amount')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  var memo=String((document.getElementById('mp-memo')||{}).value||'');
+  if(!(trialDays>=0 && trialDays<=365)){ masterPeriodErr('mp-err','체험 일수를 0~365 로 넣어 주세요.'); return; }
+  if(!(months>=1 && months<=120)){ masterPeriodErr('mp-err','계약 개월수를 1~120 으로 넣어 주세요.'); return; }
+  masterPeriodErr('mp-err','');
+  var j=await driverAcctApi({ action:'approveOrg', uid:uid, trialDays:trialDays, months:months, amount:amount, memo:memo });
+  if(!(j&&j.ok)){ masterPeriodErr('mp-err', (j&&j.message)||'승인하지 못했어요.'); return; }
+  var b=document.getElementById('mp-approve'); if(b) b.remove();
+  alert('✅ 승인했어요.\n체험 끝 '+(j.trialEndStr||'')+'\n이용 끝 '+(j.paidUntilStr||''));
+  await loadSignupUsers(); drawMasterPanel();
+}
+
+/* ── ② 연장 ── */
+function masterExtendAsk(uid, orgName, untilStr){
+  masterPeriodBox('mp-extend', '➕ 이용 기간 연장',
+    '<div style="font-size:13px;color:#475467;margin-bottom:4px;">'+escapeMasterHtml(orgName||'')+'</div>'
+    +'<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">지금 이용 끝 '+escapeMasterHtml(untilStr||'—')+'</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">연장할 개월수</label>'
+    +'<input id="mpx-months" type="tel" inputmode="numeric" placeholder="예) 6" style="'+_mpIpt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">받은 금액 (원)</label>'
+    +'<input id="mpx-amount" type="tel" inputmode="numeric" style="'+_mpIpt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">메모 (선택)</label>'
+    +'<input id="mpx-memo" type="text" style="'+_mpIpt+'"/>'
+    +'<div style="font-size:11px;color:#98A2B3;line-height:1.7;margin-bottom:10px;">남은 기간이 있으면 그 뒤에 이어 붙이고, 이미 지났으면 오늘부터 셉니다.</div>'
+    +'<div id="mpx-err" style="display:none;color:#F04438;font-size:12px;margin-bottom:8px;"></div>'
+    +'<button onclick="masterExtendGo('+jsArg(uid)+')" style="width:100%;padding:12px;background:var(--admin);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">연장합니다</button>'
+    +'<button onclick="var b=document.getElementById(\'mp-extend\');if(b)b.remove();" style="width:100%;margin-top:6px;padding:10px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;">취소</button>');
+}
+async function masterExtendGo(uid){
+  var months=Number((document.getElementById('mpx-months')||{}).value||0);
+  var amount=Number(String((document.getElementById('mpx-amount')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  var memo=String((document.getElementById('mpx-memo')||{}).value||'');
+  if(!(months>=1 && months<=120)){ masterPeriodErr('mpx-err','연장할 개월수를 1~120 으로 넣어 주세요.'); return; }
+  masterPeriodErr('mpx-err','');
+  var j=await driverAcctApi({ action:'extendOrg', uid:uid, months:months, amount:amount, memo:memo });
+  if(!(j&&j.ok)){ masterPeriodErr('mpx-err', (j&&j.message)||'연장하지 못했어요.'); return; }
+  var b=document.getElementById('mp-extend'); if(b) b.remove();
+  alert('➕ 연장했어요.\n이용 끝 '+(j.paidUntilStr||''));
+  await loadSignupUsers(); drawMasterPanel();
+}
+
+/* ── ③ 기간 정하기 (바로잡기·예제 계정용) ── */
+function masterSetPeriodAsk(uid, orgName, untilStr){
+  masterPeriodBox('mp-set', '📅 기간 정하기',
+    '<div style="font-size:13px;color:#475467;margin-bottom:4px;">'+escapeMasterHtml(orgName||'')+'</div>'
+    +'<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">지금 이용 끝 '+escapeMasterHtml(untilStr||'—')+'</div>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">이용 끝 날짜</label>'
+    +'<input id="mps-until" type="text" placeholder="2027-06-30" style="'+_mpIpt+'"/>'
+    +'<label style="font-size:12px;font-weight:700;color:#475467;">메모 (선택)</label>'
+    +'<input id="mps-memo" type="text" style="'+_mpIpt+'"/>'
+    +'<div style="font-size:11px;color:#98A2B3;line-height:1.7;margin-bottom:10px;">그날 밤 23:59:59 까지 이용할 수 있어요. 이미 승인된 업체에만 쓸 수 있어요.</div>'
+    +'<div id="mps-err" style="display:none;color:#F04438;font-size:12px;margin-bottom:8px;"></div>'
+    +'<button onclick="masterSetPeriodGo('+jsArg(uid)+')" style="width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">이 날짜로 정합니다</button>'
+    +'<button onclick="var b=document.getElementById(\'mp-set\');if(b)b.remove();" style="width:100%;margin-top:6px;padding:10px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;">취소</button>');
+}
+async function masterSetPeriodGo(uid){
+  var until=String((document.getElementById('mps-until')||{}).value||'').trim();
+  var memo=String((document.getElementById('mps-memo')||{}).value||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(until)){ masterPeriodErr('mps-err','날짜를 2027-06-30 처럼 넣어 주세요.'); return; }
+  masterPeriodErr('mps-err','');
+  var j=await driverAcctApi({ action:'setPeriod', uid:uid, paidUntil:until, memo:memo });
+  if(!(j&&j.ok)){ masterPeriodErr('mps-err', (j&&j.message)||'정하지 못했어요.'); return; }
+  var b=document.getElementById('mp-set'); if(b) b.remove();
+  alert('📅 이용 끝을 '+(j.paidUntilStr||until)+' 로 정했어요.');
+  await loadSignupUsers(); drawMasterPanel();
+}
+
+/* ── ④ 승인 취소 (기간 값은 남긴다) ── */
+async function masterUnapproveAsk(uid, orgName){
+  if(!window.confirm('「'+(orgName||'')+'」 승인을 취소할까요?\n\n다시 승인 대기 상태가 되고 자료는 그대로 남습니다.\n(기간 값은 지우지 않아요 — 다시 승인하면 이어서 봅니다)')) return;
+  var j=await driverAcctApi({ action:'unapproveOrg', uid:uid });
+  if(!(j&&j.ok)){ alert((j&&j.message)||'취소하지 못했어요.'); return; }
+  alert('승인을 취소했어요.');
+  await loadSignupUsers(); drawMasterPanel();
+}
+
+/* ── ⑤ 기록 보기 (billingLog — 규칙상 마스터만 읽는다) ── */
+async function masterBillingLog(uid, orgName){
+  try{
+    var col=window._firestore.collection, gds=window._firestore.getDocs;
+    var snap=await gds(col(window._db, 'billingLog', uid, 'items'));
+    var rows=[];
+    snap.forEach(function(d){ rows.push(d.data()); });
+    rows.sort(function(a,b){ return (b.at||0)-(a.at||0); });
+    var label={approve:'승인', extend:'연장', set:'기간 정하기', unapprove:'승인 취소'};
+    var h='<div style="font-size:13px;color:#475467;margin-bottom:8px;">'+escapeMasterHtml(orgName||'')+'</div>';
+    if(!rows.length){ h+='<div style="font-size:12px;color:#98A2B3;">기록이 없어요.</div>'; }
+    rows.forEach(function(r){
+      h+='<div style="border-top:1px solid #EAECF0;padding:8px 0;font-size:12px;color:#344054;line-height:1.7;">'
+        +'<b>'+(label[r.type]||r.type||'')+'</b> · '+escapeMasterHtml(periodDayStr(r.at))
+        +(r.months?(' · '+r.months+'개월'):'')
+        +(r.amount?(' · '+Number(r.amount).toLocaleString()+'원'):'')
+        +(r.paidUntil?('<br>이용 끝 '+escapeMasterHtml(periodDayStr(r.paidUntil))):'')
+        +(r.memo?('<br><span style="color:#98A2B3;">'+escapeMasterHtml(r.memo)+'</span>'):'')
+        +'</div>';
+    });
+    h+='<button onclick="var b=document.getElementById(\'mp-log\');if(b)b.remove();" style="width:100%;margin-top:10px;padding:10px;background:#F2F4F7;border:none;border-radius:9px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">닫기</button>';
+    masterPeriodBox('mp-log', '🧾 기록', h);
+  }catch(e){ alert('기록을 읽지 못했어요: '+((e&&e.message)||e)); }
+}
+
+/* 남은 날 표시 — 승인된 업체 줄에 쓴다 */
+function masterPeriodLine(u){
+  var until=(typeof u.paidUntil==='number') ? u.paidUntil : null;
+  if(!until) return '<span style="font-size:11px;color:#B42318;font-weight:800;">기간 없음 — 「📅 기간 정하기」 필요</span>';
+  var days=Math.ceil((until-Date.now())/86400000);
+  var col = days<=0 ? '#B42318' : (days<=10 ? '#B54708' : '#667085');
+  var txt = days<=0 ? '이용 기간 지남' : ('남은 '+days+'일');
+  return '<span style="font-size:11px;color:'+col+';font-weight:700;">'+txt+' · 이용 끝 '+escapeMasterHtml(periodDayStr(until))+'</span>';
 }
 
 /* ── 가입자 줄 구분 정보 (v253 보정3) ──────────────────────────────────
@@ -3891,7 +4096,7 @@ function drawMasterPanel(){
       } else {
         h += '<div style="font-size:11px;color:#667085;margin-top:6px;">'+days+'일 경과 · 만료까지 '+(SIGNUP_EXPIRE_DAYS-days)+'일</div>';
       }
-      h += '<button onclick="setUserApproval('+jsArg(u._uid)+',true)" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 → 승인 (30일 무료 시작)</button>';
+      h += '<button onclick="masterApproveAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:8px;padding:9px;background:#12B76A;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ 입금 확인 · 승인</button>';
       h += '<button onclick="masterResetPwAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="width:100%;margin-top:5px;padding:8px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🔑 비밀번호 다시 정하기</button>';
       /* 번호 바꾸기는 **휴대폰으로 가입한 계정만** — 이메일 가입 계정은 아이디가 번호가 아니다 (v252) */
       if(u.signupMethod==='phone'){
@@ -3916,8 +4121,14 @@ function drawMasterPanel(){
         /* v253 보정3: 로그인 아이디·가입일·uid 끝 6자리 (🧪 배지 **아래** 줄 — 겹치지 않게) */
         +'<div style="margin-top:2px;">'+masterIdLine(u, orgUsers)+'</div>'
         + masterBizLine(u, orgUsers)          /* v261 — 사업자 정보 (승인된 업체 줄에도) */
+        /* v263 — 남은 날 · 이용 끝 날짜 (10일 이내 노랑 · 지남 빨강) */
+        +'<div style="margin-top:3px;">'+masterPeriodLine(u)+'</div>'
         +'</div>';
-      h += '<div style="display:flex;gap:4px;flex-shrink:0;">';
+      h += '<div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">';
+      /* v263 — 이용 기간 다루기 (전부 서버 api 로 간다) */
+      h += '<button onclick="masterExtendAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+jsArg(periodDayStr(u.paidUntil))+')" style="font-size:11px;color:#027A48;background:#ECFDF3;border:1px solid #A6F4C5;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">➕ 연장</button>';
+      h += '<button onclick="masterSetPeriodAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+jsArg(periodDayStr(u.paidUntil))+')" style="font-size:11px;color:#6941C6;background:#F9F5FF;border:1px solid #E9D7FE;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">📅 기간</button>';
+      h += '<button onclick="masterBillingLog('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="font-size:11px;color:#475467;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">🧾 기록</button>';
       /* 🧪 테스트 출입 — 승인된 업체 줄에만. 기사·승인 대기 줄에는 내지 않는다 */
       h += '<button onclick="masterTestAccessAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+(hasTA?'true':'false')+')" style="font-size:11px;color:'
         +(hasTA?'#B54708':'#0E7090')+';background:'+(hasTA?'#FFFAEB':'#F0F9FF')+';border:1px solid '+(hasTA?'#FEDF89':'#B9E6FE')
@@ -3926,7 +4137,7 @@ function drawMasterPanel(){
       if(u.signupMethod==='phone'){
         h += '<button onclick="masterChangePhoneAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+','+jsArg(u.phone||'')+')" style="font-size:11px;color:#175CD3;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">📱 번호</button>';
       }
-      h += '<button onclick="setUserApproval('+jsArg(u._uid)+',false)" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">승인취소</button>';
+      h += '<button onclick="masterUnapproveAsk('+jsArg(u._uid)+','+jsArg(u.orgName||'')+')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700;">승인취소</button>';
       h += '</div>';
       h += '</div>';
       h += '</div>';   /* mta-box — 확인 칸이 여기 아래에 붙는다 */
@@ -4015,7 +4226,7 @@ var PAYSLIP_SHARE_DAYS = 7;
 var HELP_QA=[
   /* 코스로드27 (v261) — 휴대폰 문자 인증 + 국세청 사업자 확인, 계정은 서버가 만든다 */
   {role:'all', keys:['가입','회원가입','계정','휴대폰가입','사업자등록번호','인증번호'], t:'회원가입 — 문자 인증 + 사업자 확인',
-   a:'1. <b>사업자등록된 업체만</b> 가입할 수 있어요 (개인은 가입되지 않아요)\n2. 업종·업체명을 넣고, <b>휴대폰 번호</b>로 「인증번호 받기」 → 문자로 온 6자리를 넣으세요 (5분 안에, 다시 받기는 1분에 한 번)\n3. 그 번호가 아이디이자 연락처예요 — 연락처를 따로 넣는 칸은 없어요\n4. <b>사업자등록번호 · 대표자 성명 · 개업일자</b>를 사업자등록증과 똑같이 넣고 「🔎 사업자 확인」을 누르세요 — 국세청 자료와 맞는지 바로 확인해요\n5. 확인이 되면 「✓ 계속사업자」로 표시되고 그때 「가입 신청」 단추가 열려요\n6. 비밀번호를 두 번 넣어 확인하고(6자 이상) 약관에 동의하면 끝이에요\n7. 다음부터 <b>휴대폰 번호 + 비밀번호</b>로 로그인해요\n8. 가입하면 바로 열리는 게 아니라 「승인 대기」예요 — 이어서 열리는 화면에 입금 계좌를 안내해 드려요\n9. 입금이 확인되어 승인되면 그때부터 30일 무료가 시작돼요\n10. 이메일로 새로 가입하는 길은 없앴어요 — <b>이미 이메일로 가입해 두신 계정</b>은 그대로 로그인되고 재설정 메일도 그대로 받아요'},
+   a:'1. <b>사업자등록된 업체만</b> 가입할 수 있어요 (개인은 가입되지 않아요)\n2. 업종·업체명을 넣고, <b>휴대폰 번호</b>로 「인증번호 받기」 → 문자로 온 6자리를 넣으세요 (5분 안에, 다시 받기는 1분에 한 번)\n3. 그 번호가 아이디이자 연락처예요 — 연락처를 따로 넣는 칸은 없어요\n4. <b>사업자등록번호 · 대표자 성명 · 개업일자</b>를 사업자등록증과 똑같이 넣고 「🔎 사업자 확인」을 누르세요 — 국세청 자료와 맞는지 바로 확인해요\n5. 확인이 되면 「✓ 계속사업자」로 표시되고 그때 「가입 신청」 단추가 열려요\n6. 비밀번호를 두 번 넣어 확인하고(6자 이상) 약관에 동의하면 끝이에요\n7. 다음부터 <b>휴대폰 번호 + 비밀번호</b>로 로그인해요\n8. 가입하면 바로 열리는 게 아니라 「승인 대기」예요 — 이어서 열리는 화면에 입금 계좌를 안내해 드려요\n9. 입금이 확인되어 승인되면 그때부터 이용하실 수 있어요 (체험 기간 + 계약 기간)\n10. 이메일로 새로 가입하는 길은 없앴어요 — <b>이미 이메일로 가입해 두신 계정</b>은 그대로 로그인되고 재설정 메일도 그대로 받아요'},
   {role:'all', keys:['사업자확인','진위','국세청','휴업','폐업','사업자안맞'], t:'사업자 확인이 안 돼요',
    a:'1. 사업자등록번호·대표자 성명·개업일자 <b>세 가지가 모두</b> 국세청 자료와 같아야 통과돼요 — 사업자등록증을 보고 그대로 넣어 주세요\n2. 대표자가 여럿이면 사업자등록증 맨 앞(대표)으로 넣어 보세요\n3. 개업일자는 사업자등록증의 「개업연월일」이에요 — 등록일·설립일이 아니에요 (예: 2020-03-01)\n4. 「휴업 중」·「폐업」으로 나오면 가입되지 않아요 — 영업 중인 사업자등록번호로 해주세요\n5. 「확인 서버가 응답하지 않아요」는 국세청 쪽 사정이에요 — 잠시 뒤 다시 눌러 주세요 (확인이 안 된 채로는 가입을 받지 않아요)\n6. 계속 안 되면 📧 cosroad@cosroad.com 으로 알려 주세요'},
   {role:'all', keys:['로그인','문자','인증','아이디','탭'], t:'휴대폰 번호로 로그인해요',
@@ -4074,9 +4285,9 @@ var HELP_QA=[
   {role:'admin', keys:['급여명세서','임금명세서','명세서카톡','급여카톡','지급일','급여공유'], t:'급여명세서 카톡으로 보내기',
    a:'1. 근태 화면 → 「📋 급여상세 보기」 → 사람 이름 칸의 「💬 카톡」을 누르세요 (인쇄·PDF·엑셀에는 이 단추가 안 나와요)\n2. 확인창에 이름·대상월·실지급액이 보이고, 그 아래 「지급일」 칸이 있어요 — 지급일은 반드시 넣어야 보내기가 열려요 (임금명세서 필수 항목이에요)\n3. 한 번 넣으면 그 \'일\'을 기억해서, 다음부터는 대상월 다음 달의 그 날짜가 기본값으로 채워져요 (그 달 말일보다 크면 말일로 맞춰요)\n4. 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려요. 컴퓨터면 「🔗 링크 복사」로 복사해 붙여넣으면 돼요\n5. 카톡 카드에는 이름·대상월·지급일·기관 이름만 보여요 — 금액은 카드에 안 나와요 (단톡방 미리보기에 급여가 비치지 않게 했어요)\n6. 링크를 열면 임금명세서 양식이 나와요 — 성명(기사/직원) · 대상 기간 · 지급일 · 항목별 시간×시급과 금액 · 식대 · 지급 합계 · 공제 내역과 합계 · 실지급액 · 출근일수와 총 근로시간(출퇴근 기록 기준 — 주휴수당·명절휴가비 시간은 빠져요)\n7. 링크는 7일 뒤 자동으로 만료돼요 (급여라서 거래명세서 30일보다 짧게 뒀어요)\n8. 링크에는 그 사람 자료만 담겨요 — 연락처·PIN·차량번호나 다른 사람 급여는 들어가지 않아요 (같은 이름이 둘 이상일 때만 구분용으로 연락처 끝 4자리를 이름 뒤에 붙여요)\n9. 4대보험 공제는 요율 기준 참고 계산이에요 — 실제 고지액과 다를 수 있어요\n10. 이 양식이 법에서 정한 임금명세서 요건을 모두 갖췄는지는 앱이 판단하지 않아요 — 노무사와 한 번 확인하세요'},
   {role:'all', keys:['승인대기','승인','입금','계좌','대기','잠김'], t:'승인 대기 화면이 나와요',
-   a:'1. 가입 신청이 접수된 상태예요. 아직 앱은 열리지 않아요\n2. 화면에 나온 계좌로 입금해 주세요 — 입금자명은 업체명으로 해주세요\n3. 입금이 확인되면 열어 드리고, 그때부터 30일 무료가 시작돼요\n4. 가입할 때 문자 인증과 사업자 확인은 이미 끝난 상태예요 — 더 보내실 서류는 없어요\n5. 계좌가 안 보이면 아직 준비 중이에요 — 📧 cosroad@cosroad.com 으로 문의해 주세요'},
-  {role:'admin', keys:['체험','무료','구독','요금','만료','결제'], t:'30일 무료 체험·구독',
-   a:'1. 가입(문자 인증 + 사업자 확인) → 승인 대기 → 입금 → 승인. 승인된 그 순간부터 30일 무료가 시작돼요 (카드 등록 없음)\n2. 승인 전에는 로그인해도 「승인 대기」 화면만 나와요 — 거기에 입금 계좌가 안내돼요\n3. 입금자명은 업체명으로 해주셔야 확인이 빨라요\n4. 만료 10일 전부터 상단에 D-N 안내\n5. 만료되면 화면이 잠기고 구독 안내가 나와요 — 넣어 두신 데이터는 지워지지 않아요\n6. 문의 📧 cosroad@cosroad.com'},
+   a:'1. 가입 신청이 접수된 상태예요. 아직 앱은 열리지 않아요\n2. 화면에 나온 계좌로 입금해 주세요 — 입금자명은 업체명으로 해주세요\n3. 입금이 확인되면 열어 드려요 — 그때부터 체험 기간이 시작되고, 체험이 끝난 다음 날부터 계약 기간이에요\n4. 가입할 때 문자 인증과 사업자 확인은 이미 끝난 상태예요 — 더 보내실 서류는 없어요\n5. 계좌가 안 보이면 아직 준비 중이에요 — 📧 cosroad@cosroad.com 으로 문의해 주세요'},
+  {role:'admin', keys:['체험','무료','구독','요금','만료','결제','이용기간','연장'], t:'이용 기간 · 연장',
+   a:'1. 가입(문자 인증 + 사업자 확인) → 승인 대기 → 입금 → <b>입금이 확인되면 승인</b>. 승인된 때부터 <b>체험 기간</b>이 시작되고, 체험이 끝난 다음 날부터 <b>계약 기간</b>이에요 (카드 등록 없음)\n2. 승인 전에는 로그인해도 「승인 대기」 화면만 나와요 — 거기에 입금 계좌가 안내돼요\n3. 입금자명은 업체명으로 해주셔야 확인이 빨라요\n4. 화면 위에서 <b>이용 끝 날짜</b>와 남은 날을 볼 수 있어요. 끝 10일 전부터 D-N 띠가 떠요\n5. 이용 기간이 끝나면 <b>보기만</b> 됩니다 — 자료는 그대로 있고, 엑셀·PDF·백업 받기도 돼요. 저장·수정·복원만 막혀요\n6. 연장하시면 바로 다시 쓰실 수 있어요. 남은 기간이 있으면 그 뒤에 이어 붙여 드려요\n7. 기간이 끝나면 <b>기사도 함께 잠겨요</b> — 연장하면 기사도 그대로 다시 들어가요\n8. 연장·문의 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각도 함께 들어가요'},
   {role:'admin', keys:['날짜점검','날짜','하루전','전날','어제날짜','점검'], t:'날짜 점검 (예전 기록이 하루 전 날짜예요)',
@@ -4143,7 +4354,7 @@ var HELP_QA=[
   {role:'all', keys:['설치','홈화면','아이콘','앱으로'], t:'홈 화면에 아이콘 추가 (앱처럼 쓰기)',
    a:'1. 설치가 아니라 홈 화면에 아이콘을 만드는 방식이에요\n2. 아이폰: 사파리 아래 공유 ⬆️ → 「홈 화면에 추가」 → 「추가」\n3. 안드로이드: 크롬 오른쪽 위 메뉴 ⋮ → 「홈 화면에 추가」(또는 「앱 설치」) → 「추가」\n4. 추가하면 앱처럼 전체 화면으로 열려요'},
   {role:'all', keys:['데모','샘플','둘러보기','체험판'], t:'데모(샘플) 계정',
-   a:'1. 데모는 둘러보기 전용이라 «회원»·기록이 저장되지 않아요\n2. 무엇을 눌러도 안전해요 — 새로고침하면 원래 샘플로 돌아와요\n3. 기사 화면도 실제와 같은 모양이에요 — 「🌅 출근」·「🌆 퇴근」 단추와 「⛽ 차계부」, 차량은 한 대만 보여요\n4. 둘러보기에서 누른 출근·퇴근은 <b>저장되지 않아요</b> — 화면에만 보이고 새로고침하면 처음 상태예요\n5. 실제로 쓰시려면 가입해서 본 계정으로 들어오세요 (30일 무료)'},
+   a:'1. 데모는 둘러보기 전용이라 «회원»·기록이 저장되지 않아요\n2. 무엇을 눌러도 안전해요 — 새로고침하면 원래 샘플로 돌아와요\n3. 기사 화면도 실제와 같은 모양이에요 — 「🌅 출근」·「🌆 퇴근」 단추와 「⛽ 차계부」, 차량은 한 대만 보여요\n4. 둘러보기에서 누른 출근·퇴근은 <b>저장되지 않아요</b> — 화면에만 보이고 새로고침하면 처음 상태예요\n5. 실제로 쓰시려면 가입해서 본 계정으로 들어오세요 (체험 기간이 있어요)'},
   {role:'all', keys:['투어','사용법','따라하기'], t:'사용법 투어 (따라 하기)',
    a:'1. 처음 들어오면 화면을 하나씩 짚어 주는 안내가 자동으로 시작돼요\n2. 다시 보고 싶으면 「📖 사용법 보기」를 누르세요\n3. 「다음」으로 넘기고, 중간에 닫아도 괜찮아요'},
   {role:'all', keys:['문의','건의','오류','신고','개선'], t:'문의 보내기',
@@ -5601,6 +5812,8 @@ function cancelNoticeEdit(){
 // 알림장 사진(dataURL 배열)을 Firebase Storage에 올리고 다운로드 URL 배열을 받음
 function uploadNoticeImages(images, cb){
   // images: dataURL 문자열 배열
+  /* v263: 읽기 전용이면 사진을 올리지 않는다 (서버 저장 자체가 막혀 있다) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ readOnlyBlocked('사진'); cb([]); return; }
   if(!images || images.length===0){ console.log('[알림장] 첨부 사진 없음'); cb([]); return; }
   if(!window._storage || !window._storageFns){
     // Storage 준비 안 됨 → URL 없이 진행
@@ -6756,6 +6969,13 @@ function backupData(){
 
 // 데이터 복원: 백업 파일에서 되돌리기
 function restoreData(ev){
+  /* v263: 복원은 서버에 18개 키를 통째로 쓴다 — 읽기 전용에서는 막는다.
+     (백업 **받기**는 그대로 된다 — 그건 로컬 파일 저장이라 서버에 안 쓴다) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    alert('🔒 이용 기간이 끝나 읽기 전용이에요.\n복원은 연장하신 뒤에 할 수 있어요.\n(백업 받기는 지금도 됩니다)');
+    try{ ev.target.value=''; }catch(e){}
+    return;
+  }
   var file = ev.target.files && ev.target.files[0];
   if(!file) return;
   var reader = new FileReader();
@@ -11406,6 +11626,10 @@ function shareUrlOf(token){ return SHARE_BASE + '#' + token; }
    그 창에서 직접 발급할 수 없었고, 그래서 부모를 거치는 복잡한 구조였다.
    반환: { url, title, text } 또는 { error:'사용자에게 보여줄 문구' } */
 async function shareIssueClientRange(mid, startYm, endYm){
+  /* v263: 이용 기간이 끝나면 공유 링크를 새로 만들지 않는다(규칙도 막는다) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    return { error:'이용 기간이 끝나 읽기 전용이에요. 연장하시면 다시 만들 수 있어요.' };
+  }
   if(!mid) return { error:'거래처를 선택하세요.' };
   if(!startYm || !endYm) return { error:'시작 월과 끝 월을 선택하세요.' };
   if(typeof isDemoMode==='function' && isDemoMode()){
@@ -11579,6 +11803,10 @@ function buildOneInvoiceData(id){
 /* 단건 공유 링크 발급 — 순서·문구를 shareIssueClientRange 와 맞췄다.
    반환: { url, title, text } 또는 { error:'사용자에게 보여줄 문구' } */
 async function shareIssueOneInvoice(id){
+  /* v263: 이용 기간이 끝나면 공유 링크를 새로 만들지 않는다(규칙도 막는다) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    return { error:'이용 기간이 끝나 읽기 전용이에요. 연장하시면 다시 만들 수 있어요.' };
+  }
   if(!id) return { error:'명세서를 찾을 수 없어요.' };
   if(typeof isDemoMode==='function' && isDemoMode()){
     return { error:'둘러보기(데모) 기관에서는 공유 링크를 만들 수 없어요.' };
@@ -11639,6 +11867,10 @@ async function shareIssueOneInvoice(id){
    ★ 대상 «회원» 이름·연락처·targets·sent 상태는 **담지 않는다**(9548 원칙 그대로).
    사진은 문자 보내기와 같은 noticeEnsureImageUrls 를 써서 중복 업로드를 막는다. */
 async function shareIssueNotice(id){
+  /* v263: 이용 기간이 끝나면 공유 링크를 새로 만들지 않는다(규칙도 막는다) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    return { error:'이용 기간이 끝나 읽기 전용이에요. 연장하시면 다시 만들 수 있어요.' };
+  }
   if(!id) return { error: 조사(T('알림장'),'을','를') + ' 찾을 수 없어요.' };
   if(typeof isDemoMode==='function' && isDemoMode()){
     return { error:'둘러보기(데모) 기관에서는 공유 링크를 만들 수 없어요.' };
@@ -11760,6 +11992,10 @@ function buildPayslipData(ym, pid){
 
 /* 급여명세서 공유 링크 발급 — 만료는 PAYSLIP_SHARE_DAYS(7일) */
 async function shareIssuePayslip(ym, pid, payDate){
+  /* v263: 이용 기간이 끝나면 공유 링크를 새로 만들지 않는다(규칙도 막는다) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    return { error:'이용 기간이 끝나 읽기 전용이에요. 연장하시면 다시 만들 수 있어요.' };
+  }
   if(typeof isDemoMode==='function' && isDemoMode()){
     return { error:'둘러보기(데모) 기관에서는 공유 링크를 만들 수 없어요.' };
   }
@@ -13620,6 +13856,8 @@ function dlvFetchImageBase64(url){
 
 /* 계기판 사진 업로드 — 알림장 사진 업로드(uploadNoticeImages)와 같은 방식, 저장 경로만 분리 */
 function uploadDriveLogPhoto(dataUrl, cb){
+  /* v263: 읽기 전용이면 사진도 올리지 않는다 */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ readOnlyBlocked('사진'); cb(null); return; }
   if(!window._storage || !window._storageFns){
     console.log('[운행기록부] Storage 준비 안 됨');
     cb(null); return;
@@ -15255,7 +15493,7 @@ function getBizTourSteps(biz){
       { tab:'payment', title:'⑤ 수납관리', body:'거래처별 수금·미수 현황을 달력으로 관리해요. 오래된 미수부터 자동 정산됩니다.' },
       { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'거래처의 "납부처리"를 누르면 수금이 기록되고 미수금이 줄어들어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'거래명세서를 저장해 거래 데이터를 입력하면, 여기 거래처별 "납부처리" 버튼이 나타나요. 누르면 수금이 기록되고 미수금이 줄어듭니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
       { tab:'tax', title:'⑥ 세무관리', body:'매출·매입 세무 기록을 자동으로 정리해요. 거래명세서와 연동되어 관리가 편합니다.' },
-      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 가입하고 바로 시작할 수 있어요!' }
     ];
   }
   if(biz==='public'){
@@ -15269,7 +15507,7 @@ function getBizTourSteps(biz){
       { tab:'payment', title:'⑤ 수납관리', body:'이용료 수납 현황을 달력으로 관리해요. 미납·완납이 색으로 구분되고 통계도 자동 집계됩니다.' },
       { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 이용자의 "납부처리"를 누르면 완납으로 바뀌어요. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'이용자를 등록하고 이용료가 부과되면, 여기 미납 이용자별 "납부처리" 버튼이 나타나요. 누르면 완납으로 바뀝니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
       { tab:'notice', title:'⑥ 알림장', body:'공지와 알림을 카카오 알림톡·문자로 보호자에게 자동 발송해요.' },
-      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 가입하고 바로 시작할 수 있어요!' }
     ];
   }
   if(biz==='delivery'){
@@ -15279,7 +15517,7 @@ function getBizTourSteps(biz){
       { tab:'cars', title:'② 차량·기사 관리', body:'배송 차량과 기사를 등록해요. 일일 기사 채용·근태 관리도 함께 이뤄집니다.' },
       { tab:'schedule', title:'③ 배송현황', body:'기사별 배송 코스가 자동 배정돼요. 지역을 몰라도 최적 순서로 코스가 안내되고, 배송 완료를 체크할 수 있어요.' },
       { tab:'attendance', title:'④ 근태관리', body:'기사가 운행 화면의 "🌅 출근 / 🌆 퇴근"을 눌러 근태가 기록돼요. 일일 기사 운영을 간편하게 관리합니다.' },
-      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
+      { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 가입하고 바로 시작할 수 있어요!' }
     ];
   }
   // 기본: 학원
@@ -15294,7 +15532,7 @@ function getBizTourSteps(biz){
     { tab:'payment', title:'⑤ 수납관리', body:'월 회비 수납을 달력으로 관리해요.' },
     { tab:'payment', selector:'button[onclick^="confirmPayment"]', title:'수납 처리', body:'미납 학생의 "납부처리"를 누르면 완납으로 바뀌고 색으로 구분돼요. 통계도 자동 집계됩니다. 반짝이는 버튼을 눌러보세요.', clickAdvance:true, fallbackBody:'학생을 등록하고 월 회비가 부과되면, 여기 미납 학생별 "납부처리" 버튼이 나타나요. 누르면 완납으로 바뀌고 통계도 자동 집계됩니다. 지금은 데이터 입력은 다음에 하고, "다음"을 누르세요.' },
     { tab:'notice', title:'⑥ 알림장', body:'공지·알림장을 카카오 알림톡·문자로 학부모에게 자동 발송해요. 사진 첨부도 가능합니다.' },
-    { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 30일 무료로 바로 시작할 수 있어요!' }
+    { tab:null, title:'🎉 체험을 시작해 보세요', body:'이제 각 메뉴를 직접 눌러보며 자유롭게 둘러보세요. 마음에 드시면 가입하고 바로 시작할 수 있어요!' }
   ];
 }
 
@@ -15668,6 +15906,9 @@ async function saveToFirebase(key, data){
   try{
     // 데모(읽기전용) 모드: 서버 저장 차단 → 방문자끼리 데이터 안 섞임
     if(isDemoMode()){ demoBlockNotice(); return; }
+    /* v263: 이용 기간이 끝난 업체는 **보기만** 된다. 규칙도 막지만 여기서 먼저 막고
+       화면을 서버 자료로 되돌린다 — 안 그러면 로컬에만 남아 조용히 사라진다. */
+    if(isReadOnlyMode()){ readOnlyBlocked('바꾼 내용'); return; }
     /* v257: 기사 모드는 규칙이 허락한 키만 쓴다 (규칙에서 거부당해 콘솔만 더럽히는 일을 막는다).
        목록은 firestore.rules 의 driverWritableKey 와 같다 — 한쪽만 고치지 말 것. */
     if(currentMode==='driver' && !driverWriteAllowed(key)){

@@ -114,11 +114,24 @@
   - 급여 4값(시급·식대·공제방식·출퇴근거리)은 `cars` → **`driverPay`** 로 옮겼다
     (`{ carId: {hourlyWage, mealAllow, taxMode, commuteKm} }`). `carPay(car)` 가 옛 값도 함께 봐서
     「옮기기」 전에도 급여가 맞게 나온다. 급여 계산 코드는 `buildPayrollData` 에서 차량에 붙여 주므로 한 줄도 안 바뀌었다.
-- 요금제: 마스터 승인 시점부터 30일 무료 체험(승인 순간 trialStart·plan=trial),
-  만료 시 차단 + 구독 안내 (plan: trial/paid). 농협 구독료 월 45,000 / 년 540,000.
+- **이용 기간 — 판정은 `paidUntil` 하나다 (v263).** 금액·개월수는 **코드에 없다**(요금 미정).
+  마스터가 승인할 때 체험 일수·계약 개월수·받은 금액을 **입력**한다.
+  - **살아 있음 = `approved == true && withdrawn != true && paidUntil > 지금`** —
+    규칙(`isMyOrgActive`·`ownerAlive`)·앱(`getTrialStatus`) **세 곳이 같은 한 줄**이다. 한 곳만 고치지 말 것.
+    `plan` 글자('trial'|'paid'|'expired')는 **표시용만** — 판정에 쓰면 오타 하나로 영구 무료가 된다.
+  - `users/{uid}`: `paidUntil`(밀리초, KST 23:59:59.999) · `trialEnd`(표시용) · `contractMonths` · `paidAt`.
+    **값이 없으면 막힌다** — 옛 계정 분기는 두지 않았다(v263, 실사용 업체 0곳). 마스터가 「📅 기간」으로 넣는다.
+  - 읽기/쓰기가 갈린다: **만료 업체는 읽기만** 된다(`isMyOrgReadable`) · 쓰기·백업·공유 링크 발급은 `isMyOrgActive`.
+    미입금(승인 대기)·탈퇴는 **읽기도 막힌다**. 만료면 **기사도 잠긴다**(`ownerAlive`).
+  - 앱 읽기 전용: `isReadOnlyMode()` → `saveToFirebase`·공유 4곳·사진 2곳·복원을 앞에서 막고,
+    막히면 **안내 + 서버 자료로 되돌린다**(`readOnlyBlocked`). 저장 함수는 전부 로컬+서버를 함께 쓰므로
+    서버만 막으면 **조용히 사라진다** — 반드시 되돌려야 한다. 내보내기(엑셀·PDF·백업 받기)는 된다.
+  - 승인·연장·기간 정하기·승인 취소는 **서버만** 쓴다 — `api/admin-account.js`
+    (`approveOrg`·`extendOrg`·`setPeriod`·`unapproveOrg`, 날짜 셈은 `lib/period.js` 한 벌).
+    규칙의 마스터 쓰기는 **`testAccess` 하나로** 좁혔다. 기록은 `billingLog/{uid}/items`(마스터 읽기만).
 - 모델 B (v232 `350f960`)
   - 로그인: 이메일 인증 제거, 휴대폰번호 + 비밀번호 로그인.
-  - 가입은 승인 대기(pending). 마스터가 승인해야 이용 시작(= 체험 30일 시작).
+  - 가입은 승인 대기(pending). 마스터가 입금을 확인해 승인해야 이용 시작.
   - 마스터: 실계정 `admins/{uid}` (MASTER_PW 제거). 기관 격리 `isMyOrg`.
   - Firestore `users` delete = `isAdmin() && get('approved',false)!=true` (미승인만 삭제).
   - 미승인 대기 항목은 마스터 패널에서 수동 삭제(🗑), 가입 7일 경과 시 만료 표시.
@@ -193,6 +206,14 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
   JS 로 만드는 화면(문자열 HTML)은 상속으로 함께 받는다. 둘을 **같이** 써야 한다 —
   `keep-all` 만 쓰면 띄어쓰기 없는 긴 URL·번호가 가로 스크롤을 만든다.
   일부러 끊는 자리(공유 링크 상자·PDF 표의 `break-all`)는 그 자리에만 남긴다.
+- **창(모달) 덮개는 세로 가운데 맞춤을 쓰지 말 것** (v262) —
+  `position:fixed;inset:0;display:flex;` 덮개에 **`align-items:center` 금지**.
+  가로 방향 flex 에서 세로 가운데는 **엇갈린 축**이라, 안쪽 상자가 길면 위·아래로 똑같이 넘치고
+  **위로 넘친 부분은 스크롤로도 못 올라간다**(`overflow:auto` 가 있어도 그렇다 — 브라우저가
+  스스로 막아 주는 것은 주된 축(`justify-content`)뿐이다. 그래서 `flex-direction:column` 인
+  `.login-screen` 은 같은 꼴인데도 안 잘린다 — 실측 확인).
+  → **덮개 `align-items:flex-start` + `overflow-y:auto` · 안쪽 상자 `margin:auto`.**
+  짧으면 지금처럼 가운데, 길면 위에서 시작해 끝까지 스크롤된다. v262 에서 같은 꼴 22곳을 이렇게 고쳤다.
 - **CSS 변수는 `:root`(index.html 36~45행)에 있는 것만 쓴다.** 없는 이름을 `var()` 로 쓰면
   배경·색이 **조용히 빠져** 글자가 안 보인다 (v255 기사 탭이 `var(--driver)` 로 그랬다 → v256 에서 `--primary` 로).
 

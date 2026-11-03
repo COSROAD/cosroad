@@ -20,6 +20,8 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { createHash, randomInt } from 'crypto';
+/* v263: 이용 기간 날짜 셈 — 승인·연장·기간 정하기가 **같은 한 벌**을 쓴다 (lib/period.js) */
+import { approvePeriod, extendPeriod, dateStrEnd, dateStr } from '../lib/period.js';
 
 const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
 const BIZ = ['academy', 'public', 'logistics', 'delivery'];
@@ -403,6 +405,100 @@ export default async function handler(req, res) {
       if (pw.length < 6) return fail(res, 400, '비밀번호는 6자 이상이어야 해요.');
       await A.auth.updateUser(targetUid, { password: pw, disabled: false });
       return res.status(200).json({ ok: true });
+    }
+
+    /* ── e) 마스터 — 이용 기간 (승인·연장·기간 정하기·승인 취소) (v263) ────
+       왜 서버인가 — 이 네 동작이 쓰는 값(approved·paidUntil·trialEnd·contractMonths)은
+       **돈이 걸린 값**이다. v262 까지는 마스터 **브라우저**가 users 문서에 직접 썼고,
+       규칙도 그 쓰기를 열어 두고 있었다(마스터 분기). 마스터 계정이 한 번 털리면
+       그 자리에서 paidUntil 을 10년 뒤로 적을 수 있었다.
+       v263: 규칙의 마스터 쓰기를 testAccess 하나로 좁히고, 기간은 여기(Admin SDK)서만 쓴다.
+       · 날짜 셈은 lib/period.js 한 벌 — 세 동작이 같은 셈을 한다.
+       · **바뀐 칸만 update** 한다(통째 쓰기 금지) — 다른 칸을 덮어쓰지 않는다.
+       · 금액은 숫자만 기록에 남긴다. 코드에는 가격이 없다(요금 미정). */
+    if (action === 'approveOrg' || action === 'extendOrg'
+        || action === 'setPeriod' || action === 'unapproveOrg') {
+      if (!isMaster) return fail(res, 403, '마스터만 쓸 수 있어요.');
+      const targetUid = String(b.uid || b.targetUid || '').trim();
+      if (!targetUid) return fail(res, 400, '대상 계정이 빠졌어요.');
+
+      const uref = A.db.collection('users').doc(targetUid);
+      const usnap = await uref.get();
+      if (!usnap.exists) return fail(res, 404, '그 계정을 찾을 수 없어요.');
+      const u = usnap.data() || {};
+      if (u.role === 'driver') return fail(res, 400, '기사 계정에는 이용 기간이 없어요.');
+
+      const now = Date.now();
+      const memo = String(b.memo || '').slice(0, 200);
+      const amount = Number(b.amount || 0);
+      if (!(amount >= 0) || amount > 100000000) return fail(res, 400, '받은 금액을 숫자로 넣어 주세요.');
+
+      let patch = {};
+      let log = { type: '', at: now, by: callerUid, memo: memo, amount: amount };
+
+      if (action === 'approveOrg') {
+        const trialDays = (b.trialDays === undefined || b.trialDays === null || b.trialDays === '')
+          ? 30 : Number(b.trialDays);
+        const months = Number(b.months);
+        if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > 365) {
+          return fail(res, 400, '체험 일수는 0~365 사이 숫자로 넣어 주세요.');
+        }
+        if (!Number.isInteger(months) || months < 1 || months > 120) {
+          return fail(res, 400, '계약 개월수는 1~120 사이 숫자로 넣어 주세요.');
+        }
+        const p = approvePeriod(now, trialDays, months);
+        patch = {
+          approved: true, status: 'active', plan: trialDays > 0 ? 'trial' : 'paid',
+          paidAt: now, trialEnd: p.trialEnd, paidUntil: p.paidUntil, contractMonths: months
+        };
+        log = Object.assign(log, { type: 'approve', months: months, trialDays: trialDays,
+                                   trialEnd: p.trialEnd, paidUntil: p.paidUntil });
+
+      } else if (action === 'extendOrg') {
+        const months = Number(b.months);
+        if (!Number.isInteger(months) || months < 1 || months > 120) {
+          return fail(res, 400, '연장할 개월수를 1~120 사이 숫자로 넣어 주세요.');
+        }
+        const next = extendPeriod(now, u.paidUntil, months);
+        patch = { paidUntil: next, plan: 'paid',
+                  contractMonths: Number(u.contractMonths || 0) + months };
+        log = Object.assign(log, { type: 'extend', months: months, paidUntil: next });
+
+      } else if (action === 'setPeriod') {
+        const until = dateStrEnd(b.paidUntil);
+        if (until === null) return fail(res, 400, '이용 끝 날짜를 YYYY-MM-DD 로 넣어 주세요.');
+        /* 「기간 정하기」는 **바로잡기용**이다 — 승인되지 않은 계정에는 쓰지 않는다
+           (승인은 approveOrg 가 한다. 여기서 approved 를 켜면 기록이 어긋난다). */
+        if (u.approved !== true) return fail(res, 400, '먼저 승인해 주세요. 그 뒤에 기간을 정할 수 있어요.');
+        patch = { paidUntil: until, plan: until > now ? 'paid' : 'expired' };
+        log = Object.assign(log, { type: 'set', paidUntil: until });
+
+      } else {   /* unapproveOrg — 기간 값은 남긴다(다시 승인할 때 기록이 이어지게) */
+        patch = { approved: false, status: 'pending' };
+        log = Object.assign(log, { type: 'unapprove' });
+      }
+
+      try {
+        await uref.update(patch);                      // ★ 바뀐 칸만
+      } catch (e) {
+        console.log('[admin-account] 기간 쓰기 실패', action);
+        return fail(res, 500, '저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+      }
+      /* 기록은 서버 전용 컬렉션에 (규칙: read 마스터 · write false).
+         기록을 못 남겨도 기간 자체는 이미 바뀌었으므로 성공으로 답한다. */
+      try {
+        await A.db.collection('billingLog').doc(targetUid).collection('items').add(log);
+      } catch (e) { console.log('[admin-account] 기록 남기기 실패', action); }
+
+      /* 응답에는 **그 업체의 기간만** 담는다 (다른 사람 정보 없음) */
+      return res.status(200).json({
+        ok: true,
+        approved: patch.approved === undefined ? (u.approved === true) : patch.approved,
+        trialEnd: patch.trialEnd === undefined ? (u.trialEnd || null) : patch.trialEnd,
+        paidUntil: patch.paidUntil === undefined ? (u.paidUntil || null) : patch.paidUntil,
+        trialEndStr: patch.trialEnd ? dateStr(patch.trialEnd) : (u.trialEnd ? dateStr(u.trialEnd) : null),
+        paidUntilStr: patch.paidUntil ? dateStr(patch.paidUntil) : (u.paidUntil ? dateStr(u.paidUntil) : null)
+      });
     }
 
     return fail(res, 400, '알 수 없는 요청이에요.');
