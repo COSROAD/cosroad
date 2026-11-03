@@ -415,6 +415,18 @@ service cloud.firestore {
       allow write: if false;                             // Admin SDK 전용
     }
 
+    // ── bizFirstPay/{sha256(사업자번호)} — 첫 결제 할인 1회 (v264) ──────────
+    // 첫 결제 할인은 **사업자등록번호당 한 번**이다(계정당이 아니다 — 같은 사업자가
+    // 새 번호로 다시 가입해도 또 받으면 안 된다). 그 「받았음」 표시를 두는 자리다.
+    // **쓰기는 서버(api/admin-account, Admin SDK)만** — 브라우저가 지울 수 있으면
+    //   지우고 다시 받는 길이 열려 할인이 무제한이 된다.
+    // 문서 id 는 사업자번호의 **해시**다 — 열려도 번호 목록이 되지 않게 한다.
+    // 마스터만 읽는다(승인 창에서 「이미 받음」을 보여 주려고). 업체에는 열지 않는다.
+    match /bizFirstPay/{id} {
+      allow read:  if isAdmin();
+      allow write: if false;                             // Admin SDK 전용
+    }
+
     // ── 기사 로그인 (v255) — 다섯 컬렉션 **전부 서버 전용** ────────────────
     // 앱은 이 컬렉션들을 보지도 쓰지도 않는다. api/driver-auth.js 와
     // api/admin-account.js(Admin SDK)만 다룬다 — Admin SDK 는 이 규칙을 거치지 않는다.

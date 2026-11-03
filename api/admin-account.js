@@ -22,6 +22,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { createHash, randomInt } from 'crypto';
 /* v263: 이용 기간 날짜 셈 — 승인·연장·기간 정하기가 **같은 한 벌**을 쓴다 (lib/period.js) */
 import { approvePeriod, extendPeriod, dateStrEnd, dateStr } from '../lib/period.js';
+import { PLANS } from '../lib/price.js';
 
 const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
 const BIZ = ['academy', 'public', 'logistics', 'delivery'];
@@ -416,6 +417,31 @@ export default async function handler(req, res) {
        · 날짜 셈은 lib/period.js 한 벌 — 세 동작이 같은 셈을 한다.
        · **바뀐 칸만 update** 한다(통째 쓰기 금지) — 다른 칸을 덮어쓰지 않는다.
        · 금액은 숫자만 기록에 남긴다. 코드에는 가격이 없다(요금 미정). */
+    /* ── e-0) 이 사업자가 첫 결제 할인을 이미 받았나 (v264) ─────────────────
+       승인 창을 열 때 묻는다. **사업자번호 원문은 응답에 넣지 않는다**
+       (해시만 서버가 쓰고, 화면에는 「받을 수 있음 / 이미 받음(날짜)」만 보낸다). */
+    if (action === 'bizPromoStatus') {
+      if (!isMaster) return fail(res, 403, '마스터만 쓸 수 있어요.');
+      const targetUid = String(b.uid || b.targetUid || '').trim();
+      if (!targetUid) return fail(res, 400, '대상 계정이 빠졌어요.');
+      const usnap = await A.db.collection('users').doc(targetUid).get();
+      if (!usnap.exists) return fail(res, 404, '그 계정을 찾을 수 없어요.');
+      const u = usnap.data() || {};
+      const bizNo = String(u.bizNo || '').replace(/[^0-9]/g, '');
+      if (!bizNo) {
+        return res.status(200).json({ ok: true, hasBizNo: false, used: false, usedAt: null, usedStr: null });
+      }
+      let used = false, usedAt = null;
+      try {
+        const s = await A.db.collection('bizFirstPay').doc(sha256(bizNo)).get();
+        if (s.exists) { used = true; usedAt = Number((s.data() || {}).at || 0) || null; }
+      } catch (e) { used = false; }
+      return res.status(200).json({
+        ok: true, hasBizNo: true, used: used, usedAt: usedAt,
+        usedStr: usedAt ? dateStr(usedAt) : null
+      });
+    }
+
     if (action === 'approveOrg' || action === 'extendOrg'
         || action === 'setPeriod' || action === 'unapproveOrg') {
       if (!isMaster) return fail(res, 403, '마스터만 쓸 수 있어요.');
@@ -433,19 +459,60 @@ export default async function handler(req, res) {
       const amount = Number(b.amount || 0);
       if (!(amount >= 0) || amount > 100000000) return fail(res, 400, '받은 금액을 숫자로 넣어 주세요.');
 
+      /* ── 상품 (v264) ───────────────────────────────────────────────────
+         화면이 보낸 `plan` 은 **이름일 뿐**이다. 개월수는 서버가 PLANS 에서 꺼내 쓴다
+         — 화면 값을 그대로 믿으면 'promo6m' 이라 적고 120개월을 열 수 있다.
+         'custom'(직접 입력)일 때만 마스터가 보낸 개월수를 받는다. */
+      const PLAN_OK = ['promo6m', 'promo12m', 'monthly', 'yearly', 'custom'];
+      const plan = String(b.plan || 'custom');
+      if (!PLAN_OK.includes(plan)) return fail(res, 400, '상품을 다시 골라 주세요.');
+      const planDef = PLANS[plan] || null;          // custom 이면 null
+
       let patch = {};
-      let log = { type: '', at: now, by: callerUid, memo: memo, amount: amount };
+      let promoRef = null;                           // 첫 결제 할인을 「찍어 둔」 자리
+      let log = { type: '', at: now, by: callerUid, memo: memo, amount: amount, buyPlan: plan };
 
       if (action === 'approveOrg') {
         const trialDays = (b.trialDays === undefined || b.trialDays === null || b.trialDays === '')
           ? 30 : Number(b.trialDays);
-        const months = Number(b.months);
+        const months = planDef ? planDef.months : Number(b.months);
         if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > 365) {
           return fail(res, 400, '체험 일수는 0~365 사이 숫자로 넣어 주세요.');
         }
         if (!Number.isInteger(months) || months < 1 || months > 120) {
           return fail(res, 400, '계약 개월수는 1~120 사이 숫자로 넣어 주세요.');
         }
+
+        /* 첫 결제 할인은 **사업자등록번호당 1회**다 (계정당이 아니다).
+           같은 사업자가 새 번호로 다시 가입해도 할인이 또 나가면 안 되므로
+           사업자번호 해시 한 칸을 **트랜잭션으로 찍는다** — 동시에 두 번 눌러도 하나만 든다. */
+        if (planDef && planDef.promo) {
+          const bizNo = String(u.bizNo || '').replace(/[^0-9]/g, '');
+          if (!bizNo) {
+            return fail(res, 400, '사업자 정보가 없는 계정이라 첫 결제 할인을 쓸 수 없어요. 「직접 입력」으로 승인해 주세요.');
+          }
+          promoRef = A.db.collection('bizFirstPay').doc(sha256(bizNo));
+          try {
+            await A.db.runTransaction(async (tx) => {
+              const s = await tx.get(promoRef);
+              if (s.exists) {
+                const err = new Error('PROMO_USED');
+                err.usedAt = Number((s.data() || {}).at || 0);
+                throw err;
+              }
+              tx.set(promoRef, { at: now, uid: targetUid, plan: plan, amount: amount, months: months });
+            });
+          } catch (e) {
+            if (String(e && e.message) === 'PROMO_USED') {
+              const when = e.usedAt ? (' (' + dateStr(e.usedAt) + ')') : '';
+              return fail(res, 400, '이 사업자는 첫 결제 할인을 이미 받았어요' + when + '.');
+            }
+            promoRef = null;
+            console.log('[admin-account] 첫 결제 확인 실패');
+            return fail(res, 500, '첫 결제 할인을 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+          }
+        }
+
         const p = approvePeriod(now, trialDays, months);
         patch = {
           approved: true, status: 'active', plan: trialDays > 0 ? 'trial' : 'paid',
@@ -455,7 +522,11 @@ export default async function handler(req, res) {
                                    trialEnd: p.trialEnd, paidUntil: p.paidUntil });
 
       } else if (action === 'extendOrg') {
-        const months = Number(b.months);
+        /* 할인은 **첫 결제에만** — 연장에는 쓸 수 없다(정가 월간·연간·직접 입력) */
+        if (planDef && planDef.promo) {
+          return fail(res, 400, '첫 결제 할인은 연장에 쓸 수 없어요. 월간·연간·직접 입력 중에서 골라 주세요.');
+        }
+        const months = planDef ? planDef.months : Number(b.months);
         if (!Number.isInteger(months) || months < 1 || months > 120) {
           return fail(res, 400, '연장할 개월수를 1~120 사이 숫자로 넣어 주세요.');
         }
@@ -481,6 +552,9 @@ export default async function handler(req, res) {
       try {
         await uref.update(patch);                      // ★ 바뀐 칸만
       } catch (e) {
+        /* 할인을 찍어 두고 기간 쓰기가 깨지면 그 사업자는 할인을 **쓰지도 못하고 잃는다.**
+           그래서 찍어 둔 자리를 다시 비운다(다음에 제대로 승인할 수 있게). */
+        if (promoRef) { try { await promoRef.delete(); } catch (e2) {} }
         console.log('[admin-account] 기간 쓰기 실패', action);
         return fail(res, 500, '저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.');
       }

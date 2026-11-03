@@ -40,6 +40,7 @@
 import {
   ALLOWED, admin, phoneDigits, phoneLoginId, clientIp, fail, otpCore, aligoSend, sha256
 } from '../lib/otp-core.js';
+import { priceNotice } from '../lib/price.js';
 
 const BIZ = ['academy', 'public', 'logistics', 'delivery'];
 
@@ -313,9 +314,13 @@ export default async function handler(req, res) {
       const acct = String(billing.account || '').trim();
       const holder = String(billing.holder || '').trim();
       if (bank && acct) {
+        /* v264 — 금액은 **billing 값**으로 만든다(lib/price.js 한 벌). 코드에 금액을 적지 않는다.
+           입금자명은 업체명으로 해 주셔야 확인이 빠르다. */
         await aligoSend(digits,
-          '[코스로드] 가입 신청 접수. 입금 확인 후 승인됩니다. '
-          + bank + ' ' + acct + (holder ? ' (' + holder + ')' : ''), 'signup');
+          '[코스로드] 가입 신청 접수. '
+          + bank + ' ' + acct + (holder ? ' (' + holder + ')' : '')
+          + ' 입금자명 ' + orgName + '. '
+          + priceNotice(billing), 'signup');
       }
 
       /* 응답에 비밀번호·토큰·uid 를 담지 않는다 — 화면이 같은 번호·비번으로 로그인한다 */

@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 263;
+const APP_VERSION = 264;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2400,6 +2400,7 @@ function loginAdmin(){
           if(st.blocked){ showTrialExpired(); return; }
           onAdminLoggedIn();
           if(st.banner) showTrialBanner(st.daysLeft);
+          startPeriodWatch();                 /* v264 — 켜 둔 채 만료되면 읽기 전용으로 */
         });
       })
       .catch(function(e){
@@ -2482,7 +2483,9 @@ function openSignupModal(presetBiz){
     +'<div style="font-size:12px;font-weight:800;color:#1A1A2E;margin-bottom:8px;">사업자 정보 <span style="font-weight:600;color:#98A2B3;">(사업자등록증과 똑같이)</span></div>'
     +suFieldRow('사업자등록번호','<input id="su-bizno" type="tel" inputmode="numeric" maxlength="12" oninput="suBizDirty()" placeholder="000-00-00000" style="'+ipt+'"/>')
     +suFieldRow('대표자 성명','<input id="su-ceo" type="text" oninput="suBizDirty()" placeholder="예) 홍길동" style="'+ipt+'"/>')
-    +suFieldRow('개업일자','<input id="su-open" type="tel" inputmode="numeric" maxlength="10" oninput="suBizDirty()" placeholder="2020-03-01" style="'+ipt+'"/>')
+    /* v264 — 개업일자를 **달력**으로 받는다(글자로 받으면 2020/3/1·20200301 등이 섞인다).
+       국세청에 보내는 값은 그대로 숫자만 뽑아 YYYYMMDD 가 된다(2622행). 오늘 뒤는 못 고른다. */
+    +suFieldRow('개업일자','<input id="su-open" type="date" max="'+todayStr()+'" oninput="suBizDirty()" onchange="suBizDirty()" style="'+ipt+'"/>')
     +'<button type="button" id="su-bizchk" onclick="suCheckBiz()" style="'+btnS+'background:#fff;color:var(--admin);border:1.5px solid var(--admin);">🔎 사업자 확인</button>'
     +'<div id="su-biz-state" style="display:none;font-size:12px;font-weight:700;margin:-8px 0 12px;"></div>'
     +'<div style="border-top:1px solid var(--gray-200);margin:4px 0 12px;"></div>'
@@ -2893,6 +2896,45 @@ window._checkAccountGate = function(user){
   });
 };
 
+/* ── 요금 (v264) ─────────────────────────────────────────────────────────
+   값은 마스터가 넣는 orgs/_master/data/billing 이 먼저고, 비어 있으면 아래 기본값을 쓴다.
+   ★ 서버에도 같은 기본값이 있다(lib/price.js) — 화면은 모듈을 못 불러와 한 벌을 더 둔다.
+     **가격을 바꿀 때 같이 고칠 곳**은 CLAUDE.md 「가격 바꿀 때 같이 고칠 곳」에 적어 두었다.
+   정가 월 50,000 / 연 480,000 · 첫 결제 할인 6개월 180,000 / 1년 310,000 (VAT 별도, 사업자당 1회) */
+var PRICE_DEFAULT = { priceMonthly:50000, priceYearly:480000, promo6m:180000, promo12m:310000, trialDays:30 };
+/* 상품 — 개월수는 **코드가 정한다**(마스터는 금액만 고친다). 서버 lib/price.js PLANS 와 같은 표. */
+var PRICE_PLANS = {
+  promo6m:  { months:6,  key:'promo6m',      promo:true,  label:'첫 결제 6개월' },
+  promo12m: { months:12, key:'promo12m',     promo:true,  label:'첫 결제 1년' },
+  monthly:  { months:1,  key:'priceMonthly', promo:false, label:'월간' },
+  yearly:   { months:12, key:'priceYearly',  promo:false, label:'연간' }
+};
+function priceWon(n){ try{ return Number(n||0).toLocaleString('en-US'); }catch(e){ return String(n||0); } }
+function priceOf(key){
+  var b=_billingInfo||{};
+  var n=Number(String(b[key]==null?'':b[key]).replace(/[^0-9]/g,''));
+  return (isFinite(n) && n>0) ? n : PRICE_DEFAULT[key];
+}
+function priceTrialDays(){
+  var b=_billingInfo||{}, raw=b.trialDays;
+  if(raw==null || String(raw).trim()==='') return PRICE_DEFAULT.trialDays;
+  var s=String(raw).replace(/[^0-9]/g,'');
+  if(s==='') return PRICE_DEFAULT.trialDays;          /* 글자만 들어 있으면 0일이 아니라 기본값 */
+  var n=Number(s);
+  return (isFinite(n) && n>=0 && n<=365) ? n : PRICE_DEFAULT.trialDays;
+}
+function planAmountOf(plan){ var p=PRICE_PLANS[plan]; return p ? priceOf(p.key) : 0; }
+/* 안내 한 문장 — 승인 대기·만료 안내·마스터 미리 보기가 **같은 글**을 쓴다
+   (서버 lib/price.js priceNotice 와 같은 문구 — 문자도 같게 나간다) */
+function priceNoticeLines(){
+  return ['첫 결제 할인: 6개월 '+priceWon(priceOf('promo6m'))+'원 / 1년 '+priceWon(priceOf('promo12m'))+'원 (VAT 별도, 사업자당 1회)',
+          '이후 연장은 월 '+priceWon(priceOf('priceMonthly'))+'원 / 연 '+priceWon(priceOf('priceYearly'))+'원',
+          '입금 확인 후 승인 → '+priceTrialDays()+'일 체험 뒤 계약 기간 시작'];
+}
+function priceNoticeHtml(){
+  return priceNoticeLines().map(function(s){ return escapeMasterHtml(s); }).join('<br>');
+}
+
 /* 계좌 안내는 마스터가 넣는 설정값이다 — 코드에 계좌번호를 박지 않는다.
    저장 위치: orgs/_master/data/billing (마스터 패널에서 입력) */
 var _billingInfo = null;
@@ -2925,7 +2967,9 @@ function showPendingScreen(){
       h+='<div style="font-size:12px;font-weight:800;color:#6941C6;margin-bottom:6px;">입금 계좌</div>'
         +'<div><b>'+escapeMasterHtml(b.bank||'')+'</b> '+escapeMasterHtml(b.account||'')+'</div>'
         +'<div style="font-size:12px;color:#667085;">예금주 '+escapeMasterHtml(b.holder||'')+'</div>';
-      if(b.fee) h+='<div style="margin-top:6px;">구독료 <b>'+escapeMasterHtml(String(b.fee))+'</b></div>';
+      /* v264 — 금액은 billing 값으로 만든 한 문구(priceNoticeLines)로 통일했다.
+         옛 `fee`(글자로 적던 칸)는 쓰지 않는다 — 두 곳에 적히면 한쪽만 고쳐진다. */
+      h+='<div style="margin-top:6px;border-top:1px dashed #EAECF0;padding-top:6px;font-size:12px;color:#475467;line-height:1.7;">'+priceNoticeHtml()+'</div>';
       h+='<div style="margin-top:6px;border-top:1px dashed #EAECF0;padding-top:6px;">입금자명 <b>'+escapeMasterHtml(orgName||'(업체명)')+'</b><div style="font-size:11px;color:#98A2B3;">업체명으로 입금해 주셔야 확인이 빨라요.</div></div>';
       if(b.note) h+='<div style="font-size:12px;color:#667085;margin-top:6px;white-space:pre-line;">'+escapeMasterHtml(b.note)+'</div>';
     } else {
@@ -2954,6 +2998,14 @@ function showPendingScreen(){
      값이 없으면 **막는다**(사장님 결정 11-03 — 실사용 업체 0곳이라 옛 계정 분기 없음). */
 function periodDayStr(ms){
   try{ return ms ? localDateStr(new Date(ms)) : ''; }catch(e){ return ''; }
+}
+/* 「📅 기간 정하기」 달력의 기본값 — 지금 이용 끝이 없을 때 쓴다 (오늘 + 1년) (v264) */
+function periodPlusYearStr(){
+  try{
+    var d=new Date(); d.setHours(0,0,0,0);
+    d.setFullYear(d.getFullYear()+1);
+    return localDateStr(d);
+  }catch(e){ return ''; }
 }
 function getTrialStatus(){
   try{
@@ -2996,7 +3048,8 @@ function showTrialExpired(){
     if(b.bank || b.account){
       h+='<div style="margin-top:6px;border-top:1px dashed #EAECF0;padding-top:6px;"><b>'+escapeMasterHtml(b.bank||'')+'</b> '+escapeMasterHtml(b.account||'')+'</div>'
         +(b.holder?'<div style="font-size:11px;color:#667085;">예금주 '+escapeMasterHtml(b.holder)+'</div>':'')
-        +(b.fee?'<div style="margin-top:4px;">'+escapeMasterHtml(String(b.fee))+'</div>':'')
+        /* v264 — 연장은 **정가**다(첫 결제 할인은 한 번뿐). 그래서 할인 줄은 빼고 정가만 적는다. */
+        +'<div style="margin-top:4px;">연장 요금 — 월 '+priceWon(priceOf('priceMonthly'))+'원 / 연 '+priceWon(priceOf('priceYearly'))+'원 <span style="color:#98A2B3;">(VAT 별도)</span></div>'
         +'<div style="font-size:11px;color:#98A2B3;">입금자명은 업체명('+escapeMasterHtml(window._userOrgName||'')+')으로 부탁드려요.</div>';
     }
     h+='<div style="margin-top:6px;">문의 📧 <a href="mailto:cosroad@cosroad.com" style="color:#1A6BFF;font-weight:700;">cosroad@cosroad.com</a></div></div>'
@@ -3058,6 +3111,36 @@ function showTrialBanner(daysLeft){
       +' — 연장은 관리자에게 문의해 주세요';
     var app=document.getElementById('main-app');
     if(app) app.insertBefore(b, app.firstChild);
+  }catch(e){}
+}
+
+/* ── 켜 둔 채 이용 기간이 끝났을 때 (v264) ──────────────────────────────
+   앱을 켜 둔 채 자정을 넘기면(이용 끝 = 그날 23:59:59 KST) 화면은 여전히 쓸 수 있는 꼴이다.
+   서버 규칙은 이미 막지만(쓰기 거절), 화면이 모르면 「저장한 줄 알았는데 안 됨」이 된다.
+   그래서 **화면이 다시 보일 때**와 **10분마다** 다시 보고, 끝났으면 읽기 전용으로 바꾼다.
+   ※ 읽기 전용으로 바꿀 뿐 로그아웃하지 않는다(v263 결정 — 자료는 보여 준다). */
+var _periodTimer = null;
+function periodCheckNow(){
+  try{
+    if(isReadOnlyMode()) return;                       // 이미 읽기 전용
+    if(!window._userUid || window._isDriverAcct) return;
+    var app=document.getElementById('main-app');
+    if(!app || app.style.display==='none') return;      // 앱 화면이 아닐 때는 건드리지 않는다
+    var st=getTrialStatus();
+    if(!st.blocked) return;
+    _readOnlyMode = true;
+    var bn=document.getElementById('trial-banner'); if(bn) bn.remove();   // D-n 띠는 걷는다
+    showReadOnlyBar();
+    alert('🔒 이용 기간이 끝났어요.\n\n지금부터는 「보기만」 됩니다 — 자료는 그대로 있어요.\n엑셀·PDF·백업 받기는 그대로 되고, 저장·수정만 막혀요.\n\n연장하시면 바로 다시 쓰실 수 있어요.');
+  }catch(e){}
+}
+function startPeriodWatch(){
+  try{
+    if(_periodTimer) return;                            // 두 번 걸지 않는다
+    _periodTimer = setInterval(periodCheckNow, 600000); // 10분마다
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState==='visible') periodCheckNow();
+    });
   }catch(e){}
 }
 
@@ -3275,6 +3358,7 @@ function tryAutoLogin(){
         if(st.blocked){ showTrialExpired(); return; }
         onAdminLoggedIn();
         if(st.banner) showTrialBanner(st.daysLeft);
+        startPeriodWatch();                   /* v264 — 켜 둔 채 만료되면 읽기 전용으로 */
       });
     }).catch(function(){
       try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
@@ -3715,18 +3799,59 @@ async function loadSignupUsers(){
   signupUsers = [];
 }
 
+/* 요금 칸 — 치는 동안 천 단위 쉼표를 넣어 준다 (저장은 숫자만) */
+function masterPriceFmt(el){
+  try{
+    var n=String(el.value||'').replace(/[^0-9]/g,'');
+    el.value = n ? priceWon(n) : '';
+  }catch(e){}
+}
+/* 마스터 패널 요금 미리 보기 — **지금 칸에 쳐 넣은 값**으로 문구를 만든다
+   (아직 저장 전이라 _billingInfo 가 아니라 화면 값을 본다) */
+function masterPricePreview(){
+  try{
+    var el=document.getElementById('bill-preview'); if(!el) return;
+    var num=function(id, dflt){
+      var e=document.getElementById(id); if(!e) return dflt;
+      var n=Number(String(e.value||'').replace(/[^0-9]/g,''));
+      return (isFinite(n) && n>0) ? n : dflt;
+    };
+    var td=function(){
+      var e=document.getElementById('bill-td'); if(!e) return PRICE_DEFAULT.trialDays;
+      var s=String(e.value||'').replace(/[^0-9]/g,'');
+      if(s==='') return PRICE_DEFAULT.trialDays;
+      var n=Number(s);
+      return (n>=0 && n<=365) ? n : PRICE_DEFAULT.trialDays;
+    };
+    var lines=['첫 결제 할인: 6개월 '+priceWon(num('bill-p6',PRICE_DEFAULT.promo6m))+'원 / 1년 '+priceWon(num('bill-p12',PRICE_DEFAULT.promo12m))+'원 (VAT 별도, 사업자당 1회)',
+               '이후 연장은 월 '+priceWon(num('bill-pm',PRICE_DEFAULT.priceMonthly))+'원 / 연 '+priceWon(num('bill-py',PRICE_DEFAULT.priceYearly))+'원',
+               '입금 확인 후 승인 → '+td()+'일 체험 뒤 계약 기간 시작'];
+    el.innerHTML='<b style="color:#6941C6;">이렇게 안내돼요</b><br>'+lines.map(escapeMasterHtml).join('<br>');
+  }catch(e){}
+}
+
 /* 계좌 안내 저장 (마스터 전용) — 값은 Firestore 에만, 코드에 박지 않는다 */
 async function saveBillingInfo(){
   try{
     var v=function(id){ var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+    /* 요금 칸은 **숫자만** 담는다 (쉼표는 보기 좋으라고 화면에만 넣는다).
+       비워 두면 칸 자체를 안 넣어 코드 기본값(PRICE_DEFAULT)이 쓰인다. */
+    var n=function(id){ var s=v(id).replace(/[^0-9]/g,''); return s===''?null:Number(s); };
     var rec={ bank:v('bill-bank'), account:v('bill-account'), holder:v('bill-holder'),
-              fee:v('bill-fee'), note:v('bill-note'),
+              note:v('bill-note'),
               notifyPhone:v('bill-notify'),      /* v261 — 가입 알림 받을 번호 (서버가 읽는다) */
               updatedAt:Date.now() };
+    /* v264 — 요금 5칸. 옛 `fee`(글자로 적던 칸)는 더 쓰지 않는다 — 저장에서도 뺐다. */
+    var _p={ priceMonthly:n('bill-pm'), priceYearly:n('bill-py'),
+             promo6m:n('bill-p6'), promo12m:n('bill-p12'), trialDays:n('bill-td') };
+    Object.keys(_p).forEach(function(k){ if(_p[k]!==null) rec[k]=_p[k]; });
+    if(_p.trialDays!==null && !(_p.trialDays>=0 && _p.trialDays<=365)){
+      alert('체험 일수는 0~365 사이로 넣어 주세요.'); return;
+    }
     var d=window._firestore.doc, sd=window._firestore.setDoc;
     await sd(d(window._db, 'orgs', '_master', 'data', 'billing'), rec);
     _billingInfo = rec;
-    alert('✅ 계좌 안내를 저장했어요.\n승인 대기 중인 업체 화면에 이대로 표시됩니다.');
+    alert('✅ 계좌 안내와 요금을 저장했어요.\n승인 대기 중인 업체 화면과 안내 문자에 이대로 나갑니다.');
   }catch(e){ alert('저장 실패: '+e.message); }
 }
 
@@ -3794,16 +3919,71 @@ function masterPeriodBox(id, title, bodyHtml){
 }
 var _mpIpt='width:100%;padding:10px;border:1.5px solid #EAECF0;border-radius:9px;font-size:14px;margin:4px 0 10px;box-sizing:border-box;';
 
+/* ── 상품 고르기 단추 (v264) ──────────────────────────────────────────
+   고르면 개월·금액이 채워지고, 마스터가 그 값을 고치면 **직접 입력(custom)** 으로 바뀐다.
+   ★ 서버는 plan 이름만 믿고 개월수를 제 표(PLANS)에서 꺼낸다 — 화면 값으로 기간을 늘릴 수 없다. */
+var _mpPlan = 'custom';          // 지금 고른 상품 (승인 창)
+var _mpxPlan = 'custom';         // 지금 고른 상품 (연장 창)
+function _planBtn(plan, label, sub, on, disabled, reason){
+  var bg = disabled ? '#F2F4F7' : (on ? '#ECFDF3' : '#fff');
+  var bd = disabled ? '#EAECF0' : (on ? '#12B76A' : '#EAECF0');
+  var fg = disabled ? '#98A2B3' : (on ? '#027A48' : '#344054');
+  return '<button type="button" '+(disabled?'disabled ':'')
+    +'onclick="masterPickPlan('+jsArg(plan)+')" '
+    +'style="width:100%;text-align:left;margin-bottom:6px;padding:10px 12px;background:'+bg+';border:1.5px solid '+bd+';border-radius:9px;cursor:'+(disabled?'default':'pointer')+';">'
+    +'<div style="font-size:13px;font-weight:800;color:'+fg+';">'+escapeMasterHtml(label)+'</div>'
+    +'<div style="font-size:11px;color:'+(disabled?'#B42318':'#98A2B3')+';margin-top:2px;">'+escapeMasterHtml(disabled?(reason||''):(sub||''))+'</div>'
+    +'</button>';
+}
+/* 승인 창의 상품 묶음 — promo 는 「이 사업자가 아직 안 받았을 때」만 고를 수 있다 */
+function masterPlanListHtml(st){
+  var s = st || {};
+  var why = !s.hasBizNo ? '사업자 정보가 없는 계정이라 못 써요'
+          : (s.used ? ('이미 받았어요'+(s.usedStr?(' ('+s.usedStr+')'):'')) : '');
+  var off = !s.hasBizNo || !!s.used;
+  var h='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:6px;">상품</div>';
+  h += _planBtn('promo6m', '첫 결제 6개월 · '+priceWon(planAmountOf('promo6m'))+'원',
+                '사업자당 1회 · VAT 별도', _mpPlan==='promo6m', off, why);
+  h += _planBtn('promo12m', '첫 결제 1년 · '+priceWon(planAmountOf('promo12m'))+'원',
+                '사업자당 1회 · VAT 별도', _mpPlan==='promo12m', off, why);
+  h += _planBtn('monthly', '월간 · '+priceWon(planAmountOf('monthly'))+'원', '1개월 · VAT 별도', _mpPlan==='monthly', false, '');
+  h += _planBtn('yearly',  '연간 · '+priceWon(planAmountOf('yearly'))+'원',  '12개월 · VAT 별도', _mpPlan==='yearly', false, '');
+  h += _planBtn('custom',  '직접 입력', '개월수·금액을 손으로 넣어요', _mpPlan==='custom', false, '');
+  return h;
+}
+function masterPickPlan(plan){
+  _mpPlan = plan;
+  var p=PRICE_PLANS[plan];
+  var mEl=document.getElementById('mp-months'), aEl=document.getElementById('mp-amount');
+  if(p){
+    if(mEl) mEl.value = String(p.months);
+    if(aEl) aEl.value = priceWon(priceOf(p.key));
+  }
+  var box=document.getElementById('mp-plans');
+  if(box) box.innerHTML = masterPlanListHtml(_mpPromoSt);
+  masterApprovePreview();
+}
+/* 마스터가 개월·금액을 손으로 고치면 고른 상품과 어긋난다 → 직접 입력으로 돌린다 */
+function masterPlanDirty(){
+  if(_mpPlan==='custom') return;
+  _mpPlan='custom';
+  var box=document.getElementById('mp-plans');
+  if(box) box.innerHTML = masterPlanListHtml(_mpPromoSt);
+}
+
 /* ── ① 입금 확인·승인 ── */
-function masterApproveAsk(uid, orgName){
+var _mpPromoSt = null;           // 이 업체 사업자의 첫 결제 할인 상태 (서버가 알려 준다)
+async function masterApproveAsk(uid, orgName){
+  _mpPlan = 'custom'; _mpPromoSt = null;
   masterPeriodBox('mp-approve', '✅ 입금 확인 · 승인',
     '<div style="font-size:13px;color:#475467;margin-bottom:10px;">'+escapeMasterHtml(orgName||'')+'</div>'
+    +'<div id="mp-plans" style="margin-bottom:10px;"><div style="font-size:12px;color:#98A2B3;">상품을 불러오는 중…</div></div>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">체험 일수</label>'
-    +'<input id="mp-trial" type="tel" inputmode="numeric" value="30" oninput="masterApprovePreview()" style="'+_mpIpt+'"/>'
+    +'<input id="mp-trial" type="tel" inputmode="numeric" value="'+priceTrialDays()+'" oninput="masterApprovePreview()" style="'+_mpIpt+'"/>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">계약 개월수</label>'
-    +'<input id="mp-months" type="tel" inputmode="numeric" placeholder="예) 6" oninput="masterApprovePreview()" style="'+_mpIpt+'"/>'
+    +'<input id="mp-months" type="tel" inputmode="numeric" placeholder="예) 6" oninput="masterPlanDirty();masterApprovePreview()" style="'+_mpIpt+'"/>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">받은 금액 (원)</label>'
-    +'<input id="mp-amount" type="tel" inputmode="numeric" placeholder="예) 180000" style="'+_mpIpt+'"/>'
+    +'<input id="mp-amount" type="tel" inputmode="numeric" placeholder="예) '+PRICE_DEFAULT.promo6m+'" oninput="masterPriceFmt(this);masterPlanDirty()" style="'+_mpIpt+'"/>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">메모 (선택)</label>'
     +'<input id="mp-memo" type="text" placeholder="입금자명 등" style="'+_mpIpt+'"/>'
     +'<div id="mp-prev" style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:9px;padding:10px;font-size:12px;color:#344054;line-height:1.8;margin-bottom:10px;">개월수를 넣으면 기간을 미리 보여 드려요.</div>'
@@ -3811,6 +3991,14 @@ function masterApproveAsk(uid, orgName){
     +'<button onclick="masterApproveGo('+jsArg(uid)+')" style="width:100%;padding:12px;background:#12B76A;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">승인합니다</button>'
     +'<button onclick="var b=document.getElementById(\'mp-approve\');if(b)b.remove();" style="width:100%;margin-top:6px;padding:10px;background:none;color:#98A2B3;border:none;font-size:13px;cursor:pointer;">취소</button>');
   masterApprovePreview();
+  /* 「이 사업자가 첫 결제 할인을 받았나」는 **서버만** 안다(bizFirstPay 는 해시 컬렉션).
+     못 물어봤으면 할인을 못 고르게 둔다 — 열어 두면 눌렀다가 400 으로 되돌아온다. */
+  try{
+    var st=await driverAcctApi({ action:'bizPromoStatus', uid:uid });
+    _mpPromoSt = (st&&st.ok) ? st : { hasBizNo:false, used:false };
+  }catch(e){ _mpPromoSt = { hasBizNo:false, used:false }; }
+  var box=document.getElementById('mp-plans');
+  if(box) box.innerHTML = masterPlanListHtml(_mpPromoSt);
 }
 function masterApprovePreview(){
   var t=Number((document.getElementById('mp-trial')||{}).value||0);
@@ -3832,7 +4020,8 @@ async function masterApproveGo(uid){
   if(!(trialDays>=0 && trialDays<=365)){ masterPeriodErr('mp-err','체험 일수를 0~365 로 넣어 주세요.'); return; }
   if(!(months>=1 && months<=120)){ masterPeriodErr('mp-err','계약 개월수를 1~120 으로 넣어 주세요.'); return; }
   masterPeriodErr('mp-err','');
-  var j=await driverAcctApi({ action:'approveOrg', uid:uid, trialDays:trialDays, months:months, amount:amount, memo:memo });
+  var j=await driverAcctApi({ action:'approveOrg', uid:uid, plan:_mpPlan,
+                              trialDays:trialDays, months:months, amount:amount, memo:memo });
   if(!(j&&j.ok)){ masterPeriodErr('mp-err', (j&&j.message)||'승인하지 못했어요.'); return; }
   var b=document.getElementById('mp-approve'); if(b) b.remove();
   alert('✅ 승인했어요.\n체험 끝 '+(j.trialEndStr||'')+'\n이용 끝 '+(j.paidUntilStr||''));
@@ -3840,14 +4029,46 @@ async function masterApproveGo(uid){
 }
 
 /* ── ② 연장 ── */
+function masterExtendPlanHtml(){
+  var btn=function(plan, label, sub){
+    var on=(_mpxPlan===plan);
+    return '<button type="button" onclick="masterPickExtendPlan('+jsArg(plan)+')" '
+      +'style="width:100%;text-align:left;margin-bottom:6px;padding:10px 12px;background:'+(on?'#EFF4FF':'#fff')
+      +';border:1.5px solid '+(on?'#1A6BFF':'#EAECF0')+';border-radius:9px;cursor:pointer;">'
+      +'<div style="font-size:13px;font-weight:800;color:'+(on?'#175CD3':'#344054')+';">'+escapeMasterHtml(label)+'</div>'
+      +'<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+escapeMasterHtml(sub)+'</div></button>';
+  };
+  return '<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:6px;">상품 (연장은 정가예요)</div>'
+    + btn('monthly', '월간 · '+priceWon(planAmountOf('monthly'))+'원', '1개월 · VAT 별도')
+    + btn('yearly',  '연간 · '+priceWon(planAmountOf('yearly'))+'원',  '12개월 · VAT 별도')
+    + btn('custom',  '직접 입력', '개월수·금액을 손으로 넣어요');
+}
+function masterPickExtendPlan(plan){
+  _mpxPlan=plan;
+  var p=PRICE_PLANS[plan];
+  var mEl=document.getElementById('mpx-months'), aEl=document.getElementById('mpx-amount');
+  if(p){
+    if(mEl) mEl.value=String(p.months);
+    if(aEl) aEl.value=priceWon(priceOf(p.key));
+  }
+  var box=document.getElementById('mpx-plans'); if(box) box.innerHTML=masterExtendPlanHtml();
+}
+function masterExtendDirty(){
+  if(_mpxPlan==='custom') return;
+  _mpxPlan='custom';
+  var box=document.getElementById('mpx-plans'); if(box) box.innerHTML=masterExtendPlanHtml();
+}
 function masterExtendAsk(uid, orgName, untilStr){
+  _mpxPlan='custom';
   masterPeriodBox('mp-extend', '➕ 이용 기간 연장',
     '<div style="font-size:13px;color:#475467;margin-bottom:4px;">'+escapeMasterHtml(orgName||'')+'</div>'
     +'<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">지금 이용 끝 '+escapeMasterHtml(untilStr||'—')+'</div>'
+    /* v264 — 연장은 **정가**다. 첫 결제 할인은 여기 없다(서버도 400 으로 막는다). */
+    +'<div id="mpx-plans" style="margin-bottom:10px;">'+masterExtendPlanHtml()+'</div>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">연장할 개월수</label>'
-    +'<input id="mpx-months" type="tel" inputmode="numeric" placeholder="예) 6" style="'+_mpIpt+'"/>'
+    +'<input id="mpx-months" type="tel" inputmode="numeric" placeholder="예) 6" oninput="masterExtendDirty()" style="'+_mpIpt+'"/>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">받은 금액 (원)</label>'
-    +'<input id="mpx-amount" type="tel" inputmode="numeric" style="'+_mpIpt+'"/>'
+    +'<input id="mpx-amount" type="tel" inputmode="numeric" oninput="masterPriceFmt(this);masterExtendDirty()" style="'+_mpIpt+'"/>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">메모 (선택)</label>'
     +'<input id="mpx-memo" type="text" style="'+_mpIpt+'"/>'
     +'<div style="font-size:11px;color:#98A2B3;line-height:1.7;margin-bottom:10px;">남은 기간이 있으면 그 뒤에 이어 붙이고, 이미 지났으면 오늘부터 셉니다.</div>'
@@ -3861,7 +4082,8 @@ async function masterExtendGo(uid){
   var memo=String((document.getElementById('mpx-memo')||{}).value||'');
   if(!(months>=1 && months<=120)){ masterPeriodErr('mpx-err','연장할 개월수를 1~120 으로 넣어 주세요.'); return; }
   masterPeriodErr('mpx-err','');
-  var j=await driverAcctApi({ action:'extendOrg', uid:uid, months:months, amount:amount, memo:memo });
+  var j=await driverAcctApi({ action:'extendOrg', uid:uid, plan:_mpxPlan,
+                              months:months, amount:amount, memo:memo });
   if(!(j&&j.ok)){ masterPeriodErr('mpx-err', (j&&j.message)||'연장하지 못했어요.'); return; }
   var b=document.getElementById('mp-extend'); if(b) b.remove();
   alert('➕ 연장했어요.\n이용 끝 '+(j.paidUntilStr||''));
@@ -3873,8 +4095,11 @@ function masterSetPeriodAsk(uid, orgName, untilStr){
   masterPeriodBox('mp-set', '📅 기간 정하기',
     '<div style="font-size:13px;color:#475467;margin-bottom:4px;">'+escapeMasterHtml(orgName||'')+'</div>'
     +'<div style="font-size:12px;color:#98A2B3;margin-bottom:10px;">지금 이용 끝 '+escapeMasterHtml(untilStr||'—')+'</div>'
+    /* v264 — 글자로 받던 칸을 **달력**으로 바꿨다(사장님 11-03).
+       기본값 = 지금 이용 끝(없으면 오늘+1년) · 오늘보다 앞으로는 못 고르게 min 을 건다.
+       앱 공통 「어디를 눌러도 달력」(document 위임)이 type="date" 에 그대로 걸린다. */
     +'<label style="font-size:12px;font-weight:700;color:#475467;">이용 끝 날짜</label>'
-    +'<input id="mps-until" type="text" placeholder="2027-06-30" style="'+_mpIpt+'"/>'
+    +'<input id="mps-until" type="date" value="'+escapeMasterHtml(untilStr||periodPlusYearStr())+'" min="'+escapeMasterHtml(todayStr())+'" style="'+_mpIpt+'"/>'
     +'<label style="font-size:12px;font-weight:700;color:#475467;">메모 (선택)</label>'
     +'<input id="mps-memo" type="text" style="'+_mpIpt+'"/>'
     +'<div style="font-size:11px;color:#98A2B3;line-height:1.7;margin-bottom:10px;">그날 밤 23:59:59 까지 이용할 수 있어요. 이미 승인된 업체에만 쓸 수 있어요.</div>'
@@ -4051,7 +4276,24 @@ function drawMasterPanel(){
   h += '<input id="bill-bank" placeholder="은행 (예: 국민은행)" value="'+escapeMasterHtml(_b.bank||'')+'" style="'+_bi+'"/>';
   h += '<input id="bill-account" placeholder="계좌번호" value="'+escapeMasterHtml(_b.account||'')+'" style="'+_bi+'"/>';
   h += '<input id="bill-holder" placeholder="예금주" value="'+escapeMasterHtml(_b.holder||'')+'" style="'+_bi+'"/>';
-  h += '<input id="bill-fee" placeholder="구독료 표기 (예: 월 30,000원 / 연 300,000원)" value="'+escapeMasterHtml(_b.fee||'')+'" style="'+_bi+'"/>';
+  /* ── 요금 (v264) — 금액은 **여기 한 곳**에서만 바꾼다 ──
+     비워 두면 코드 기본값(PRICE_DEFAULT)이 쓰인다. 화면·문자 문구가 전부 이 값으로 만들어진다.
+     ※ 홈페이지(home.html)는 정적이라 글자로 적혀 있다 — 바꾸면 거기도 같이 고쳐야 한다
+       (CLAUDE.md 「가격 바꿀 때 같이 고칠 곳」). */
+  var _bn=_bi+'text-align:right;';
+  function _priceRow(label, id, val, ph){
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+      +'<span style="flex:0 0 108px;font-size:12px;color:#475467;font-weight:700;">'+label+'</span>'
+      +'<input id="'+id+'" type="tel" inputmode="numeric" oninput="masterPriceFmt(this);masterPricePreview()" placeholder="'+ph+'" value="'+escapeMasterHtml(val)+'" style="'+_bn+'margin-bottom:0;"/></div>';
+  }
+  var _pv=function(k){ return (_b[k]==null||String(_b[k]).trim()==='') ? '' : priceWon(String(_b[k]).replace(/[^0-9]/g,'')); };
+  h += '<div style="font-size:11px;color:#6941C6;font-weight:700;margin:10px 0 6px;">💰 요금 (VAT 별도 · 비우면 기본값)</div>';
+  h += _priceRow('월간', 'bill-pm', _pv('priceMonthly'), String(PRICE_DEFAULT.priceMonthly));
+  h += _priceRow('연간', 'bill-py', _pv('priceYearly'),  String(PRICE_DEFAULT.priceYearly));
+  h += _priceRow('첫 결제 6개월', 'bill-p6', _pv('promo6m'),  String(PRICE_DEFAULT.promo6m));
+  h += _priceRow('첫 결제 1년', 'bill-p12', _pv('promo12m'), String(PRICE_DEFAULT.promo12m));
+  h += _priceRow('체험 일수', 'bill-td', (_b.trialDays==null||String(_b.trialDays).trim()==='')?'':String(_b.trialDays).replace(/[^0-9]/g,''), String(PRICE_DEFAULT.trialDays));
+  h += '<div id="bill-preview" style="background:#fff;border:1px solid #E9D7FE;border-radius:8px;padding:9px;font-size:11px;color:#475467;line-height:1.7;margin:4px 0 8px;"></div>';
   h += '<textarea id="bill-note" placeholder="덧붙일 안내 (선택)" style="'+_bi+'height:52px;resize:vertical;">'+escapeMasterHtml(_b.note||'')+'</textarea>';
   /* v261 — 가입 신청 알림 문자를 받을 번호. 비우면 종전 번호(010-3660-3911)로 간다.
      문자는 **서버**(api/signup)가 보낸다 — 화면에 번호를 박아 두지 않으려고 여기로 옮겼다. */
@@ -4186,6 +4428,7 @@ function drawMasterPanel(){
      ★ 자료(orgs/_master/data/companies)는 **그대로 있다** — 규칙도 그대로고,
        이제 앱에는 그 자리를 읽거나 쓰는 코드가 **하나도 없다**(지우는 코드도 없다). */
   root.innerHTML = h;
+  masterPricePreview();        /* v264 — 요금 칸 아래 「이렇게 안내돼요」를 그린다 */
 }
 
 /* HTML escape — **따옴표까지** 바꾼다 (v248 보안, s.html v247 과 같은 순서).
@@ -4285,9 +4528,12 @@ var HELP_QA=[
   {role:'admin', keys:['급여명세서','임금명세서','명세서카톡','급여카톡','지급일','급여공유'], t:'급여명세서 카톡으로 보내기',
    a:'1. 근태 화면 → 「📋 급여상세 보기」 → 사람 이름 칸의 「💬 카톡」을 누르세요 (인쇄·PDF·엑셀에는 이 단추가 안 나와요)\n2. 확인창에 이름·대상월·실지급액이 보이고, 그 아래 「지급일」 칸이 있어요 — 지급일은 반드시 넣어야 보내기가 열려요 (임금명세서 필수 항목이에요)\n3. 한 번 넣으면 그 \'일\'을 기억해서, 다음부터는 대상월 다음 달의 그 날짜가 기본값으로 채워져요 (그 달 말일보다 크면 말일로 맞춰요)\n4. 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려요. 컴퓨터면 「🔗 링크 복사」로 복사해 붙여넣으면 돼요\n5. 카톡 카드에는 이름·대상월·지급일·기관 이름만 보여요 — 금액은 카드에 안 나와요 (단톡방 미리보기에 급여가 비치지 않게 했어요)\n6. 링크를 열면 임금명세서 양식이 나와요 — 성명(기사/직원) · 대상 기간 · 지급일 · 항목별 시간×시급과 금액 · 식대 · 지급 합계 · 공제 내역과 합계 · 실지급액 · 출근일수와 총 근로시간(출퇴근 기록 기준 — 주휴수당·명절휴가비 시간은 빠져요)\n7. 링크는 7일 뒤 자동으로 만료돼요 (급여라서 거래명세서 30일보다 짧게 뒀어요)\n8. 링크에는 그 사람 자료만 담겨요 — 연락처·PIN·차량번호나 다른 사람 급여는 들어가지 않아요 (같은 이름이 둘 이상일 때만 구분용으로 연락처 끝 4자리를 이름 뒤에 붙여요)\n9. 4대보험 공제는 요율 기준 참고 계산이에요 — 실제 고지액과 다를 수 있어요\n10. 이 양식이 법에서 정한 임금명세서 요건을 모두 갖췄는지는 앱이 판단하지 않아요 — 노무사와 한 번 확인하세요'},
   {role:'all', keys:['승인대기','승인','입금','계좌','대기','잠김'], t:'승인 대기 화면이 나와요',
-   a:'1. 가입 신청이 접수된 상태예요. 아직 앱은 열리지 않아요\n2. 화면에 나온 계좌로 입금해 주세요 — 입금자명은 업체명으로 해주세요\n3. 입금이 확인되면 열어 드려요 — 그때부터 체험 기간이 시작되고, 체험이 끝난 다음 날부터 계약 기간이에요\n4. 가입할 때 문자 인증과 사업자 확인은 이미 끝난 상태예요 — 더 보내실 서류는 없어요\n5. 계좌가 안 보이면 아직 준비 중이에요 — 📧 cosroad@cosroad.com 으로 문의해 주세요'},
-  {role:'admin', keys:['체험','무료','구독','요금','만료','결제','이용기간','연장'], t:'이용 기간 · 연장',
-   a:'1. 가입(문자 인증 + 사업자 확인) → 승인 대기 → 입금 → <b>입금이 확인되면 승인</b>. 승인된 때부터 <b>체험 기간</b>이 시작되고, 체험이 끝난 다음 날부터 <b>계약 기간</b>이에요 (카드 등록 없음)\n2. 승인 전에는 로그인해도 「승인 대기」 화면만 나와요 — 거기에 입금 계좌가 안내돼요\n3. 입금자명은 업체명으로 해주셔야 확인이 빨라요\n4. 화면 위에서 <b>이용 끝 날짜</b>와 남은 날을 볼 수 있어요. 끝 10일 전부터 D-N 띠가 떠요\n5. 이용 기간이 끝나면 <b>보기만</b> 됩니다 — 자료는 그대로 있고, 엑셀·PDF·백업 받기도 돼요. 저장·수정·복원만 막혀요\n6. 연장하시면 바로 다시 쓰실 수 있어요. 남은 기간이 있으면 그 뒤에 이어 붙여 드려요\n7. 기간이 끝나면 <b>기사도 함께 잠겨요</b> — 연장하면 기사도 그대로 다시 들어가요\n8. 연장·문의 📧 cosroad@cosroad.com'},
+   a:'1. 가입 신청이 접수된 상태예요. 아직 앱은 열리지 않아요\n2. 화면에 나온 계좌로 입금해 주세요 — 입금자명은 업체명으로 해주세요\n3. <b>첫 결제 할인</b>이 있어요 — 6개월 180,000원 / 1년 310,000원 (VAT 별도, <b>사업자당 1회</b>). 이후 연장은 월 50,000원 / 연 480,000원이에요\n4. 입금이 확인되면 열어 드려요 — 그때부터 체험 기간이 시작되고, 체험이 끝난 다음 날부터 계약 기간이에요\n5. 가입할 때 문자 인증과 사업자 확인은 이미 끝난 상태예요 — 더 보내실 서류는 없어요\n6. 계좌가 안 보이면 아직 준비 중이에요 — 📧 cosroad@cosroad.com 으로 문의해 주세요'},
+  /* v264 — 첫 결제 할인(사업자당 1회). 검색어에 「할인」·「첫결제」를 넣어야 찾아진다. */
+  {role:'all', keys:['할인','첫결제','프로모션','싸게','이벤트'], t:'첫 결제 할인은요?',
+   a:'1. 처음 결제하실 때만 <b>6개월 180,000원</b> 또는 <b>1년 310,000원</b>으로 쓰실 수 있어요 (VAT 별도)\n2. <b>사업자등록번호당 한 번</b>이에요 — 계정당이 아니에요. 같은 사업자가 새 번호로 다시 가입하셔도 할인은 한 번뿐이에요\n3. 할인 기간이 끝난 뒤 <b>연장은 정가</b>예요 — 월 50,000원 / 연 480,000원 (VAT 별도)\n4. 할인으로 할지 정가로 할지는 <b>승인할 때</b> 정해요 — 입금하신 금액에 맞춰 열어 드려요\n5. 승인되면 체험 기간(기본 30일)이 먼저 지나고, 그 다음 날부터 계약 기간이 시작돼요\n6. 문의 📧 cosroad@cosroad.com'},
+  {role:'admin', keys:['체험','무료','구독','요금','가격','얼마','만료','결제','이용기간','연장'], t:'이용 기간 · 연장',
+   a:'1. 가입(문자 인증 + 사업자 확인) → 승인 대기 → 입금 → <b>입금이 확인되면 승인</b>. 승인된 때부터 <b>체험 기간</b>이 시작되고, 체험이 끝난 다음 날부터 <b>계약 기간</b>이에요 (카드 등록 없음)\n2. 승인 전에는 로그인해도 「승인 대기」 화면만 나와요 — 거기에 입금 계좌가 안내돼요\n3. 입금자명은 업체명으로 해주셔야 확인이 빨라요\n4. 화면 위에서 <b>이용 끝 날짜</b>와 남은 날을 볼 수 있어요. 끝 10일 전부터 D-N 띠가 떠요\n5. 이용 기간이 끝나면 <b>보기만</b> 됩니다 — 자료는 그대로 있고, 엑셀·PDF·백업 받기도 돼요. 저장·수정·복원만 막혀요\n6. 연장하시면 바로 다시 쓰실 수 있어요. 남은 기간이 있으면 그 뒤에 이어 붙여 드려요\n7. 기간이 끝나면 <b>기사도 함께 잠겨요</b> — 연장하면 기사도 그대로 다시 들어가요\n8. <b>요금</b> — 첫 결제 할인 6개월 180,000원 / 1년 310,000원 (VAT 별도, 사업자당 1회), 그 뒤 연장은 월 50,000원 / 연 480,000원이에요\n9. 연장·문의 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각도 함께 들어가요'},
   {role:'admin', keys:['날짜점검','날짜','하루전','전날','어제날짜','점검'], t:'날짜 점검 (예전 기록이 하루 전 날짜예요)',
