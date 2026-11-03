@@ -8,7 +8,27 @@
 - 서버: `api/` Vercel 서버리스 (cosroad.vercel.app)
   - `rc-quick.js` 티맵(검색·경로·경유지 최적화·역지오코딩) — ROADJOB과 공용
   - `kakao-search.js` 주소검색 (카카오 정확도+거리 병합, 카카오에 없으면 네이버 보조)
-  - `send-sms.js`·`send-alimtalk.js` 알리고 문자·알림톡 (허용 출처 검사 있음 — 완화 금지)
+  - `send-sms.js`·`send-alimtalk.js` 알리고 문자·알림톡 — **문지기는 `lib/send-guard.js` 한 벌**(v266)
+    v265까지는 **허용 출처 한 줄만** 보고 받는 번호·본문을 그대로 보냈다. Origin 은 브라우저 밖에서
+    마음대로 적을 수 있어 **누구나 아무 번호로 보낼 수 있었다**(코스로드32 0단계, 배포 서버로 확인).
+    지금은 **받는 번호와 「보내도 되는가」를 서버가 정한다**:
+    · **ID 토큰 필수**(없으면 401) · 익명 로그인 거부
+    · `approved && !withdrawn && paidUntil > 지금` — v263 한 줄 그대로(규칙 `isMyOrgActive` 와 같은 뜻).
+      기사는 **소유자**가 살아 있을 때만(규칙 `ownerAlive` 와 같은 뜻) · `_demo` 는 **서버도 거부**
+    · **받는 번호는 그 업체 `members` 에 있는 번호만** — 하나라도 없으면 **요청 전체 거부**(403).
+      기사는 **자기 차량(carId) 회원만**(화면 `driverScopeMembers` 와 같은 기준)
+    · 상한: 업체별 **1분 60명·하루 500명** · 한 요청 50명 · 넘으면 429 (`sendRl` 컬렉션, 규칙 `if false`)
+    · 알림톡 `tpl_code` 는 **서버가 아는 6개만** — `TPL_ALLOWED` 와 `index.html` 의
+      `BIZ_TEMPLATE_CODES`·`BIZ_DROPOFF_TEMPLATE_CODES` 를 **같이** 고쳐야 한다
+    · 문의 알림은 `mode:'inquiry'` — 화면은 **번호를 안 보내고** 서버가 `billing.notifyPhone` 으로 정한다.
+      앞머리 「[코스로드 문의]」도 서버가 붙인다. 비로그인 허용 · IP 1분 1회·하루 5회 · 본문 500자
+    · 화면은 `sendMsgApi()`·`sendInquirySms()` **둘로만** 부른다(직접 fetch 금지).
+      읽기 전용(기간 끝)이면 **부르기 전에** 막는다. 알림장은 **50명씩 나눠** 보내고
+      「보냄」 표시(`n.sent`)는 **결과를 받은 뒤에** 찍는다.
+    ★ 빈도 기록은 `{ t, n }` 꼴로 쌓는다 — **배열 안에 배열을 넣으면 Firestore 가 거절한다**
+      ("Nested arrays are not supported"). 스텁은 통과하고 배포에서만 터진다(v266에 에뮬레이터가 잡음).
+    ★ 허용 출처는 **코스로드 3개뿐**(v266). 로드잡은 자기 서버(`roadjob.vercel.app`)를 쓴다 —
+      `api/rc-notify.js` 만 로드잡 주소를 그대로 둔다(부르는 곳 0, 사장님 판단 전까지 손대지 않음).
   - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
     환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
     v255 추가: 기사 로그인 관리 — `issueOrgCode`(업체 번호 6자리) · `setDriverPin` · `checkPinDup`

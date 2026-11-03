@@ -1,57 +1,122 @@
-// COSROAD - 알리고 문자(SMS/LMS) 발송 중계 함수
-// Vercel: api/send-sms.js 로 저장하세요 (기존 send-alimtalk.js 와 같은 api/ 폴더)
+// COSROAD — 알리고 문자(SMS/LMS) 발송 (v266)
 // 앱 -> 이 함수 -> 알리고 /send/ API
-// 알림장 본문 + 사진 링크(URL)를 LMS로 보냅니다.
+//
+// ── v266 에서 바뀐 것 ────────────────────────────────────────────────────
+// v265 까지 이 파일은 **Origin 헤더 한 줄만** 보고, 받는 번호·본문을 요청이 적어 준
+// 그대로 알리고로 보냈다. Origin 은 브라우저 밖에서 마음대로 적을 수 있어
+// 사실상 누구나 사장님 알리고 계정으로 아무 번호에 문자를 보낼 수 있었다.
+// (코스로드32 0단계 조사에서 배포 서버로 확인 — 실제 발송 없이)
+//
+// 이제 두 길로 나뉜다. **둘 다 받는 번호를 서버가 정하거나 확인한다.**
+//   ① mode:'inquiry'  문의 알림 — 받는 번호는 **서버**가 billing.notifyPhone 에서 읽는다.
+//                     화면은 번호를 보내지 않는다(보내도 무시). 로그인 없이 되지만 IP 상한이 있다.
+//   ② 그 밖(알림장 등) — **로그인 토큰 필수** · 승인·이용 기간 확인 ·
+//                     받는 번호는 **그 업체 회원 명부에 있는 번호만** · 업체별 1분·하루 상한.
+//
+// ★ 번호·본문·키 원문은 응답에도 로그에도 넣지 않는다.
+// ★ 새 환경변수 없음 (ALIGO_* · FIREBASE_SERVICE_ACCOUNT 이미 있음).
 
-/* 발송 API 보호 — 돈 나가는 구멍 막기
-   허용 목록 밖 출처(주소 없음 = curl 등 포함)의 요청은 발송을 거부한다.
-   cosroad.vercel.app 은 앱 실서비스 주소(카카오톡 인앱 브라우저 포함) —
-   빠지면 정상 발송이 막힌다 (rc-quick 9401 때와 같은 함정). */
-const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
+import {
+  admin, openGate, fail, whoIsCalling, canSendFor, orgPhones, rateHit,
+  orgLimits, inqIpLimits, inqUidLimits, notifyPhone, clientIp, phoneDigits, sha256,
+  REQ_MAX_RCV, INQ_BODY_MAX, INQ_PREFIX
+} from '../lib/send-guard.js';
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || '';
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED.includes(origin) ? origin : ALLOWED[0]);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (openGate(req, res)) return;
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ result_code: -1, message: 'POST만 허용됩니다.' });
-  if (!ALLOWED.includes(origin)) {
-    return res.status(403).json({ result_code: -1, message: '허용되지 않은 출처입니다.' });
+  let A;
+  try { A = admin(); }
+  catch (e) {
+    const m = String(e && e.message);
+    return fail(res, 500, m === 'NO_SERVICE_ACCOUNT'
+      ? '서버에 관리자 키가 아직 등록되지 않았어요. 관리자에게 알려 주세요.'
+      : '서버 관리자 키 형식이 올바르지 않아요. 관리자에게 알려 주세요.');
   }
 
   try {
     const b = req.body || {};
-    const { receiver, msg, title, msg_type, testmode_yn } = b;
+    const mode = String(b.mode || '');
+    const ip = clientIp(req);
 
-    /* 형식 검증 — 조직 확인은 이 서버에서 불가(COSROAD Firestore 관리자 연결 없음)하므로 최소 방어 */
-    const rcvList = String(receiver || '').split(',').map(function (r) { return r.replace(/-/g, '').trim(); }).filter(Boolean);
-    if (!rcvList.length || rcvList.length > 50 || !rcvList.every(function (r) { return /^0\d{8,10}$/.test(r); })) {
-      return res.status(400).json({ result_code: -1, message: '수신번호 형식이 올바르지 않습니다.' });
+    let rcvList;      // 알리고로 보낼 번호 (숫자만)
+    let msg;          // 본문
+    let title = '';
+    let msgType = 'LMS';
+
+    /* ── ① 문의 알림 — 받는 번호는 서버가 정한다 ────────────────────── */
+    if (mode === 'inquiry') {
+      const body = String(b.msg || '').trim();
+      if (!body) return fail(res, 400, '문의 내용이 비어 있어요.');
+      if (body.length > INQ_BODY_MAX) return fail(res, 400, '문의 내용이 너무 길어요 (' + INQ_BODY_MAX + '자 이내).');
+
+      /* 로그인했으면 계정별 상한도 함께 센다 */
+      const caller = await whoIsCalling(A, req);
+      const over = await rateHit(A, 'inq.ip.' + sha256(ip), inqIpLimits(), 1);
+      if (over) return fail(res, 429, over);
+      if (caller) {
+        const over2 = await rateHit(A, 'inq.u.' + sha256(caller.uid), inqUidLimits(), 1);
+        if (over2) return fail(res, 429, over2);
+      }
+
+      rcvList = [await notifyPhone(A)];
+      /* 앞머리를 **서버가** 붙인다 — 본문을 통째로 남이 정하지 못하게 */
+      msg = INQ_PREFIX + body;
+      msgType = 'LMS';
+
+    /* ── ② 그 밖(알림장 등) — 로그인 + 기간 + 회원 명부 ───────────── */
+    } else {
+      const caller = await whoIsCalling(A, req);
+      if (!caller) return fail(res, 401, '로그인이 필요해요. 다시 로그인한 뒤 보내 주세요.');
+
+      const can = await canSendFor(A, caller, String(b.org || ''));
+      if (!can.ok) return fail(res, can.code, can.message);
+      const org = can.org;
+
+      rcvList = String(b.receiver || '').split(',').map((r) => phoneDigits(r)).filter(Boolean);
+      if (!rcvList.length || rcvList.length > REQ_MAX_RCV
+          || !rcvList.every((r) => /^0\d{8,10}$/.test(r))) {
+        return fail(res, 400, '받는 번호가 올바르지 않아요 (한 번에 ' + REQ_MAX_RCV + '명까지).');
+      }
+
+      /* ★ 받는 번호는 **그 업체 회원 명부**에 있는 번호만.
+         기사면 토큰의 carId 로 **자기 차량 회원**만 본다.
+         하나라도 명부에 없으면 그 번호만 빼지 않고 **요청 전체를 거부**한다
+         (몰래 한 명을 끼워 넣는 길을 막는다). 번호는 응답에 넣지 않는다. */
+      const allow = await orgPhones(A, org, caller.driver ? caller.carId : '');
+      if (allow === null) return fail(res, 500, '회원 명부를 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+      const bad = rcvList.filter((r) => !allow.has(r)).length;
+      if (bad) {
+        return fail(res, 403, '회원 명부에 없는 번호가 ' + bad + '개 있어요. 회원관리에서 번호를 확인해 주세요.');
+      }
+
+      msg = String(b.msg || '');
+      if (!msg) return fail(res, 400, '보낼 내용이 비어 있어요.');
+      if (msg.length > 2000) return fail(res, 400, '본문이 너무 깁니다 (2000자 이내).');
+      title = String(b.title || '');
+      msgType = String(b.msg_type || 'LMS');
+
+      /* 업체별 상한 — 받는 **사람 수**로 센다 */
+      const over = await rateHit(A, 'org.' + sha256(org), orgLimits(), rcvList.length);
+      if (over) return fail(res, 429, over);
     }
-    if (String(msg || '').length > 2000) {
-      return res.status(400).json({ result_code: -1, message: '본문이 너무 깁니다 (2000자 이내).' });
-    }
 
-    // 알리고 인증정보는 서버(Vercel 환경변수) 우선. 브라우저의 옛 키를 쓰지 않는다.
-    const apikey = process.env.ALIGO_KEY     || b.apikey;
-    const userid = process.env.ALIGO_USER_ID || b.userid;
-    const sender = process.env.ALIGO_SENDER  || b.sender;
-
-    if (!apikey || !userid || !sender || !receiver || !msg) {
-      return res.status(400).json({ result_code: -1, message: '필수 항목 누락 (apikey, userid, sender, receiver, msg)' });
+    /* ── 알리고로 ────────────────────────────────────────────────────── */
+    const apikey = process.env.ALIGO_KEY;
+    const userid = process.env.ALIGO_USER_ID;
+    const sender = process.env.ALIGO_SENDER;
+    if (!apikey || !userid || !sender) {
+      return fail(res, 500, '문자 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
     }
 
     const form = new URLSearchParams();
     form.append('key', apikey);
     form.append('user_id', userid);
     form.append('sender', sender);
-    form.append('receiver', receiver);
+    form.append('receiver', rcvList.join(','));
     form.append('msg', msg);
     if (title) form.append('title', title);
-    form.append('msg_type', msg_type || 'LMS');
-    if (testmode_yn) form.append('testmode_yn', testmode_yn);
+    form.append('msg_type', msgType);
 
     const aligoRes = await fetch('https://apis.aligo.in/send/', {
       method: 'POST',
@@ -62,6 +127,8 @@ export default async function handler(req, res) {
     const data = await aligoRes.json();
     return res.status(200).json(data);
   } catch (e) {
-    return res.status(500).json({ result_code: -1, message: '서버 오류: ' + (e && e.message ? e.message : String(e)) });
+    /* 자세한 내용은 서버 로그에만 — 번호·본문·키는 적지 않는다 */
+    console.log('[send-sms] 실패');
+    return fail(res, 500, '문자를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.');
   }
 }

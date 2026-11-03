@@ -755,12 +755,14 @@ function sendInquiry(){
       });
     }
   }catch(e){}
-  /* 프리존 문자 알림 (api/send-sms — 허용 출처에 cosroad.com 포함) */
+  /* 프리존 문자 알림 (v266) — **받는 번호를 보내지 않는다.**
+     서버(api/send-sms, mode:'inquiry')가 billing.notifyPhone 에서 번호를 정하고,
+     앞머리 「[코스로드 문의]」도 서버가 붙인다. 같은 IP 는 1분 1회·하루 5회까지. */
   try{
     fetch('https://cosroad.vercel.app/api/send-sms', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ receiver:'010-3660-3911',
-        msg:'[코스로드 홈문의] '+type+(org?' ('+org+')':'')+' — '+text.slice(0,60)+' / 회신 '+contact })
+      body: JSON.stringify({ mode:'inquiry',
+        msg:'(홈) '+type+(org?' ('+org+')':'')+' — '+text.slice(0,60)+' / 회신 '+contact })
     });
   }catch(e){}
   var f=document.getElementById('inq-form'); if(f) f.remove();

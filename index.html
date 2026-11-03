@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 265;
+const APP_VERSION = 266;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4534,6 +4534,9 @@ var HELP_QA=[
    a:'1. 처음 결제하실 때만 <b>6개월 180,000원</b> 또는 <b>1년 310,000원</b>으로 쓰실 수 있어요 (VAT 별도)\n2. <b>사업자등록번호당 한 번</b>이에요 — 계정당이 아니에요. 같은 사업자가 새 번호로 다시 가입하셔도 할인은 한 번뿐이에요\n3. 할인 기간이 끝난 뒤 <b>연장은 정가</b>예요 — 월 50,000원 / 연 480,000원 (VAT 별도)\n4. 할인으로 할지 정가로 할지는 <b>승인할 때</b> 정해요 — 입금하신 금액에 맞춰 열어 드려요\n5. 승인되면 체험 기간(기본 30일)이 먼저 지나고, 그 다음 날부터 계약 기간이 시작돼요\n6. 문의 📧 cosroad@cosroad.com'},
   {role:'admin', keys:['체험','무료','구독','요금','가격','얼마','만료','결제','이용기간','연장'], t:'이용 기간 · 연장',
    a:'1. 가입(문자 인증 + 사업자 확인) → 승인 대기 → 입금 → <b>입금이 확인되면 승인</b>. 승인된 때부터 <b>체험 기간</b>이 시작되고, 체험이 끝난 다음 날부터 <b>계약 기간</b>이에요 (카드 등록 없음)\n2. 승인 전에는 로그인해도 「승인 대기」 화면만 나와요 — 거기에 입금 계좌가 안내돼요\n3. 입금자명은 업체명으로 해주셔야 확인이 빨라요\n4. 화면 위에서 <b>이용 끝 날짜</b>와 남은 날을 볼 수 있어요. 끝 10일 전부터 D-N 띠가 떠요\n5. 이용 기간이 끝나면 <b>보기만</b> 됩니다 — 자료는 그대로 있고, 엑셀·PDF·백업 받기도 돼요. 저장·수정·복원만 막혀요\n6. 연장하시면 바로 다시 쓰실 수 있어요. 남은 기간이 있으면 그 뒤에 이어 붙여 드려요\n7. 기간이 끝나면 <b>기사도 함께 잠겨요</b> — 연장하면 기사도 그대로 다시 들어가요\n8. <b>요금</b> — 첫 결제 할인 6개월 180,000원 / 1년 310,000원 (VAT 별도, 사업자당 1회), 그 뒤 연장은 월 50,000원 / 연 480,000원이에요\n9. 연장·문의 📧 cosroad@cosroad.com'},
+  /* v266 — 문자가 안 나갈 때. 검색어에 「문자안감」·「발송실패」를 넣어야 찾아진다. */
+  {role:'all', keys:['안나가','안가요','못보내','발송실패','알림톡실패','문자오류','상한','명부에없'], t:'문자·알림톡이 안 나가요',
+   a:'보내기 전에 서버가 세 가지를 봅니다. 그 가운데 하나에 걸린 거예요.\n1. <b>이용 기간</b> — 기간이 끝났거나 아직 승인 전이면 문자가 나가지 않아요. 「🔒 이용 기간이 끝나…」 안내가 뜹니다. 연장하시면 바로 다시 보내실 수 있어요\n2. <b>회원 명부에 없는 번호</b> — 받는 번호는 «회원»에 등록된 번호만 됩니다. 「회원 명부에 없는 번호가 N개…」가 뜨면 «회원»관리에서 번호를 확인해 주세요 (띄어쓰기·줄표는 상관없어요)\n3. <b>하루 상한</b> — 한 업체가 하루에 보낼 수 있는 수가 정해져 있어요. 넘으면 「오늘 보낼 수 있는 문자 수를 다 썼어요」가 뜹니다. 내일 다시 보내시거나 📧 cosroad@cosroad.com 으로 알려 주세요\n4. 기사님은 <b>자기 차량 회원</b>에게만 보낼 수 있어요\n5. 둘러보기(데모)에서는 진짜 문자가 나가지 않아요\n6. 「로그인이 필요해요」가 뜨면 로그아웃됐을 수 있어요 — 다시 로그인한 뒤 보내 주세요\n7. 알림장은 받는 분이 50명을 넘으면 <b>50명씩 나눠</b> 보냅니다 — 중간에 막히면 거기까지만 나가고 몇 건 나갔는지 알려 드려요'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
    a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각도 함께 들어가요'},
   {role:'admin', keys:['날짜점검','날짜','하루전','전날','어제날짜','점검'], t:'날짜 점검 (예전 기록이 하루 전 날짜예요)',
@@ -4866,10 +4869,8 @@ function sendInquiry(){
   /* 프리존 문자 알림 — 데모 기관은 생략 */
   if(!isDemo){
     try{
-      fetch('https://cosroad.vercel.app/api/send-sms', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ receiver:'010-3660-3911', msg:'[코스로드 문의] ('+rec.orgName+'/'+(role==='driver'?'기사':'관리자')+') '+type+' — '+text.slice(0,40) })
-      });
+      /* v266 — 받는 번호를 화면이 정하지 않는다. 앞머리 「[코스로드 문의]」도 서버가 붙인다. */
+      sendInquirySms('('+rec.orgName+'/'+(role==='driver'?'기사':'관리자')+') '+type+' — '+text.slice(0,40));
     }catch(e){}
   }
   localStorage.setItem(limKey, String(cnt+1));
@@ -5014,11 +5015,14 @@ function sendDropoffNotify(member, timeStr){
   var phones=[]; if(member.phone)phones.push(member.phone); if(member.phone2)phones.push(member.phone2);
   var msg=buildDropoffMessage(biz, orgSettings.name, member.name, timeStr);
   phones.forEach(function(phone){
-    fetch('https://cosroad.vercel.app/api/send-alimtalk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tpl_code:tplCode,receiver:phone,name:member.name,message:msg,biz:biz})})
-    .then(function(r){return r.json();})
+    /* v266 — 로그인 토큰을 함께 보낸다(sendMsgApi). 읽기 전용이면 부르기 전에 막힌다. */
+    sendMsgApi('send-alimtalk',{tpl_code:tplCode,receiver:phone,name:member.name,message:msg,biz:biz})
     .then(function(d){
       if(d && (d.code===0 || d.result_code>0)){
         console.log('하차 알림톡 발송 성공:', member.name);
+      } else if(d && d.blocked){
+        /* v266 — 이용 기간이 끝났다. 폰 문자앱으로 넘기지 않고 까닭만 알린다. */
+        showToast('🔒 '+d.message);
       } else {
         var why = (d && (d.message || d.error)) || '알 수 없는 오류';
         console.error('하차 알림톡 실패 → 문자로 대체:', d);
@@ -6172,42 +6176,50 @@ function sendNoticeSms(id){
 }
 
 // 실제 발송: 알리고 API가 설정돼 있으면 LMS로, 없으면 폰 문자앱으로 폴백
-function doSendNoticeMessage(n, phones, smsBody){
-  var aligoReady = true;   // 알리고 인증정보는 서버(Vercel)에 있습니다
-  // 발송 상태 갱신
-  n.sent = true;
-  n.sentTs = Date.now();
-  saveNotices();
+/* 한 번에 보낼 수 있는 받는 사람 수 — 서버(lib/send-guard.js REQ_MAX_RCV)와 **같은 값**.
+   ★ 한쪽만 고치면 51명째부터 조용히 400 이 난다. */
+var SMS_CHUNK = 50;
 
-  if(aligoReady){
-    var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
-    fetch('https://cosroad.vercel.app/api/send-sms', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        receiver: phones.join(','),
-        msg: smsBody,
-        title: '['+orgName+'] '+T('알림장'),
-        msg_type: 'LMS'
-      })
-    }).then(function(res){ return res.json(); })
-    .then(function(data){
-      if(data.result_code && Number(data.result_code) > 0){
-        showToast('알림장 문자 발송 완료 ('+(data.success_cnt||phones.length)+'건)');
-      } else {
-        showToast('발송 실패: '+(data.message||'알 수 없는 오류'));
-      }
-      var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
-    }).catch(function(e){
-      showToast('발송 오류: 네트워크를 확인하세요');
-      var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
+/* v266 — 바뀐 것 셋
+   ① 50명이 넘으면 **50명씩 나눠** 보내고 결과를 합쳐 보여 준다(전에는 51명째부터 400).
+   ② 로그인 토큰을 함께 보낸다(sendMsgApi) — 서버가 기간·회원 명부를 확인한다.
+   ③ 「보냄」 표시(n.sent)를 **결과를 받은 뒤에** 찍는다 — 전에는 먼저 찍어서
+      실패해도 보낸 것처럼 남았다. */
+async function doSendNoticeMessage(n, phones, smsBody){
+  var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
+  var title = '['+orgName+'] '+T('알림장');
+  var groups = [];
+  for(var i=0; i<phones.length; i+=SMS_CHUNK){ groups.push(phones.slice(i, i+SMS_CHUNK)); }
+
+  var okCnt = 0, failMsg = '', blockedMsg = false;
+  for(var g=0; g<groups.length; g++){
+    var data = await sendMsgApi('send-sms', {
+      receiver: groups[g].join(','), msg: smsBody, title: title, msg_type: 'LMS'
     });
-  } else {
-    // 알리고 미설정 → 폰 문자앱 폴백
-    var recipients = phones.join(',');
-    window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
-    var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
+    if(data && data.result_code && Number(data.result_code) > 0){
+      okCnt += Number(data.success_cnt || groups[g].length);
+    } else {
+      failMsg = (data && data.message) || '알 수 없는 오류';
+      blockedMsg = !!(data && data.blocked);
+      break;                                  /* 막혔으면 더 보내지 않는다(요금·상한) */
+    }
   }
+
+  if(okCnt > 0){
+    n.sent = true;
+    n.sentTs = Date.now();
+    saveNotices();
+  }
+  if(!failMsg){
+    showToast('알림장 문자 발송 완료 ('+okCnt+'건)');
+  } else if(okCnt > 0){
+    showToast('일부만 보냈어요 ('+okCnt+'건)');
+  } else if(blockedMsg){
+    showToast('🔒 '+failMsg);          /* 기간이 끝난 것 — 그대로 짧게 */
+  } else {
+    showToast('발송 실패: '+failMsg);
+  }
+  var el=document.getElementById('admin-content'); if(el) el.innerHTML = renderNotice();
 }
 
 function deleteNotice(id){
@@ -10068,22 +10080,22 @@ function sendKakaoAlimtalk(member, timeStr){
   if(member.phone2) phones.push(member.phone2);
   var msg = buildAlimtalkMessage(biz, orgSettings.name, member.name, timeStr, member.invoice, member.courier);
   phones.forEach(function(phone){
-    fetch('https://cosroad.vercel.app/api/send-alimtalk', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        tpl_code: tplCode,
-        receiver: phone,
-        name: member.name,
-        message: msg,
-        biz: biz,
-        courier: member.courier || '',
-        invoice: member.invoice || ''
-      })
-    }).then(function(res){ return res.json(); })
+    /* v266 — 로그인 토큰을 함께 보낸다(sendMsgApi). 읽기 전용이면 부르기 전에 막힌다. */
+    sendMsgApi('send-alimtalk', {
+      tpl_code: tplCode,
+      receiver: phone,
+      name: member.name,
+      message: msg,
+      biz: biz,
+      courier: member.courier || '',
+      invoice: member.invoice || ''
+    })
     .then(function(data){
-      if(data.code === 0){
+      if(data && data.code === 0){
         console.log('알림톡 발송 성공:', member.name);
+      } else if(data && data.blocked){
+        /* v266 — 이용 기간이 끝났다. 폰 문자앱으로 넘기지 않고 까닭만 알린다. */
+        showToast('🔒 '+data.message);
       } else {
         var why = (data && (data.message || data.error)) || '알 수 없는 오류';
         console.error('알림톡 실패 → 문자로 대체:', data);
@@ -14912,6 +14924,47 @@ var _orgCodeErr = false;
 var _orgCodeAsked = false;
 
 /* 서버 호출 — Firebase ID 토큰을 붙인다(서버가 누구인지 직접 확인한다) */
+/* ── 문자·알림톡 부르개 (v266) ────────────────────────────────────────────
+   v265 까지 화면은 받는 번호와 본문을 그냥 서버로 보냈다. 서버가 Origin 한 줄만 보고
+   그대로 발송했으므로, 브라우저 밖에서 누구나 아무 번호에 보낼 수 있었다(코스로드32 0단계).
+   이제 **로그인 토큰을 함께 보낸다** — 서버가 토큰으로 누가·어느 업체·기간이 살아 있는지 보고,
+   받는 번호가 그 업체 회원 명부에 있는지까지 확인한다. 기사는 자기 차량 회원만 통과한다.
+   ★ 읽기 전용(이용 기간 끝)이면 **부르기 전에** 막는다 — 서버도 막지만 여기서 먼저 알린다. */
+async function sendMsgApi(path, body){
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    /* ★ 문구를 짧게 — showToast 는 white-space:nowrap 이라 길면 폰에서 양끝이 잘린다
+       (360폭에서 534px 로 재어 보고 줄였다). 자세한 안내는 도우미 문답에 있다. */
+    return { ok:false, blocked:true, message:'이용 기간이 끝나 문자를 보낼 수 없어요' };
+  }
+  var u = window._auth && window._auth.currentUser;
+  if(!u || u.isAnonymous) return { ok:false, message:'로그인이 필요해요. 다시 로그인한 뒤 보내 주세요.' };
+  var tok;
+  try{ tok = await u.getIdToken(); }catch(e){ return { ok:false, message:'로그인 확인에 실패했어요. 다시 로그인해 주세요.' }; }
+  try{
+    var r = await fetch('https://cosroad.vercel.app/api/'+path, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
+      body: JSON.stringify(Object.assign({ org:getFbOrgId() }, body||{}))
+    });
+    return await r.json();
+  }catch(e){ return { ok:false, message:'서버에 연결하지 못했어요. 인터넷을 확인해 주세요.' }; }
+}
+/* 문의 알림 — **받는 번호를 보내지 않는다.** 서버가 billing.notifyPhone 에서 정한다.
+   로그인 전에도 보낼 수 있어야 해서 토큰은 있으면 붙이고 없으면 그냥 보낸다(서버가 IP 로 상한을 센다). */
+async function sendInquirySms(body){
+  var h = { 'Content-Type':'application/json' };
+  try{
+    var u = window._auth && window._auth.currentUser;
+    if(u && !u.isAnonymous){ h['Authorization'] = 'Bearer ' + (await u.getIdToken()); }
+  }catch(e){}
+  try{
+    var r = await fetch('https://cosroad.vercel.app/api/send-sms', {
+      method:'POST', headers:h, body: JSON.stringify({ mode:'inquiry', msg:String(body||'') })
+    });
+    return await r.json();
+  }catch(e){ return { ok:false }; }
+}
+
 async function driverAcctApi(body){
   var u = window._auth && window._auth.currentUser;
   if(!u || u.isAnonymous) return { ok:false, message:'계정으로 로그인한 뒤에 쓸 수 있어요.' };

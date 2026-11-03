@@ -427,6 +427,15 @@ service cloud.firestore {
       allow write: if false;                             // Admin SDK 전용
     }
 
+    // ── sendRl/{id} — 문자·알림톡 빈도 기록 (v266) ─────────────────────────
+    // 업체별(1분·하루) · 문의 IP별(1분·하루) 발송 수를 세는 자리다.
+    // **아무도 읽지도 쓰지도 못한다** — api/send-sms·api/send-alimtalk(Admin SDK)만 다룬다.
+    // ★ 지울 수 있으면 상한이 무의미해져 문자 폭탄이 공짜가 된다(otp 의 rl.* 와 같은 이유).
+    // ★ id 는 업체 이름·IP 의 **해시**다 — 열려도 업체 목록·IP 목록이 되지 않게.
+    match /sendRl/{id} {
+      allow read, write: if false;                       // Admin SDK 전용
+    }
+
     // ── 기사 로그인 (v255) — 다섯 컬렉션 **전부 서버 전용** ────────────────
     // 앱은 이 컬렉션들을 보지도 쓰지도 않는다. api/driver-auth.js 와
     // api/admin-account.js(Admin SDK)만 다룬다 — Admin SDK 는 이 규칙을 거치지 않는다.

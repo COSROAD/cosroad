@@ -24,7 +24,10 @@ import { createHash, randomInt } from 'crypto';
 import { approvePeriod, extendPeriod, dateStrEnd, dateStr } from '../lib/period.js';
 import { PLANS } from '../lib/price.js';
 
-const ALLOWED = ['https://roadjob.co.kr', 'https://www.roadjob.co.kr', 'https://cosroad.com', 'https://www.cosroad.com', 'https://roadcrew.kr', 'https://cosroad.vercel.app'];
+/* v266: 안 쓰는 주소 셋(roadjob.co.kr·www.roadjob.co.kr·roadcrew.kr)을 뺐다.
+   0단계 조사에서 배포된 roadjob.co.kr 을 받아 확인한 결과, 로드잡은 자기 서버
+   (roadjob.vercel.app)만 부르고 cosroad.vercel.app 은 한 곳도 안 부른다. */
+const ALLOWED = ['https://cosroad.com', 'https://www.cosroad.com', 'https://cosroad.vercel.app'];
 const BIZ = ['academy', 'public', 'logistics', 'delivery'];
 
 /* 서비스 계정 — 함수가 깨어 있는 동안 한 번만 초기화한다 */
