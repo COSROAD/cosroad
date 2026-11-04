@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 266;
+const APP_VERSION = 267;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -15604,9 +15604,24 @@ function deleteCurrentCar(){
 }
 
 
+/* 안내 쪽지 (v267) — 긴 글도 **줄바꿈**해서 다 보인다.
+   v266 까지 white-space:nowrap 이라, 긴 안내는 상자가 화면보다 넓어져
+   **양끝이 잘려 읽을 수 없었다**(360폭에서 「발송 실패: 오늘 보낼 수 있는…」이 592px).
+   ★ 줄바꿈은 5개 파일 body 와 **같은 두 줄**을 쓴다 — word-break:keep-all 로 낱말을 지키고,
+     overflow-wrap:anywhere 로 띄어쓰기 없는 긴 주소·번호가 가로로 삐져나가지 않게 한다.
+   ★ max-width 는 calc(100vw - 32px) — 좌우 16px 씩 남긴다(앱의 다른 화면 여백과 같은 값).
+   ★ **width:max-content 를 반드시 같이 쓴다.** 이 상자는 left:50% 라서, 폭을 안 적으면
+     브라우저가 「left 자리에서 오른쪽 끝까지」인 **화면의 절반**까지만 넓힌다
+     (실측: 360폭에서 180px · 1366폭에서 683px — max-width 를 328px 로 줘도 180px 에서 접혔다).
+     폭을 max-content 로 적으면 그 제한이 사라지고 max-width 만 남는다.
+   위치(아래 100px·가운데)·색·글자 크기·2초 뒤 사라짐은 **그대로**다. */
 function showToast(msg){
   var t=document.createElement('div');
-  t.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
+  t.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);'
+    +'background:#344054;color:white;padding:10px 20px;border-radius:20px;'
+    +'font-size:13px;font-weight:700;z-index:9999;'
+    +'white-space:normal;word-break:keep-all;overflow-wrap:anywhere;'
+    +'width:max-content;max-width:calc(100vw - 32px);text-align:center;line-height:1.5;';
   t.textContent=msg;
   document.body.appendChild(t);
   setTimeout(function(){t.remove();},2000);

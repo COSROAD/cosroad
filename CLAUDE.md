@@ -36,8 +36,14 @@
   - `rc-notify.js` **지웠다** (v266 보정1, 사장님 결정 11-04) — 로드크루 알림 문자였는데
     코스로드에서 부르는 곳 0곳 · 로드잡은 자기 쪽 `roadjob.vercel.app/api/rc-notify` 를 부른다.
     지우면서 로드크루 Firebase 웹키 한 줄도 이 저장소에서 없어졌다.
-    Vercel 환경변수 `RC_SA_EMAIL`·`RC_SA_KEY` 는 이제 **아무 데서도 안 쓴다**(`api/rc-check.js` 가
-    「있는지」만 본다) — 지울지는 사장님 판단.
+  - `rc-check.js` **지웠다** (v267, 사장님 결정 11-04) — 서버 설정 진단 창구였는데
+    **로그인·허용 출처 확인이 없었다**(`Access-Control-Allow-Origin: '*'`). 누구나 열어
+    어떤 환경변수가 설정됐는지 보고, `?tmap=1` 을 붙이면 **사장님 티맵 키로 티맵 API 를 3번**
+    부르고(남이 반복하면 사용량이 깎인다) 키 앞뒤 3글자까지 봤다. 부르는 곳은 0곳이었다.
+    ★ **환경변수는 안 건드렸다.** `RC_TMAP_KEY` 는 **`api/rc-quick.js` 가 쓴다**(티맵 — 지우면 안 된다).
+    `RC_SA_EMAIL`·`RC_SA_KEY` 는 이제 아무 데서도 안 쓴다 — 지울지는 사장님 판단.
+    ★ 앞으로 진단 창구를 다시 만들 때는 **허용 출처 + ID 토큰**을 먼저 붙인다
+    (`lib/send-guard.js openGate()`·`whoIsCalling()` 를 그대로 쓰면 된다).
   - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
     환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
     v255 추가: 기사 로그인 관리 — `issueOrgCode`(업체 번호 6자리) · `setDriverPin` · `checkPinDup`
