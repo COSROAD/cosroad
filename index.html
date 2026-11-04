@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 268;
+const APP_VERSION = 269;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -11622,7 +11622,8 @@ function buildInvoiceDoc(id){
       + '<div class="inv-wrap inv-bot">' + sheet('공급받는자 보관용','blue',chunks[pi],pi*ROWS_PER_SHEET,pi) + '</div>'
       + '</div>';
   }
-  window._invPrintCache = { css: css, body: bodyHtml, date: inv.date, name: (sel&&sel.name)||inv.memberName||'' };
+  /* v269: window._invPrintCache 를 여기서 만들어 두었는데, 읽는 곳은 savePdfInvoice 뿐이었고
+     그 함수를 지웠다(부르는 곳 0). 그래서 쓰는 줄도 같이 없앴다 — 만드는 문서 글자는 그대로다. */
   var hideStyle = '<style>@media print{.no-print{display:none !important;}}</style>';
   var fitScript = '<script>(function(){function fit(){var cells=document.querySelectorAll(".inv-items td .fitspan");for(var i=0;i<cells.length;i++){var sp=cells[i];sp.style.transform="";var td=sp.parentNode;var avail=td.clientWidth-10;var w=sp.scrollWidth;if(w>avail&&avail>0){var s=avail/w;if(s<0.5)s=0.5;sp.style.transform="scaleX("+s+")";}}}function run(){fit();}if(document.readyState!=="loading"){setTimeout(run,30);}else{document.addEventListener("DOMContentLoaded",run);}window.addEventListener("beforeprint",fit);})();<\/script>';
   return { css: css, hideStyle: hideStyle, body: bodyHtml, fitScript: fitScript,
@@ -12835,74 +12836,6 @@ async function invShareCopy(){
   if(r.error){ alert(r.error); return; }
   await shareCopy(r.url);    // 기존 앱 창 복사 함수 재사용(수정 없음)
   invShareShowLink(r.url, false, INV_SHARE_COPIED);
-}
-
-// 거래명세서 PDF 저장 (인쇄 양식을 PDF로)
-function savePdfInvoice(id){
-  var inv = loadInvoices().find(function(x){return x.id===id;});
-  if(!inv) return;
-  var prevOpen = window.open;
-  window.open = function(){ return { document:{ write:function(){}, close:function(){} } }; };
-  try { printInvoice(id); } catch(e){}
-  window.open = prevOpen;
-  var cache = window._invPrintCache;
-  if(!cache){ alert('PDF 생성에 실패했어요. 인쇄로 시도해주세요.'); return; }
-  var fname = '거래명세서_'+(cache.name||'')+'_'+(cache.date||'')+'.pdf';
-  var w = window.open('', '_blank');
-  if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
-  var pdfCss = cache.css + '<style>'
-    + '#pdf-target{width:210mm;background:#fff;margin:0;padding:0;}'
-    + '#pdf-target .inv-page{display:block;padding-top:12.5mm;}'
-    + '#pdf-target .inv-sheet{width:185mm;margin-left:5mm;margin-right:auto;}'
-    + '#pdf-target .inv-top{height:131.5mm;box-sizing:border-box;overflow:hidden;}'
-    + '#pdf-target .inv-cut{width:185mm;margin:0 auto 0 5mm;border:none;}'
-    + '#pdf-target .inv-wrap{margin:0;width:100%;display:block;}'
-    + '</style>';
-  var doc = '<html><head><meta charset="utf-8"><title>PDF 저장</title>'+pdfCss
-    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></scr'+'ipt>'
-    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></scr'+'ipt>'
-    + '</head><body>'
-    + '<div id="pdf-status" style="text-align:center;padding:20px;font-family:sans-serif;color:#667085;">PDF를 만드는 중이에요…</div>'
-    + '<div id="pdf-target">'+cache.body+'</div>'
-    + '<scr'+'ipt>'
-    + 'window.onload=function(){'
-    + ' var el=document.getElementById("pdf-target");'
-    + ' var pgs=el.querySelectorAll(".inv-page");'
-    + ' var list=pgs.length?Array.prototype.slice.call(pgs):[el];'
-    + ' var pdf=new jspdf.jsPDF("p","mm","a4");'
-    + ' var pw=210, ph=297;'
-    + ' var i=0;'
-    + ' function step(){'
-    + '   if(i>=list.length){ done(); return; }'
-    + '   html2canvas(list[i],{scale:2,backgroundColor:"#ffffff"}).then(function(canvas){'
-    + '     var img=canvas.toDataURL("image/jpeg",0.95);'
-    + '     var iw=pw, ih=canvas.height*iw/canvas.width;'
-    + '     if(i>0) pdf.addPage();'
-    + '     if(ih<=ph){ pdf.addImage(img,"JPEG",0,0,iw,ih); }'
-    + '     else { var left=ih; var pos=0; while(left>0){ pdf.addImage(img,"JPEG",0,pos,iw,ih); left-=ph; if(left>0){pdf.addPage(); pos-=ph;} } }'
-    + '     i++; step();'
-    + '   }).catch(function(err){ document.getElementById("pdf-status").textContent="PDF 생성 실패: "+err; });'
-    + ' }'
-    + ' function done(){'
-    + '   var fn='+JSON.stringify(fname)+';'
-    + '   var st=document.getElementById("pdf-status");'
-    + '   if(window.showSaveFilePicker){'
-    + '     var blob=pdf.output("blob");'
-    + '     window.showSaveFilePicker({suggestedName:fn,types:[{description:"PDF",accept:{"application/pdf":[".pdf"]}}]}).then(function(handle){'
-    + '       return handle.createWritable().then(function(ws){ return ws.write(blob).then(function(){ return ws.close(); }); });'
-    + '     }).then(function(){ st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다."; setTimeout(function(){try{window.close();}catch(e){}},1000); })'
-    + '     .catch(function(e){ if(e&&e.name==="AbortError"){ st.textContent="저장이 취소됐어요. 이 창은 닫으셔도 됩니다."; } else { pdf.save(fn); st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다."; setTimeout(function(){try{window.close();}catch(x){}},1000);} });'
-    + '   } else {'
-    + '     pdf.save(fn);'
-    + '     st.textContent="저장됐어요. 이 창은 닫으셔도 됩니다.";'
-    + '     setTimeout(function(){ try{window.close();}catch(e){} }, 1200);'
-    + '   }'
-    + ' }'
-    + ' step();'
-    + '};'
-    + '</scr'+'ipt></body></html>';
-  w.document.write(doc);
-  w.document.close();
 }
 
 // 범용: HTML 문자열을 받아 PDF로 저장 (증명서 등 재사용)
@@ -16843,6 +16776,191 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
     showToast('✅ 위치 확인 완료!');
   });
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   안드로이드 뒤로가기로 창 닫기 — 공용 한 벌 (v269)
+
+   왜 — v268 까지 index.html 에 popstate·pushState 가 **0곳**이었다. 그래서 폰에
+   설치한 앱(display:standalone)에서 창을 열어 두고 뒤로가기를 누르면 창이 안 닫히고
+   **앱이 꺼지거나 이전 페이지로** 갔다.
+
+   무엇을 하나 — **창이 열려 있으면 뒤로가기 = 맨 위 창 하나를 닫는다.**
+   열린 창이 없으면 아무것도 하지 않는다(지금과 똑같이 앱이 꺼지거나 이전 페이지로).
+
+   ★ 어떻게 닫나 — 그 창의 **자기 닫기 단추를 그대로 누른다**(click).
+     새 닫기 동작을 만들지 않는 것이 핵심이다. 그래야
+       · 입력 중에 묻는 창은 **똑같이 묻고**
+       · 확인창(#confirm-modal)은 **「취소」**가 눌린다(「삭제·확인」이 눌리는 일은 구조적으로 없다).
+     누를 단추는 **두 조건을 모두** 만족해야 한다 —
+       ① 글자가 닫기류 목록(✕ · 닫기 · 취소 · 아니요 · 나중에)에 있고
+       ② onclick 이 닫기류 코드(close… · cancel · hide · remove() · display='none' · classList.remove('show'))다.
+     confirmOk() 는 ②에서 걸러진다. 둘 다 못 찾으면 바깥 누름(event.target===this)을 쓰고,
+     그것도 없으면 **아무것도 안 한다**(뒤로가기를 삼키지 않는다).
+
+   ★ 어떻게 「열렸다」를 아나 — 창 모양이 세 갈래라(① .modal-bg + show ② 만들어 붙임
+     ③ 고정 + style.display) **보이는지 하나로** 본다: el.getClientRects().length > 0.
+     display:none 이면 0, 보이면 1 이상이라 세 갈래가 같은 식으로 잡힌다.
+     id 목록(BACK_PANEL_IDS)으로만 보므로 추측이 없다 — 목록에서 빠진 창이 없는지는
+     검사 묶음이 **소스의 덮개 id 전수와 맞대** 지킨다.
+
+   ★ history 를 어떻게 다루나 — 창이 열리면 한 칸 넣고(pushState, **주소는 그대로**),
+     ✕ 로 닫으면 그 칸을 조용히 뺀다(history.go). 그래서 창을 열고 닫아도 칸이 쌓이지 않는다.
+     주소(location.href)를 바꾸지 않으므로 새로고침·공유 링크(s.html#토큰)와 무관하다.
+     첫 진입에는 popstate 가 오지 않으므로 창이 저절로 열리는 일도 없다.
+   ══════════════════════════════════════════════════════════════════════ */
+(function(){
+  /* 사람이 열고 닫는 창 — 뒤로가기로 닫는다 */
+  var BACK_PANEL_IDS = [
+    /* ① 고정 .modal-bg (show 클래스로 열고 닫는다) */
+    'member-modal', 'share-modal', 'pin-checkin-modal',
+    /* ② 고정 + style.display 로 열고 닫는다 */
+    'confirm-modal', 'unpaid-notice-modal', 'pay-method-modal', 'demo-tour-overlay',
+    /* ③ 함수가 만들어 붙이고 지운다 */
+    'docViewWrap', 'invShareSheet', 'dateCheckSheet', 'staffEditSheet',
+    'pv-modal', 'dlv-modal', 'sup-modal', 'sup-alert-modal',
+    'prod-modal', 'settle-modal', 'receipt-modal', 'prn-guide',
+    'cert-modal', 'cert-preview', 'enroll-modal', 'payreport-modal',
+    'carlog-modal', 'dcarlog-modal', 'bc-modal',
+    'signup-modal', 'pwr-modal', 'pwchg-modal', 'wd-modal', 'mcp-modal',
+    'install-guide-modal', 'helper-modal'
+  ];
+  /* 일부러 뺀 것 — **닫는 단추가 없는 막음 화면**이다. 여기에 뒤로가기를 걸면
+     「눌렀는데 아무 일도 안 남」이 되어 오히려 앱에서 못 빠져나간다. */
+  var BACK_PANEL_SKIP = {
+    'pending-screen':  '승인 대기 — 닫는 단추 없음(로그아웃으로만 빠져나감)',
+    'trial-expired':   '이용 기간 끝 — 닫는 단추 없음',
+    'driver-blocked':  '기사 막음 — 닫는 단추 없음',
+    'testorg-blocked': '테스트 공간 막음 — 닫는 단추 없음'
+  };
+  /* 사람이 닫는 창이 아니라 **대상이 아닌 것**: 안내 쪽지(showToast) · 저장 쪽지 ·
+     읽기 전용 띠(readonly-bar) · 체험 띠(trial-banner) · 도우미 단추(helper-fab*) */
+
+  /* 닫기로 볼 **글자** (점수에만 쓴다 — 글자가 달라도 닫는 코드면 통과한다) */
+  var CLOSE_WORDS = ['✕ 닫기', '✕ 취소', '취소', '아니요', '나중에', '건너뛰기', '닫기', '✕'];
+  /* ★ 통과 조건 = onclick 이 **닫는 일**을 한다. 이것이 유일한 관문이다.
+     close·cancel·hide·dismiss 는 자리를 안 따진다(suClose·pwrClose·mcpClose 처럼 뒤에 붙는다).
+     end·skip 은 앞에 글자가 없어야 한다(sendSms·appendChild 가 걸리지 않게). */
+  var CLOSE_CODE = /close|cancel|hide|dismiss|(^|[^A-Za-z])(end|skip)|\.remove\(\)|display\s*=\s*['"]none|classList\.remove\(\s*['"]show/i;
+  /* ★ 섞여 있으면 **절대 안 누른다** — 로그아웃·저장·삭제·가입 같은 일이 함께 일어나는 단추.
+     (막음 화면의 「로그아웃」 단추가 그런 꼴이다. 그 화면들은 목록에서도 빼 뒀다.) */
+  var DANGER = /logout|save|delete|submit|confirmOk|doSignup|doReset|withdraw/i;
+
+  var depth = 0;        /* 우리가 넣어 둔 history 칸 수 */
+  var silent = 0;       /* 조용히 빼는 중인 칸 수 (popstate 를 무시한다) */
+  var on = false;       /* pushState 가 되는 곳인가 */
+
+  function panelEl(id){
+    var el = document.getElementById(id);
+    if(!el) return null;
+    try{ if(!el.getClientRects().length) return null; }catch(e){ return null; }
+    return el;
+  }
+  /* 열려 있는 창들 — 아래(작은 z-index)에서 위(큰 z-index) 순서 */
+  function openPanels(){
+    var out = [];
+    for(var i=0;i<BACK_PANEL_IDS.length;i++){
+      var el = panelEl(BACK_PANEL_IDS[i]);
+      if(el) out.push(el);
+    }
+    out.sort(function(a,b){
+      var za = parseInt((getComputedStyle(a).zIndex||'0'),10) || 0;
+      var zb = parseInt((getComputedStyle(b).zIndex||'0'),10) || 0;
+      if(za !== zb) return za - zb;
+      /* z-index 가 같으면 **나중에 붙은 것**이 위다 */
+      return (a.compareDocumentPosition(b) & 4) ? -1 : 1;
+    });
+    return out;
+  }
+  /* 그 창의 자기 닫기 단추를 누른다. 눌렀으면 true.
+     ★ 점수로 고른다 — 한 창에 닫기류 단추가 여럿일 수 있다.
+       (mcp-modal 은 안쪽 확인 단계의 「취소」와 창을 닫는 「닫기」가 함께 있다.
+        글자만 보면 「취소」가 먼저라 **창이 안 닫혔다** — 실제로 겪어서 점수로 바꿨다.) */
+  function pressClose(el){
+    var id = el.id || '';
+    var cands = [];
+    try{ cands = [].slice.call(el.querySelectorAll('[onclick]')); }catch(e){}
+    var best = null, bestScore = 0;
+    for(var i=0;i<cands.length;i++){
+      var c = cands[i];
+      var code = c.getAttribute('onclick') || '';
+      if(!CLOSE_CODE.test(code)) continue;     /* 닫는 일을 안 하면 건드리지 않는다 */
+      if(DANGER.test(code)) continue;          /* 다른 일이 섞였으면 건드리지 않는다 */
+      var txt = (c.textContent||'').trim();
+      var sc = 1;
+      if(id && code.indexOf(id) >= 0) sc += 3;                 /* 이 창을 바로 닫는다 */
+      if(/close\s*\(|Close\s*\(/.test(code)) sc += 3;           /* close… 함수를 부른다 */
+      if(CLOSE_WORDS.indexOf(txt) >= 0) sc += 2;                /* 글자가 닫기류 */
+      if(txt === '취소' || txt === '아니요') sc += 1;            /* 확인창에서는 이쪽 */
+      if(sc > bestScore){ bestScore = sc; best = c; }
+    }
+    if(best){ try{ best.click(); return true; }catch(e){} }
+    /* 닫기 단추가 없으면 「바깥 누름」이 있는지 본다 */
+    var own = el.getAttribute && el.getAttribute('onclick');
+    if(own && /event\.target\s*===\s*this/.test(own)){
+      try{ el.click(); return true; }catch(e){}
+    }
+    return false;
+  }
+
+  /* 열린 창 수와 history 칸 수를 맞춘다 */
+  function sync(){
+    if(!on || silent > 0) return;          /* 조용히 빼는 중에는 건드리지 않는다 */
+    var n = openPanels().length;
+    if(n > depth){
+      for(var i=depth; i<n; i++){
+        try{ history.pushState({ cosPanel: i+1 }, '', location.href); }catch(e){ on = false; return; }
+      }
+      depth = n;
+    } else if(n < depth){
+      var back = depth - n;
+      depth = n;
+      silent = back;
+      try{ history.go(-back); }catch(e){ silent = 0; }
+    }
+  }
+  var queued = false;
+  function syncSoon(){
+    if(queued) return;
+    queued = true;
+    var run = function(){ queued = false; sync(); };
+    if(window.requestAnimationFrame) requestAnimationFrame(run); else setTimeout(run, 16);
+  }
+
+  function onPop(){
+    if(silent > 0){
+      silent--;
+      if(silent === 0) syncSoon();         /* 다 뺀 뒤 한 번 더 맞춘다 */
+      return;
+    }
+    var list = openPanels();
+    if(!list.length) return;               /* 창이 없으면 지금과 똑같이 (앱 꺼짐/이전 페이지) */
+    var top = list[list.length-1];
+    /* 브라우저가 이미 우리 칸 하나를 뺐다 → 셈을 먼저 줄여야 sync 가 또 빼지 않는다 */
+    if(depth > 0) depth--;
+    if(!pressClose(top)){
+      /* 닫을 길을 못 찾았다 — 넣어 둔 칸을 돌려놓고 아무것도 하지 않는다 */
+      try{ history.pushState({ cosPanel: depth+1 }, '', location.href); depth++; }catch(e){}
+    }
+  }
+
+  function start(){
+    if(!window.history || !history.pushState) return;
+    on = true;
+    window.addEventListener('popstate', onPop);
+    try{
+      var mo = new MutationObserver(syncSoon);
+      mo.observe(document.body, { childList:true, subtree:true,
+                                 attributes:true, attributeFilter:['class','style'] });
+    }catch(e){}
+    /* 검사·디버깅용 창구 (화면 동작에는 쓰지 않는다) */
+    window.__back = { ids: BACK_PANEL_IDS, skip: BACK_PANEL_SKIP,
+      open: function(){ return openPanels().map(function(e){ return e.id; }); },
+      depth: function(){ return depth; }, sync: sync };
+  }
+  if(document.readyState !== 'loading') start();
+  else document.addEventListener('DOMContentLoaded', start);
+})();
 
 </script>
 
