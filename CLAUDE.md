@@ -145,6 +145,29 @@
     **두 곳을 같이 고쳐야 한다**(읽기 `DRIVER_READ_KEYS` 와 같은 규칙).
     백업 create 규칙도 이 목록을 따라가므로 자동으로 좁아진다.
     관리자·소유자 쓰기는 그대로다(직원 근태·수기 토글이 같은 키를 쓴다).
+  - **v272: 기사 읽기 9개 — `notices` 를 빼고 `org` → `orgDriver` 로 바꿨다.**
+    `notices` 는 기사 화면에 그리는 자리가 0곳인데 알림장 본문·대상 회원 이름이 내려왔다.
+    `org` 에는 입금 계좌·도장 그림·사업자번호·대표자·보험요율·발신번호가 있어, 기사가
+    **실제로 읽는 일곱 칸**(`name`·`icon`·`bizType`·`destName`·`destLat`·`destLon`·`tel`)만
+    담은 요약 `orgs/{org}/data/orgDriver` 를 따로 둔다(`ORG_DRIVER_KEYS`·`buildOrgDriver`).
+    ★ `bizType` 을 빼면 안 된다 — 기사는 로그인 때 `_userBizType` 를 **안 받으므로**
+      `getBizType()` 이 이 칸으로 떨어진다(빠지면 네 업종 글자가 모두 「학원」이 된다).
+    ★ 요약은 **관리자 저장 때 같이 쓴다**(`saveOrgSettings` → `saveOrgDriver` · 복원 길도) ·
+      옛 업체는 **관리자가 들어올 때 한 번** 만들어진다(`syncFromFirebase`) · 기사 쓰기 금지 ·
+      백업 제외(`_skipBackup`). **규칙 `driverReadableKey` 와 앱 `DRIVER_READ_KEYS` 를 같이 고친다.**
+    ★★ **같은 자료를 두 키로 두면 리스너가 서로를 덮는다** (v272에 실제로 겪음, 커밋 전 수정).
+      `org`·`orgDriver` 는 **둘 다 `orgSettings` 를 채운다.** 관리자는 키 목록을 안 거르므로
+      두 리스너가 같이 붙어 **나중에 온 쪽이 이긴다** — `orgDriver` 가 뒤에 오면 `orgSettings`
+      가 13칸 → **7칸으로 깎여** 계좌·도장·사업자번호가 사라지고(`tkd_org` 까지),
+      그 뒤 업체 설정을 저장하면 **서버 `org` 까지 덮여 영구 손실**이 된다.
+      → 관리자는 `orgDriver` 리스너를 **안 붙이고**(`keys.filter`), 핸들러도 역할별로 **갈라 둔다**
+        (`org` 은 관리자만 · `orgDriver` 는 기사만). **두 곳을 같이** 봐야 한다.
+      같은 자료를 요약본으로 또 두는 일을 할 때는 **리스너·동기화·저장 세 길을 모두** 본다.
+    ★★ **로그인 때 도는 코드에서 `saveToFirebase` 를 함부로 부르지 말 것** (v272, 커밋 전 수정).
+      그 함수는 둘러보기(`_demo`)·읽기 전용(기간 끝)을 막으면서 **안내를 띄운다** —
+      데모는 토스트(「입력은 저장되지 않아요」), 읽기 전용은 **alert 창**(「방금 바꾼 내용은
+      저장하지 않았어요」) + `syncFromFirebase` 재호출이다. 사용자는 아무것도 바꾸지 않았는데
+      **들어오자마자** 그것을 보게 된다. → 부르기 전에 `isDemoMode()`·`isReadOnlyMode()` 로 막는다.
   - 백업: 기사는 `backups` read·delete 안 되고 **create 만** 된다(쓰기 전 백업을 남겨야 하므로).
   - 급여 4값(시급·식대·공제방식·출퇴근거리)은 `cars` → **`driverPay`** 로 옮겼다
     (`{ carId: {hourlyWage, mealAllow, taxMode, commuteKm} }`). `carPay(car)` 가 옛 값도 함께 봐서

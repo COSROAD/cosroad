@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 271;
+const APP_VERSION = 272;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -677,7 +677,36 @@ function loadOrgSettings(){
   var _defDest=(_biz==='public')?'센터':'학원';
   return { name:'COSROAD',icon:'🚐', destName:_defDest,destLat:37.4467,destLon:126.6516 };
 }
-function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);}
+/* ── 기사용 업체 설정 요약 (v272) ────────────────────────────────────────
+   왜 — `org` 에는 **입금 계좌·도장 그림·사업자번호·대표자·보험요율·발신번호**가 들어 있는데
+   기사 폰이 그 문서를 통째로 내려받고 있었다(코스로드37 조사 1-㉡).
+   그래서 기사가 쓰는 칸만 담은 **요약 문서**(`orgs/{org}/data/orgDriver`)를 따로 두고,
+   규칙에서 기사 읽기를 `org` → `orgDriver` 로 바꿨다.
+   ★ 일곱 칸은 **실제 실행으로 골랐다** — orgSettings 를 Proxy 로 감싸 기사 화면을 네 업종
+     모두 그려 읽힌 칸을 셌고(destLat·destLon·destName·name), 소스 추적으로 셋을 더했다:
+     · `bizType` — 기사는 로그인 때 `_userBizType` 를 **안 받는다**(2789행에서 먼저 return).
+       그래서 `getBizType()` 이 이 칸으로 떨어진다. 빠지면 네 업종 글자가 모두 「학원」이 된다.
+     · `icon`  — initApp 이 머리글 아이콘에 쓴다
+     · `tel`   — 도우미 문의에서 차량 전화가 없을 때 쓰는 대체 연락처
+   ★ 칸을 늘릴 때는 **정말 기사에게 필요한지** 먼저 보고, 규칙·앱 목록을 같이 본다. */
+var ORG_DRIVER_KEYS = ['name','icon','bizType','destName','destLat','destLon','tel'];
+function buildOrgDriver(o){
+  var src = o || {}, out = {};
+  ORG_DRIVER_KEYS.forEach(function(k){ if(src[k]!==undefined && src[k]!==null) out[k]=src[k]; });
+  return out;
+}
+/* 요약을 서버에 둔다 — 관리자·소유자만 쓴다(규칙도 그렇게 막는다) */
+function saveOrgDriver(s){
+  try{
+    if(typeof currentMode!=='undefined' && currentMode==='driver') return;   /* 기사는 안 쓴다 */
+    /* 둘러보기·읽기 전용은 **부르지 않는다** — saveToFirebase 가 막으면서 안내를 띄우는데,
+       바로 앞의 saveToFirebase('org') 가 이미 같은 안내를 냈다(안내가 두 번 울린다). */
+    if(typeof isDemoMode==='function' && isDemoMode()) return;
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return;
+    saveToFirebase('orgDriver', buildOrgDriver(s));
+  }catch(e){}
+}
+function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);saveOrgDriver(s);}
 let orgSettings=loadOrgSettings();
 
 // ── 업종별 용어 사전 ──
@@ -7260,6 +7289,7 @@ function restoreData(ev){
       try { cars = JSON.parse(localStorage.getItem('tkd_cars')||'[]'); saveToFirebase('cars',cars); } catch(e2){}
       try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); saveToFirebase('courses',courses); } catch(e3){}
       orgSettings = loadOrgSettings(); saveToFirebase('org', orgSettings);
+      saveOrgDriver(orgSettings);          /* v272: 기사용 요약도 같이 되돌린다 */
       notices = loadNotices(); saveToFirebase('notices', notices);
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
       var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
@@ -16260,7 +16290,9 @@ function _isEmptyData(d){
 
 // 백업을 남기지 않을 항목 (설정성 데이터는 백업 불필요)
 function _skipBackup(key){
-  return (key==='aligo' || key==='org');
+  /* v272: `orgDriver` 도 백업하지 않는다 — `org` 에서 **만들어 낸 사본**이라
+     원본(org)만 백업하면 되고, 관리자가 들어올 때 언제든 다시 만들어진다. */
+  return (key==='aligo' || key==='org' || key==='orgDriver');
 }
 
 // 서버 현재값을 backups 하위에 복사하고, 오래된 백업 정리
@@ -16363,8 +16395,14 @@ async function loadFromFirebase(key){
    (서버에 요청이 안 가므로 permission-denied 도 나지 않는다).
    확인한 길(호출 그래프 + 실제 실행): 기사 화면 입구 16개에서
    loadAttendance·loadAttendanceTime·getAttendanceToday·attTimeInfo 에 닿는 길 0개. */
-var DRIVER_READ_KEYS = ['members','cars','courses','org',
-                        'notices','rideState',
+/* ── v272: 두 가지를 고쳤다 (규칙 driverReadableKey 와 **같이**) ─────────────
+   · `notices` 를 **뺐다** — 기사 화면에 알림장을 그리는 자리가 0곳인데(renderNotice 를 부르는
+     여덟 곳이 전부 admin-content) 덩어리 동기화·리스너가 키 목록을 훑어 **알림장 본문과
+     대상 회원 이름이 기사 폰에 내려오고 있었다.** v258 의 「출결 빼기」와 같은 자리·같은 방법.
+   · `org` → **`orgDriver`** — org 에는 입금 계좌·도장 그림·사업자번호·대표자·보험요율이
+     들어 있다. 기사가 쓰는 일곱 칸만 담은 요약(buildOrgDriver)을 읽는다. */
+var DRIVER_READ_KEYS = ['members','cars','courses','orgDriver',
+                        'rideState',
                         'carlog','deliveryDone','dropoffDone','driverAtt'];
 function driverKeyAllowed(key){ return DRIVER_READ_KEYS.indexOf(key) >= 0; }
 
@@ -16381,7 +16419,10 @@ async function syncFromFirebase(){
   var fbMembers = await loadFromFirebase('members');
   var fbCars = await loadFromFirebase('cars');
   var fbCourses = await loadFromFirebase('courses');
-  var fbOrg = await loadFromFirebase('org');
+  /* v272: 기사는 `org` 를 못 읽는다(규칙) → 요약 `orgDriver` 로 채운다.
+     요약이 아직 없으면 null 이 와서 **지금 값(기본값)을 그대로 쓴다** — 빈 화면·오류가 없다. */
+  var _drvMode = (typeof currentMode!=='undefined' && currentMode==='driver');
+  var fbOrg = await loadFromFirebase(_drvMode ? 'orgDriver' : 'org');
   var fbPayments = await loadFromFirebase('payments');
   var fbTax = await loadFromFirebase('tax');
   var fbAtt = await loadFromFirebase('attendance');
@@ -16420,6 +16461,29 @@ async function syncFromFirebase(){
   var fbDelivDone = await loadFromFirebase('deliveryDone');
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
+  /* ── v272: 기사용 업체 설정 요약(orgDriver) 만들어 두기 ──────────────────
+     옛 업체에는 요약 문서가 아직 없다. **관리자가 들어올 때 한 번** 만들어 둔다
+     (없거나 지금 설정과 다르면 쓴다). 기사는 쓰지 않는다 — 규칙도 막는다.
+     이 한 줄이 있어서 「옛 자료 옮기기」를 따로 하지 않아도 된다. */
+  /* ★ 둘러보기(_demo)·읽기 전용(기간 끝)에서는 **부르지도 않는다.**
+       saveToFirebase 가 그 둘을 막기는 하지만 **막으면서 안내를 띄운다** —
+       데모는 토스트(「입력은 저장되지 않아요」), 읽기 전용은 alert(「방금 바꾼 내용은
+       저장하지 않았어요」) + syncFromFirebase 재호출이다. 사용자는 아무것도 바꾸지
+       않았는데 **들어오자마자** 그 안내를 보게 된다(읽기 전용은 창까지 뜬다).
+       v272 에서 실제로 그렇게 되는 것을 확인하고 이 줄을 넣었다. */
+  var _roOrDemo = false;
+  try{ _roOrDemo = (typeof isDemoMode==='function' && isDemoMode())
+                || (typeof isReadOnlyMode==='function' && isReadOnlyMode()); }catch(e){}
+  if(!_drvMode && !_roOrDemo){
+    try{
+      var _want = buildOrgDriver(orgSettings);
+      var _have = await loadFromFirebase('orgDriver');
+      if(JSON.stringify(_have||null) !== JSON.stringify(_want)){
+        await saveToFirebase('orgDriver', _want);
+        console.log('기사용 업체 요약(orgDriver) 갱신');
+      }
+    }catch(e){ console.log('기사용 요약 만들기 실패(건너뜀):', e && e.message); }
+  }
   console.log('✅ Firebase 동기화 완료');
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
 
@@ -16434,12 +16498,21 @@ function startFirebaseListeners(){
   /* v251: 'rideState' 추가 — v250 에서 탑승·완료 토글을 members 에서 떼어내면서
      실시간 리스너를 같이 옮기지 않아, 다른 기기의 토글이 안 넘어왔다(v249 회귀).
      ※ deliveryDone·dropoffDone 은 v250 **이전에도** 리스너가 없었다(이력 확인) — 이번 범위 아님. */
-  var keys = ['members','cars','courses','org','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual','staff','attendanceTime','rideState','driverPay'];
+  var keys = ['members','cars','courses','org','orgDriver','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual','staff','attendanceTime','rideState','driverPay'];
   /* ★ v255: 기사는 **운행에 필요한 키만** 받는다.
      v254 까지는 기사 폰도 이 목록을 통째로 받아 수납·세무·급여·직원까지 내려받았다.
      규칙(firestore.rules driverReadableKey)이 막게 됐으니 앱도 같은 목록만 걸어 둔다 —
      안 걸면 화면마다 permission-denied 가 콘솔에 쏟아진다(기능은 안 깨지지만 시끄럽다). */
   if(currentMode==='driver'){ keys = keys.filter(driverKeyAllowed); }
+  /* ★ v272: 관리자·소유자는 `orgDriver` 리스너를 **붙이지 않는다.**
+     `org`(전체)와 `orgDriver`(일곱 칸 요약)는 둘 다 orgSettings 를 채우므로,
+     관리자에게 두 리스너가 같이 붙으면 **나중에 온 쪽이 이긴다** —
+     orgDriver 가 뒤에 오면 orgSettings 가 일곱 칸으로 깎여
+     계좌·도장·사업자번호·대표자·보험요율·발신번호가 사라지고,
+     그 뒤 업체 설정을 저장하면 **깎인 값이 서버 `org` 에 덮여 영구 손실**이 된다.
+     (v272 에서 스텁으로 실측: 13칸 → 7칸, localStorage 의 tkd_org 까지 깎였다.)
+     관리자는 `org` 하나만 보면 되고, 요약은 저장할 때 만들어 준다(saveOrgDriver). */
+  else { keys = keys.filter(function(k){ return k !== 'orgDriver'; }); }
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
@@ -16455,7 +16528,15 @@ function startFirebaseListeners(){
       }
       else if(key==='cars'){ cars=data; localStorage.setItem('tkd_cars',JSON.stringify(data)); }
       else if(key==='courses'){ courses=data; localStorage.setItem('tkd_courses',JSON.stringify(data)); }
-      else if(key==='org'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
+      /* v272: 관리자는 `org`(전체), 기사는 요약 `orgDriver` — **섞이면 안 된다.**
+         위에서 역할에 맞는 키만 붙이지만, 여기서 한 번 더 막는다(두 곳을 같이 본다).
+         섞이면 나중에 온 쪽이 이겨 관리자의 계좌·도장이 사라진다 — v272 에서 실측. */
+      else if(key==='org'){
+        if(currentMode!=='driver'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
+      }
+      else if(key==='orgDriver'){
+        if(currentMode==='driver'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
+      }
       else if(key==='payments'){ localStorage.setItem('tkd_payments',JSON.stringify(data)); }
       else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
       else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }

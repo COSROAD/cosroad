@@ -240,9 +240,21 @@ service cloud.firestore {
     //   앱 쪽 같은 목록: index.html 의 DRIVER_READ_KEYS — **두 곳을 같이 고쳐야 한다.**
     //   ※ 관리자·소유자 읽기·쓰기는 그대로다. 기사 출퇴근(driverAtt)은 남겨 둔다 —
     //     기사 화면이 자기 출근·퇴근 시각을 보여 준다(driverPunchBarHtml).
+    // ── v272: 기사 폰에 가는 것을 두 가지 줄였다 (앱 DRIVER_READ_KEYS 와 **같이** 고친다)
+    //   · `notices` 를 **뺐다** — 기사 화면에 알림장을 그리는 자리가 **0곳**이다
+    //     (renderNotice 를 부르는 여덟 곳이 전부 admin-content · 실제 실행으로도 확인).
+    //     그런데도 덩어리 동기화·리스너가 키 목록을 훑어 **알림장 본문과 대상 회원 이름**이
+    //     기사 폰에 내려오고 있었다. v258 의 「출결 빼기」와 같은 자리·같은 방법.
+    //   · `org` → **`orgDriver`** — `org` 에는 입금 계좌(bankAccount)·도장 그림(stamp)·
+    //     사업자등록번호·대표자·4대보험 요율·발신번호가 들어 있다. 기사가 **실제로 읽는 칸**은
+    //     일곱뿐이라(name·icon·bizType·destName·destLat·destLon·tel · 실제 실행으로 셈)
+    //     그 칸만 담은 요약 문서를 따로 두고 기사는 그것만 읽는다.
+    //     ★ `orgDriver` **쓰기는 관리자·소유자만** — 아래 driverWritableKey 에 넣지 않았다.
+    //       요약은 관리자가 업체 설정을 저장할 때(saveOrgSettings) 같이 쓰이고,
+    //       옛 업체는 관리자가 들어올 때 한 번 만들어진다(syncFromFirebase).
     function driverReadableKey(key) {
-      return key in ['members', 'cars', 'courses', 'org',
-                     'notices', 'rideState',
+      return key in ['members', 'cars', 'courses', 'orgDriver',
+                     'rideState',
                      'carlog', 'deliveryDone', 'dropoffDone', 'driverAtt'];
     }
 
