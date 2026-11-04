@@ -17,7 +17,11 @@
       기사는 **소유자**가 살아 있을 때만(규칙 `ownerAlive` 와 같은 뜻) · `_demo` 는 **서버도 거부**
     · **받는 번호는 그 업체 `members` 에 있는 번호만** — 하나라도 없으면 **요청 전체 거부**(403).
       기사는 **자기 차량(carId) 회원만**(화면 `driverScopeMembers` 와 같은 기준)
-    · 상한: 업체별 **1분 60명·하루 500명** · 한 요청 50명 · 넘으면 429 (`sendRl` 컬렉션, 규칙 `if false`)
+    · 상한: 업체별 **1분 300명·하루 3,000명** · 한 요청 50명 · 넘으면 429 (`sendRl` 컬렉션, 규칙 `if false`)
+      (v266 보정1 — 처음 60/500 은 **정상 업체가 막혔다**: 등하원 알림톡·출석·납품도 같은 상한에
+      세어져 학생 250명 학원이 하루 500 을 넘고, 버스 닿을 때 1분 30명 출석이면 1분 60 에 걸렸다)
+      ★ 숫자를 바꿀 곳은 **셋**: `lib/send-guard.js` 상수(429 문구는 상수를 읽는다)
+      · `index.html` HELP_QA 「문자·알림톡이 안 나가요」 · 이 줄.
     · 알림톡 `tpl_code` 는 **서버가 아는 6개만** — `TPL_ALLOWED` 와 `index.html` 의
       `BIZ_TEMPLATE_CODES`·`BIZ_DROPOFF_TEMPLATE_CODES` 를 **같이** 고쳐야 한다
     · 문의 알림은 `mode:'inquiry'` — 화면은 **번호를 안 보내고** 서버가 `billing.notifyPhone` 으로 정한다.
@@ -28,7 +32,12 @@
     ★ 빈도 기록은 `{ t, n }` 꼴로 쌓는다 — **배열 안에 배열을 넣으면 Firestore 가 거절한다**
       ("Nested arrays are not supported"). 스텁은 통과하고 배포에서만 터진다(v266에 에뮬레이터가 잡음).
     ★ 허용 출처는 **코스로드 3개뿐**(v266). 로드잡은 자기 서버(`roadjob.vercel.app`)를 쓴다 —
-      `api/rc-notify.js` 만 로드잡 주소를 그대로 둔다(부르는 곳 0, 사장님 판단 전까지 손대지 않음).
+      배포된 `roadjob.co.kr` 을 받아 보면 `cosroad` 라는 글자가 **0번** 나온다(두 번 확인).
+  - `rc-notify.js` **지웠다** (v266 보정1, 사장님 결정 11-04) — 로드크루 알림 문자였는데
+    코스로드에서 부르는 곳 0곳 · 로드잡은 자기 쪽 `roadjob.vercel.app/api/rc-notify` 를 부른다.
+    지우면서 로드크루 Firebase 웹키 한 줄도 이 저장소에서 없어졌다.
+    Vercel 환경변수 `RC_SA_EMAIL`·`RC_SA_KEY` 는 이제 **아무 데서도 안 쓴다**(`api/rc-check.js` 가
+    「있는지」만 본다) — 지울지는 사장님 판단.
   - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
     환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
     v255 추가: 기사 로그인 관리 — `issueOrgCode`(업체 번호 6자리) · `setDriverPin` · `checkPinDup`
