@@ -14904,7 +14904,11 @@ function saveCarsAndMembers(){
      기사끼리 겹치는지는 서버가 본다(api setDriverPin → 409),
      회원·직원과 겹치는지는 PIN 을 정할 때(setDriverPinAsk) 본다. */
   flushDriverPay();          /* 시급·식대·공제·출퇴근거리를 driverPay 로 올린다 */
-  saveCars(cars); saveMembers(); var t=document.createElement('div');t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#344054;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';t.textContent='✅ 저장됐어요!';document.body.appendChild(t);setTimeout(function(){t.remove();},2000); }
+  saveCars(cars); saveMembers();
+  /* v267 보정1 — 여기에 손으로 베낀 쪽지가 있었다(bottom:80px). showToast 와 모양이 같은데
+     따로 적혀 있어, showToast 를 고쳐도 **이 쪽지만 옛 모양으로 남았다**(v267 줄바꿈이 안 들어왔다).
+     한 줄로 합쳤다 — 보이는 차이는 **뜨는 높이 80px → 100px(20px 위로)** 하나뿐이다. */
+  showToast('✅ 저장됐어요!'); }
 /* ══════════ 기사 로그인 관리 (v255) ══════════
    사장님 결정(10-31): 기사는 **업체 번호 6자리 + 내 PIN 4자리**로 로그인한다.
    v250~v254 의 「👤 기사 계정」(휴대폰 번호 + 비밀번호)은 없앴다 — 기사마다 계정을
