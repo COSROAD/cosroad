@@ -629,7 +629,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 267;
+const APP_VERSION = 268;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4492,7 +4492,7 @@ var HELP_QA=[
   {role:'all', keys:['공유','위치공유','카톡공유'], t:'오늘 코스·위치 공유',
    a:'1. 운행 화면 위쪽 「📍 공유」\n2. 오늘 운행할 순서와 «회원» 목록이 글로 정리돼 미리보기로 떠요\n3. 「📋 운행 정보 복사 → 카카오톡 붙여넣기」로 복사한 뒤 카톡 방에 붙여넣으면 돼요\n4. 「📱 문자 보내기」를 누르면 «학부모» 연락처로 문자앱이 열려요\n5. 「🗺 네이버지도로 경로 확인」·「🗺 T맵으로 경로 확인」으로 경로를 지도에서 볼 수 있어요\n6. 실시간 GPS 위치 공유는 아직 준비 중이라, 지금은 운행 정보를 글로 보내는 방식이에요'},
   {role:'admin', keys:['명세서','거래명세'], t:'거래명세서 작성',
-   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 품목을 고르면 명세서 종류에 맞는 단가만 자동으로 들어와요 — 매입은 「입고가」, 매출은 「출고가」 (0원이면 단가는 비어 있어요)\n4. 「💾 저장」 → 목록에서 🖨 인쇄/📄 PDF/🧾 영수증/💬 카톡 공유(매출)\n5. 저장 목록 위 「날짜로 보기」 달력을 열면 날짜마다 거래처·매출/매입·금액이 색으로 표시되고, 날짜를 누르면 그날 명세서만 모아 볼 수 있어요.\n6. 품목이 많으면 인쇄·PDF가 자동으로 여러 장으로 나뉘어요 (합계는 마지막 장에).'},
+   a:'1. 물류 → 거래명세서 탭\n2. 날짜·거래처 선택 → 품목 선택(또는 바코드 스캔)\n3. 품목을 고르면 명세서 종류에 맞는 단가만 자동으로 들어와요 — 매입은 「입고가」, 매출은 「출고가」 (0원이면 단가는 비어 있어요)\n4. 「💾 저장」 → 목록에서 「📄 보기 · 인쇄 · 💬 카톡」(매출)과 「🧾 영수증」\n5. 저장 목록 위 「날짜로 보기」 달력을 열면 날짜마다 거래처·매출/매입·금액이 색으로 표시되고, 날짜를 누르면 그날 명세서만 모아 볼 수 있어요.\n6. 품목이 많으면 인쇄·PDF가 자동으로 여러 장으로 나뉘어요 (합계는 마지막 장에).'},
   {role:'admin', keys:['영수증','감열','프린터','rawbt','구매'], t:'영수증 인쇄 (감열 프린터)',
    a:'1. 프린터는 「블루투스 + 감열(영수증) + 58/80mm + ESC/POS」면 대부분 됩니다 — 특정 제품에 묶이지 않아요\n2. 명세서 목록 위 「🖨 프린터 연결 안내」를 누르면 확인된 모델과 연결 6단계가 나와요\n3. 안드로이드 폰 + 무료 앱 RawBT + 블루투스 프린터 연결 필요\n4. 명세서 목록에서 「🧾 영수증」 → 용지 폭(58/80mm)은 목록 위에서 선택\n5. RawBT에서 막히는 두 곳: 기기 목록이 비어 있으면 「GRANT PERMISSION」으로 근처 기기 검색을 허용하고, 연결 뒤에는 「Your printers」에서 내 프린터에 체크하세요 (처음엔 Emulator에 체크돼 있어 종이로 안 나가요)\n6. 한글은 앱이 이미지로 만들어 보내니 자동으로 처리돼요 (프린터에 한글 글꼴이 없어도 정상)\n7. 다른 프린터로 성공하셨다면 알려주세요 — 목록에 추가할게요!'},
   {role:'admin', keys:['바코드','스캔','품목'], t:'바코드 스캔',
@@ -4561,15 +4561,15 @@ var HELP_QA=[
   {role:'admin', keys:['배송현황','요일별','배송지목록'], t:'배송현황 (물류·택배)',
    a:'1. 물류·택배는 스케줄 탭이 「📦 요일별 배송 거래처(배송지)」예요\n2. ◀ ▶ 로 날짜를 옮기거나 날짜 칸을 눌러 바꿔요\n3. 그날 요일에 해당하는 «회원»만 모아서 보여줘요 — 요일은 «회원» 등록에서 정한 값이에요'},
   {role:'admin', keys:['미수금','미지급','매출매입','받을돈','줄돈'], t:'물류 수납 — 매출/매입 달력',
-   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n3. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n4. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요\n5. 거래처 카드의 「수금일(매입은 결제일)」 칸에서 날짜를 고른 뒤 수금하면 그 날짜로 기록돼요 — 옛날 거래를 뒤늦게 받을 때 쓰세요\n6. 수금(결제)한 날짜에는 달력에 초록색으로 「✓ 거래처 수금완료/부분수금 금액」이 함께 찍혀요 — 매출 달력엔 수금만, 매입 달력엔 결제만 나와요\n7. 그 날짜를 누르면 아래에 그날 거래와 함께 「수금 · 합계」 목록이 나오고, ✕ 로 잘못된 수금을 지울 수 있어요'},
+   a:'1. 물류는 수납관리가 「매출 (받을 돈)」·「매입 (줄 돈)」 두 단추로 나뉘어요\n2. <b>고른 단추 쪽만 보여요</b> — 매출 단추를 누르면 달력·날짜 목록에 매출만, 매입 단추를 누르면 매입만 나와요 (섞이지 않아요)\n3. 위쪽에 거래액 · 수금액(결제액) · 미수금(미지급금) 합계가 보여요\n4. 「📅 달력」을 켜면 날짜마다 거래처·금액이 거래처 색으로 찍혀요 — 날짜를 누르면 그날 내역만 봐요\n5. 거래명세서를 저장하면 자동으로 여기에 쌓여요 — 따로 입력할 필요가 없어요\n6. 거래처 카드의 「수금일(매입은 결제일)」 칸에서 날짜를 고른 뒤 수금하면 그 날짜로 기록돼요 — 옛날 거래를 뒤늦게 받을 때 쓰세요\n7. 수금(결제)한 날짜에는 달력에 초록색으로 「✓ 거래처 수금완료/부분수금 금액」이 함께 찍혀요 — 매출 달력엔 수금만, 매입 달력엔 결제만 나와요\n8. 그 날짜를 누르면 아래에 그날 거래와 함께 「수금 · 합계」 목록이 나오고, ✕ 로 잘못된 수금을 지울 수 있어요\n9. 매출과 매입을 상계한 금액은 거래명세서 탭의 「전체 총 미수」나 기간 거래내역 문서 맨 아래에서 보세요 — 수금 카드에는 상계 줄이 없어요(금액대로 받으시면 돼요)'},
   {role:'admin', keys:['수금일','수금날짜','결제일','수금처리','선수금','선급금','초과'], t:'물류 수금 — 날짜 고르기·초과 금액',
    a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요 — 달력에서도 같이 사라져요\n8. 수금한 날짜에는 달력에도 초록색으로 표시돼요 — 그 수금으로 명세서가 다 채워지면 「수금완료(매입은 결제완료)」, 덜 채워지면 「부분수금 ○○원」으로 나와요\n9. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요 (앱의 모든 날짜 칸이 같아요)'},
-  {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 PDF',
-   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역 PDF」 칸이 있어요\n2. 거래처와 시작·종료 날짜를 고르고 「📄 기간 거래내역 PDF 출력」 (카톡으로 보내려면 옆의 「💬 카톡 공유」)\n3. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n4. 기간 거래내역 PDF는 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함).\n5. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이라 수납 달력의 「상계 순액」과 같은 값이에요\n6. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)'},
+  {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 (보기·인쇄·카톡)',
+   a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역」 칸이 있어요\n2. 거래처와 시작·끝 월을 고르고 <b>「📄 기간 거래내역 보기 · 인쇄 · 💬 카톡」</b> 한 단추를 누르면 앱 안에서 문서가 바로 열려요\n3. 문서를 <b>보면서</b> 위쪽에서 고르시면 돼요 — 「🖨 인쇄·PDF」(새 창에서 인쇄하거나 PDF로 저장) · 「💬 카톡 보내기」 · 「✕ 닫기」\n4. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n5. 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함)\n6. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이에요\n7. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)\n8. 거래처를 안 골랐거나 월을 안 골랐거나 그 기간에 거래가 없으면 눌렀을 때 알려 줘요'},
   {role:'admin', keys:['공유','공유링크','카톡','카카오','링크','전송','만료','명세서공유','한건'], t:'거래내역 명세 카톡 공유 링크',
-   a:'1. 기간 거래내역: 거래명세서 탭 「📄 거래처별 기간 거래내역 PDF」 칸에서 거래처·기간을 고르고 「💬 카톡 공유」 → 확인창(거래처·기간·건수·합계) → 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n2. 저장된 거래명세서 한 건만 보낼 때: 카드의 「💬 카톡 공유」 → 확인창 → 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요 (매출 명세서만)\n3. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n4. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n5. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n6. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n8. 명세에는 거래처 이름·기간(단건은 일자)·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n9. PDF 화면에는 공유 단추가 없어요 — 앱 화면의 「💬 카톡 공유」를 쓰세요'},
+   a:'1. 기간 거래내역: 거래명세서 탭 「📄 거래처별 기간 거래내역」 칸에서 거래처·기간을 고르고 「📄 기간 거래내역 보기 · 인쇄 · 💬 카톡」 → 문서가 열리면 위쪽 <b>「💬 카톡 보내기」</b> → 확인창(거래처·기간·건수·합계) → 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n2. 저장된 거래명세서 한 건만 보낼 때: 카드의 「📄 보기 · 인쇄 · 💬 카톡」 → 문서가 열리면 위쪽 「💬 카톡 보내기」 → 확인창 → 「💬 카톡으로 보내기」 (매출 명세서만)\n3. 카톡 확인창을 닫아도 <b>문서 창은 그대로</b> 남아요 — 바로 「🖨 인쇄·PDF」를 누르거나 다시 보낼 수 있어요\n4. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n5. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n6. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n7. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n8. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n9. 명세에는 거래처 이름·기간(단건은 일자)·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n10. 인쇄용 새 창에는 카톡 단추가 없어요 — 문서 창 <b>위쪽 줄</b>의 「💬 카톡 보내기」를 쓰세요'},
   {role:'admin', keys:['전체총미수','총미수','업체필터','거래처만','누적미수'], t:'업체 지정 — 목록 필터·전체 총 미수',
-   a:'1. 거래명세서 탭의 「📄 거래처별 기간 거래내역 PDF」에서 거래처를 고르면, 아래 「📁 저장된 거래명세서」 목록도 그 거래처 것만 보여요\n2. 전체로 돌아가려면 목록 위의 「전체 거래처 보기 ↺」를 누르거나 거래처를 「— 거래처 선택 —」으로 바꾸세요\n3. 거래처를 고르면 「전체 총 미수」가 함께 나와요 — 매출 미수 / 매입 미지급 / 전체 순미수 세 줄이에요\n4. 「전체 총 미수」는 고른 기간과 무관하게 그 거래처의 전체 거래를 상계한 금액이에요 — PDF 아래쪽 기간 합계와는 다른 값이에요\n5. 전체 순미수가 음수(파란색)면 우리가 줄 돈이 더 많다는 뜻이에요'},
+   a:'1. 거래명세서 탭의 「📄 거래처별 기간 거래내역」에서 거래처를 고르면, 아래 「📁 저장된 거래명세서」 목록도 그 거래처 것만 보여요\n2. 전체로 돌아가려면 목록 위의 「전체 거래처 보기 ↺」를 누르거나 거래처를 「— 거래처 선택 —」으로 바꾸세요\n3. 거래처를 고르면 「전체 총 미수」가 함께 나와요 — 매출 미수 / 매입 미지급 / 전체 순미수 세 줄이에요\n4. 「전체 총 미수」는 고른 기간과 무관하게 그 거래처의 전체 거래를 상계한 금액이에요 — 기간 거래내역 문서 아래쪽 기간 합계와는 다른 값이에요\n5. 전체 순미수가 음수(파란색)면 우리가 줄 돈이 더 많다는 뜻이에요'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
    a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요'},
   {role:'admin', keys:['파트너','제휴','추천업체'], t:'파트너(제휴 업체) 탭',
@@ -8433,19 +8433,14 @@ function renderLogiInvoiceCard(iv){
   // 전미수 = 이번 명세서 '이전' 거래들의 미수 (이후 거래는 제외)
   var prevUnpaid = calcInvoiceBalance(iv).prevBalance||0;
   if(prevUnpaid<0) prevUnpaid=0;
-  // 이번 명세서 시점까지의 매출 누적 미수 / 매입 누적 미지급 → 상계 순액
-  // 계산은 netUnpaid() 한 곳에서만 한다 (기간 거래내역 PDF도 같은 함수를 본다)
+  /* 이번 명세서 시점까지의 매출 누적 미수 / 매입 누적 미지급.
+     계산은 netUnpaid() 한 곳에서만 한다 (기간 거래내역 문서도 같은 함수를 본다).
+     ★ v268 — 「이 거래처 상계 순액 · 받을돈/줄돈/상계 완료」 세 갈래 줄을 **뺐다**
+       (사장님 결정 11-04: 금액대로 수금·결제하면 되므로 카드에서 상계를 말하지 않는다).
+       아래 입력칸 자동값(prefill)은 **그대로** 이 값을 쓴다 — 그래서 netUnpaidAsOf 는 계속 쓰인다. */
   var _bd = iv.date||'', _bc = iv.createdAt||0, _bi = iv.id;
   var _nb = netUnpaidAsOf(iv.memberId, _bd, _bc, _bi);
   var saleU = _nb.sale, purU = _nb.purchase;
-  var net = _nb.net; // +면 받을 돈, -면 줄 돈
-  if(net>0){
-    c += '<div style="font-size:11px;color:#B42318;background:#FEF3F2;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 순액 · 받을돈 '+net.toLocaleString()+'원</div>';
-  } else if(net<0){
-    c += '<div style="font-size:11px;color:#1849A9;background:#EFF8FF;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 순액 · 줄돈 '+Math.abs(net).toLocaleString()+'원</div>';
-  } else if(saleU>0 || purU>0){
-    c += '<div style="font-size:11px;color:#027A48;background:#ECFDF3;border-radius:7px;padding:5px 8px;margin-bottom:8px;font-weight:700;">이 거래처 상계 완료 (받을돈=줄돈)</div>';
-  }
   c += '<div style="display:flex;gap:10px;font-size:11px;color:#475467;margin-bottom:8px;">';
   c += '<span>합계 <b style="color:#1D2939;">'+total.toLocaleString()+'</b></span>';
   c += '<span>'+wColl+' <b style="color:#027A48;">'+coll.toLocaleString()+'</b></span>';
@@ -8674,16 +8669,14 @@ function renderLogiPayment(cont){
     var p = iv.date.split('-');
     return parseInt(p[0])===y && parseInt(p[1])===mo;
   });
-  var byDate = {};
-  monthInvs.forEach(function(iv){ (byDate[iv.date]=byDate[iv.date]||[]).push(iv); });
-  // 달력용: 탭과 무관하게 그달 매출·매입 모두 (날짜에 색 표시)
+  /* 달력·날짜 목록 모두 **보고 있는 탭 종류만** (v268, 사장님 결정 11-04)
+     v267 까지는 「탭과 무관하게 그달 매출·매입 모두」를 담았다. 그래서 매출 단추를 눌러도
+     달력에 매입 날짜가 찍히고, 그 날짜를 고르면 **매입 거래 카드까지 섞여** 나왔다.
+     monthInvs 가 이미 종류·연·월로 걸러진 목록이라 그것을 그대로 쓴다
+     (전에는 byDate 를 만들어 놓고 아무도 안 썼다 — 그 죽은 코드를 여기로 합쳤다).
+     수금(결제) 기록은 원래부터 종류별(logiPaymentsByDate)이라 그대로다. */
   var calByDate = {};
-  invoices.forEach(function(iv){
-    if(!iv.date) return;
-    var p = iv.date.split('-');
-    if(parseInt(p[0])!==y || parseInt(p[1])!==mo) return;
-    (calByDate[iv.date]=calByDate[iv.date]||[]).push(iv);
-  });
+  monthInvs.forEach(function(iv){ (calByDate[iv.date]=calByDate[iv.date]||[]).push(iv); });
   // 달력용 수금(결제) 기록 — 보고 있는 탭 종류만 (매출 달력=수금, 매입 달력=결제)
   var calPayByDate = logiPaymentsByDate(invoices, y, mo, logiPayKind);
   var sumTotal=0, sumPaid=0;
@@ -10531,7 +10524,7 @@ function renderInvoice(){
   if(!clientRangeStart) clientRangeStart = _curYm;
   if(!clientRangeEnd) clientRangeEnd = _curYm;
   h += '<div style="background:#F9F5FF;border:1px solid #E9D7FE;border-radius:12px;padding:14px;margin-bottom:14px;">';
-  h += '<div style="font-size:13px;font-weight:800;color:#6941C6;margin-bottom:10px;">📄 거래처별 기간 거래내역 PDF</div>';
+  h += '<div style="font-size:13px;font-weight:800;color:#6941C6;margin-bottom:10px;">📄 거래처별 기간 거래내역</div>';
   h += '<label style="font-size:11px;color:#667085;">거래처</label>';
   h += '<select onchange="setClientRangeMember(this.value)" style="width:100%;padding:9px;border:1px solid #E9D7FE;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;">';
   h += '<option value="">— 거래처 선택 —</option>';
@@ -10543,12 +10536,11 @@ function renderInvoice(){
   h += '<div style="flex:1;"><label style="font-size:11px;color:#667085;">시작 월</label><input type="month" value="'+clientRangeStart+'" onchange="setClientRangeStart(this.value)" style="width:100%;padding:9px;border:1px solid #E9D7FE;border-radius:8px;font-size:13px;box-sizing:border-box;"/></div>';
   h += '<div style="flex:1;"><label style="font-size:11px;color:#667085;">끝 월</label><input type="month" value="'+clientRangeEnd+'" onchange="setClientRangeEnd(this.value)" style="width:100%;padding:9px;border:1px solid #E9D7FE;border-radius:8px;font-size:13px;box-sizing:border-box;"/></div>';
   h += '</div>';
-  // 같은 줄에 두 단추, 좁은 폭에서는 접어 내린다 (v237)
-  h += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-  h += '<button onclick="printClientRange()" style="flex:1 1 160px;padding:11px;background:#7C3AED;color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📄 기간 거래내역 PDF 출력</button>';
-  h += '<button onclick="openRangeShare()" style="flex:1 1 110px;padding:11px;background:#FEE500;color:#3C1E1E;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 카톡 공유</button>';
+  // v268: 두 단추(PDF 출력·카톡 공유)를 **하나**로 합쳤다 — 문서를 보면서 인쇄·카톡을 고른다
+  h += '<div style="display:flex;">';
+  h += '<button onclick="openRangeDocView()" style="flex:1;padding:12px;background:#7C3AED;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;word-break:keep-all;overflow-wrap:anywhere;">📄 기간 거래내역 보기 · 인쇄 · 💬 카톡</button>';
   h += '</div>';
-  h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;">선택 거래처의 기간 내 거래를 일자별로 모아 출력합니다. 「💬 카톡 공유」로 이 기간 명세를 카카오톡으로 바로 보낼 수 있어요.</div>';
+  h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;word-break:keep-all;">선택 거래처의 기간 내 거래를 일자별로 모아 보여 줍니다. 문서를 보면서 「🖨 인쇄·PDF」나 「💬 카톡 보내기」를 고르시면 돼요.</div>';
   // ── 전체 총 미수 (업체 지정 시) — 기간과 무관한 현재 누적. 계산은 netUnpaid() 재사용 ──
   if(_rangeNb){
     h += '<div style="margin-top:10px;background:white;border:1px solid #E9D7FE;border-radius:10px;padding:10px;">';
@@ -10590,14 +10582,17 @@ function renderInvoice(){
       h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+inv.date+' · 품목 '+inv.items.length+'건</div></div>';
       h += '<div style="text-align:right;"><div style="font-size:15px;font-weight:800;color:#7C3AED;">'+(inv.total||0).toLocaleString()+'원</div></div>';
       h += '</div>';
-      // 단추가 4개(매출)라 360px 폭에서는 한 줄에 다 안 들어간다 → wrap 으로 접어 내린다
+      // 단추가 여럿이라 360px 폭에서는 한 줄에 다 안 들어간다 → wrap 으로 접어 내린다
+      // v268: 매출은 [🖨 인쇄/📄 PDF] + [💬 카톡 공유] 둘을 **하나**로 합쳤다(보기 창에서 고른다)
       h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">';
       if((inv.kind||'sale')!=='purchase'){
-        h += '<button onclick="printInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🖨 인쇄 / 📄 PDF</button>';
-        h += '<button onclick="receiptPrintInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#B54708;background:#FFFAEB;border:1px solid #FEDF89;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">🧾 영수증</button>';
-        h += '<button onclick="openInvoiceShare(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#3C1E1E;background:#FEE500;border:1px solid #F2D900;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;white-space:nowrap;">💬 카톡 공유</button>';
+        /* ★ flex-basis 를 적어 준다 — `flex:1`(=basis 0) 로 두면 좁은 폭에서 **접히지 않고
+           짜부라져** 「🧾 영수증」이 37px 폭에 네 줄로 쪼개졌다(360에서 실측).
+           basis 를 주면 한 줄에 못 들어갈 때 wrap 으로 **접혀 내려간다.** */
+        h += '<button onclick="openInvoiceDocView(\''+inv.id+'\')" style="flex:1 1 150px;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;word-break:keep-all;">📄 보기 · 인쇄 · 💬 카톡</button>';
+        h += '<button onclick="receiptPrintInvoice(\''+inv.id+'\')" style="flex:1 1 78px;font-size:11px;color:#B54708;background:#FFFAEB;border:1px solid #FEDF89;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;white-space:nowrap;">🧾 영수증</button>';
       }
-      h += '<button onclick="startEditInvoice(\''+inv.id+'\')" style="flex:1;font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;">✏ 수정</button>';
+      h += '<button onclick="startEditInvoice(\''+inv.id+'\')" style="flex:1 1 68px;font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;white-space:nowrap;">✏ 수정</button>';
       h += '<button onclick="deleteInvoice(\''+inv.id+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:700;">삭제</button>';
       h += '</div>';
       h += '</div>';
@@ -11489,9 +11484,15 @@ function exportSettlement(ym){
 }
 
 // 거래명세서 인쇄 (표준 양식)
-function printInvoice(id){
+/* ── 거래명세서 문서 HTML 만들기 (v268) ──────────────────────────────────
+   왜 떼어 냈나 — 같은 문서를 **두 곳**에서 쓴다:
+     ① 새 창 인쇄·PDF (printInvoice)  ② 앱 안 「문서 보기」 창 (openInvoiceDocView)
+   HTML 을 두 벌로 두면 둘이 어긋난다(기간 거래내역이 v222 에 그렇게 틀렸다).
+   ★ 새 창에 들어가는 글자가 v267 과 **하나도 다르지 않아야** 한다 — 떼어 내기만 했다.
+   반환: null(명세서 없음) 또는 { css, hideStyle, body, fitScript, name, date, items } */
+function buildInvoiceDoc(id){
   var inv = loadInvoices().find(function(x){return x.id===id;});
-  if(!inv) return;
+  if(!inv) return null;
   var sel = members.find(function(m){return String(m.id)===String(inv.memberId);}) || {};
   var org = orgSettings || {};
   var supply = inv.supply!=null ? inv.supply : (inv.total||0);
@@ -11622,6 +11623,17 @@ function printInvoice(id){
       + '</div>';
   }
   window._invPrintCache = { css: css, body: bodyHtml, date: inv.date, name: (sel&&sel.name)||inv.memberName||'' };
+  var hideStyle = '<style>@media print{.no-print{display:none !important;}}</style>';
+  var fitScript = '<script>(function(){function fit(){var cells=document.querySelectorAll(".inv-items td .fitspan");for(var i=0;i<cells.length;i++){var sp=cells[i];sp.style.transform="";var td=sp.parentNode;var avail=td.clientWidth-10;var w=sp.scrollWidth;if(w>avail&&avail>0){var s=avail/w;if(s<0.5)s=0.5;sp.style.transform="scaleX("+s+")";}}}function run(){fit();}if(document.readyState!=="loading"){setTimeout(run,30);}else{document.addEventListener("DOMContentLoaded",run);}window.addEventListener("beforeprint",fit);})();<\/script>';
+  return { css: css, hideStyle: hideStyle, body: bodyHtml, fitScript: fitScript,
+           name: (sel&&sel.name)||inv.memberName||'', date: inv.date||'',
+           items: (inv.items||[]).length };
+}
+
+/* 새 창 인쇄·PDF — v267 과 **같은 글자**를 쓴다 (위 buildInvoiceDoc 이 만든 것 그대로) */
+function printInvoice(id){
+  var D = buildInvoiceDoc(id);
+  if(!D) return;
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
   var topbar = '<div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:flex-end;gap:8px;align-items:center;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:8px 12px;">'
@@ -11630,12 +11642,10 @@ function printInvoice(id){
     + '<button onclick="window.close()" style="padding:8px 18px;font-size:13px;font-weight:700;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:7px;cursor:pointer;">✕ 닫기</button>'
     + '</div>';
   var spacer = '<div class="no-print" style="height:48px;"></div>';
-  var hideStyle = '<style>@media print{.no-print{display:none !important;}}</style>';
-  var fitScript = '<script>(function(){function fit(){var cells=document.querySelectorAll(".inv-items td .fitspan");for(var i=0;i<cells.length;i++){var sp=cells[i];sp.style.transform="";var td=sp.parentNode;var avail=td.clientWidth-10;var w=sp.scrollWidth;if(w>avail&&avail>0){var s=avail/w;if(s<0.5)s=0.5;sp.style.transform="scaleX("+s+")";}}}function run(){fit();}if(document.readyState!=="loading"){setTimeout(run,30);}else{document.addEventListener("DOMContentLoaded",run);}window.addEventListener("beforeprint",fit);})();<\/script>';
-  w.document.write('<html><head><title>거래명세서</title>'+css+hideStyle+'</head><body>'
+  w.document.write('<html><head><title>거래명세서</title>'+D.css+D.hideStyle+'</head><body>'
     + topbar + spacer
-    + bodyHtml
-    + fitScript
+    + D.body
+    + D.fitScript
     + '</body></html>');
   w.document.close();
 }
@@ -11699,15 +11709,20 @@ function buildClientRangeData(mid, startYm, endYm){
            period:{ start:startYm, end:endYm } };
 }
 
-function printClientRange(){
+/* ── 기간 거래내역 문서 HTML 만들기 (v268) ──────────────────────────────
+   새 창 인쇄·PDF(printClientRange)와 앱 안 보기 창(openRangeDocView)이 **이 함수 하나**를 본다.
+   거래처 없음 · 월 없음 · 0건 검사와 그 **문구·순서**도 여기 한 곳에 있다
+   (두 단추가 다르게 말하면 안 된다). 못 만들면 알림을 띄우고 null 을 돌려준다.
+   ★ 새 창에 들어가는 글자가 v267 과 하나도 다르지 않아야 한다 — 떼어 내기만 했다. */
+function buildClientRangeDoc(){
   var mid = clientRangeMemberId;
-  if(!mid){ alert('거래처를 선택하세요.'); return; }
-  if(!clientRangeStart || !clientRangeEnd){ alert('시작 월과 끝 월을 선택하세요.'); return; }
+  if(!mid){ alert('거래처를 선택하세요.'); return null; }
+  if(!clientRangeStart || !clientRangeEnd){ alert('시작 월과 끝 월을 선택하세요.'); return null; }
 
   var D = buildClientRangeData(mid, clientRangeStart, clientRangeEnd);
   var list = D.list, nb = D.net;
   var startYm = D.period.start, endYm = D.period.end;
-  if(list.length===0){ alert('선택한 거래처의 해당 기간에 거래내역이 없습니다.'); return; }
+  if(list.length===0){ alert('선택한 거래처의 해당 기간에 거래내역이 없습니다.'); return null; }
 
   var sel = members.find(function(m){return String(m.id)===String(mid);}) || {};
   var org = orgSettings || {};
@@ -11831,26 +11846,151 @@ function printClientRange(){
     +'@media print{.no-print{display:none !important;}}'
     +'</style>';
 
-  var w = window.open('', '_blank');
-  if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
-  var topbar = '<div class="no-print" id="cos-topbar" style="position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:8px 12px;">'
-    + '<span style="margin-right:auto;font-size:12px;color:#667085;">'+esc(sel.name||'')+' · '+esc(startYm)+'~'+esc(endYm)+' · '+list.length+'건　|　PDF로 저장: 버튼 → 대상을 \'PDF로 저장\' 선택</span>'
-    + '<button onclick="window.print()" style="padding:8px 18px;font-size:13px;font-weight:700;background:#475467;color:white;border:none;border-radius:7px;cursor:pointer;">📄 PDF / 🖨 인쇄</button>'
-    + '<button onclick="window.close()" style="padding:8px 18px;font-size:13px;font-weight:700;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:7px;cursor:pointer;">✕ 닫기</button>'
-    + '</div>';
-  var spacer = '<div class="no-print" style="height:48px;"></div>';
   var fitScript = '<script>(function(){function fit(){var cells=document.querySelectorAll(".inv-items td .fitspan");for(var i=0;i<cells.length;i++){var sp=cells[i];sp.style.transform="";var td=sp.parentNode;var avail=td.clientWidth-10;var w=sp.scrollWidth;if(w>avail&&avail>0){var s=avail/w;if(s<0.5)s=0.5;sp.style.transform="scaleX("+s+")";}}}if(document.readyState!=="loading"){setTimeout(fit,30);}else{document.addEventListener("DOMContentLoaded",fit);}window.addEventListener("beforeprint",fit);})();<\/script>';
   // 인쇄→PDF 저장 시 기본 파일명이 이 title 이다 → 「거래처명_기간」 으로 맞춘다.
   // 파일명에 못 쓰는 문자(\ / : * ? " < > |)만 공백으로 바꾼다. 다른 정보는 넣지 않는다.
   var fileTitle = String(sel.name||'').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim()
                 + '_' + startYm + '~' + endYm;
-  w.document.write('<html><head><title>'+esc(fileTitle)+'</title>'+css+'</head><body>'
+  return { css: css, body: summarySheet + detailSheets, fitScript: fitScript,
+           fileTitle: fileTitle, name: String(sel.name||''),
+           start: startYm, end: endYm, count: list.length };
+}
+
+/* 새 창 인쇄·PDF — v267 과 **같은 글자**를 쓴다 (위 buildClientRangeDoc 이 만든 것 그대로) */
+function printClientRange(){
+  var D = buildClientRangeDoc();
+  if(!D) return;
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var w = window.open('', '_blank');
+  if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
+  var topbar = '<div class="no-print" id="cos-topbar" style="position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:8px 12px;">'
+    + '<span style="margin-right:auto;font-size:12px;color:#667085;">'+esc(D.name)+' · '+esc(D.start)+'~'+esc(D.end)+' · '+D.count+'건　|　PDF로 저장: 버튼 → 대상을 \'PDF로 저장\' 선택</span>'
+    + '<button onclick="window.print()" style="padding:8px 18px;font-size:13px;font-weight:700;background:#475467;color:white;border:none;border-radius:7px;cursor:pointer;">📄 PDF / 🖨 인쇄</button>'
+    + '<button onclick="window.close()" style="padding:8px 18px;font-size:13px;font-weight:700;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:7px;cursor:pointer;">✕ 닫기</button>'
+    + '</div>';
+  var spacer = '<div class="no-print" style="height:48px;"></div>';
+  w.document.write('<html><head><title>'+esc(D.fileTitle)+'</title>'+D.css+'</head><body>'
     + topbar + spacer
-    + summarySheet
-    + detailSheets
-    + fitScript
+    + D.body
+    + D.fitScript
     + '</body></html>');
   w.document.close();
+}
+
+/* ══════════ 앱 안 「문서 보기」 창 (v268) ══════════
+   사장님 결정 11-04 — 「문서를 보면서 카톡」. 그래서 문서를 **앱 안**에 띄우고,
+   그 위에서 ① 🖨 인쇄·PDF(지금 새 창 그대로) ② 💬 카톡 보내기(지금 확인창 그대로)를 고른다.
+   ★ 왜 새 창에 카톡 단추를 다시 넣지 않았나 — v236 에 그렇게 했다가 v237 에 뺐다.
+     새 창은 document.write 로 만든 **딴 문서**라 _db·members·orgSettings 가 없어
+     window.opener 를 거쳐야 했고 그게 불안정했다. 앱 안이면 그 문제가 없다.
+   ★ z-index 9990 — 앱 머리·탭(≤500)보다 위, **카톡 확인창(10000)과 안내 쪽지(9999)보다 아래**.
+     전체 화면 문서 창(pv-modal·dlv-modal·sup-modal)이 쓰는 값과 같다.
+   ★ 문서는 iframe srcdoc — 새 창과 **같은 HTML**(buildInvoiceDoc·buildClientRangeDoc)이다.
+     위쪽 회색 막대(no-print)와 빈칸만 빼고 넣는다. */
+var DOC_VIEW_W = 720;        /* 문서 폭(185mm≈699px) + body 여백 — 이 폭으로 그린 뒤 화면에 맞춰 줄인다 */
+var _docView = null;         /* { kind:'invoice'|'range', id } */
+var _docViewFit = null;      /* resize 로 다시 맞추는 함수 (닫을 때 떼어 낸다) */
+
+function closeDocView(){
+  if(_docViewFit){ try{ window.removeEventListener('resize', _docViewFit); }catch(e){} _docViewFit = null; }
+  var el = document.getElementById('docViewWrap');
+  if(el) el.remove();
+  _docView = null;
+}
+
+/* 폰 폭에서 문서(720px)가 **가로로 안 넘치게** 줄인다 — 페이지 가로 스크롤 0이 목표.
+   세로는 창 안에서 스크롤한다. iframe 안 문서 높이를 재서 그만큼 자리를 잡아 준다. */
+function docViewFit(){
+  var fr = document.getElementById('docViewFrame');
+  var box = document.getElementById('docViewScale');
+  var bd = document.getElementById('docViewBody');
+  if(!fr || !box || !bd) return;
+  var avail = (bd.clientWidth||0) - 20;            /* 좌우 10px 여백 */
+  if(avail <= 0) avail = DOC_VIEW_W;
+  var s = Math.min(1, avail / DOC_VIEW_W);
+  var h = 0;
+  try{
+    var d = fr.contentDocument;
+    if(d) h = Math.max(d.documentElement ? d.documentElement.scrollHeight : 0,
+                       d.body ? d.body.scrollHeight : 0);
+  }catch(e){}
+  if(!h) h = 1200;
+  fr.style.height = h + 'px';
+  fr.style.transform = (s < 1) ? ('scale('+s+')') : 'none';
+  box.style.width  = Math.round(DOC_VIEW_W * s) + 'px';
+  box.style.height = Math.round(h * s) + 'px';
+}
+
+function docViewOpen(opts){
+  closeDocView();
+  /* html 도 들고 있는다 — 인쇄·카톡 단추가 쓰는 것은 아니고,
+     「보기 창에 들어간 문서가 새 창 것과 같은가」를 검사에서 볼 수 있게 두는 자리다. */
+  _docView = { kind: opts.kind, id: opts.id || '', html: opts.html || '' };
+  var btn = 'padding:9px 13px;font-size:12.5px;font-weight:800;border-radius:9px;cursor:pointer;white-space:nowrap;flex:0 0 auto;';
+  var wrap = document.createElement('div');
+  wrap.id = 'docViewWrap';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9990;background:#475467;display:flex;flex-direction:column;';
+  wrap.innerHTML =
+    '<div id="docViewBar" style="flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:7px;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:9px 12px;box-sizing:border-box;">'
+    + '<span style="flex:1 1 100%;min-width:0;font-size:12px;font-weight:700;color:#475467;word-break:keep-all;overflow-wrap:anywhere;">'+escapeMasterHtml(opts.summary||'')+'</span>'
+    + '<button id="docViewPrintBtn" onclick="docViewPrint()" style="'+btn+'background:#475467;color:white;border:none;">🖨 인쇄·PDF</button>'
+    + '<button id="docViewKakaoBtn" onclick="docViewKakao()" style="'+btn+'background:#FEE500;color:#3C1E1E;border:none;">💬 카톡 보내기</button>'
+    + '<button id="docViewCloseBtn" onclick="closeDocView()" style="'+btn+'background:white;color:#475467;border:1px solid #D0D5DD;">✕ 닫기</button>'
+    + '</div>'
+    + '<div id="docViewBody" style="flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px;box-sizing:border-box;">'
+    + '<div id="docViewScale" style="margin:0 auto;"></div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  var box = document.getElementById('docViewScale');
+  var fr = document.createElement('iframe');
+  fr.id = 'docViewFrame';
+  fr.setAttribute('title', '문서 미리보기');
+  fr.style.cssText = 'width:'+DOC_VIEW_W+'px;border:0;background:white;display:block;transform-origin:0 0;';
+  /* srcdoc 은 **속성이 아니라 자리값**으로 넣는다 — 문서 안 따옴표·스크립트를 따로 피할 필요가 없다 */
+  try{ fr.srcdoc = opts.html; }catch(e){}
+  if(box) box.appendChild(fr);
+  _docViewFit = function(){ docViewFit(); };
+  try{ fr.addEventListener('load', _docViewFit); }catch(e){}
+  try{ window.addEventListener('resize', _docViewFit); }catch(e){}
+  setTimeout(_docViewFit, 60);
+  setTimeout(_docViewFit, 400);   /* 글자 맞춤(fitScript)이 돈 뒤 높이가 바뀔 수 있다 */
+}
+
+/* 위쪽 단추 둘 — 지금 쓰는 함수를 **그대로** 부른다(새 분기를 만들지 않는다).
+   읽기 전용·둘러보기 막힘 문구도 그 함수들이 내던 것 그대로 나온다. */
+function docViewPrint(){
+  if(!_docView) return;
+  if(_docView.kind==='invoice') printInvoice(_docView.id);
+  else printClientRange();
+}
+function docViewKakao(){
+  if(!_docView) return;
+  if(_docView.kind==='invoice') openInvoiceShare(_docView.id);
+  else openRangeShare();
+}
+
+/* 거래명세서 한 건 보기 */
+function openInvoiceDocView(id){
+  var D = buildInvoiceDoc(id);
+  if(!D){ alert('명세서를 찾을 수 없어요.'); return; }
+  docViewOpen({
+    kind:'invoice', id:String(id),
+    summary: (D.name||'') + ' · ' + (D.date||'') + ' · 품목 ' + D.items + '건',
+    html: '<html><head><meta charset="utf-8"><title>거래명세서</title>'
+          + D.css + D.hideStyle + '</head><body>' + D.body + D.fitScript + '</body></html>'
+  });
+}
+
+/* 기간 거래내역 보기 — 검사(거래처·월·0건)는 빌더가 한다(문구·순서가 한 곳) */
+function openRangeDocView(){
+  var D = buildClientRangeDoc();
+  if(!D) return;
+  docViewOpen({
+    kind:'range',
+    summary: (D.name||'') + ' · ' + D.start + ' ~ ' + D.end + ' · ' + D.count + '건',
+    html: '<html><head><meta charset="utf-8"><title>' + D.fileTitle + '</title>'
+          + D.css + '</head><body>' + D.body + D.fitScript + '</body></html>'
+  });
 }
 
 /* ══════════ 카톡 공유 링크 (기간 거래내역 명세) ══════════
