@@ -22,6 +22,8 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { createHash, timingSafeEqual } from 'crypto';
+/* 이용 기간 판정 한 벌 (코스로드45) — 규칙·lib/send-guard.js 와 **같은 한 줄** */
+import { isAliveUser } from '../lib/period.js';
 
 /* v266: 안 쓰는 주소 셋(roadjob.co.kr·www.roadjob.co.kr·roadcrew.kr)을 뺐다.
    0단계 조사에서 배포된 roadjob.co.kr 을 받아 확인한 결과, 로드잡은 자기 서버
@@ -235,19 +237,22 @@ export default async function handler(req, res) {
     } catch (e) {}
   }
 
-  /* 업체가 살아 있나 — 규칙 ownerAlive 와 **같은 뜻**(v253: 소유자가 마스터면 살아 있음) */
+  /* 업체가 살아 있나 — 규칙 `ownerAlive`·`lib/send-guard.js` 와 **같은 한 줄**
+     (v253: 소유자가 마스터면 살아 있음 — 그 예외는 여기서 본다).
+     ★★ 코스로드45(v277-1): **옛 판정을 버렸다.** v263 이전 방식(`plan==='paid'` → 참 ·
+       `trialStart` 가 없으면 참 · `trialStart + 30일`)이 그대로 남아 있었는데,
+       `trialStart` 는 v263 뒤로 **아무 데서도 안 쓴다**(저장소에서 이 함수에만 남아 있었다).
+       그래서 「없으면 참」에 걸려 **사실상 `approved`·`!withdrawn` 만** 보았고,
+       **이용 기간이 끝난 업체의 기사도 로그인하고 출퇴근이 서버에 쌓였다**
+       (punch 는 Admin SDK 라 규칙을 안 거친다 — 고치기 전 코드로 실측했다).
+       이제 판정은 `lib/period.js isAliveUser` **한 곳**이다 — 규칙·문자 문지기와 같은 줄. */
   async function ownerAlive(ownerUid) {
     if (!ownerUid) return false;
     try {
       if ((await A.db.collection('admins').doc(ownerUid).get()).exists) return true;
       const s = await A.db.collection('users').doc(ownerUid).get();
       if (!s.exists) return false;
-      const u = s.data() || {};
-      if (u.approved !== true) return false;
-      if (u.withdrawn === true) return false;
-      if (u.plan === 'paid') return true;
-      if (!('trialStart' in u)) return true;
-      return Date.now() < Number(u.trialStart) + 2592000000;
+      return isAliveUser(s.data() || {}, Date.now());
     } catch (e) { return false; }
   }
 

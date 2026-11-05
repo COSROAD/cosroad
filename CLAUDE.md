@@ -282,8 +282,16 @@
 - **이용 기간 — 판정은 `paidUntil` 하나다 (v263).** 승인할 때 체험 일수·계약 개월수·받은 금액을 **입력**한다
   (금액은 v264부터 상품을 고르면 채워지고, 고치면 「직접 입력」으로 바뀐다).
   - **살아 있음 = `approved == true && withdrawn != true && paidUntil > 지금`** —
-    규칙(`isMyOrgActive`·`ownerAlive`)·앱(`getTrialStatus`) **세 곳이 같은 한 줄**이다. 한 곳만 고치지 말 것.
+    규칙(`isMyOrgActive`·`ownerAlive`)·앱(`getTrialStatus`)·**서버 두 곳**
+    (`lib/send-guard.js`·`api/driver-auth.js ownerAlive`) **네 곳이 같은 한 줄**이다. 한 곳만 고치지 말 것.
     `plan` 글자('trial'|'paid'|'expired')는 **표시용만** — 판정에 쓰면 오타 하나로 영구 무료가 된다.
+    ★ **서버 쪽 판정은 `lib/period.js isAliveUser` 한 함수**다(코스로드45) — `send-guard` 와
+      `driver-auth` 가 **같은 것을 부른다**. 전에는 각자 적어 두었고 `driver-auth` 만 v263 **이전**
+      방식(`plan==='paid'` · `trialStart` 없으면 참 · trialStart+30일)에 멈춰 있었다.
+      `trialStart` 는 v263 뒤로 아무 데서도 안 써서 **사실상 `approved`·`!withdrawn` 만** 보았고,
+      그래서 **기간이 끝난 업체의 기사도 로그인하고 출퇴근이 서버에 쌓였다**
+      (punch 는 Admin SDK 라 규칙을 안 거친다 — 고치기 전 코드로 실측).
+      ★★ **Admin SDK 로 도는 서버 코드는 규칙이 안 지켜 준다** — 기간·권한을 **코드가 직접** 봐야 한다.
   - `users/{uid}`: `paidUntil`(밀리초, KST 23:59:59.999) · `trialEnd`(표시용) · `contractMonths` · `paidAt`.
     **값이 없으면 막힌다** — 옛 계정 분기는 두지 않았다(v263, 실사용 업체 0곳). 마스터가 「📅 기간」으로 넣는다.
   - 읽기/쓰기가 갈린다: **만료 업체는 읽기만** 된다(`isMyOrgReadable`) · 쓰기·백업·공유 링크 발급은 `isMyOrgActive`.
