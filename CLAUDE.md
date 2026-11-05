@@ -168,6 +168,30 @@
       데모는 토스트(「입력은 저장되지 않아요」), 읽기 전용은 **alert 창**(「방금 바꾼 내용은
       저장하지 않았어요」) + `syncFromFirebase` 재호출이다. 사용자는 아무것도 바꾸지 않았는데
       **들어오자마자** 그것을 보게 된다. → 부르기 전에 `isDemoMode()`·`isReadOnlyMode()` 로 막는다.
+  - **v274(40-B): 기사 읽기 6개 — `members`·`cars`·`courses` 를 뺐다.**
+    기사 폰이 **업체 전체 명단**(이름·주소·연락처)을 받고 있었다. `members` 는 기관 키 하나라
+    규칙으로 차량별로 못 나눈다 → **차량별 읽기용 사본** `orgs/{org}/carData/{carId}` 를 두고
+    기사는 **자기 차량 문서 하나**만 읽는다(규칙 `match /orgs/{orgId}/carData/{carId}`,
+    가리는 기준은 `drivers/{uid}.carId` — 토큰 claim 이 아니다).
+    · 사본에 담는 «회원» 칸은 **19개**(`CAR_DATA_MEMBER_KEYS`) — 기사 화면이 실제로 읽는 것만.
+      `invoice`·`courier` 는 **택배 기사가 배송 완료 알림톡**에 쓴다(빠지면 본문이 빈다).
+      `on`·`offOn` 은 **담지 않는다**(`rideState` 가 원본 — 담으면 원본이 둘).
+      수강료·출석 PIN·거래처 사업자 칸·발신번호·급여 수기값은 **관리자 전용**이라 안 담는다.
+    · 만드는 함수 `rebuildCarData()` — **전 차량 통째로** 다시 쓴다(그래서 배정이 바뀌면
+      옛 차량 사본에서 자동으로 빠진다) · **없어진 차량 문서는 지운다** ·
+      부르는 곳: `saveMembers`·`saveCars`·`saveCourses`(→ 빠른 배정·엑셀·차량 삭제가 다 거친다) ·
+      복원 · **관리자 로그인 1회**(`syncFromFirebase` — 「옛 자료 옮기기」를 이것이 대신한다) ·
+      **둘러보기·읽기 전용에서는 안 부른다**(v272 결함 ②).
+    · 기사는 `loadCarData`·`applyCarData` 로 **한 문서에서 셋을 받는다** · 사본이 없으면
+      폰에 있던 값을 그대로 쓴다(빈 화면 금지) · **관리자에게는 `carData` 리스너를 붙이지 않는다**
+      (붙이면 관리자 화면의 `members`·`cars`·`courses` 원본이 자기 차량 하나 몫으로 깎인다 —
+      v272 `orgDriver` 가 `orgSettings` 를 7칸으로 깎던 것과 **같은 꼴**).
+    ★★ **폰이 부분 명단을 갖게 되면 「전체를 다시 만들어 저장하는」 코드가 남의 것을 지운다.**
+      `saveRideStateFromMembers`(2092)가 그랬다 — `members`(이제 자기 차량만)로 지도를 처음부터
+      다시 만들어 통째로 저장했다(실측: 넷 중 둘이 사라졌다). **기사는 받은 전체 지도에서
+      내 «회원» 몫만 덮어쓰고**, 관리자는 명단 전체를 가졌으니 지금처럼 다시 만든다.
+      `markDeliveryDone`·`markDropoffDone` 은 **이미** 폰의 지도에서 시작하므로 안전하다(실측).
+      → 자료를 더 쪼갤 때(40-C) **「다시 만들어 저장하는」 자리를 먼저 찾아 본다.**
   - 백업: 기사는 `backups` read·delete 안 되고 **create 만** 된다(쓰기 전 백업을 남겨야 하므로).
   - 급여 4값(시급·식대·공제방식·출퇴근거리)은 `cars` → **`driverPay`** 로 옮겼다
     (`{ carId: {hourlyWage, mealAllow, taxMode, commuteKm} }`). `carPay(car)` 가 옛 값도 함께 봐서

@@ -252,10 +252,36 @@ service cloud.firestore {
     //     ★ `orgDriver` **쓰기는 관리자·소유자만** — 아래 driverWritableKey 에 넣지 않았다.
     //       요약은 관리자가 업체 설정을 저장할 때(saveOrgSettings) 같이 쓰이고,
     //       옛 업체는 관리자가 들어올 때 한 번 만들어진다(syncFromFirebase).
+    // ── v274(40-B): `members`·`cars`·`courses` 를 **뺐다** (앱 DRIVER_READ_KEYS 와 **같이**)
+    //   기사 폰이 업체 **전체 명단**(이름·주소·연락처)을 받고 있었다. `members` 는 기관 키
+    //   하나라 여기서는 차량별로 못 나눈다 — 그래서 **차량별 사본**을 따로 두고
+    //   아래 `carData/{carId}` 블록이 **자기 차량 문서만** 열어 준다.
+    //   남은 네 키(rideState·carlog·deliveryDone·dropoffDone)와 driverAtt 는 40-C 에서 옮긴다.
     function driverReadableKey(key) {
-      return key in ['members', 'cars', 'courses', 'orgDriver',
+      return key in ['orgDriver',
                      'rideState',
                      'carlog', 'deliveryDone', 'dropoffDone', 'driverAtt'];
+    }
+
+    // ── 차량별 읽기용 사본 (v274 · 40-B) ──────────────────────────────────
+    //   관리자가 차량마다 만들어 두는 **사본**이다 — «회원»(그 차량 몫) · 자기 차량 한 칸 · 코스.
+    //   기사는 **자기 차량 문서만** 읽는다. 쓰기는 **관리자·소유자만**(기사는 읽기 전용).
+    //   ★ 가리는 기준은 `request.auth.token.carId`(폰이 보내는 값)가 아니라
+    //     **`drivers/{uid}.carId`(서버에 있는 문서)** 다 — 규칙이 이미 isActiveDriver 안에서
+    //     그 문서를 읽으므로 맞출 것이 하나 줄고, claim 모양이 바뀌어도 규칙은 그대로다.
+    //     (기사 uid 가 `drv_<org>_<carId>` 라 둘이 어긋날 수는 없다 — 코스로드40 설계 보고 2-5)
+    //   ★ 사본에는 수강료·출석 PIN·거래처 사업자 칸·발신번호를 **담지 않는다**(앱이 고른다).
+    function myCarId(orgId) {
+      return driverDoc(orgId).carId;
+    }
+
+    match /orgs/{orgId}/carData/{carId} {
+      allow read:  if signedIn()
+                   && (isMyOrgReadable(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
+                       || (isActiveDriver(orgId) && myCarId(orgId) == carId));
+      allow write: if signedIn()
+                   && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
+                   && (isMyOrgActive(orgId) || testOrgAdmin(orgId));      // 기사 쓰기 없음
     }
 
     match /orgs/{orgId}/data/{key} {

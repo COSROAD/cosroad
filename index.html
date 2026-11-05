@@ -636,7 +636,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 273;
+const APP_VERSION = 274;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -714,6 +714,113 @@ function saveOrgDriver(s){
   }catch(e){}
 }
 function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);saveOrgDriver(s);}
+
+/* ── 차량별 읽기용 사본 `orgs/{org}/carData/{carId}` (v274 · 40-B) ──────────────
+   왜 — 기사 폰이 **업체 전체 명단**을 받고 있었다. `members` 는 기관 키 하나라
+   규칙으로는 차량별로 못 나눈다(v257 쪽지). 그래서 **관리자가 차량마다 사본을 만들고**
+   기사는 자기 차량 문서 하나만 읽는다. 규칙이 `carData/{carId}` 를 차량으로 가린다.
+   ★ 담는 칸은 **기사 화면이 실제로 읽는 것만** — Proxy 실행 + 소스 추적으로 함께 골랐다
+     (scratchpad/probe274.js). `invoice`·`courier` 는 **택배 기사가 배송 완료 알림톡**에
+     쓴다(sendDeliveryDone → sendKakaoAlimtalk 10222) — 빠지면 알림톡 본문이 빈다.
+   ★ `on`·`offOn` 은 **담지 않는다** — `rideState` 가 원본이고 applyRideState 가 덮는다
+     (담으면 원본이 둘이 된다).
+   ★ 안 담는 것: 수강료(`monthly`·`regfee`) · 출석 PIN · 거래처 사업자 칸 · 발신번호 ·
+     급여 수기값 — 전부 **관리자 화면에서만** 읽는 것을 전수 확인했다. */
+var CAR_DATA_MEMBER_KEYS = ['id','name','carId','carIdDrop','courseId','days',
+                            'phone','phone2','location','addrDetail','lat','lon',
+                            'dropLocation','dropLat','dropLon','note','photo',
+                            'invoice','courier'];
+function carDataDocFor(carId){
+  var cid = String(carId||'');
+  var mine = (members||[]).filter(function(m){ return inCarEitherLeg(m, cid); });
+  var car = (cars||[]).find(function(c){ return String(c.id)===cid; }) || null;
+  return {
+    members: mine.map(function(m){
+      var o = {};
+      CAR_DATA_MEMBER_KEYS.forEach(function(k){ if(m[k]!==undefined && m[k]!==null) o[k]=m[k]; });
+      return o;
+    }),
+    /* 자기 차량 **한 칸만** — 다른 차량 기사 이름·연락처가 안 내려간다 */
+    car: car ? { id:car.id, name:car.name||'', plate:car.plate||'',
+                 driver:car.driver||'', phone:car.phone||'' } : null,
+    courses: (courses||[]).map(function(c){
+      return { id:c.id, name:c.name||'', depart:c.depart||'', arrive:c.arrive||'' };
+    })
+  };
+}
+/* 차량 사본을 **전 차량 통째로** 다시 쓴다.
+   배정이 바뀔 때마다 통째로 쓰므로 **옛 차량 사본에서 자동으로 빠진다**(설계 2-1).
+   없어진 차량의 문서는 **지운다** — 안 지우면 그 차량 기사가 옛 명단을 계속 읽는다. */
+async function rebuildCarData(){
+  try{
+    if(typeof currentMode!=='undefined' && currentMode==='driver') return;   /* 기사는 안 쓴다 */
+    /* 둘러보기·읽기 전용에서는 **부르지 않는다** — saveToFirebase 가 막으면서 안내를 띄운다
+       (v272 결함 ②: 들어오자마자 데모 토스트·읽기 전용 alert). */
+    if(typeof isDemoMode==='function' && isDemoMode()) return;
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return;
+    if(!window._db || !window._firestore) return;
+    var { doc, setDoc, deleteDoc, collection, getDocs } = window._firestore;
+    var orgId = getFbOrgId();
+    var keep = {};
+    for(var i=0;i<(cars||[]).length;i++){
+      var cid = String(cars[i].id);
+      keep[cid] = 1;
+      await setDoc(doc(window._db,'orgs',orgId,'carData',cid),
+        { value: JSON.stringify(carDataDocFor(cid)), updatedAt: Date.now() });
+    }
+    /* 없어진 차량 문서 치우기 */
+    try{
+      var snap = await getDocs(collection(window._db,'orgs',orgId,'carData'));
+      var stale = [];
+      snap.forEach(function(d){ if(!keep[d.id]) stale.push(d.id); });
+      for(var j=0;j<stale.length;j++){
+        await deleteDoc(doc(window._db,'orgs',orgId,'carData',stale[j]));
+      }
+      if(stale.length) console.log('없어진 차량 사본 지움:', stale.join(','));
+    }catch(e){ console.log('옛 차량 사본 치우기 건너뜀:', e && e.message); }
+    console.log('차량별 사본(carData) 갱신:', Object.keys(keep).length + '대');
+  }catch(e){ console.log('차량별 사본 만들기 실패(건너뜀):', e && e.message); }
+}
+/* 기사가 자기 차량 사본 하나를 읽는다 (없으면 null — 화면은 지금 값을 그대로 쓴다) */
+async function loadCarData(carId){
+  try{
+    if(!window._db || !window._firestore) return null;
+    var { doc, getDoc } = window._firestore;
+    var snap = await getDoc(doc(window._db,'orgs',getFbOrgId(),'carData',String(carId||'')));
+    if(!snap.exists()) return null;
+    return JSON.parse(snap.data().value);
+  }catch(e){ console.log('차량 사본 읽기 실패:', e && e.message); return null; }
+}
+/* ★ 사본에는 `on`·`offOn` 이 없다(`rideState` 가 원본). 그런데 등원 쪽 판단은
+   `legOn()` 이 `!!m.on` 이라 **없으면 「안 태움」**으로 읽혀 **운행 목록이 비어 버린다**
+   (하원은 `offOn!==false` 라 괜찮다 — 그래서 **등원만** 빈다. 실측으로 잡았다).
+   그래서 **기본값을 「탑승」으로 깔고** 그 위에 rideState 를 덮는다 —
+   rideState 에 값이 있으면 그것이 이긴다(원본은 여전히 rideState 하나다).
+   ★ 사본을 푸는 길이 **둘**(syncFromFirebase · carData 리스너)이라 여기 한 곳에 모았다 —
+     한쪽만 고치면 그 길에서만 목록이 빈다. */
+function carDataMembers(list){
+  return (list||[]).map(function(m){ return Object.assign({ on:true, offOn:true }, m); });
+}
+/* 사본 한 덩어리를 폰에 풀어 넣는다 (members·cars·courses 세 키를 한 번에) */
+function applyCarData(d){
+  if(!d || typeof d!=='object') return false;
+  try{
+    if(Array.isArray(d.members)){
+      var _ms = carDataMembers(d.members);      /* 탑승 기본값 — 위 carDataMembers 쪽지 참고 */
+      localStorage.setItem('tkd_members', JSON.stringify(_ms));
+      members = applyRideState(_ms);
+    }
+    if(d.car){
+      localStorage.setItem('tkd_cars', JSON.stringify([d.car]));
+      cars = [d.car];
+    }
+    if(Array.isArray(d.courses)){
+      localStorage.setItem('tkd_courses', JSON.stringify(d.courses));
+      courses = d.courses;
+    }
+    return true;
+  }catch(e){ console.log('차량 사본 풀기 실패:', e && e.message); return false; }
+}
 let orgSettings=loadOrgSettings();
 
 // ── 업종별 용어 사전 ──
@@ -788,7 +895,7 @@ function loadCourses(){
     {id:'c2',name:'5~6시반',depart:'16:50',arrive:'17:00'}
   ];})();
 }
-function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));saveToFirebase('courses',c);}
+function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));saveToFirebase('courses',c);rebuildCarData();}
 let courses=loadCourses();
 
 // ── 차량 설정 ──
@@ -803,7 +910,7 @@ function loadCars(){
     {id:'car5',name:'5호차',driver:'',phone:'',plate:''},
   ];
 }
-function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveToFirebase('cars',c);}
+function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveToFirebase('cars',c);rebuildCarData();}
 
 // ══════════ 직원(기사 외) — 근태·급여 (v241, 4업종 공통) ══════════
 // 저장 구조: tkd_staff = [{ id:'st'+Date.now(), name, phone, pin,
@@ -2096,8 +2203,18 @@ function saveRideState(st){
   saveToFirebase('rideState', st||{});
 }
 /* 지금 메모리의 members 에서 토글만 뽑아 저장한다 (기사 화면의 세 자리가 이걸 부른다) */
+/* ★ v274(40-B): 기사 폰에는 **자기 차량 «회원» 만** 있다(carData 사본).
+   그래서 `members` 로 지도를 **처음부터 다시 만들면 다른 차량 토글이 지워진다**
+   (실측: 네 명 중 2호차 둘이 사라졌다 — scratchpad/wipe274.js ②).
+   `rideState` 는 아직 업체 전체 문서이고 기사 폰도 **전체 지도를 받는다** →
+   그 지도에서 **내 «회원» 몫만 덮어쓰면** 남의 것이 그대로 남는다.
+   ★ 관리자는 명단 전체를 가지고 있어 지금처럼 **처음부터 다시 만든다** —
+     그래야 지운 «회원» 의 낡은 칸이 따라서 빠진다(기사는 그 판단을 할 수 없다). */
 function saveRideStateFromMembers(){
   var st={};
+  try{
+    if(currentMode==='driver') st = loadRideState() || {};   /* 받은 전체 지도에서 시작 */
+  }catch(e){ st={}; }
   try{
     (members||[]).forEach(function(m){
       if(m && m.id!=null) st[String(m.id)] = { on:(m.on!==false), offOn:(m.offOn!==false) };
@@ -2126,7 +2243,7 @@ function loadMembers(){
   if(isDemoMode()){ try{ return applyRideState(getDemoSample().members||[]); }catch(e){} }
   return [];
 }
-function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);}
+function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);rebuildCarData();}
 let members=loadMembers();
 
 // ── 알림장 ──
@@ -7379,6 +7496,7 @@ function restoreData(ev){
       try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); saveToFirebase('courses',courses); } catch(e3){}
       orgSettings = loadOrgSettings(); saveToFirebase('org', orgSettings);
       saveOrgDriver(orgSettings);          /* v272: 기사용 요약도 같이 되돌린다 */
+      rebuildCarData();                    /* v274: 차량별 사본도 되돌린 자료로 다시 만든다 */
       notices = loadNotices(); saveToFirebase('notices', notices);
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
       var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
@@ -16578,7 +16696,13 @@ async function loadFromFirebase(key){
      대상 회원 이름이 기사 폰에 내려오고 있었다.** v258 의 「출결 빼기」와 같은 자리·같은 방법.
    · `org` → **`orgDriver`** — org 에는 입금 계좌·도장 그림·사업자번호·대표자·보험요율이
      들어 있다. 기사가 쓰는 일곱 칸만 담은 요약(buildOrgDriver)을 읽는다. */
-var DRIVER_READ_KEYS = ['members','cars','courses','orgDriver',
+/* ── v274(40-B): `members`·`cars`·`courses` 를 **뺐다** (규칙 driverReadableKey 와 **같이**)
+   기사 폰이 업체 전체 명단(이름·주소·연락처)을 받고 있었다. 이제 **자기 차량 사본**
+   `carData/{carId}` 한 문서에서 셋을 받는다(loadCarData·applyCarData).
+   `carData` 는 `data/{key}` 가 아니라 **따로 있는 컬렉션**이라 이 목록에 넣지 않는다 —
+   규칙도 `match /orgs/{orgId}/carData/{carId}` 로 따로 가린다.
+   ★ 목록에서 빼면 `loadFromFirebase` 의 기사 가드가 **부르기 전에** 막아 요청이 안 나간다. */
+var DRIVER_READ_KEYS = ['orgDriver',
                         'rideState',
                         'carlog','deliveryDone','dropoffDone','driverAtt'];
 function driverKeyAllowed(key){ return DRIVER_READ_KEYS.indexOf(key) >= 0; }
@@ -16593,9 +16717,23 @@ function driverWriteAllowed(key){ return DRIVER_WRITE_KEYS.indexOf(key) >= 0; }
 async function syncFromFirebase(){
   console.log('🔄 Firebase 동기화 중...');
   var fl=document.getElementById('fb-loading'); if(fl) fl.style.display='block';
-  var fbMembers = await loadFromFirebase('members');
-  var fbCars = await loadFromFirebase('cars');
-  var fbCourses = await loadFromFirebase('courses');
+  /* ★ v274(40-B): 기사는 `members`·`cars`·`courses` 를 **못 읽는다**(규칙).
+     자기 차량 사본 `carData/{carId}` **한 문서**에서 셋을 한 번에 받는다.
+     사본이 아직 없으면 null → **폰에 있던 값을 그대로 쓴다**(빈 화면·오류 없음). */
+  var _drvMode0 = (typeof currentMode!=='undefined' && currentMode==='driver');
+  var fbMembers = null, fbCars = null, fbCourses = null;
+  if(_drvMode0){
+    var _cd = await loadCarData(driverLockedCarId());
+    if(_cd){
+      if(Array.isArray(_cd.members)) fbMembers = carDataMembers(_cd.members);   /* 탑승 기본값 */
+      if(_cd.car) fbCars = [_cd.car];
+      if(Array.isArray(_cd.courses)) fbCourses = _cd.courses;
+    }
+  } else {
+    fbMembers = await loadFromFirebase('members');
+    fbCars = await loadFromFirebase('cars');
+    fbCourses = await loadFromFirebase('courses');
+  }
   /* v272: 기사는 `org` 를 못 읽는다(규칙) → 요약 `orgDriver` 로 채운다.
      요약이 아직 없으면 null 이 와서 **지금 값(기본값)을 그대로 쓴다** — 빈 화면·오류가 없다. */
   var _drvMode = (typeof currentMode!=='undefined' && currentMode==='driver');
@@ -16660,6 +16798,10 @@ async function syncFromFirebase(){
         console.log('기사용 업체 요약(orgDriver) 갱신');
       }
     }catch(e){ console.log('기사용 요약 만들기 실패(건너뜀):', e && e.message); }
+    /* ★ v274(40-B): 차량별 사본도 **관리자가 들어올 때 한 번** 만들어 둔다.
+       옛 업체에는 사본이 없으므로, 이 한 줄이 「옛 자료 옮기기」를 대신한다.
+       `rebuildCarData` 안에서도 데모·읽기 전용을 막지만 여기서도 걸러 둔다. */
+    await rebuildCarData();
   }
   console.log('✅ Firebase 동기화 완료');
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
@@ -16690,6 +16832,26 @@ function startFirebaseListeners(){
      (v272 에서 스텁으로 실측: 13칸 → 7칸, localStorage 의 tkd_org 까지 깎였다.)
      관리자는 `org` 하나만 보면 되고, 요약은 저장할 때 만들어 준다(saveOrgDriver). */
   else { keys = keys.filter(function(k){ return k !== 'orgDriver'; }); }
+  /* ★ v274(40-B): 기사는 자기 차량 사본 `carData/{carId}` 에 리스너를 하나 붙인다 —
+     관리자가 배정을 바꾸면 **바로** 명단이 바뀐다.
+     ★ 관리자에게는 **붙이지 않는다**: 관리자 화면은 `members`·`cars`·`courses` 원본을 보는데,
+       사본 리스너가 같이 붙으면 그 셋을 **자기 차량 하나 몫으로 덮어** 버린다
+       (v272 orgDriver 가 orgSettings 를 7칸으로 깎던 것과 **같은 꼴**이다). */
+  if(currentMode==='driver'){
+    try{
+      var _myCar = driverLockedCarId();
+      if(_myCar){
+        onSnapshot(doc(window._db, 'orgs', orgId, 'carData', String(_myCar)), function(snap){
+          if(!snap.exists()) return;
+          try{
+            if(applyCarData(JSON.parse(snap.data().value))){
+              renderByTab();
+            }
+          }catch(e){ console.log('차량 사본 반영 실패:', e && e.message); }
+        }, function(err){ console.log('차량 사본 리스너 거부:', err && err.code); });
+      }
+    }catch(e){ console.log('차량 사본 리스너 못 붙임:', e && e.message); }
+  }
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
       if(!snap.exists()) return;
