@@ -636,7 +636,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 275;
+const APP_VERSION = 276;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2694,13 +2694,26 @@ function showDriverBlocked(why){
     +'<button onclick="logout();var p=document.getElementById(\'driver-blocked\');if(p)p.remove();" style="margin-top:16px;padding:11px 22px;background:#F2F4F7;border:none;border-radius:10px;font-size:13px;font-weight:700;color:#475467;cursor:pointer;">로그아웃</button>'
     +'</div>';
 }
-/* 기사 모드에서 기관 자료 읽기가 permission-denied 인지 한 번 확인한다 (v250) */
+/* 기사 모드에서 기관 자료 읽기가 permission-denied 인지 한 번 확인한다 (v250)
+   ★★ v276(긴급): **확인에 쓰는 문서를 `data/members` → `data/orgDriver` 로 바꿨다.**
+     v274(규칙 608)부터 기사는 `members` 를 **못 읽는다**(driverReadableKey 에서 뺐다).
+     그런데 이 함수는 그대로 `members` 를 찔러 보고 거부당하면 막힘 화면을 띄웠다 —
+     그래서 **규칙이 올라간 뒤 모든 기사가 로그인하자마자 「지금은 들어갈 수 없어요」**
+     를 보게 됐다(자료는 멀쩡한데 화면만 막혔다. 사장님이 11-05 에 겪음).
+   ★ 확인에는 **기사가 지금 읽어도 되는 문서**를 써야 한다. `orgDriver` 는
+     `driverReadableKey` 의 **유일한 키**이고 차량 배정과 무관해서(carData 는 carId 가 필요하다)
+     기준으로 가장 안전하다.
+   ★ **문서가 없어도 오류가 아니다** — 규칙이 허락하면 `getDoc` 은 `exists()==false` 로
+     조용히 돌아온다(에뮬레이터로 실측). 그래서 요약을 아직 안 만든 새 업체도 안 막힌다.
+   ★ 막아야 할 때는 **그대로 막힌다** — 기간 만료(ownerAlive 거짓)·PIN 지움(drivers 문서 없음)이면
+     `isActiveDriver` 가 거짓이라 이 읽기도 permission-denied 가 된다(대조 시험으로 확인).
+   ※ 이 함수를 고칠 때는 **규칙 `driverReadableKey` 와 같은 키**를 쓰는지 꼭 본다. */
 async function driverAccessCheck(){
   if(!window._isDriverAcct) return true;
   try{
     if(!window._db || !window._firestore) return true;
     var { doc, getDoc } = window._firestore;
-    await getDoc(doc(window._db, 'orgs', getFbOrgId(), 'data', 'members'));
+    await getDoc(doc(window._db, 'orgs', getFbOrgId(), 'data', 'orgDriver'));
     return true;
   }catch(e){
     var m=String((e && e.code) || (e && e.message) || e);
