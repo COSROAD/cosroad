@@ -313,8 +313,13 @@
       **거짓만 돌려주고 조용히** 끝났다 — 화면에는 「✅ ○○님 출근」이 떠서 **기록된 것처럼 보였다**
       (크롬으로 실측: 옛 판은 폰에 기록까지 남았다). 안내는 **기존 `readOnlyBlocked`** 를 그대로 쓰고,
       패드가 서버 오류를 보여 주던 `#pin-result` 자리에 한 줄을 띄운다(새 창 0 · `BACK_PANEL_IDS` 무관).
-      ★ **`saveCarState()` 를 거치는 다른 저장(탑승 토글·차계부·납품/하차 완료·수기 근태)은
-        아직 조용히 막힌다** — 화면만 바뀌고 서버에 안 간다(47 에서 표로 보고, 고치지 않음).
+      ★★ **v279(48): `saveCarState()` 도 읽기 전용이면 `readOnlyBlocked()` 를 부른다** —
+        탑승 토글·차계부·납품/하차 완료·수기 근태가 모두 이 함수를 지나므로 **한 자리**로 넷이 해결된다.
+        · 안내는 **기존 문구**(「방금 운행 기록은 저장하지 않았어요」) · 되돌리기도 그대로.
+        · **둘러보기는 조용히**(그 가지가 앞에 있다) · **로그인 때 도는 호출은 안 온다**
+          (`syncFromFirebase` 의 옮기기는 `_roOrDemo` 로, `restoreData` 는 제 앞에서 막는다 — v272 함정).
+        · 한 동작이 저장을 두 번 불러도(`saveMembers` → `saveToFirebase` + `saveCarState`)
+          **안내는 한 번**이다(`readOnlyBlocked` 의 1.5초 묶음 — 크롬으로 실측).
   - 승인·연장·기간 정하기·승인 취소는 **서버만** 쓴다 — `api/admin-account.js`
     (`approveOrg`·`extendOrg`·`setPeriod`·`unapproveOrg`, 날짜 셈은 `lib/period.js` 한 벌).
     규칙의 마스터 쓰기는 **`testAccess` 하나로** 좁혔다. 기록은 `billingLog/{uid}/items`(마스터 읽기만).
