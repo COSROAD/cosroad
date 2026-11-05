@@ -636,7 +636,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 279;
+const APP_VERSION = 280;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2290,7 +2290,22 @@ function closeStaffEdit(){
   var el=document.getElementById('staffEditSheet');
   if(el) el.remove();
 }
+/* ★ v280(43-A): 직원 PIN 이 있는가 — 서버 해시로 옮긴 뒤에는 `hasPin` 한 칸으로 본다.
+   옛 자료(아직 안 옮긴 업체)에는 평문 `pin` 이 남아 있으므로 그것도 함께 본다. */
+function staffHasPin(st){
+  if(!st) return false;
+  return st.hasPin===true || /^\d{4}$/.test(String(st.pin||''));
+}
+var _pinCleared=false;          /* 편집 창에서 「PIN 지우기」를 눌렀나 */
+function staffPinClear(btn){
+  _pinCleared=true;
+  var el=document.getElementById('st-pin'); if(el){ el.value=''; el.placeholder='지울 거예요'; }
+  var note=document.getElementById('st-pin-note');
+  if(note){ note.textContent='저장하면 지워져요'; note.style.color='#B42318'; }
+  if(btn){ btn.disabled=true; btn.style.opacity='0.5'; }
+}
 function openStaffEdit(id){
+  _pinCleared=false;
   var st = id ? findStaff(id) : null;
   if(id && !st){ alert('직원을 찾을 수 없어요.'); return; }
   var isNew = !st;
@@ -2308,7 +2323,17 @@ function openStaffEdit(id){
     + '<div style="font-size:15px;font-weight:800;color:#1D2939;margin-bottom:12px;">👤 '+(isNew?'직원 추가':'직원 정보 수정')+'</div>'
     + fld('이름 <span style="color:#F04438;">*</span>', '<input id="st-name" type="text" value="'+escapeMasterHtml(st.name||'')+'" placeholder="홍길동" style="'+IN+'"/>')
     + fld('연락처', '<input id="st-phone" type="tel" value="'+escapeMasterHtml(st.phone||'')+'" placeholder="010-0000-0000" style="'+IN+'"/>')
-    + fld('PIN 4자리 (직원이 PIN 판에서 직접 출퇴근)', '<input id="st-pin" type="text" inputmode="numeric" maxlength="4" value="'+escapeMasterHtml(st.pin||'')+'" placeholder="예) 1234" style="'+IN+'"/>')
+    /* ★ v280(43-A): PIN 은 **서버 해시**로만 있다 — 원문을 화면에 되돌려 보여 주지 않는다
+       (기사 PIN 과 같은 방식). 설정 여부만 알리고, 새로 넣을 때만 칸에 적는다. */
+    + fld('PIN 4자리 (직원이 PIN 판에서 직접 출퇴근)',
+        '<input id="st-pin" type="text" inputmode="numeric" maxlength="4" value="" placeholder="'
+        + (staffHasPin(st) ? '설정됨 — 바꾸려면 새 4자리' : '예) 1234') + '" style="'+IN+'"/>'
+        + (staffHasPin(st)
+            ? '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">'
+              + '<span style="font-size:11px;color:#12B76A;font-weight:700;">🔢 PIN 설정됨</span>'
+              + '<button type="button" onclick="staffPinClear(this)" style="padding:5px 10px;background:#FEE4E2;color:#B42318;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">PIN 지우기</button>'
+              + '<span id="st-pin-note" style="font-size:11px;color:#98A2B3;"></span></div>'
+            : '<div style="font-size:11px;color:#98A2B3;margin-top:6px;">PIN 이 있어야 PIN 판에서 출퇴근할 수 있어요</div>'))
     + '<div style="display:flex;gap:8px;">'
       + '<div style="flex:1;">'+fld('시급 (원)', '<input id="st-wage" type="number" value="'+(st.hourlyWage||'')+'" placeholder="10030" style="'+IN+'"/>')+'</div>'
       + '<div style="flex:1;">'+fld('식대 (월, 원)', '<input id="st-meal" type="number" value="'+(st.mealAllow||'')+'" placeholder="200000" style="'+IN+'"/>')+'</div>'
@@ -2333,32 +2358,42 @@ async function saveStaffEdit(id){
   if(!name){ alert('이름을 넣어 주세요.'); return; }
   var pin=g('st-pin');
   if(pin && !/^\d{4}$/.test(pin)){ alert('PIN 은 숫자 4자리로 넣어 주세요.'); return; }
-  /* PIN 중복 검사 — 직원끼리 + 기사 + 회원 (셋이 서로 겹치면 안 된다) */
+  /* ★ v280(43-A): PIN 중복은 **서버 한 번**으로 본다(기사+직원 해시) · «회원» 만 앱 자료로.
+     직원 PIN 은 더 이상 앱에 평문으로 두지 않는다 — 서버 `staffPins` 에 해시로만 있다. */
   if(pin){
-    var list0=loadStaff();
-    var dupS=list0.find(function(s){ return s.pin===pin && String(s.id)!==String(id); });
-    if(dupS){ alert('⚠ PIN '+pin+' 은(는) 이미 직원('+dupS.name+')이 사용 중이에요'); return; }
-    /* v255: 기사 PIN 은 앱 자료에 없다(서버 해시) → 서버에 겹치는지 묻는다 */
-    var dupC=await drvPinDupCar(pin);
-    if(dupC){ alert('⚠ PIN '+pin+' 은(는) 이미 기사('+dupC+')가 사용 중이에요'); return; }
+    var dupWho=await pinDupWho(pin, id||'');
+    if(dupWho){ alert('⚠ PIN '+pin+' 은(는) 이미 '+dupWho+'이(가) 사용 중이에요'); return; }
     var dupM=members.find(function(m){ return m.pin===pin; });
     if(dupM){ alert('⚠ PIN '+pin+' 은(는) 이미 '+T('회원')+'('+dupM.name+')이 사용 중이에요'); return; }
   }
   var ck=document.getElementById('st-break');
+  var _prev=findStaff(id)||{};
   var obj={
     id: id || ('st'+Date.now()),
     name: name,
     phone: g('st-phone'),
-    pin: pin,
+    /* ★ 평문 PIN 은 **저장하지 않는다**. 있는지 없는지만 `hasPin` 으로 들고 있는다
+       (화면이 「PIN 설정됨 / 새로 정하기」를 보여 주려면 그 한 칸이면 된다). */
+    hasPin: pin ? true : (_prev.hasPin===true && !_pinCleared),
     hourlyWage: Number(g('st-wage'))||0,
     mealAllow: Number(g('st-meal'))||0,
     taxMode: (g('st-tax')==='insure4')?'insure4':'free33',
     breakAuto: ck ? !!ck.checked : true
   };
+  /* 서버에 PIN 을 맡긴다 — 실패하면 **저장을 멈춘다**(앱만 바뀌어 어긋나지 않게) */
+  if(pin){
+    var rp=await driverAcctApi({ action:'setStaffPin', org:getFbOrgId(), staffId:obj.id, pin:pin });
+    if(!rp || !rp.ok){ alert(rp && rp.message ? rp.message : 'PIN 을 저장하지 못했어요. 잠시 뒤 다시 해 주세요.'); return; }
+  } else if(_pinCleared && _prev.hasPin===true){
+    var rr=await driverAcctApi({ action:'removeStaffPin', org:getFbOrgId(), staffId:obj.id });
+    if(!rr || !rr.ok){ alert(rr && rr.message ? rr.message : 'PIN 을 지우지 못했어요. 잠시 뒤 다시 해 주세요.'); return; }
+    obj.hasPin=false;
+  }
   var list=loadStaff();
   var i=list.findIndex(function(s){ return String(s.id)===String(obj.id); });
   if(i>=0) list[i]=obj; else list.push(obj);
   saveStaff(list);
+  _pinCleared=false;
   closeStaffEdit();
   showToast(id?'✅ 직원 정보를 수정했어요':'✅ 직원을 추가했어요');
   refreshDriverAttHost();
@@ -2368,9 +2403,19 @@ function deleteStaff(id){
   var st=findStaff(id);
   if(!st) return;
   closeStaffEdit();
-  showConfirmModal(function(){
+  showConfirmModal(async function(){
     var list=loadStaff().filter(function(s){ return String(s.id)!==String(id); });
     saveStaff(list);
+    /* ★ v280(43-A): PIN 과 **동승 배정**도 같이 정리한다 — 서버 `removeStaffPin` 이
+       `staffPins` 를 지우고 `drivers/hlp_…` 의 carId 를 비운다. 화면 값도 지운다. */
+    try{
+      if(!(typeof isDemoMode==='function' && isDemoMode()) && staffHasPin(st)){
+        await driverAcctApi({ action:'removeStaffPin', org:getFbOrgId(), staffId:id });
+      }
+    }catch(e){}
+    var touched=false;
+    cars.forEach(function(c){ if(String(c.helperStaffId||'')===String(id)){ delete c.helperStaffId; touched=true; } });
+    if(touched) saveCars(cars);
     showToast('🗑 직원을 삭제했어요');
     refreshDriverAttHost();
   }, st.name+' 직원을 삭제할까요?\n출퇴근 기록은 남지만 화면·급여상세에서 빠집니다.', '삭제');
@@ -5047,7 +5092,7 @@ var HELP_QA=[
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판사진'], t:'운행기록부 내보내기',
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['직원','직원근태','기사외','알바','휴게','휴게시간','직원출퇴근','직원급여'], t:'기사 말고 직원 출퇴근은?',
-   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 직원 출퇴근은 <b>관리자 기기에서</b> 찍어요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」 판에서 직원이 자기 PIN 4자리를 눌러도 돼요\n4. 기사와는 방식이 달라요 — 기사는 자기 폰 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로 찍어요 (기사 화면에는 PIN 판이 없어요)\n5. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n6. 기사는 휴게를 빼지 않아요 (종전 그대로)\n7. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n8. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n9. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n10. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
+   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 직원 출퇴근은 <b>관리자 기기에서</b> 찍어요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」 판에서 직원이 자기 PIN 4자리를 눌러도 돼요\n4. 기사와는 방식이 달라요 — 기사는 자기 폰 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로 찍어요 (기사 화면에는 PIN 판이 없어요)\n5. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n6. 기사는 휴게를 빼지 않아요 (종전 그대로)\n7. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n8. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n9. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n9-1. <b>PIN 은 서버에만 안전하게 보관돼요</b> — 한 번 정하면 화면에 다시 보이지 않고, 「PIN 설정됨」으로만 나와요. 잊으셨으면 새 번호로 다시 정하시면 돼요\n9-2. 근태 화면 위에 <b>「🔢 옛 직원 PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료 안에 그대로 있던 PIN 을 서버로 옮깁니다 (PIN 판 출퇴근은 그대로 돼요)\n10. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사·직원 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 사람이 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업','4대보험','요율','국민연금','건강보험'], t:'급여상세 내보내기',
@@ -5087,7 +5132,7 @@ var HELP_QA=[
   {role:'admin', keys:['현황','대시보드','통계'], t:'현황(대시보드) 보는 법',
    a:'1. 관리자 → 「📊 현황」 탭\n2. 위 카드: 전체 «회원» · 오늘 «출석» · 차량별 오늘 인원 — 카드를 누르면 명단이 아래에 펼쳐져요\n3. 「오늘 «출석률»」 막대와 차량별 진행 막대로 한눈에 확인해요\n4. 「💰 정부 지원사업」 카드를 누르면 공고 목록이 열려요\n5. 「📑 서류·인증 도움」에는 자주 쓰는 정부 사이트 바로가기가 있어요'},
   {role:'admin', keys:['차량','호차','기사','배정','차량번호','차종'], t:'차량 등록·기사 배정',
-   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
+   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n9-1. <b>동승 도우미</b>(학원·공공) — 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 그 차에 함께 타는 <b>직원</b>을 고를 수 있어요. 한 차량에 한 명이고, PIN 이 있는 직원만 고를 수 있어요 (동승 로그인은 <b>다음 회차</b>에 열려요)\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
   /* v273 — 두 차량 칸. 학원·공공만 쓰는 기능이라 그 점을 먼저 적는다. */
   {role:'admin', keys:['하원차량','하원','등원','두차량','따로배정'], t:'등원·하원 차량을 따로 (하원 차량)',
    a:'한 «회원»이 <b>등원은 1호차, 하원은 2호차</b>로 다닐 수 있어요 (학원·공공만 — 물류·택배는 하원이 없어 칸이 안 보여요)\n1. «회원»관리 → 수정 → 「차량」 아래 <b>「하원 차량」</b> 에서 고르세요. 기본은 <b>「등원과 같음」</b> 이에요\n2. 「등원과 같음」이면 지금까지처럼 <b>한 대</b>로 등·하원을 다 돌아요 — 쓰던 «회원»은 손댈 것이 없어요\n3. 차량관리에서도 바꿀 수 있어요 — 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요\n4. <b>운행 화면</b>은 방향에 따라 갈려요 — 등원 탭에는 등원 차량의 «회원», 하원 탭에는 하원 차량의 «회원»이 나와요\n5. 기사 「«회원»」 탭에는 <b>등원·하원 어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n6. 하원 차량 기사도 그 «회원»에게 <b>하차 알림 문자</b>를 보낼 수 있어요\n7. <b>수강료·«출결»은 등원 차량 하나 기준</b>이에요 — 한 «회원»이 두 번 세어지지 않아요\n8. 기사 급여는 <b>출퇴근 시간</b>으로 계산해서 이것과 상관없어요\n9. 차량을 지우면 그 차량을 하원으로 쓰던 «회원»도 「등원과 같음」으로 돌아가요'},
@@ -8193,11 +8238,10 @@ async function saveMember(){
   if(pin){
     var dupMember = members.find(function(m){ return m.pin===pin && m.id!==parseInt(editId||0); });
     if(dupMember){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupMember.name+' 님이 사용 중이에요'); return; }
-    /* v255: 기사 PIN 은 앱 자료에 없다(서버 해시) → 서버에 겹치는지 묻는다 */
-    var dupCar = await drvPinDupCar(pin);
-    if(dupCar){ showToast('⚠ PIN '+pin+' 은(는) 이미 기사('+dupCar+')가 사용 중이에요'); return; }
-    var dupStaff = activeStaff().find(function(s){ return s.pin===pin; });
-    if(dupStaff){ showToast('⚠ PIN '+pin+' 은(는) 이미 직원('+dupStaff.name+')이 사용 중이에요'); return; }
+    /* v255: 기사 PIN 은 앱 자료에 없다(서버 해시) → 서버에 겹치는지 묻는다.
+       v280: **직원 PIN 도 해시**가 되어 같은 물음 하나로 둘 다 본다(pinDupWho). */
+    var dupWho = await pinDupWho(pin);
+    if(dupWho){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupWho+'이(가) 사용 중이에요'); return; }
   }
   const regfee=regEl?parseInt(regEl.value)||0:0;
   const monthly=monEl?parseInt(monEl.value)||0:0;
@@ -8808,6 +8852,20 @@ async function checkPin(){
       if(driverCar){ handleDriverPinCheckin(driverCar); return; }
     } else {
       var jp = await padDriverPinApi(pv);
+      /* ★ v280(43-A): 직원 PIN 도 **서버가 가려 준다**(앱에 평문이 없어졌다).
+         서버는 「누구인지」만 알려 주고, **기록은 지금처럼 앱이** `staffAtt` 에 한다 —
+         그래서 직원 근태·급여 화면이 한 줄도 안 바뀐다. */
+      if(jp.ok && jp.kind==='staff'){
+        var stHit=activeStaff().find(function(x){ return String(x.id)===String(jp.staffId); });
+        if(stHit){ handleStaffPinCheckin(stHit); return; }
+        /* 명부에 없는 직원 id — 자료가 어긋난 경우다. 조용히 넘기지 말고 알린다. */
+        var rs=document.getElementById('pin-result');
+        if(rs) rs.innerHTML='<div style="color:#F04438;font-size:14px;font-weight:700;text-align:center;padding:10px;">'
+          +'직원 명부에서 찾지 못했어요. 근태관리에서 확인해 주세요.</div>';
+        pinInput='';
+        setTimeout(function(){ var r2=document.getElementById('pin-result'); if(r2)r2.innerHTML=''; renderPinDisplay(); },2500);
+        return;
+      }
       if(jp.ok){
         var pc=null;
         for(var pi=0;pi<cars.length;pi++){ if(cars[pi].id===jp.carId){ pc=cars[pi]; break; } }
@@ -8831,6 +8889,9 @@ async function checkPin(){
 
     // 2) 직원 PIN (v241) — 기사 다음, 회원 앞
     var staffHit=null;
+    /* ★ v280: 실서비스에서는 **서버가 직원을 가려 준다**(위 `kind==='staff'`).
+       여기 남은 평문 대조는 **둘러보기 전용**이다 — 샘플 자료에는 평문 PIN 이 그대로 있다.
+       아직 옮기지 않은 업체(노란 칸이 떠 있는 상태)에서도 종전처럼 돌아가게 같이 둔다. */
     var _stList=activeStaff();
     for(var s=0;s<_stList.length;s++){
       if(_stList[s].pin && _stList[s].pin===pv){ staffHit=_stList[s]; break; }
@@ -15731,6 +15792,30 @@ async function drvPinDupCar(pin){
   var c=cars.find(function(x){ return String(x.id)===String(r.carId); });
   return c ? (c.driver||c.name||'기사') : '기사';
 }
+/* ★ v280(43-A): **기사 + 직원**을 한 번에 묻는다 — 직원 PIN 도 서버 해시로 옮겨
+   앱 자료에 평문이 없어졌기 때문이다(전에는 `activeStaff()` 를 눈으로 훑었다).
+   돌려주는 값은 「기사(박기사)」·「직원(최직원)」 같은 **보여 줄 글자**이고,
+   PIN 값이나 해시는 서버도 돌려주지 않는다(예·아니오와 누구인지만).
+   `exceptStaffId` — 그 직원 **자신**은 빼고 본다(자기 PIN 을 다시 저장할 때). */
+async function pinDupWho(pin, exceptStaffId){
+  pin=String(pin||'').replace(/[^0-9]/g,'');
+  if(!/^\d{4}$/.test(pin)) return '';
+  if(typeof isDemoMode==='function' && isDemoMode()){     /* 둘러보기는 샘플 자료로 */
+    var c0=cars.find(function(c){ return c.driverPin===pin; });
+    if(c0) return '기사('+(c0.driver||c0.name||'')+')';
+    var s0=activeStaff().find(function(s){ return s.pin===pin && String(s.id)!==String(exceptStaffId||''); });
+    return s0 ? '직원('+s0.name+')' : '';
+  }
+  var r=await driverAcctApi({ action:'checkPinDup', org:getFbOrgId(), pin:pin,
+                              exceptStaffId: exceptStaffId||'' });
+  if(!r || !r.ok || !r.dup) return '';
+  if(r.kind==='staff'){
+    var st=activeStaff().find(function(x){ return String(x.id)===String(r.staffId); });
+    return '직원('+((st&&st.name)||'')+')';
+  }
+  var c=cars.find(function(x){ return String(x.id)===String(r.carId); });
+  return '기사('+((c&&(c.driver||c.name))||'')+')';
+}
 /* 여러 PIN 을 한꺼번에 — 엑셀 가져오기에서 쓴다. { '1234':true } 를 돌려준다.
    줄마다 묻지 않고 **들어온 PIN 종류만** 모아 병행으로 묻는다. */
 async function drvPinTakenSet(pins){
@@ -15882,8 +15967,67 @@ function driverPinCardHtml(car){
     });
   }
   h += '</div>';
+  h += carHelperRowHtml(car);        /* v280(43-A): 동승 도우미 — 학원·공공만 */
   h += '<div id="drv-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
   return h + '</div>';
+}
+/* ── 동승 도우미 고르기 (v280 · 43-A) ─────────────────────────────────────
+   «회원» 과 함께 타는 **직원**을 차량에 묶어 둔다. 로그인은 **아직 안 열린다**(43-B) —
+   이 회차는 「누가 어느 차량에 타나」를 관리자가 정해 두는 데까지다.
+   ★ 학원·공공만 — 「동승 도우미」는 등하원 업종의 말이다(`isDropLeg()` 와 같은 업종 판정).
+   ★ 한 차량에 한 명 · 한 직원은 한 차량만(서버 `setCarHelper` 가 지킨다).
+   ★ PIN 이 없는 직원은 고를 수 없다 — PIN 이 있어야 동승 로그인을 할 수 있다. */
+function helperBizOk(){ var b=getBizType(); return b==='academy'||b==='public'; }
+function carHelperRowHtml(car){
+  if(!helperBizOk() || !car) return '';
+  var list=activeStaff();
+  var cur=String(car.helperStaffId||'');
+  var curSt=list.find(function(s){ return String(s.id)===cur; });
+  var h='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #EAECF0;">';
+  h+='<div style="font-size:12px;font-weight:800;color:#475467;margin-bottom:6px;">🧑‍🤝‍🧑 동승 도우미</div>';
+  if(!list.length){
+    h+='<div style="font-size:11px;color:#98A2B3;line-height:1.7;">근태관리에서 직원을 먼저 등록해 주세요.</div>';
+    return h+'</div>';
+  }
+  h+='<select onchange="setCarHelperAsk('+jsArg(car.id)+', this.value)" style="width:100%;padding:9px;border:1.5px solid #D0D5DD;border-radius:9px;font-size:13px;font-weight:700;color:#344054;box-sizing:border-box;">';
+  h+='<option value=""'+(cur?'':' selected')+'>없음</option>';
+  list.forEach(function(s){
+    var ok=staffHasPin(s);
+    h+='<option value="'+escapeMasterHtml(String(s.id))+'"'+(String(s.id)===cur?' selected':'')+(ok?'':' disabled')+'>'
+      + escapeMasterHtml(s.name)+(ok?'':' (PIN 없음)')+'</option>';
+  });
+  h+='</select>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin-top:6px;line-height:1.7;">'
+   + (curSt ? ('지금 <b>'+escapeMasterHtml(curSt.name)+'</b> 님이 이 차량에 탑니다. ')
+            : '이 차량에 함께 타는 직원을 고르면, 그 직원이 기사와 같은 운행 화면을 볼 수 있게 준비됩니다. ')
+   + '동승 로그인은 <b>다음 회차</b>에 열려요.</div>';
+  return h+'</div>';
+}
+async function setCarHelperAsk(carId, staffId){
+  staffId=String(staffId||'');
+  if(typeof isDemoMode==='function' && isDemoMode()){ driverAcctMsg('둘러보기에서는 정할 수 없어요.', false); try{ renderCars(); }catch(e){} return; }
+  var i=cars.findIndex(function(c){ return String(c.id)===String(carId); });
+  if(i<0) return;
+  /* 한 직원은 한 차량만 — 다른 차량에 이미 있으면 물어보고 옮긴다 */
+  if(staffId){
+    var other=cars.find(function(c){ return String(c.id)!==String(carId) && String(c.helperStaffId||'')===staffId; });
+    if(other){
+      var st=activeStaff().find(function(s){ return String(s.id)===staffId; });
+      if(!confirm(((st&&st.name)||'그 직원')+' 님은 지금 '+(other.name||'다른 차량')+'에 타고 있어요.\n이 차량으로 옮길까요?')){
+        try{ renderCars(); }catch(e){}
+        return;
+      }
+    }
+  }
+  driverAcctMsg('저장하는 중…', true);
+  var r=await driverAcctApi({ action:'setCarHelper', org:getFbOrgId(), carId:carId, staffId:staffId });
+  if(!r || !r.ok){ driverAcctMsg((r&&r.message)||'정하지 못했어요.', false); try{ renderCars(); }catch(e){} return; }
+  /* 서버가 받아 준 뒤에 화면 값을 고친다 — 서버 문서가 **근거**이고 이것은 보여 주는 값이다 */
+  cars.forEach(function(c){ if(String(c.helperStaffId||'')===staffId) delete c.helperStaffId; });
+  if(staffId) cars[i].helperStaffId=staffId; else delete cars[i].helperStaffId;
+  saveCars(cars);
+  driverAcctMsg(staffId?'✅ 동승 도우미를 정했어요':'동승 도우미를 뺐어요', true);
+  try{ renderCars(); }catch(e){}
 }
 /* 시각(ms) → 한국 날짜·시간. 서버가 atKst 를 주지 못한 옛 기록에만 쓴다. */
 function fmtDrvAt(ms){
@@ -15905,11 +16049,12 @@ async function setDriverPinAsk(carId){
   if(pin===null) return;
   pin = String(pin).replace(/[^0-9]/g,'');
   if(!/^\d{4}$/.test(pin)){ driverAcctMsg('PIN 은 숫자 4자리로 넣어 주세요.', false); return; }
-  /* 회원·직원 PIN 과도 겹치면 안 된다 — 이쪽은 앱 자료로 바로 본다 */
+  /* «회원» PIN 은 앱 자료로 바로 본다 (아직 평문이다 — 이번 범위 밖, 보고문에 적었다) */
   var dupM = members.find(function(m){ return m.pin===pin; });
   if(dupM){ driverAcctMsg('⚠ PIN '+pin+' 은(는) '+T('회원')+'('+dupM.name+')이 쓰고 있어요.', false); return; }
-  var dupS = activeStaff().find(function(s){ return s.pin===pin; });
-  if(dupS){ driverAcctMsg('⚠ PIN '+pin+' 은(는) 직원('+dupS.name+')이 쓰고 있어요.', false); return; }
+  /* v280: 직원 PIN 도 서버 해시 → 서버에 묻는다(기사 중복은 setDriverPin 이 한 번 더 본다) */
+  var dupS2 = await pinDupWho(pin);
+  if(dupS2){ driverAcctMsg('⚠ PIN '+pin+' 은(는) '+dupS2+'이(가) 쓰고 있어요.', false); return; }
   driverAcctMsg('저장하는 중…', true);
   var r = await driverAcctApi({ action:'setDriverPin', org:getFbOrgId(), carId:carId, pin:pin });
   if(!r.ok){ driverAcctMsg(r.message||'정하지 못했어요.', false); return; }
@@ -15951,6 +16096,55 @@ function drvLegacyCars(){
     return /^\d{4}$/.test(String(c.driverPin||''))
         || c.hourlyWage || c.mealAllow || c.taxMode || c.commuteKm;
   });
+}
+/* ★ v280(43-A): 옛 **직원** PIN(평문)도 같은 자리에서 옮긴다 — 기사 PIN 과 같은 방식·멱등.
+   옮기기가 **정말 성공했을 때만** 평문을 비운다(v275 보정1 교훈: 거짓이면 그대로 둔다). */
+function staffLegacyPins(){
+  return loadStaff().filter(function(s){ return s && /^\d{4}$/.test(String(s.pin||'')); });
+}
+function staffMigrateCardHtml(){
+  if(typeof isDemoMode==='function' && isDemoMode()) return '';
+  var lg=staffLegacyPins();
+  if(!lg.length) return '';
+  var h='<div class="status-card" style="margin-bottom:12px;background:#FFFAEB;border:1px solid #FEDF89;">';
+  h+='<div class="status-card-title">🔢 옛 직원 PIN 옮기기 (한 번만)</div>';
+  h+='<div style="font-size:12px;color:#B54708;line-height:1.8;">직원 PIN 이 업체 자료 안에 <b>그대로(평문) 들어 있어요.</b>'
+   + '<br>아래 단추를 한 번 누르면 기사 PIN 처럼 <b>서버에만 안전하게</b> 보관하고 업체 자료에서 지웁니다. '
+   + 'PIN 판 출퇴근은 그대로 됩니다.</div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: 직원 PIN '+lg.length+'건</div>';
+  h+='<button id="stf-mig-btn" onclick="staffMigrateRun()" style="width:100%;padding:11px;background:#DC6803;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">🔢 옮기기</button>';
+  h+='<div id="stf-mig-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
+  return h+'</div>';
+}
+async function staffMigrateRun(){
+  var say=function(t,c){ var el=document.getElementById('stf-mig-msg');
+                         if(el){ el.textContent=t; el.style.color=c||'#B54708'; } };
+  if(typeof isDemoMode==='function' && isDemoMode()){ say('둘러보기에서는 옮길 수 없어요.','#B42318'); return; }
+  var lg=staffLegacyPins();
+  if(!lg.length) return;
+  var btn=document.getElementById('stf-mig-btn');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.6'; btn.textContent='옮기는 중…'; }
+  var r=await driverAcctApi({ action:'migrateStaffPins', org:getFbOrgId(),
+    staff: lg.map(function(s){ return { staffId:s.id, pin:String(s.pin) }; }) });
+  if(!r || !r.ok){
+    if(btn){ btn.disabled=false; btn.style.opacity='1'; btn.textContent='🔢 옮기기'; }
+    say((r && r.message) || '옮기지 못했어요. 잠시 뒤 다시 해 주세요.','#B42318');
+    return;                                   /* ★ 실패하면 평문을 **안 비운다** */
+  }
+  /* 옮겨진 것만 비운다 — 못 옮긴 것(dup·bad)이 있으면 **평문을 그대로 둔다**
+     (겹쳐서 못 옮긴 PIN 을 지우면 그 직원은 PIN 이 아예 없어진다) */
+  var keepPlain = ((r.dup||0) + (r.bad||0)) > 0;
+  var list=loadStaff();
+  list.forEach(function(s){
+    if(!s || !/^\d{4}$/.test(String(s.pin||''))) return;
+    if(keepPlain) return;
+    s.hasPin=true; delete s.pin;
+  });
+  saveStaff(list);
+  say(keepPlain
+      ? '옮김 '+(r.moved||0)+'건 · 겹침/오류 '+((r.dup||0)+(r.bad||0))+'건 — 겹친 PIN 은 그대로 두었어요. 번호를 바꿔 다시 정해 주세요.'
+      : '✅ 직원 PIN '+(r.moved||0)+'건을 서버로 옮겼어요.', keepPlain?'#B54708':'#067647');
+  try{ renderAdminTab(currentAdminTab); }catch(e){}
 }
 function drvMigrateCardHtml(){
   if(typeof isDemoMode==='function' && isDemoMode()) return '';
@@ -16049,6 +16243,7 @@ function renderCars(){
   /* v255: 기사 로그인용 업체 번호 + 옛 자료 옮기기 안내 (차량 카드보다 위) */
   html+=orgCodeCardHtml();
   html+=drvMigrateCardHtml();
+  html+=staffMigrateCardHtml();   /* v280: 옛 직원 PIN 옮기기 — 같은 자리 */
   html+='<div class="status-card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="status-card-title">🚐 '+escapeMasterHtml(car.name)+' 정보'+carlogBadgeHtml(car.id)+'</div>'
     +'<button onclick="carlogSelCar=\''+car.id+'\';openCarlog();" style="font-size:11px;color:#0E7090;background:#E0F2FE;border:1px solid #B9E6FE;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;">📒 차계부</button></div>';
   html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
@@ -16392,6 +16587,11 @@ function deleteCurrentCar(){
       if(String(m.carIdDrop||'')===car.id) m.carIdDrop='';
     });
     saveMembers();
+  }
+  /* ★ v280(43-A): 이 차량의 **동승 도우미 배정**도 서버에서 비운다
+     (안 비우면 `drivers/hlp_…` 가 없는 차량을 가리켜, 43-B 로그인 때 엉뚱한 차량이 열린다). */
+  if(car.helperStaffId && !(typeof isDemoMode==='function' && isDemoMode())){
+    try{ driverAcctApi({ action:'setCarHelper', org:getFbOrgId(), carId:car.id, staffId:'' }); }catch(e){}
   }
   cars.splice(currentCarTab, 1);
   saveCars(cars);

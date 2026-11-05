@@ -531,8 +531,31 @@ export default async function handler(req, res) {
           if (!carId && sameHash(v.pinHash, want)) carId = String(v.carId || '');
         });
       } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
-      /* 기사 PIN 이 아니면 **앱이 직원·회원 PIN 으로 이어서 본다** — 404 로 알려 준다 */
-      if (!carId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');
+      /* ★ v280(43-A): 기사 PIN 이 아니면 **직원 PIN 해시**를 이어서 본다.
+         직원 PIN 도 서버 `staffPins` 로 옮겨(평문 폐기) 앱에는 더 이상 없다 —
+         앱이 혼자 맞추던 길이 없어졌으므로 여기서 가려 준다.
+         ★ 기록은 **앱이 지금처럼** `staffAtt` 에 한다(직원 근태 저장 길은 안 바꿨다) —
+           서버는 「누구인지」만 돌려준다. 그래서 급여·근태 화면이 한 줄도 안 바뀐다. */
+      let staffId = null;
+      if (!carId) {
+        try {
+          const snap = await A.db.collection('staffPins').where('org', '==', org).get();
+          snap.forEach(d => {
+            const v = d.data() || {};
+            if (!staffId && sameHash(v.pinHash, want)) staffId = String(v.staffId || '');
+          });
+        } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      }
+      /* 기사도 직원도 아니면 **앱이 «회원» PIN 으로 이어서 본다** — 404 로 알려 준다 */
+      if (!carId && !staffId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');
+      if (!carId) {
+        /* 직원 — 기간을 본 뒤(기사와 같은 자리) 「누구인지」만 돌려준다 */
+        if (!(await ownerAlive((await resolveOwnerUid(org))))) {
+          return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
+        }
+        await writeLogin(org, '', true, 'pad:staff', '', null);
+        return res.status(200).json({ ok: true, kind: 'staff', staffId: staffId, date: kstDateStr() });
+      }
 
       /* ★★ 코스로드46: 여기서도 **이용 기간**을 본다 (로그인·출퇴근과 같은 함수·같은 문구).
          `requireManager` 는 `orgId`·`approved`·`withdrawn` 만 보고 `paidUntil` 을 안 본다 —

@@ -46,6 +46,22 @@
     (`lib/send-guard.js openGate()`·`whoIsCalling()` 를 그대로 쓰면 된다).
   - `admin-account.js` 기사 계정 만들기·비밀번호 다시 정하기 (firebase-admin, v250)
     환경변수 `FIREBASE_SERVICE_ACCOUNT` 필요 · ID 토큰 검사 + 허용 출처 검사
+    **v280(43-A) 추가: 직원 PIN 도 서버 해시 · 동승 도우미 배정**
+    · `setStaffPin`·`removeStaffPin`·`migrateStaffPins` — 서버 전용 `staffPins/{org}_{staffId}`
+      = `{org, staffId, pinHash, updatedAt}` · 해시는 기사와 **같은 재료**(새 환경변수 없음).
+      `data/staff[].pin`(평문)은 **옮긴 뒤 비운다** — 옮기기가 **정말 성공했을 때만**(v275 보정1).
+      앱에는 `hasPin` 한 칸만 남는다(원문은 화면에 되돌려 보여 주지 않는다).
+    · `checkPinDup` 이 **기사+직원**을 함께 본다(`exceptStaffId` 로 자기 자신 제외) —
+      앱은 `pinDupWho()` 하나로 묻는다(전에는 평문 명부를 눈으로 훑었다).
+    · `api/driver-auth.js pinCheckin` 에 **직원 갈래** — 기사 다음으로 직원 해시를 대조해
+      `{kind:'staff', staffId}` 만 돌려준다. **기록은 앱이 지금처럼** `staffAtt` 에 한다
+      (그래서 직원 근태·급여 화면이 안 바뀐다). 둘 다 아니면 종전대로 404 `notdriver`.
+    · `setCarHelper` — 차량관리 「동승 도우미」. 화면 값은 `cars[].helperStaffId`,
+      **권한의 근거는 서버 문서** `orgs/{org}/drivers/hlp_<org>_<직원>`
+      = `{role:'helper', staffId, carId, ownerUid}`. 기사와 **같은 컬렉션·같은 모양**이라
+      규칙(`isActiveDriver`·`myCarId`·`carData`·`carState`)이 **한 줄도 안 바뀐다**(에뮬레이터로 확인).
+      학원·공공만 · 한 차량 1명 · 한 직원 1차량 · **PIN 없는 직원은 못 고른다** ·
+      직원/차량을 지우면 배정도 비운다. **도우미 로그인은 43-B 에서 연다**(아직 토큰 발급 0).
     v255 추가: 기사 로그인 관리 — `issueOrgCode`(업체 번호 6자리) · `setDriverPin` · `checkPinDup`
     · `removeDriverPin` · `unbindDevice` · `driverInfo`(PIN 설정 여부·기기·최근 로그인 5건)
     · `migrateDriverData`(옛 `cars[].driverPin` → 해시). 권한은 모두 **마스터 · 소유자 · `_test` 출입 계정** 세 갈래.

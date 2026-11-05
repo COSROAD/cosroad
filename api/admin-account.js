@@ -81,6 +81,9 @@ const fail = (res, code, message, why) =>
 const sha256 = (s) => createHash('sha256').update(String(s), 'utf8').digest('hex');
 const pinHashOf = (pin, org, secret) => sha256(String(pin) + '|' + String(org) + '|' + String(secret));
 const driverUidOf = (org, carId) => 'drv_' + org + '_' + carId;
+/* 동승 도우미 uid — **사람 기준**이다(차량 기준인 기사 uid 와 다르다).
+   도우미가 탈 차량은 수시로 바뀌므로 uid 에 차량을 넣으면 안 된다(코스로드43 설계 2-2). */
+const helperUidOf = (org, staffId) => 'hlp_' + org + '_' + staffId;
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
@@ -315,15 +318,27 @@ export default async function handler(req, res) {
       const secret = secretOf();
       if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요.');
       const want = pinHashOf(pin, org, secret);
+      /* v280(43-A): **직원 PIN 도 해시**가 되었으므로 여기서 함께 본다.
+         `exceptStaffId` 는 「그 직원 자신」을 빼고 보라는 뜻이다(자기 PIN 을 다시 저장할 때). */
+      const exceptStaffId = String(b.exceptStaffId || '').trim();
       try {
         const snap = await A.db.collection('driverPins').where('org', '==', org).get();
-        let dup = false, carId = '';
+        let dup = false, carId = '', staffId = '', kind = '';
         snap.forEach(d => {
           const v = d.data() || {};
-          if (!dup && v.pinHash === want) { dup = true; carId = String(v.carId || ''); }
+          if (!dup && v.pinHash === want) { dup = true; kind = 'driver'; carId = String(v.carId || ''); }
         });
-        /* 예·아니오와 **차량 id** 만 — PIN 값이나 해시는 돌려주지 않는다 */
-        return res.status(200).json({ ok: true, dup: dup, carId: carId });
+        if (!dup) {
+          const ss = await A.db.collection('staffPins').where('org', '==', org).get();
+          ss.forEach(d => {
+            const v = d.data() || {};
+            if (dup) return;
+            if (exceptStaffId && String(v.staffId || '') === exceptStaffId) return;
+            if (v.pinHash === want) { dup = true; kind = 'staff'; staffId = String(v.staffId || ''); }
+          });
+        }
+        /* 예·아니오와 **누구인지(차량·직원 id)** 만 — PIN 값이나 해시는 돌려주지 않는다 */
+        return res.status(200).json({ ok: true, dup: dup, kind: kind, carId: carId, staffId: staffId });
       } catch (e) { return fail(res, 500, '확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
     }
 
@@ -433,6 +448,140 @@ export default async function handler(req, res) {
         } catch (e) { bad++; }
       }
       return res.status(200).json({ ok: true, moved: moved, dup: dup, bad: bad });
+    }
+
+    /* ══════════ 직원 PIN (v280 · 43-A) ══════════
+       왜 — 직원 PIN 은 `data/staff[].pin` 에 **평문**으로 있었다. 지금은 PIN 판 출퇴근에만 쓰지만
+       **43-B 에서 「동승 로그인」 자격**이 된다. 기사 PIN 을 v255 에 해시로 옮긴 것과 **같은 이유**다
+       (기사 PIN 은 `cars` 안에 평문으로 있어 기사 폰이 남의 PIN 을 다 봤다).
+       · 서버 전용 컬렉션 `staffPins/{org}_{staffId}` = `{ org, staffId, pinHash, updatedAt }`
+       · 해시는 기사와 **같은 재료** `sha256(pin|org|OTP_SECRET)` — **새 환경변수 없음**
+       · PIN 원문·해시는 응답·로그에 **넣지 않는다**(기사와 같은 약속)
+       · 권한·이용 기간 판정은 기사 PIN 동작과 **같은 길**(canManage + orgAlive, 코스로드47) */
+    if (action === 'setStaffPin') {
+      const org = String(b.org || '').trim();
+      const staffId = String(b.staffId || '').trim();
+      const pin = String(b.pin || '').replace(/[^0-9]/g, '');
+      if (!org || !staffId) return fail(res, 400, '기관·직원 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '이 업체의 직원 PIN 을 정할 권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      if (!/^\d{4}$/.test(pin)) return fail(res, 400, 'PIN 은 숫자 4자리여야 해요.');
+      const secret = secretOf();
+      if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
+      const want = pinHashOf(pin, org, secret);
+      /* 그 업체 **기사·다른 직원**과 겹치면 거절 (업체 안에서 PIN 4자리는 유일하다는 약속) */
+      try {
+        const ds = await A.db.collection('driverPins').where('org', '==', org).get();
+        let dupCar = null;
+        ds.forEach(d => { const v = d.data() || {}; if (v.pinHash === want) dupCar = String(v.carId || ''); });
+        if (dupCar) return fail(res, 409, '그 PIN 은 이미 기사가 쓰고 있어요. 다른 번호로 정해 주세요.');
+        const ss = await A.db.collection('staffPins').where('org', '==', org).get();
+        let dupSt = null;
+        ss.forEach(d => {
+          const v = d.data() || {};
+          if (String(v.staffId || '') !== staffId && v.pinHash === want) dupSt = String(v.staffId || '');
+        });
+        if (dupSt) return fail(res, 409, '그 PIN 은 이미 다른 직원이 쓰고 있어요. 다른 번호로 정해 주세요.');
+      } catch (e) { return fail(res, 500, 'PIN 을 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      try {
+        await A.db.collection('staffPins').doc(org + '_' + staffId)
+          .set({ org: org, staffId: staffId, pinHash: want, updatedAt: Date.now() });
+      } catch (e) { return fail(res, 500, 'PIN 을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      /* 도우미 로그인은 43-B 에서 열린다 — 그때를 위해 토큰을 끊어 둔다(없으면 조용히 지나간다) */
+      try { await A.auth.revokeRefreshTokens(helperUidOf(org, staffId)); } catch (e) {}
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'removeStaffPin') {
+      const org = String(b.org || '').trim();
+      const staffId = String(b.staffId || '').trim();
+      if (!org || !staffId) return fail(res, 400, '기관·직원 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '이 업체의 직원 PIN 을 지울 권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      try { await A.db.collection('staffPins').doc(org + '_' + staffId).delete(); } catch (e) {}
+      /* PIN 이 없으면 동승 로그인도 못 한다 → **배정 문서도 비운다**(지시문 2번) */
+      try {
+        await A.db.collection('orgs').doc(org).collection('drivers').doc(helperUidOf(org, staffId))
+          .set({ carId: '', updatedAt: Date.now() }, { merge: true });
+      } catch (e) {}
+      try { await A.auth.revokeRefreshTokens(helperUidOf(org, staffId)); } catch (e) {}
+      return res.status(200).json({ ok: true });
+    }
+
+    /* 옛 평문 PIN 을 해시로 옮기기 — 기사 `migrateDriverData` 와 **같은 방식 · 멱등**.
+       앱은 이 응답(`moved`)이 **정말 성공했을 때만** `data/staff[].pin` 을 비운다(v275 보정1 교훈). */
+    if (action === 'migrateStaffPins') {
+      const org = String(b.org || '').trim();
+      const list = Array.isArray(b.staff) ? b.staff : [];
+      if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      const secret = secretOf();
+      if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요.');
+      let moved = 0, dup = 0, bad = 0;
+      const seen = {};
+      /* 기사 PIN 과 겹치는 옛 자료는 **옮기지 않는다**(겹친 채로 두면 PIN 판이 누구인지 못 가린다) */
+      let drvHashes = {};
+      try {
+        const ds = await A.db.collection('driverPins').where('org', '==', org).get();
+        ds.forEach(d => { const v = d.data() || {}; if (v.pinHash) drvHashes[v.pinHash] = 1; });
+      } catch (e) { return fail(res, 500, '확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      for (const s of list) {
+        const staffId = String((s && s.staffId) || '').trim();
+        const pin = String((s && s.pin) || '').replace(/[^0-9]/g, '');
+        if (!staffId || !/^\d{4}$/.test(pin)) { bad++; continue; }
+        const want = pinHashOf(pin, org, secret);
+        if (drvHashes[want] || seen[want]) { dup++; continue; }
+        seen[want] = staffId;
+        try {
+          await A.db.collection('staffPins').doc(org + '_' + staffId)
+            .set({ org: org, staffId: staffId, pinHash: want, updatedAt: Date.now() });
+          moved++;
+        } catch (e) { bad++; }
+      }
+      return res.status(200).json({ ok: true, moved: moved, dup: dup, bad: bad });
+    }
+
+    /* ── 동승 도우미 배정 (v280 · 43-A) ───────────────────────────────────
+       화면(차량관리)의 `cars[].helperStaffId` 는 **보여 주는 값**이고,
+       **권한의 근거는 이 서버 문서**다 — 규칙이 믿는 자리는 `orgs/{org}/drivers/{uid}` 하나다
+       (기사와 **같은 컬렉션·같은 모양**이라 규칙 `myCarId`·`carData`·`carState` 가 한 줄도 안 바뀐다).
+       ★ 로그인은 **아직 열지 않았다**(43-B) — 이 uid 로는 아무도 토큰을 못 받는다. */
+    if (action === 'setCarHelper') {
+      const org = String(b.org || '').trim();
+      const carId = String(b.carId || '').trim();
+      const staffId = String(b.staffId || '').trim();     /* 빈 값 = 없음(떼기) */
+      if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '이 업체의 동승 도우미를 정할 권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      const owner = await resolveOwnerUid(org);
+      if (owner.error || !owner.uid) return fail(res, 500, owner.error || '업체 소유자를 확인하지 못했어요.');
+      const col = A.db.collection('orgs').doc(org).collection('drivers');
+      try {
+        /* ① 이 차량에 이미 있던 도우미는 뗀다 (한 차량에 한 명) */
+        /* ★ 문서 **id** 로 다시 집어서 쓴다 — 쿼리 결과의 `.ref` 를 쓰지 않는다
+           (SDK 판·스텁에 따라 `.ref` 가 없을 수 있다. id 는 어디서나 있다). */
+        const snap = await col.where('role', '==', 'helper').get();
+        const prev = [];
+        snap.forEach(d => {
+          const v = d.data() || {};
+          if (String(v.carId || '') === carId && String(v.staffId || '') !== staffId) prev.push(d.id);
+        });
+        for (const id of prev) {
+          await col.doc(id).set({ carId: '', updatedAt: Date.now() }, { merge: true });
+        }
+        if (!staffId) return res.status(200).json({ ok: true, helper: '' });
+        /* ② PIN 이 있어야 동승 로그인을 할 수 있다 — 없으면 애초에 고르지 못하게 한다 */
+        const ps = await A.db.collection('staffPins').doc(org + '_' + staffId).get();
+        if (!ps.exists) {
+          return fail(res, 400, '그 직원은 PIN 이 없어요. 먼저 「🔢 PIN 정하기」로 PIN 을 정해 주세요.', 'nopin');
+        }
+        /* ③ 한 직원은 한 차량만 — 쓰면서 자연히 옮겨진다(옛 차량 칸이 덮인다) */
+        await col.doc(helperUidOf(org, staffId)).set(
+          { role: 'helper', staffId: staffId, carId: carId,
+            ownerUid: owner.uid, updatedAt: Date.now() }, { merge: true });
+      } catch (e) { return fail(res, 500, '동승 도우미를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      return res.status(200).json({ ok: true, helper: staffId });
     }
 
     /* ── d) 마스터 — 가입자 비밀번호 다시 정하기 ── */
