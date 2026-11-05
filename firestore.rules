@@ -217,8 +217,12 @@ service cloud.firestore {
     //     · PIN 판(checkPin)은 openPinCheckin 가드로 기사 모드에서 안 열린다
     //   앱 쪽 같은 목록: index.html 의 DRIVER_WRITE_KEYS — **두 곳을 같이 고쳐야 한다.**
     //   ※ 관리자·소유자의 attendance 쓰기는 그대로다(직원 근태·수기 토글이 같은 키를 쓴다).
+    // ── v275(40-C): **비웠다.** 기사가 `data/*` 에 쓰는 것은 이제 **하나도 없다** —
+    //   쓰는 것은 위 `carState/{내 차량}` 문서뿐이다. 앱 `DRIVER_WRITE_KEYS` 도 빈 배열이다.
+    //   ★ 이걸 비우면 아래 `backups` create 의 기사 분기가 **닫힌다** →
+    //     그래서 거기에 「기사는 **자기 carState** 백업만」 을 따로 열어 두었다.
     function driverWritableKey(key) {
-      return key in ['carlog', 'deliveryDone', 'dropoffDone', 'rideState'];
+      return false;
     }
 
     // ── v255: 기사는 **운행에 필요한 키만** 읽는다 ───────────────────────
@@ -257,10 +261,11 @@ service cloud.firestore {
     //   하나라 여기서는 차량별로 못 나눈다 — 그래서 **차량별 사본**을 따로 두고
     //   아래 `carData/{carId}` 블록이 **자기 차량 문서만** 열어 준다.
     //   남은 네 키(rideState·carlog·deliveryDone·dropoffDone)와 driverAtt 는 40-C 에서 옮긴다.
+    // ── v275(40-C): 다섯 키를 **더 뺐다** → 기사가 `data/*` 에서 읽는 것은 **`orgDriver` 하나**다.
+    //   탑승 토글·차계부·납품/하차 완료·기사 출퇴근은 위 `carState/{carId}` 로 옮겼다.
+    //   앱 `DRIVER_READ_KEYS` 와 **같은 목록**이어야 한다.
     function driverReadableKey(key) {
-      return key in ['orgDriver',
-                     'rideState',
-                     'carlog', 'deliveryDone', 'dropoffDone', 'driverAtt'];
+      return key in ['orgDriver'];
     }
 
     // ── 차량별 읽기용 사본 (v274 · 40-B) ──────────────────────────────────
@@ -282,6 +287,21 @@ service cloud.firestore {
       allow write: if signedIn()
                    && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
                    && (isMyOrgActive(orgId) || testOrgAdmin(orgId));      // 기사 쓰기 없음
+    }
+
+    // ── 차량별 운행 기록 (v275 · 40-C) ────────────────────────────────────
+    //   그 차량 몫의 **유일한 원본**이다 — 탑승 토글·차계부·납품/하차 완료·기사 출퇴근.
+    //   읽기·쓰기 모두 **그 차량 기사와 관리자**만. 기사끼리는 서로 못 덮는다
+    //   (문서가 갈려 있어 **동시에 저장해도 남의 기록이 안 지워진다** — 40-B 에서 겪은 문제).
+    //   직원 근태(`st…`)는 차량과 무관하므로 `data/staffAtt`(관리자 전용)에 따로 둔다.
+    match /orgs/{orgId}/carState/{carId} {
+      allow read:  if signedIn()
+                   && (isMyOrgReadable(orgId) || isDemoOrg(orgId) || testOrgAdmin(orgId)
+                       || (isActiveDriver(orgId) && myCarId(orgId) == carId));
+      allow write: if signedIn()
+                   && !isDemoOrg(orgId)                                   // 데모는 읽기 전용
+                   && (isMyOrgActive(orgId) || testOrgAdmin(orgId)
+                       || (isActiveDriver(orgId) && myCarId(orgId) == carId));
     }
 
     match /orgs/{orgId}/data/{key} {
@@ -313,9 +333,13 @@ service cloud.firestore {
       // 문서 id(`<key>__<시각>`)를 쪼개는 대신 그 필드를 본다.
       // create 는 **남긴다** — 기사가 쓰는 키(carlog·rideState 등)를 저장할 때
       // 덮어쓰기 직전 백업이 여기로 들어온다. 막으면 기사 저장 때마다 백업이 빠진다.
+      // ── v275: `driverWritableKey` 를 비웠으므로 기사 분기를 **자기 carState 백업**으로 바꿨다.
+      //   앱은 자기 차량 기록을 덮어쓰기 직전 `key: 'carState/<내 차량>'` 으로 백업을 남긴다
+      //   (_backupBeforeSave). 이걸 안 열어 두면 기사 저장 때마다 백업이 빠진다.
       allow create: if signedIn() && !isDemoOrg(orgId)
                     && (isMyOrgActive(orgId) || testOrgAdmin(orgId)
-                        || (isActiveDriver(orgId) && driverWritableKey(request.resource.data.key)));
+                        || (isActiveDriver(orgId)
+                            && request.resource.data.key == 'carState/' + myCarId(orgId)));
       allow delete: if signedIn() && !isDemoOrg(orgId)
                     && (isMyOrgActive(orgId) || testOrgAdmin(orgId));
       allow update: if false;                            // 백업은 덮어쓰지 않는다

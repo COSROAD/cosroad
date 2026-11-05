@@ -636,7 +636,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 274;
+const APP_VERSION = 275;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -800,6 +800,195 @@ async function loadCarData(carId){
      한쪽만 고치면 그 길에서만 목록이 빈다. */
 function carDataMembers(list){
   return (list||[]).map(function(m){ return Object.assign({ on:true, offOn:true }, m); });
+}
+/* ── 차량별 운행 기록 `orgs/{org}/carState/{carId}` (v275 · 40-C) ───────────────
+   왜 — 기사가 쓰는 다섯 가지(탑승 토글·차계부·납품/하차 완료·출퇴근)가 **업체 전체 문서**에
+   들어 있어, 기사 폰이 남의 차량 기록까지 받고 **통째로 덮어썼다**.
+   이제 **그 차량 몫이 이 문서 하나에만** 있다(원본 하나 — 두 곳에 두면 서로 덮는다).
+     orgs/{org}/carState/{carId} = { value: JSON({
+       ride:{회원id:{on}} · rideOff:{회원id:{offOn}} · carlog:{records,plans}
+       · delivDone:{회원id:날짜} · dropDone:{회원id:날짜} · att:{날짜:{in,out}} }) }
+   ★ 로컬(localStorage) 모양과 load/save 함수 **이름·인자를 그대로 두었다** —
+     그래서 급여·근태·차계부·대시보드 같은 **관리자 화면은 한 줄도 안 바뀐다.**
+     바뀐 것은 「서버에 어떻게 올리고 내리는가」뿐이다.
+   ★ 관리자는 **모든 차량 문서를 합쳐** 보고, 저장할 때 **다시 차량별로 쪼갠다.**
+     기사는 **자기 문서 하나**만 읽고 쓴다(쪼갤 일이 없다).
+   ★ 직원 근태(`st…`)는 차량과 무관하므로 **`data/staffAtt`**(관리자 전용)로 따로 간다. */
+var CAR_STATE_PARTS = ['ride','rideOff','carlog','delivDone','dropDone','att'];
+function emptyCarState(){
+  return { ride:{}, rideOff:{}, carlog:{records:[],plans:{}}, delivDone:{}, dropDone:{}, att:{} };
+}
+/* «회원» id → 등원/하원 담당 차량 id */
+function _mById(id){ return (members||[]).find(function(m){ return String(m.id)===String(id); }) || null; }
+function _pickCarOf(id){ var m=_mById(id); return m ? String(m.carId||'') : ''; }
+function _dropCarOf(id){ var m=_mById(id); return m ? dropCarOf(m) : ''; }
+/* 출퇴근 키가 기사 것인가 (`st…` 는 직원) */
+function _isStaffAttKey(k){ return /^st/.test(String(k||'')); }
+
+/* 지금 로컬에 있는 다섯 가지를 **차량별로 쪼갠다** (관리자용).
+   반환: { byCar: { carId: {…carState…} }, staffAtt: {…} } */
+function splitCarState(){
+  var byCar = {}, staffAtt = {};
+  var ensure = function(cid){
+    if(!cid) return null;
+    if(!byCar[cid]) byCar[cid] = emptyCarState();
+    return byCar[cid];
+  };
+  (cars||[]).forEach(function(c){ ensure(String(c.id)); });
+  /* 탑승 토글 — on 은 등원 차량, offOn 은 하원 차량 */
+  try{
+    var st = loadRideState();
+    Object.keys(st||{}).forEach(function(id){
+      var r = st[id] || {};
+      if(typeof r.on==='boolean'){ var a=ensure(_pickCarOf(id)); if(a) a.ride[id]={on:r.on}; }
+      if(typeof r.offOn==='boolean'){ var b=ensure(_dropCarOf(id)); if(b) b.rideOff[id]={offOn:r.offOn}; }
+    });
+  }catch(e){}
+  /* 차계부 — 기록에 carId 가 있다 · plans 는 carId 로 묶여 있다 */
+  try{
+    var cl = loadCarlog();
+    (cl.records||[]).forEach(function(r){ var a=ensure(String(r.carId||'')); if(a) a.carlog.records.push(r); });
+    Object.keys(cl.plans||{}).forEach(function(cid){ var a=ensure(String(cid)); if(a) a.carlog.plans[cid]=cl.plans[cid]; });
+  }catch(e){}
+  /* 납품 완료 — 등원 담당 · 하차 완료 — 하원 담당 */
+  try{
+    var dv = loadDeliveryDone();
+    Object.keys(dv||{}).forEach(function(id){ var a=ensure(_pickCarOf(id)); if(a) a.delivDone[id]=dv[id]; });
+  }catch(e){}
+  try{
+    var dp = loadDropoffDone();
+    Object.keys(dp||{}).forEach(function(id){ var a=ensure(_dropCarOf(id)); if(a) a.dropDone[id]=dp[id]; });
+  }catch(e){}
+  /* 출퇴근 — `carId_날짜` 는 그 차량 문서의 `att[날짜]` · `st…` 는 직원 몫으로 */
+  try{
+    var at = loadDriverAtt();
+    Object.keys(at||{}).forEach(function(k){
+      if(_isStaffAttKey(k)){ staffAtt[k]=at[k]; return; }
+      var i = String(k).lastIndexOf('_');
+      if(i<0) return;
+      var cid = String(k).slice(0,i), date = String(k).slice(i+1);
+      var a = ensure(cid); if(a) a.att[date]=at[k];
+    });
+  }catch(e){}
+  return { byCar: byCar, staffAtt: staffAtt };
+}
+
+/* 차량 문서들 + 직원 근태를 **합쳐** 로컬 다섯 키에 넣는다 (관리자용).
+   화면이 보는 모양은 지금과 **똑같다** — 그래서 관리자 화면 코드가 안 바뀐다. */
+function mergeCarState(byCar, staffAtt){
+  var ride={}, carlog={records:[],plans:{}}, dv={}, dp={}, att={};
+  Object.keys(byCar||{}).forEach(function(cid){
+    var s = byCar[cid] || {};
+    Object.keys(s.ride||{}).forEach(function(id){ (ride[id]=ride[id]||{}).on = s.ride[id].on; });
+    Object.keys(s.rideOff||{}).forEach(function(id){ (ride[id]=ride[id]||{}).offOn = s.rideOff[id].offOn; });
+    ((s.carlog||{}).records||[]).forEach(function(r){ carlog.records.push(r); });
+    Object.keys((s.carlog||{}).plans||{}).forEach(function(k){ carlog.plans[k]=s.carlog.plans[k]; });
+    Object.keys(s.delivDone||{}).forEach(function(id){ dv[id]=s.delivDone[id]; });
+    Object.keys(s.dropDone||{}).forEach(function(id){ dp[id]=s.dropDone[id]; });
+    Object.keys(s.att||{}).forEach(function(d){ att[attKey(cid,d)] = s.att[d]; });
+  });
+  Object.keys(staffAtt||{}).forEach(function(k){ att[k]=staffAtt[k]; });
+  return { rideState: ride, carlog: carlog, deliveryDone: dv, dropoffDone: dp, driverAtt: att };
+}
+/* 합친 출퇴근을 옛 모양(`{carId_날짜:…}`)으로 — 급여·근태 화면이 쓰던 그 모양 그대로.
+   ★ 이것이 있어서 buildPayrollData·근태 네 화면이 **한 줄도 안 바뀐다**(v272 carPay 와 같은 방법). */
+function mergedDriverAtt(byCar, staffAtt){
+  return mergeCarState(byCar, staffAtt).driverAtt;
+}
+
+/* 서버에서 차량 문서 전부 읽기 (관리자) */
+async function loadAllCarState(){
+  try{
+    if(!window._db || !window._firestore) return null;
+    var { collection, getDocs } = window._firestore;
+    var snap = await getDocs(collection(window._db,'orgs',getFbOrgId(),'carState'));
+    var out = {};
+    snap.forEach(function(d){
+      try{ out[d.id] = JSON.parse((d.data()||{}).value||'{}'); }catch(e){ out[d.id]=emptyCarState(); }
+    });
+    return out;
+  }catch(e){ console.log('차량 기록 읽기 실패:', e && e.message); return null; }
+}
+/* 서버에서 내 차량 문서 하나 읽기 (기사) */
+async function loadMyCarState(){
+  try{
+    if(!window._db || !window._firestore) return null;
+    var { doc, getDoc } = window._firestore;
+    var cid = String(driverLockedCarId()||'');
+    if(!cid) return null;
+    var snap = await getDoc(doc(window._db,'orgs',getFbOrgId(),'carState',cid));
+    if(!snap.exists()) return null;
+    return JSON.parse(snap.data().value);
+  }catch(e){ console.log('내 차량 기록 읽기 실패:', e && e.message); return null; }
+}
+/* 차량 문서 쓰기 — 관리자는 전 차량, 기사는 자기 것만.
+   ★ 기사는 쪼갤 필요가 없다(폰에 자기 몫만 있다) — 그래서 로컬 다섯 키를 그대로 담는다. */
+async function saveCarState(){
+  try{
+    if(typeof isDemoMode==='function' && isDemoMode()) return;
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return;
+    if(!window._db || !window._firestore) return;
+    var { doc, setDoc, getDoc } = window._firestore;
+    var orgId = getFbOrgId();
+    if(currentMode==='driver'){
+      var cid = String(driverLockedCarId()||'');
+      if(!cid) return;
+      var mine = emptyCarState();
+      try{
+        var st = loadRideState();
+        Object.keys(st||{}).forEach(function(id){
+          var r = st[id]||{};
+          /* 기사 폰에는 자기 차량 «회원» 만 있다 — 등원/하원 담당을 보고 제 칸에 넣는다 */
+          if(typeof r.on==='boolean' && _pickCarOf(id)===cid) mine.ride[id]={on:r.on};
+          if(typeof r.offOn==='boolean' && _dropCarOf(id)===cid) mine.rideOff[id]={offOn:r.offOn};
+        });
+      }catch(e){}
+      try{
+        var cl = loadCarlog();
+        mine.carlog.records = (cl.records||[]).filter(function(r){ return String(r.carId||'')===cid; });
+        if((cl.plans||{})[cid]) mine.carlog.plans[cid]=cl.plans[cid];
+      }catch(e){}
+      try{
+        var dv = loadDeliveryDone();
+        Object.keys(dv||{}).forEach(function(id){ if(_pickCarOf(id)===cid) mine.delivDone[id]=dv[id]; });
+      }catch(e){}
+      try{
+        var dp = loadDropoffDone();
+        Object.keys(dp||{}).forEach(function(id){ if(_dropCarOf(id)===cid) mine.dropDone[id]=dp[id]; });
+      }catch(e){}
+      try{
+        var at = loadDriverAtt();
+        Object.keys(at||{}).forEach(function(k){
+          if(_isStaffAttKey(k)) return;                    /* 기사는 직원 근태를 안 쓴다 */
+          var i=String(k).lastIndexOf('_'); if(i<0) return;
+          if(String(k).slice(0,i)!==cid) return;
+          mine.att[String(k).slice(i+1)] = at[k];
+        });
+      }catch(e){}
+      /* 덮어쓰기 직전 백업 — 앱 다른 저장과 **같은 자리·같은 꼴**(orgs/{org}/backups/{key}__{시각}).
+         `key` 를 `carState/<내 차량>` 으로 적는다 — 규칙이 그 글자로 기사 백업을 가린다.
+         실패하면 삼킨다(백업이 안 되더라도 **본 저장은 계속**한다 — v255와 같은 방침). */
+      try{
+        var _prev = await getDoc(doc(window._db,'orgs',orgId,'carState',cid));
+        if(_prev.exists()){
+          /* 네 번째 인자 = 문서 id — `/` 를 못 쓰므로 `carState_<차량>` 으로 적는다
+             (바로 위 _backupBeforeSave 쪽지 참고 · 서버 punch 와 같은 꼴) */
+          await _backupBeforeSave(orgId, 'carState/'+cid, _prev.data().value, 'carState_'+cid);
+        }
+      }catch(e){ console.log('차량 기록 백업 건너뜀:', e && e.message); }
+      await setDoc(doc(window._db,'orgs',orgId,'carState',cid),
+        { value: JSON.stringify(mine), updatedAt: Date.now() });
+      return;
+    }
+    /* 관리자 — 차량별로 쪼개 전부 쓰고, 직원 근태는 따로 */
+    var sp = splitCarState();
+    var ids = Object.keys(sp.byCar);
+    for(var i=0;i<ids.length;i++){
+      await setDoc(doc(window._db,'orgs',orgId,'carState',ids[i]),
+        { value: JSON.stringify(sp.byCar[ids[i]]), updatedAt: Date.now() });
+    }
+    await saveToFirebase('staffAtt', sp.staffAtt);
+  }catch(e){ console.log('차량 기록 저장 실패:', e && e.message); }
 }
 /* 사본 한 덩어리를 폰에 풀어 넣는다 (members·cars·courses 세 키를 한 번에) */
 function applyCarData(d){
@@ -965,7 +1154,8 @@ function findStaff(id){ var a=loadStaff(); for(var i=0;i<a.length;i++){ if(Strin
 // ══════════ 기사 근태관리 ══════════
 // 저장 구조: { "car1_2026-06-15": {in:"08:30", out:"18:00"}, ... }
 function loadDriverAtt(){ return JSON.parse(localStorage.getItem('tkd_driver_att')||'{}'); }
-function saveDriverAtt(d){ localStorage.setItem('tkd_driver_att', JSON.stringify(d)); saveToFirebase('driverAtt', d); }
+/* v275: 서버 쪽은 **차량별 문서**(carState)로 간다 — 로컬 모양·함수 이름은 그대로다. */
+function saveDriverAtt(d){ localStorage.setItem('tkd_driver_att', JSON.stringify(d)); saveCarState(); }
 function attKey(carId, dateStr){ return carId+'_'+dateStr; }
 function todayStr(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
 /* Date → 'YYYY-MM-DD' (기기 시간대 기준, v242).
@@ -2200,7 +2390,7 @@ function loadRideState(){
 }
 function saveRideState(st){
   localStorage.setItem('tkd_ridestate', JSON.stringify(st||{}));
-  saveToFirebase('rideState', st||{});
+  saveCarState();      /* v275: 차량별 문서로 */
 }
 /* 지금 메모리의 members 에서 토글만 뽑아 저장한다 (기사 화면의 세 자리가 이걸 부른다) */
 /* ★ v274(40-B): 기사 폰에는 **자기 차량 «회원» 만** 있다(carData 사본).
@@ -2243,7 +2433,12 @@ function loadMembers(){
   if(isDemoMode()){ try{ return applyRideState(getDemoSample().members||[]); }catch(e){} }
   return [];
 }
-function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);rebuildCarData();}
+/* ★ v275(40-C): «회원» 을 저장할 때 **운행 기록도 다시 쪼갠다.**
+   왜 — 배정을 바꾸면 그 «회원» 의 오늘 기록(탑승·완료)이 **옛 차량 문서에 남는다.**
+   `saveCarState()` 는 지금 로컬 값을 **새 배정 기준으로** 다시 쪼개 전 차량에 쓰므로,
+   그 «회원» 몫이 **옛 차량 문서에서 빠지고 새 차량 문서로 들어간다**(40-A 보고 7번 메모).
+   배정을 바꾸는 길(회원 수정·빠른 배정·엑셀·차량 삭제)이 **모두 saveMembers 를 거친다.** */
+function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);rebuildCarData();saveCarState();}
 let members=loadMembers();
 
 // ── 알림장 ──
@@ -5163,7 +5358,7 @@ function legView(m){ if(!isDropLeg()) return m; return Object.assign({}, m, {loc
 function dropoffDoneKey(){ try{ return 'tkd_dropoff_done_'+getFbOrgId(); }catch(e){ return 'tkd_dropoff_done_org'; } }
 function loadDropoffDone(){ try{ return JSON.parse(localStorage.getItem(dropoffDoneKey())||'{}'); }catch(e){ return {}; } }
 function isDropoffDoneToday(memberId){ return loadDropoffDone()[memberId]===todayStr(); }
-function markDropoffDone(memberId){ var d=loadDropoffDone(); d[memberId]=todayStr(); localStorage.setItem(dropoffDoneKey(), JSON.stringify(d)); try{ saveToFirebase('dropoffDone', d); }catch(e){} }
+function markDropoffDone(memberId){ var d=loadDropoffDone(); d[memberId]=todayStr(); localStorage.setItem(dropoffDoneKey(), JSON.stringify(d)); try{ saveCarState(); }catch(e){} }
 
 // ── 하차 알림 (문자 기본, 하차 템플릿 승인 시 알림톡) ──
 var BIZ_DROPOFF_TEMPLATE_CODES = { academy:'UJ_4933', public:'UJ_4932' }; // 하차 알림톡 (승인 완료)
@@ -5527,7 +5722,7 @@ function markDeliveryDone(memberId){
   var d=loadDeliveryDone();
   d[memberId]=todayStr();
   localStorage.setItem(deliveryDoneKey(), JSON.stringify(d));
-  saveToFirebase('deliveryDone', d);
+  saveCarState();      /* v275: 차량별 문서로 */
 }
 
 // 납품/배송 완료 → 알림톡 자동 발송 (물류·택배)
@@ -7497,18 +7692,20 @@ function restoreData(ev){
       orgSettings = loadOrgSettings(); saveToFirebase('org', orgSettings);
       saveOrgDriver(orgSettings);          /* v272: 기사용 요약도 같이 되돌린다 */
       rebuildCarData();                    /* v274: 차량별 사본도 되돌린 자료로 다시 만든다 */
+      saveCarState();                      /* v275: 차량별 운행 기록도 되돌린 자료로 */
       notices = loadNotices(); saveToFirebase('notices', notices);
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
       var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
       var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
       var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
-      var clg = localStorage.getItem('tkd_carlog'); if(clg){ try{ saveToFirebase('carlog', JSON.parse(clg)); }catch(e8){} }
+      /* v275: 차계부·탑승 토글·출퇴근은 **차량별 문서**로 간다 — 아래 saveCarState() 한 번이 셋을 다 올린다.
+         옛 `data/*` 키에는 **다시 쓰지 않는다**(원본이 둘이 되지 않게). */
       var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
       var pym = localStorage.getItem('tkd_payroll_manual'); if(pym){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
-      var rds = localStorage.getItem('tkd_ridestate'); if(rds){ try{ saveToFirebase('rideState', JSON.parse(rds)); }catch(e11){} }
+
       var stf = localStorage.getItem('tkd_staff'); if(stf){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
       var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 */
-      var dat = localStorage.getItem('tkd_driver_att'); if(dat){ try{ saveToFirebase('driverAtt', JSON.parse(dat)); }catch(e12){} }
+
       var ivc = localStorage.getItem('tkd_invoices'); if(ivc){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
       var prd = localStorage.getItem('tkd_products'); if(prd){ try{ saveToFirebase('products', JSON.parse(prd)); }catch(e14){} }
       var atm = localStorage.getItem('tkd_attendance_time'); if(atm){ try{ saveToFirebase('attendanceTime', JSON.parse(atm)); }catch(e15){} }
@@ -13628,7 +13825,7 @@ function loadCarlog(){
 /* 공용 저장 함수 — 관리자·기사 모두 이 경로로만 저장 (Firebase 포함) */
 function saveCarlog(d){
   localStorage.setItem('tkd_carlog', JSON.stringify(d));
-  saveToFirebase('carlog', d);
+  saveCarState();      /* v275: 차량별 문서로 */
 }
 function carlogAddRecord(rec){
   rec.id='cl'+Date.now()+Math.floor(Math.random()*1000);
@@ -16591,11 +16788,17 @@ function _skipBackup(key){
 }
 
 // 서버 현재값을 backups 하위에 복사하고, 오래된 백업 정리
-async function _backupBeforeSave(orgId, key, prevValueStr){
+/* ★ v275: `idKey` 를 따로 받는다 — 문서 id 에 **`/` 를 넣을 수 없다.**
+   백업 key 가 `carState/car1` 처럼 `/` 를 품으면 doc(...,'carState/car1__123') 이
+   「orgs/{org}/backups/carState/car1__123」(홀수 칸) 이 되어 Firestore 가 거절한다.
+   그러면 백업만 조용히 빠진다(바깥 try/catch 가 삼킨다 — 실제로 그렇게 되는 것을 크롬에서 확인).
+   그래서 id 는 `carState_car1__<시각>` 으로 적고, **`key` 필드는 그대로** 둔다
+   (규칙·오래된 백업 정리가 보는 것은 `key` 필드다 · 서버 api/driver-auth.js 와 같은 꼴). */
+async function _backupBeforeSave(orgId, key, prevValueStr, idKey){
   try{
     var { doc, setDoc, collection, getDocs, deleteDoc } = window._firestore;
     var stamp = Date.now();
-    var backupId = key + '__' + stamp;
+    var backupId = (idKey || key) + '__' + stamp;
     await setDoc(doc(window._db, 'orgs', orgId, 'backups', backupId), {
       key: key, value: prevValueStr, backupAt: stamp
     });
@@ -16702,16 +16905,23 @@ async function loadFromFirebase(key){
    `carData` 는 `data/{key}` 가 아니라 **따로 있는 컬렉션**이라 이 목록에 넣지 않는다 —
    규칙도 `match /orgs/{orgId}/carData/{carId}` 로 따로 가린다.
    ★ 목록에서 빼면 `loadFromFirebase` 의 기사 가드가 **부르기 전에** 막아 요청이 안 나간다. */
-var DRIVER_READ_KEYS = ['orgDriver',
-                        'rideState',
-                        'carlog','deliveryDone','dropoffDone','driverAtt'];
+/* ── v275(40-C): 다섯 키를 **더 뺐다** → 기사가 `data/*` 에서 읽는 것은 **`orgDriver` 하나**다.
+   탑승 토글·차계부·납품/하차 완료·출퇴근은 **차량별 문서 `carState/{carId}`** 로 옮겼다.
+   `carData`·`carState` 는 `data/{key}` 가 아니라 따로 있는 컬렉션이라 이 목록에 없다 —
+   규칙도 `match` 블록으로 따로 가린다. */
+var DRIVER_READ_KEYS = ['orgDriver'];
 function driverKeyAllowed(key){ return DRIVER_READ_KEYS.indexOf(key) >= 0; }
 
 /* 기사가 **써도 되는** 키 — firestore.rules 의 driverWritableKey 와 **같은 목록**이어야 한다.
    v257: attendance·attendanceTime 을 뺐다. 기사 화면에는 출결을 저장하는 길이 없다
    (운행 화면의 카드 토글은 rideState 에만 쓴다 — toggleStudent → saveRideStateFromMembers).
    ★ 규칙과 이 목록은 **같이** 고쳐야 한다. 읽기 쪽 DRIVER_READ_KEYS 와 같은 규칙이다. */
-var DRIVER_WRITE_KEYS = ['carlog','deliveryDone','dropoffDone','rideState'];
+/* ── v275(40-C): **비웠다.** 기사가 `data/*` 에 쓰는 것은 이제 **하나도 없다** —
+   쓰는 것은 `carState/{내 차량}` 문서뿐이고, 그것은 규칙의 `match` 블록이 가린다.
+   ★ 규칙 `driverWritableKey` 도 **항상 거짓**으로 바꿨다(같이 고쳐야 한다).
+   ★ 그러면 백업 `create` 의 기사 분기가 닫히므로, 규칙에 「기사는 **자기 carState**
+     백업만」 을 따로 열어 두었다(아래 `_backupBeforeSave` 가 그 `key` 로 적는다). */
+var DRIVER_WRITE_KEYS = [];
 function driverWriteAllowed(key){ return DRIVER_WRITE_KEYS.indexOf(key) >= 0; }
 
 async function syncFromFirebase(){
@@ -16742,12 +16952,24 @@ async function syncFromFirebase(){
   var fbTax = await loadFromFirebase('tax');
   var fbAtt = await loadFromFirebase('attendance');
   var fbNotices = await loadFromFirebase('notices');
-  var fbDriverAtt = await loadFromFirebase('driverAtt');
+  /* ★ v275(40-C): 다섯 가지(탑승 토글·차계부·납품/하차 완료·출퇴근)는 **차량별 문서**에서 받는다.
+     관리자는 **전 차량을 합쳐** 보고(화면 모양은 지금과 똑같다), 기사는 **자기 문서 하나**만.
+     옛 `data/*` 키는 **읽지 않는다** — 원본이 둘이 되면 서로 덮는다(삭제는 나중 회차). */
+  var _cs = _drvMode0 ? null : await loadAllCarState();
+  var _csMine = _drvMode0 ? await loadMyCarState() : null;
+  var fbStaffAtt = _drvMode0 ? null : await loadFromFirebase('staffAtt');
+  var _merged = null;
+  if(_drvMode0){
+    if(_csMine) _merged = mergeCarState({ [String(driverLockedCarId()||'')]: _csMine }, {});
+  } else if(_cs){
+    _merged = mergeCarState(_cs, fbStaffAtt || {});
+  }
+  var fbDriverAtt = _merged ? _merged.driverAtt : null;
   var fbProducts = await loadFromFirebase('products');
   var fbInvoices = await loadFromFirebase('invoices');
 
   /* v250: 탑승·완료 토글은 rideState 에 따로 있다 — members 를 내려받은 뒤 덮어씌운다 */
-  var fbRide = await loadFromFirebase('rideState');
+  var fbRide = _merged ? _merged.rideState : null;
   if(fbRide){ localStorage.setItem('tkd_ridestate', JSON.stringify(fbRide)); }
   if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = applyRideState(fbMembers); }
   if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
@@ -16763,7 +16985,7 @@ async function syncFromFirebase(){
   else { localStorage.setItem('tkd_driver_att', '{}'); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
   if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
   if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
-  var fbCarlog = await loadFromFirebase('carlog');
+  var fbCarlog = _merged ? _merged.carlog : null;
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
   var fbDlManual = await loadFromFirebase('drivelogManual');
   if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
@@ -16773,8 +16995,10 @@ async function syncFromFirebase(){
   if(fbStaff){ localStorage.setItem('tkd_staff', JSON.stringify(fbStaff)); }
   var fbAttTime = await loadFromFirebase('attendanceTime');
   if(fbAttTime){ localStorage.setItem('tkd_attendance_time', JSON.stringify(fbAttTime)); }
-  var fbDelivDone = await loadFromFirebase('deliveryDone');
+  var fbDelivDone = _merged ? _merged.deliveryDone : null;
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
+  /* v275: 하차 완료도 차량별 문서에서 함께 받는다(전에는 동기화에 없어 폰에만 있었다) */
+  if(_merged){ localStorage.setItem(dropoffDoneKey(), JSON.stringify(_merged.dropoffDone||{})); }
   else { localStorage.setItem(deliveryDoneKey(), '{}'); }
   /* ── v272: 기사용 업체 설정 요약(orgDriver) 만들어 두기 ──────────────────
      옛 업체에는 요약 문서가 아직 없다. **관리자가 들어올 때 한 번** 만들어 둔다
@@ -16802,6 +17026,35 @@ async function syncFromFirebase(){
        옛 업체에는 사본이 없으므로, 이 한 줄이 「옛 자료 옮기기」를 대신한다.
        `rebuildCarData` 안에서도 데모·읽기 전용을 막지만 여기서도 걸러 둔다. */
     await rebuildCarData();
+    /* ★ v275(40-C): 옛 `data/*` 다섯 키를 **차량별 문서로 한 번 옮긴다.**
+       관리자가 들어올 때 한 번만 — `data/migration` 에 완료 표시를 찍는다.
+       ★ **멱등**이다: 표시가 없으면 처음부터 다시 한다(중간에 끊겨도 같은 결과).
+         표시를 **다 옮긴 뒤에** 찍으므로, 끊기면 다음 로그인에 다시 옮긴다.
+       ★ 옛 키는 **지우지 않는다** — 되돌릴 길을 남긴다(삭제는 나중 회차). */
+    try{
+      var _mig = await loadFromFirebase('migration');
+      if(!_mig || _mig.carState !== true){
+        var _old = {
+          ride:  await loadFromFirebase('rideState'),
+          carlog:await loadFromFirebase('carlog'),
+          dv:    await loadFromFirebase('deliveryDone'),
+          dp:    await loadFromFirebase('dropoffDone'),
+          att:   await loadFromFirebase('driverAtt')
+        };
+        var _any = Object.keys(_old).some(function(k){ return _old[k] && Object.keys(_old[k]).length; });
+        if(_any){
+          /* 옛 값을 로컬에 깔고 → 차량별로 쪼개 저장한다(splitCarState 가 그 일을 한다) */
+          if(_old.ride)  localStorage.setItem('tkd_ridestate', JSON.stringify(_old.ride));
+          if(_old.carlog)localStorage.setItem('tkd_carlog', JSON.stringify(_old.carlog));
+          if(_old.dv)    localStorage.setItem(deliveryDoneKey(), JSON.stringify(_old.dv));
+          if(_old.dp)    localStorage.setItem(dropoffDoneKey(), JSON.stringify(_old.dp));
+          if(_old.att)   localStorage.setItem('tkd_driver_att', JSON.stringify(_old.att));
+          await saveCarState();
+          console.log('옛 운행 기록을 차량별로 옮겼다');
+        }
+        await saveToFirebase('migration', { carState: true, at: Date.now() });
+      }
+    }catch(e){ console.log('옛 기록 옮기기 실패(다음 로그인에 다시 함):', e && e.message); }
   }
   console.log('✅ Firebase 동기화 완료');
   var fl2=document.getElementById('fb-loading'); if(fl2){ fl2.textContent='✅ 동기화 완료!'; setTimeout(function(){ fl2.style.display='none'; },1500); }
@@ -16817,7 +17070,11 @@ function startFirebaseListeners(){
   /* v251: 'rideState' 추가 — v250 에서 탑승·완료 토글을 members 에서 떼어내면서
      실시간 리스너를 같이 옮기지 않아, 다른 기기의 토글이 안 넘어왔다(v249 회귀).
      ※ deliveryDone·dropoffDone 은 v250 **이전에도** 리스너가 없었다(이력 확인) — 이번 범위 아님. */
-  var keys = ['members','cars','courses','org','orgDriver','payments','tax','attendance','notices','driverAtt','products','invoices','carlog','drivelogManual','payrollManual','staff','attendanceTime','rideState','driverPay'];
+  /* ★ v275(40-C): 다섯 키(`driverAtt`·`carlog`·`rideState`·완료 둘)는 **차량별 문서**로 옮겼다 —
+     여기서 빼고, 관리자는 `staffAtt`(직원 근태)를 대신 듣는다.
+     차량 기록은 관리자가 저장할 때 다시 쪼개므로 리스너로 받을 필요가 없다
+     (받으면 관리자 화면의 합친 값과 서로 덮는다 — v272·v274 와 같은 함정). */
+  var keys = ['members','cars','courses','org','orgDriver','payments','tax','attendance','notices','staffAtt','products','invoices','drivelogManual','payrollManual','staff','attendanceTime','driverPay'];
   /* ★ v255: 기사는 **운행에 필요한 키만** 받는다.
      v254 까지는 기사 폰도 이 목록을 통째로 받아 수납·세무·급여·직원까지 내려받았다.
      규칙(firestore.rules driverReadableKey)이 막게 됐으니 앱도 같은 목록만 걸어 둔다 —
@@ -16849,8 +17106,23 @@ function startFirebaseListeners(){
             }
           }catch(e){ console.log('차량 사본 반영 실패:', e && e.message); }
         }, function(err){ console.log('차량 사본 리스너 거부:', err && err.code); });
+        /* v275: 운행 기록(carState)도 내 차량 문서 하나만 듣는다 —
+           다른 기기(관리자 수기 토글 등)에서 바뀌면 바로 반영된다. */
+        onSnapshot(doc(window._db, 'orgs', orgId, 'carState', String(_myCar)), function(snap){
+          if(!snap.exists()) return;
+          try{
+            var mg = mergeCarState({ [String(_myCar)]: JSON.parse(snap.data().value) }, {});
+            localStorage.setItem('tkd_ridestate', JSON.stringify(mg.rideState||{}));
+            localStorage.setItem('tkd_carlog', JSON.stringify(mg.carlog||{records:[],plans:{}}));
+            localStorage.setItem(deliveryDoneKey(), JSON.stringify(mg.deliveryDone||{}));
+            localStorage.setItem(dropoffDoneKey(), JSON.stringify(mg.dropoffDone||{}));
+            localStorage.setItem('tkd_driver_att', JSON.stringify(mg.driverAtt||{}));
+            members = applyRideState(members);
+            renderByTab();
+          }catch(e){ console.log('차량 기록 반영 실패:', e && e.message); }
+        }, function(err){ console.log('차량 기록 리스너 거부:', err && err.code); });
       }
-    }catch(e){ console.log('차량 사본 리스너 못 붙임:', e && e.message); }
+    }catch(e){ console.log('차량 리스너 못 붙임:', e && e.message); }
   }
   keys.forEach(function(key){
     onSnapshot(doc(window._db, 'orgs', orgId, 'data', key), function(snap){
@@ -16880,7 +17152,16 @@ function startFirebaseListeners(){
       else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
       else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }
       else if(key==='notices'){ notices=data; localStorage.setItem('tkd_notices',JSON.stringify(data)); }
-      else if(key==='driverAtt'){ localStorage.setItem('tkd_driver_att',JSON.stringify(data)); }
+      /* v275: 직원 근태만 따로 온다 — 기사 몫은 carState 리스너가 가져온다.
+         화면이 보는 `tkd_driver_att` 는 **합친 것**이라 여기서 통째로 덮지 않고 직원 몫만 바꾼다. */
+      else if(key==='staffAtt'){
+        try{
+          var _cur = loadDriverAtt();
+          Object.keys(_cur).forEach(function(k){ if(_isStaffAttKey(k)) delete _cur[k]; });
+          Object.keys(data||{}).forEach(function(k){ _cur[k]=data[k]; });
+          localStorage.setItem('tkd_driver_att', JSON.stringify(_cur));
+        }catch(e){}
+      }
       else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
       else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }

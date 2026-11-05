@@ -91,8 +91,9 @@ function kstTimeStr(ms) {
   const d = KST(ms);
   return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
 }
-/* 앱 attKey(carId, dateStr) 와 **같은 모양** (index.html:760) */
-const attKey = (carId, dateStr) => carId + '_' + dateStr;
+/* v275(40-C): 출퇴근이 `carState/{carId}` 안의 `att[날짜]` 로 옮겨가 **차량 접두사가 없어졌다**
+   — 그래서 이 함수를 쓰는 곳이 0 이 되었다(지웠다). 차량은 **문서 자리**가 말해 준다.
+   앱 쪽 `attKey()` 는 **합친 모양**(`carId_날짜`)을 만들 때 그대로 쓴다(mergeCarState). */
 
 /* 기사 uid — 차량 기준으로 우리가 정한다 (사장님 결정 10-31).
    Auth 이메일 계정을 만들지 않으므로 사용자 목록이 깨끗하다. */
@@ -275,35 +276,54 @@ export default async function handler(req, res) {
     return null;
   }
 
-  /* orgs/{org}/data/driverAtt 를 **트랜잭션으로** 고친다.
-     저장 모양은 앱 saveToFirebase 와 똑같다 — { value: JSON 문자열, updatedAt }.
-     덮어쓰기 직전 백업도 앱 _backupBeforeSave 와 같은 꼴로 남긴다.
+  /* ★ v275(40-C): **`orgs/{org}/carState/{carId}`** 를 트랜잭션으로 고친다.
+     v274 까지는 `data/driverAtt`(업체 전체 한 문서)였다 — 기사끼리 같은 문서를 고쳤다.
+     이제 차량마다 문서가 갈려 **서로 부딪히지 않는다**(트랜잭션은 그대로 둔다 —
+     같은 차량에서 관리자 수기 토글과 겹칠 수 있고, 두 번 눌리는 것도 막아야 한다).
+     ★ 날짜 키가 짧아졌다: 옛 `{ "car1_2026-11-05": {in,out} }` →
+       이제 그 차량 문서 안의 `att: { "2026-11-05": {in,out} }` 다(차량은 문서가 말해 준다).
+     ★ 다른 칸(ride·rideOff·carlog·delivDone·dropDone)은 **건드리지 않는다** —
+       읽어서 그대로 다시 쓴다(한 칸만 고치는 셈이다).
+     저장 모양은 앱과 똑같다 — { value: JSON 문자열, updatedAt }.
      반환: { ok, kind:'in'|'out'|'done', time } | { error } */
   async function punch(org, carId) {
-    const ref = A.db.collection('orgs').doc(org).collection('data').doc('driverAtt');
+    const ref = A.db.collection('orgs').doc(org).collection('carState').doc(String(carId));
     const now = Date.now();
     const dateStr = kstDateStr(now);
     const timeStr = kstTimeStr(now);
-    const k = attKey(carId, dateStr);
     try {
       return await A.db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
-        let att = {}, prevStr = null;
+        let st = {}, prevStr = null;
         if (snap.exists) {
           prevStr = (snap.data() || {}).value || null;
-          try { att = prevStr ? JSON.parse(prevStr) : {}; } catch (e) { att = {}; }
-          if (!att || typeof att !== 'object' || Array.isArray(att)) att = {};
+          try { st = prevStr ? JSON.parse(prevStr) : {}; } catch (e) { st = {}; }
+          if (!st || typeof st !== 'object' || Array.isArray(st)) st = {};
         }
-        if (!att[k] || typeof att[k] !== 'object') att[k] = {};
+        /* 앱 emptyCarState() 와 **같은 꼴**로 빈 칸을 채워 둔다 (한쪽만 바꾸지 말 것) */
+        if (!st.ride      || typeof st.ride      !== 'object') st.ride = {};
+        if (!st.rideOff   || typeof st.rideOff   !== 'object') st.rideOff = {};
+        if (!st.carlog    || typeof st.carlog    !== 'object') st.carlog = { records: [], plans: {} };
+        if (!Array.isArray(st.carlog.records)) st.carlog.records = [];
+        if (!st.carlog.plans || typeof st.carlog.plans !== 'object') st.carlog.plans = {};
+        if (!st.delivDone || typeof st.delivDone !== 'object') st.delivDone = {};
+        if (!st.dropDone  || typeof st.dropDone  !== 'object') st.dropDone = {};
+        if (!st.att       || typeof st.att       !== 'object') st.att = {};
+
+        if (!st.att[dateStr] || typeof st.att[dateStr] !== 'object') st.att[dateStr] = {};
+        const rec = st.att[dateStr];
         let kind;
-        if (!att[k].in)       { att[k].in = timeStr;  kind = 'in'; }
-        else if (!att[k].out) { att[k].out = timeStr; kind = 'out'; }
-        else                  { return { ok: true, kind: 'done', time: att[k].out }; }
-        tx.set(ref, { value: JSON.stringify(att), updatedAt: now });
-        /* 백업 — 앱과 같은 자리·같은 필드 (orgs/{org}/backups/{key}__{시각}) */
+        if (!rec.in)       { rec.in = timeStr;  kind = 'in'; }
+        else if (!rec.out) { rec.out = timeStr; kind = 'out'; }
+        else               { return { ok: true, kind: 'done', time: rec.out }; }
+        tx.set(ref, { value: JSON.stringify(st), updatedAt: now });
+        /* 백업 — 앱과 같은 자리·같은 필드. `key` 는 **앱 _backupBeforeSave 와 같은 글자**
+           (`carState/<carId>`) 여야 한다 — 규칙이 그 글자로 기사 백업을 가린다. */
         if (prevStr) {
-          tx.set(A.db.collection('orgs').doc(org).collection('backups').doc('driverAtt__' + now),
-                 { key: 'driverAtt', value: prevStr, backupAt: now });
+          const bk = 'carState/' + String(carId);
+          tx.set(A.db.collection('orgs').doc(org).collection('backups')
+                   .doc('carState_' + String(carId) + '__' + now),
+                 { key: bk, value: prevStr, backupAt: now });
         }
         return { ok: true, kind: kind, time: timeStr };
       });

@@ -192,7 +192,41 @@
       내 «회원» 몫만 덮어쓰고**, 관리자는 명단 전체를 가졌으니 지금처럼 다시 만든다.
       `markDeliveryDone`·`markDropoffDone` 은 **이미** 폰의 지도에서 시작하므로 안전하다(실측).
       → 자료를 더 쪼갤 때(40-C) **「다시 만들어 저장하는」 자리를 먼저 찾아 본다.**
+  - **v275(40-C): 기사 읽기 `orgDriver` **하나** · 기사 쓰기 **0개**.**
+    기사가 쓰던 다섯 가지(탑승 토글·차계부·납품 완료·하차 완료·출퇴근)가 **업체 전체 문서**에
+    들어 있어, 기사 폰이 **남의 차량 기록과 직원 근태까지** 받고 **통째로 덮어썼다**.
+    → **차량별 기록 문서** `orgs/{org}/carState/{carId}` 하나로 옮겼다(원본 하나 — 두 곳에 두면 서로 덮는다).
+    `{ ride:{회원id:{on}} · rideOff:{회원id:{offOn}} · carlog:{records,plans}
+       · delivDone:{회원id:날짜} · dropDone:{회원id:날짜} · att:{날짜:{in,out}} }` (`CAR_STATE_PARTS`)
+    · **로컬 모양과 load/save 함수 이름·인자를 그대로 뒀다** — 그래서 관리자 화면(수납·세무·급여·
+      명세서·운행기록부·근태·차계부·대시보드)은 **한 줄도 안 바뀐다**. 바뀐 것은 「서버에 어떻게
+      올리고 내리는가」뿐이다(실측: 네 업종 × 네 크기 18~19곳의 글자·숫자가 v274 와 같다).
+    · 관리자는 **전 차량을 합쳐** 보고(`loadAllCarState`→`mergeCarState`) 저장할 때 **다시 쪼갠다**
+      (`splitCarState`→`saveCarState`) · 기사는 **자기 문서 하나**만 읽고 쓴다.
+      합친 출퇴근을 옛 모양(`{carId_날짜:…}`)으로 돌려주는 `mergedDriverAtt` 가 있어서
+      `buildPayrollData`·근태 네 화면이 안 바뀌었다(v272 `carPay` 와 같은 방법).
+    · **직원 근태(`st…`)는 차량과 무관** → `data/staffAtt`(관리자 전용)로 **따로** 간다.
+      관리자 리스너에서 다섯 키를 빼고 `staffAtt` 를 넣었다 — 핸들러는 **직원 키만** 합친다.
+    · 서버 `api/driver-auth.js` `punch`(출퇴근)도 **같은 문서**를 **트랜잭션 그대로** 고친다.
+      키가 `carId_날짜` → **`날짜`** 로 짧아졌다(문서가 이미 차량별이라 접두사가 필요 없다).
+    · 옛 `data/*` 다섯 키는 **읽지도 쓰지도 않는다** — 관리자 로그인 1회에 **옮기고**
+      `data/migration` 에 `{carState:true}` 를 찍는다(**멱등** — 표시는 다 옮긴 뒤에 찍으므로
+      중간에 끊기면 다음 로그인에 다시 한다). **옛 키는 지우지 않는다**(되돌릴 길 · 삭제는 나중 회차).
+    · 규칙: `match /orgs/{orgId}/carState/{carId}` (기사는 `myCarId(orgId)==carId` 만 읽기·쓰기) ·
+      `driverReadableKey` = `['orgDriver']` · `driverWritableKey` = **항상 거짓** ·
+      앱의 `DRIVER_READ_KEYS`·`DRIVER_WRITE_KEYS` 와 **같이 고친다**.
+    ★★ **배정이 바뀌면 그 «회원» 몫이 따라 움직여야 한다** — `saveMembers` 가 `saveCarState()` 를
+      부른다. 안 부르면 3호차로 옮긴 «회원» 의 탑승·완료 기록이 1호차 문서에 남아 **옛 기사에게 보인다**
+      (실측 표: 다가을을 car2→car1 로 옮기면 ride·delivDone·dropDone 이 car1 문서로 이동,
+      가하은의 하원 몫은 car2 에 그대로).
+    ★★ **백업 문서 id 에는 `/` 를 넣을 수 없다** (v275, 커밋 전 크롬에서 잡음).
+      `_backupBeforeSave` 가 문서 id 를 `<key>__<시각>` 으로 만드는데, key 를 `carState/car1` 로
+      주면 `orgs/{org}/backups/carState/car1__시각`(**홀수 칸**)이 되어 Firestore 가 거절한다 —
+      바깥 try/catch 가 삼켜서 **백업만 조용히 빠진다**. → `_backupBeforeSave(…, idKey)` 네 번째
+      인자로 **id 는 `carState_car1`**, **`key` 필드는 `carState/car1`** 로 나눠 적는다
+      (규칙과 오래된 백업 정리가 보는 것은 `key` 필드다 · 서버 `punch` 도 같은 꼴).
   - 백업: 기사는 `backups` read·delete 안 되고 **create 만** 된다(쓰기 전 백업을 남겨야 하므로).
+    v275: 기사 쓰기 키가 0개가 되었으므로, 그 분기는 **`key == 'carState/' + 내 차량`** 으로 바뀌었다.
   - 급여 4값(시급·식대·공제방식·출퇴근거리)은 `cars` → **`driverPay`** 로 옮겼다
     (`{ carId: {hourlyWage, mealAllow, taxMode, commuteKm} }`). `carPay(car)` 가 옛 값도 함께 봐서
     「옮기기」 전에도 급여가 맞게 나온다. 급여 계산 코드는 `buildPayrollData` 에서 차량에 붙여 주므로 한 줄도 안 바뀌었다.
