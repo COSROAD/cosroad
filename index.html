@@ -922,17 +922,21 @@ async function loadMyCarState(){
   }catch(e){ console.log('내 차량 기록 읽기 실패:', e && e.message); return null; }
 }
 /* 차량 문서 쓰기 — 관리자는 전 차량, 기사는 자기 것만.
-   ★ 기사는 쪼갤 필요가 없다(폰에 자기 몫만 있다) — 그래서 로컬 다섯 키를 그대로 담는다. */
+   ★ 기사는 쪼갤 필요가 없다(폰에 자기 몫만 있다) — 그래서 로컬 다섯 키를 그대로 담는다.
+   ★ v275: **정말 썼는지 참·거짓으로 돌려준다.** 「옛 자료 옮기기」가 이 값을 보고
+     완료 표시(`data/migration`)를 찍는다 — 안 그러면 규칙이 아직 안 올라간 동안
+     (앱 먼저 → 규칙 나중 배포의 그 틈) 쓰기가 거부되는데 표시만 찍혀
+     **옛 기록이 영원히 안 옮겨진다**(멱등이 깨진다). */
 async function saveCarState(){
   try{
-    if(typeof isDemoMode==='function' && isDemoMode()) return;
-    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return;
-    if(!window._db || !window._firestore) return;
+    if(typeof isDemoMode==='function' && isDemoMode()) return false;
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return false;
+    if(!window._db || !window._firestore) return false;
     var { doc, setDoc, getDoc } = window._firestore;
     var orgId = getFbOrgId();
     if(currentMode==='driver'){
       var cid = String(driverLockedCarId()||'');
-      if(!cid) return;
+      if(!cid) return false;
       var mine = emptyCarState();
       try{
         var st = loadRideState();
@@ -978,7 +982,7 @@ async function saveCarState(){
       }catch(e){ console.log('차량 기록 백업 건너뜀:', e && e.message); }
       await setDoc(doc(window._db,'orgs',orgId,'carState',cid),
         { value: JSON.stringify(mine), updatedAt: Date.now() });
-      return;
+      return true;
     }
     /* 관리자 — 차량별로 쪼개 전부 쓰고, 직원 근태는 따로 */
     var sp = splitCarState();
@@ -988,7 +992,8 @@ async function saveCarState(){
         { value: JSON.stringify(sp.byCar[ids[i]]), updatedAt: Date.now() });
     }
     await saveToFirebase('staffAtt', sp.staffAtt);
-  }catch(e){ console.log('차량 기록 저장 실패:', e && e.message); }
+    return true;
+  }catch(e){ console.log('차량 기록 저장 실패:', e && e.message); return false; }
 }
 /* 사본 한 덩어리를 폰에 풀어 넣는다 (members·cars·courses 세 키를 한 번에) */
 function applyCarData(d){
@@ -17042,6 +17047,7 @@ async function syncFromFirebase(){
           att:   await loadFromFirebase('driverAtt')
         };
         var _any = Object.keys(_old).some(function(k){ return _old[k] && Object.keys(_old[k]).length; });
+        var _moved = true;
         if(_any){
           /* 옛 값을 로컬에 깔고 → 차량별로 쪼개 저장한다(splitCarState 가 그 일을 한다) */
           if(_old.ride)  localStorage.setItem('tkd_ridestate', JSON.stringify(_old.ride));
@@ -17049,10 +17055,14 @@ async function syncFromFirebase(){
           if(_old.dv)    localStorage.setItem(deliveryDoneKey(), JSON.stringify(_old.dv));
           if(_old.dp)    localStorage.setItem(dropoffDoneKey(), JSON.stringify(_old.dp));
           if(_old.att)   localStorage.setItem('tkd_driver_att', JSON.stringify(_old.att));
-          await saveCarState();
-          console.log('옛 운행 기록을 차량별로 옮겼다');
+          _moved = await saveCarState();
+          console.log(_moved ? '옛 운행 기록을 차량별로 옮겼다'
+                             : '옛 기록 옮기기 실패 — 표시를 안 찍는다(다음 로그인에 다시)');
         }
-        await saveToFirebase('migration', { carState: true, at: Date.now() });
+        /* ★ v275: **옮기기가 성공했을 때만** 완료 표시를 찍는다.
+           규칙이 아직 안 올라간 동안(앱 먼저 → 규칙 나중 배포의 그 틈)에는 carState
+           쓰기가 거부된다 — 그때 표시를 찍으면 옛 기록이 **영원히 안 옮겨진다.** */
+        if(_moved) await saveToFirebase('migration', { carState: true, at: Date.now() });
       }
     }catch(e){ console.log('옛 기록 옮기기 실패(다음 로그인에 다시 함):', e && e.message); }
   }
