@@ -12,7 +12,7 @@
 // ★ 번호·본문·키 원문은 응답에도 로그에도 넣지 않는다.
 
 import {
-  admin, openGate, fail, whoIsCalling, canSendFor, orgPhones, rateHit,
+  admin, openGate, fail, whoIsCalling, canSendFor, callerCarScope, orgPhones, rateHit,
   orgLimits, phoneDigits, sha256, TPL_ALLOWED
 } from '../lib/send-guard.js';
 
@@ -47,8 +47,11 @@ export default async function handler(req, res) {
     const rcv = phoneDigits(b.receiver);
     if (!/^0\d{8,10}$/.test(rcv)) return fail(res, 400, '받는 번호가 올바르지 않아요.');
 
-    /* 받는 번호는 그 업체 회원 명부에 있는 번호만 (기사는 자기 차량 회원만) */
-    const allow = await orgPhones(A, org, caller.driver ? caller.carId : '');
+    /* 받는 번호는 그 업체 회원 명부에 있는 번호만 (기사는 자기 차량 회원만 ·
+       **동승 도우미**는 배정 문서에서 그때 읽은 차량 회원만 — 43-B, callerCarScope) */
+    const scope = await callerCarScope(A, caller);
+    if (!scope.ok) return fail(res, scope.code, scope.message);
+    const allow = await orgPhones(A, org, scope.carId);
     if (allow === null) return fail(res, 500, '회원 명부를 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.');
     if (!allow.has(rcv)) {
       return fail(res, 403, '회원 명부에 없는 번호예요. 회원관리에서 번호를 확인해 주세요.');

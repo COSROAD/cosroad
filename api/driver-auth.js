@@ -100,6 +100,10 @@ function kstTimeStr(ms) {
 /* 기사 uid — 차량 기준으로 우리가 정한다 (사장님 결정 10-31).
    Auth 이메일 계정을 만들지 않으므로 사용자 목록이 깨끗하다. */
 const driverUidOf = (org, carId) => 'drv_' + org + '_' + carId;
+/* 동승 도우미 uid — **사람 기준**이다 (43-B).
+   차량 기준으로 두면 배정이 바뀔 때 uid 가 달라져 기기 묶기·토큰이 전부 갈린다.
+   ★ `api/admin-account.js helperUidOf` 와 **같은 글자**여야 한다(배정 문서를 같은 자리에서 찾는다). */
+const helperUidOf = (org, staffId) => 'hlp_' + org + '_' + staffId;
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
@@ -434,12 +438,105 @@ export default async function handler(req, res) {
           if (!carId && sameHash(v.pinHash, want)) carId = String(v.carId || '');
         });
       } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      /* ★★ 43-B(v281): 기사 PIN 이 아니면 **직원 PIN(`staffPins`)** 을 이어서 본다 — 동승 도우미.
+         · 해시 재료는 기사와 **똑같다**(`sha256(pin|org|OTP_SECRET)`) — `want` 를 그대로 쓴다.
+         · 틀린 PIN 셈(`bumpFail`·`bumpOrgFail`)은 **두 대조를 합쳐 한 번만** 센다(아래 한 자리).
+           따로 세면 PIN 한 번에 잠금이 두 칸씩 올라 정상 기사가 절반 횟수에 잠긴다.
+         · 못 찾았을 때의 문구·상태코드는 **종전 그대로**(`SAME` · 401) — 업체에 직원이 있는지,
+           그 PIN 이 기사 것인지 직원 것인지 새지 않게 한다. */
+      let staffId = null;
       if (!carId) {
+        try {
+          const snap = await A.db.collection('staffPins').where('org', '==', org).get();
+          snap.forEach(d => {
+            const v = d.data() || {};
+            if (!staffId && sameHash(v.pinHash, want)) staffId = String(v.staffId || '');
+          });
+        } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      }
+      if (!carId && !staffId) {
         await bumpFail(code, deviceId);
         /* v260: 묶이지 않은 기기의 실패만 업체 단위로 센다 */
         if (!bound) await bumpOrgFail(org);
         await writeLogin(org, '', false, 'badpin', deviceId, loc);
         return fail(res, 401, SAME);     // 틀린 PIN 도 **같은 문구**
+      }
+
+      /* 기기 묶기 — 첫 로그인 기기를 기억하고, 다른 기기는 거절.
+         ★ 기사는 **차량 기준**(`<org>_<carId>`) · 도우미는 **사람 기준**(`<org>_hlp_<staffId>`) —
+           도우미는 배정이 수시로 바뀌므로 차량 기준으로 묶으면 차량이 바뀔 때마다 기기가 풀린다.
+         ★ 두 갈래가 **같은 코드**를 쓴다 — 복사해 두면 한쪽만 고쳐져 셈이 어긋난다
+           (lib/otp-core.js 를 공용으로 둔 것과 같은 이유).
+         반환: null 통과 / 'device' 다른 기기 */
+      const bindDevice = async (docId, fields) => {
+        const devRef = A.db.collection('driverDevices').doc(docId);
+        const ds = await devRef.get();
+        if (ds.exists && (ds.data() || {}).deviceId) {
+          return String((ds.data() || {}).deviceId) === deviceId ? null : 'device';
+        }
+        await devRef.set(Object.assign({ org: org, deviceId: deviceId, boundAt: Date.now() }, fields));
+        /* v260: 새 기기가 **제대로** 묶였다 — 업체 단위 실패 수를 비운다.
+           (기사 여럿이 첫 로그인에서 잘못 눌러 20회가 차도 한 명이 들어오면 풀린다) */
+        await clearOrgFail(org);
+        return null;
+      };
+
+      /* ── 동승 도우미 (43-B) ──────────────────────────────────────────────
+         차량은 **토큰에 넣지 않는다** — 배정이 수시로 바뀌므로, 보는 자리를
+         `orgs/{org}/drivers/{uid}.carId` **하나**로 둔다(규칙 `myCarId` 가 보는 그 문서다).
+         앱도 그 문서를 리스너로 듣는다 — 관리자가 배정을 바꾸면 바로 따라간다. */
+      if (!carId) {
+        const huid = helperUidOf(org, staffId);
+        let hcar = '', howner = '';
+        try {
+          const hs = await A.db.collection('orgs').doc(org).collection('drivers').doc(huid).get();
+          const hv = (hs.exists && hs.data()) || {};
+          hcar = String(hv.carId || '');
+          howner = String(hv.ownerUid || '');
+        } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+        if (!hcar) {
+          /* PIN 은 맞았지만 배정이 없다 — 「왜 안 되는지」를 알려 준다.
+             PIN 이 맞은 사람에게만 보이는 글이라 업체 정보가 새지 않는다. */
+          await writeLogin(org, '', false, 'nocar', deviceId, loc);
+          return fail(res, 403, '동승할 차량이 배정되지 않았어요. 관리자에게 말씀해 주세요.', 'nocar');
+        }
+        /* 업체가 살아 있나 — 기사와 **같은 함수·같은 문구** */
+        const ownerUid2 = await resolveOwnerUid(org);
+        if (!(await ownerAlive(ownerUid2))) {
+          await writeLogin(org, hcar, false, 'expired', deviceId, loc);
+          return fail(res, 403, '업체 이용 기간이 끝났거나 계정이 멈췄어요. 관리자에게 문의해 주세요.', 'expired');
+        }
+        try {
+          const why = await bindDevice(org + '_hlp_' + staffId, { helper: true, staffId: staffId });
+          if (why) {
+            await writeLogin(org, hcar, false, 'device', deviceId, loc);
+            return fail(res, 403, '등록된 기기가 아니에요. 관리자에게 기기 풀기를 요청하세요.', 'device');
+          }
+        } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+        try {
+          /* 배정 문서는 **관리자가 만든다**(setCarHelper) — 여기서는 소유자만 맞춰 둔다.
+             `carId` 는 건드리지 않는다(배정을 로그인이 바꾸면 안 된다). */
+          if (howner !== String(ownerUid2 || '')) {
+            await A.db.collection('orgs').doc(org).collection('drivers').doc(huid)
+              .set({ ownerUid: ownerUid2 }, { merge: true });
+          }
+          /* ★ `carId` 를 **넣지 않는다** — 차량을 보는 자리는 drivers 문서 하나뿐이다
+             (users 에도 두면 둘이 어긋나고, 어긋난 쪽을 믿는 코드가 생긴다). */
+          await A.db.collection('users').doc(huid).set(
+            { role: 'helper', driverOrg: org, ownerUid: ownerUid2, staffId: staffId }, { merge: true });
+        } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+        let htoken;
+        try {
+          /* claim 에 **carId 가 없다** — 받는 번호·자료 범위는 서버·규칙이 배정 문서에서 읽는다 */
+          htoken = await A.auth.createCustomToken(huid, { helper: true, org: org, staffId: staffId });
+        } catch (e) {
+          console.log('[driver-auth] createCustomToken 실패(도우미)', (e && e.code) || '');
+          return fail(res, 500, '로그인 토큰을 만들지 못했어요. 관리자에게 알려 주세요.');
+        }
+        await clearFail(code, deviceId);
+        await writeLogin(org, hcar, true, 'helper', deviceId, loc);
+        return res.status(200).json({ ok: true, token: htoken, org: org, carId: hcar,
+                                      helper: true, staffId: staffId });
       }
 
       /* 업체가 살아 있나 (만료·탈퇴면 기사도 잠김 — 사장님 결정) */
@@ -449,20 +546,11 @@ export default async function handler(req, res) {
         return fail(res, 403, '업체 이용 기간이 끝났거나 계정이 멈췄어요. 관리자에게 문의해 주세요.', 'expired');
       }
 
-      /* 기기 묶기 — 첫 로그인 기기를 기억하고, 다른 기기는 거절 */
-      const devRef = A.db.collection('driverDevices').doc(org + '_' + carId);
       try {
-        const ds = await devRef.get();
-        if (ds.exists && (ds.data() || {}).deviceId) {
-          if (String((ds.data() || {}).deviceId) !== deviceId) {
-            await writeLogin(org, carId, false, 'device', deviceId, loc);
-            return fail(res, 403, '등록된 기기가 아니에요. 관리자에게 기기 풀기를 요청하세요.', 'device');
-          }
-        } else {
-          await devRef.set({ org: org, carId: carId, deviceId: deviceId, boundAt: Date.now() });
-          /* v260: 새 기기가 **제대로** 묶였다 — 업체 단위 실패 수를 비운다.
-             (기사 여럿이 첫 로그인에서 잘못 눌러 20회가 차도 한 명이 들어오면 풀린다) */
-          await clearOrgFail(org);
+        const why = await bindDevice(org + '_' + carId, { carId: carId });
+        if (why) {
+          await writeLogin(org, carId, false, 'device', deviceId, loc);
+          return fail(res, 403, '등록된 기기가 아니에요. 관리자에게 기기 풀기를 요청하세요.', 'device');
         }
       } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
 

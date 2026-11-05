@@ -17,7 +17,7 @@
 // ★ 새 환경변수 없음 (ALIGO_* · FIREBASE_SERVICE_ACCOUNT 이미 있음).
 
 import {
-  admin, openGate, fail, whoIsCalling, canSendFor, orgPhones, rateHit,
+  admin, openGate, fail, whoIsCalling, canSendFor, callerCarScope, orgPhones, rateHit,
   orgLimits, inqIpLimits, inqUidLimits, notifyPhone, clientIp, phoneDigits, sha256,
   REQ_MAX_RCV, INQ_BODY_MAX, INQ_PREFIX
 } from '../lib/send-guard.js';
@@ -81,9 +81,13 @@ export default async function handler(req, res) {
 
       /* ★ 받는 번호는 **그 업체 회원 명부**에 있는 번호만.
          기사면 토큰의 carId 로 **자기 차량 회원**만 본다.
+         **동승 도우미**(43-B)는 토큰에 carId 가 없어 `callerCarScope` 가 배정 문서에서
+         그때 읽는다 — 배정을 뗀 직후에는 옛 차량으로도 못 보낸다.
          하나라도 명부에 없으면 그 번호만 빼지 않고 **요청 전체를 거부**한다
          (몰래 한 명을 끼워 넣는 길을 막는다). 번호는 응답에 넣지 않는다. */
-      const allow = await orgPhones(A, org, caller.driver ? caller.carId : '');
+      const scope = await callerCarScope(A, caller);
+      if (!scope.ok) return fail(res, scope.code, scope.message);
+      const allow = await orgPhones(A, org, scope.carId);
       if (allow === null) return fail(res, 500, '회원 명부를 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.');
       const bad = rcvList.filter((r) => !allow.has(r)).length;
       if (bad) {

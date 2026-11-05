@@ -382,7 +382,10 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
         <span style="color:#475467;font-size:13px;font-weight:600;">로그인 상태 유지</span>
       </label>
       <button class="login-btn btn-driver" id="drv-login-btn" onclick="loginDriverPin()">🚐 기사로 시작</button>
-      <div style="text-align:center;margin-top:8px;font-size:11px;color:#98A2B3;line-height:1.6;">업체 번호를 모르시면 관리자에게 물어보세요<br/>처음 로그인한 기기에만 들어갈 수 있어요</div>
+      <!-- 43-B: 동승 도우미도 **이 자리**로 들어온다 — 자기 직원 PIN 을 넣으면 서버가 가려 준다.
+           입구를 따로 만들지 않는 까닭: 단추·칸이 늘면 기사 화면 원칙(간결)이 깨지고,
+           입구가 둘이면 「어느 쪽에 넣어야 하나」를 또 알려 줘야 한다. -->
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:#98A2B3;line-height:1.6;">업체 번호를 모르시면 관리자에게 물어보세요<br/>처음 로그인한 기기에만 들어갈 수 있어요<br/>동승 도우미도 여기에서 자기 PIN 으로 들어와요</div>
     </div>
 
     <!-- 관리자 입구 -->
@@ -636,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 280;
+const APP_VERSION = 281;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2789,6 +2792,10 @@ async function loginDriverPin(){
     /* 서버가 준 custom token 으로 Firebase 로그인 → 그 뒤는 규칙이 기사 권한을 본다 */
     await window._authFns.signInWithCustomToken(window._auth, j.token);
     window._isDriverAcct=true;
+    /* ★ 43-B: 같은 입구로 **동승 도우미**도 들어온다 — 서버가 PIN 으로 가려 준다.
+       도우미는 출퇴근이 없고(43-C) 차계부는 보기만이며, 차량은 **배정 문서**가 정한다. */
+    window._isHelperAcct = (j.helper===true);
+    window._driverStaffId = j.staffId || '';
     window._driverOrg=j.org;
     window._driverCarId=j.carId;
     window._userOrgId=null;
@@ -3349,8 +3356,12 @@ function loadUserProfile(uid){
          여기서는 기사 모드 표시만 세우고 빠져나간다. 기관은 driverOrg 를 쓴다
          (getFbOrgId 가 window._driverOrg 를 먼저 본다).
          자료가 열리는지는 서버 규칙(isActiveDriver)이 정한다 — 업체가 만료·탈퇴면 막힌다. */
-      if(u.role === 'driver'){
+      /* ★ 43-B: `role:'helper'`(동승 도우미)도 **같은 길**로 들어온다 —
+         화면은 기사 화면을 그대로 쓰고, 다른 점은 출퇴근 없음·차계부 보기만뿐이다. */
+      if(u.role === 'driver' || u.role === 'helper'){
         window._isDriverAcct = true;
+        window._isHelperAcct = (u.role === 'helper');
+        window._driverStaffId = u.staffId || '';
         window._driverOrg = u.driverOrg || null;
         window._driverCarId = u.carId || null;
         window._driverName = u.name || '';
@@ -3358,9 +3369,15 @@ function loadUserProfile(uid){
         /* _userOrgId 는 비워 둔다 — orgIdFromUrlOrDefault() 가 이 값을 보므로,
            기사 업체를 넣으면 「로그인 유지」 키가 또 갈린다. 기관은 _driverOrg 로 쓴다. */
         window._userOrgId = null;
+        /* ★ 도우미 `users` 문서에는 **carId 가 없다**(배정 문서 하나가 원본이다 — 43-B).
+           「로그인 유지」로 들어올 때는 토큰 응답이 없으므로 **여기서 한 번 읽어** 둔다.
+           (리스너는 그 뒤에 붙어 배정이 바뀌는 것을 따라간다 — helperWatchCar) */
+        if(window._isHelperAcct) return helperReadCarId(uid);
         return;
       }
       window._isDriverAcct = false;
+      window._isHelperAcct = false;
+      window._driverStaffId = '';
       window._driverOrg = null;
       window._userOrgId = u.orgId || null;
       window._userBizType = u.bizType || null;
@@ -3884,7 +3901,12 @@ function pwrMailPath(){
     .catch(function(e){ pwrMsg('err', e.code==='auth/user-not-found' ? '가입되지 않은 이메일이에요.' : ('보내지 못했어요: '+e.message)); });
 }
 
-function logout(){currentMode='';localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvInfo={};_drvInfoLoaded=false;_drvInfoErr=false;_orgCode='';_orgCodeErr=false;_orgCodeAsked=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
+function logout(){currentMode='';
+  /* 43-B: 붙여 둔 리스너를 **뗀다** — 안 떼면 다음 사람(관리자) 화면에서 깨어나
+     도우미 갈래가 돌고(배정 바뀜으로 보여) 폰의 명단을 비운다. 두 겹 중 한 겹이다. */
+  try{ if(window._helperCarUnsub){ window._helperCarUnsub(); window._helperCarUnsub=null; } }catch(e){}
+  try{ (_carDocUnsub||[]).forEach(function(fn){ try{ if(typeof fn==='function') fn(); }catch(e){} }); _carDocUnsub=[]; }catch(e){}
+  localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._isHelperAcct=false;window._driverStaffId='';window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvInfo={};_drvInfoLoaded=false;_drvInfoErr=false;_orgCode='';_orgCodeErr=false;_orgCodeAsked=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
 /* 「로그인 유지」 자동 로그인 (v249 개정)
    v248까지는 localStorage 표시('admin')만 보고 **Firebase 로그인 없이** 관리자 화면을 열었다.
@@ -4883,7 +4905,10 @@ function drawMasterPanel(){
      기사 정리는 업체 화면 차량관리의 「PIN 지우기」로만 한다 (v255 — 전에는 「계정 끊기」).
      ※ 아래 네 자리가 모두 이 걸러낸 목록을 쓴다 —
        대기 목록 · 승인 목록 · 두 목록의 건수 · 「⚠ 같은 이름」 판정(masterIdLine 의 둘째 인자). */
-  var orgUsers = signupUsers.filter(function(u){ return u && u.role !== 'driver'; });
+  /* 43-B: `role:'helper'`(동승 도우미) 문서도 **업체가 아니다** — 걸러야 한다.
+     안 걸면 도우미마다 「승인 대기」 한 줄이 생기고 🗑 로 지울 수 있게 보인다
+     (기사 문서를 v253 에 걸러 둔 것과 같은 까닭·같은 자리). */
+  var orgUsers = signupUsers.filter(function(u){ return u && u.role !== 'driver' && u.role !== 'helper'; });
   var pending = orgUsers.filter(function(u){ return u.approved!==true; });
   var approvedList = orgUsers.filter(function(u){ return u.approved===true; });
   var bizLabel={academy:'🏫 학원',logistics:'📦 물류',public:'🏛️ 공공',delivery:'🚚 택배'};
@@ -5132,7 +5157,7 @@ var HELP_QA=[
   {role:'admin', keys:['현황','대시보드','통계'], t:'현황(대시보드) 보는 법',
    a:'1. 관리자 → 「📊 현황」 탭\n2. 위 카드: 전체 «회원» · 오늘 «출석» · 차량별 오늘 인원 — 카드를 누르면 명단이 아래에 펼쳐져요\n3. 「오늘 «출석률»」 막대와 차량별 진행 막대로 한눈에 확인해요\n4. 「💰 정부 지원사업」 카드를 누르면 공고 목록이 열려요\n5. 「📑 서류·인증 도움」에는 자주 쓰는 정부 사이트 바로가기가 있어요'},
   {role:'admin', keys:['차량','호차','기사','배정','차량번호','차종'], t:'차량 등록·기사 배정',
-   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n9-1. <b>동승 도우미</b>(학원·공공) — 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 그 차에 함께 타는 <b>직원</b>을 고를 수 있어요. 한 차량에 한 명이고, PIN 이 있는 직원만 고를 수 있어요 (동승 로그인은 <b>다음 회차</b>에 열려요)\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
+   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n9-1. <b>동승 도우미</b>(학원·공공) — 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 그 차에 함께 타는 <b>직원</b>을 고를 수 있어요. 한 차량에 한 명이고, PIN 이 있는 직원만 고를 수 있어요\n9-2. 고른 도우미는 <b>자기 직원 PIN</b> 으로 「🚐 기사 로그인」에 들어와 그 차량 운행 화면을 봐요 — 배정을 바꾸면 도우미 화면도 <b>바로</b> 따라가고, 떼면 그 자리에서 자료가 막혀요\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
   /* v273 — 두 차량 칸. 학원·공공만 쓰는 기능이라 그 점을 먼저 적는다. */
   {role:'admin', keys:['하원차량','하원','등원','두차량','따로배정'], t:'등원·하원 차량을 따로 (하원 차량)',
    a:'한 «회원»이 <b>등원은 1호차, 하원은 2호차</b>로 다닐 수 있어요 (학원·공공만 — 물류·택배는 하원이 없어 칸이 안 보여요)\n1. «회원»관리 → 수정 → 「차량」 아래 <b>「하원 차량」</b> 에서 고르세요. 기본은 <b>「등원과 같음」</b> 이에요\n2. 「등원과 같음」이면 지금까지처럼 <b>한 대</b>로 등·하원을 다 돌아요 — 쓰던 «회원»은 손댈 것이 없어요\n3. 차량관리에서도 바꿀 수 있어요 — 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요\n4. <b>운행 화면</b>은 방향에 따라 갈려요 — 등원 탭에는 등원 차량의 «회원», 하원 탭에는 하원 차량의 «회원»이 나와요\n5. 기사 「«회원»」 탭에는 <b>등원·하원 어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n6. 하원 차량 기사도 그 «회원»에게 <b>하차 알림 문자</b>를 보낼 수 있어요\n7. <b>수강료·«출결»은 등원 차량 하나 기준</b>이에요 — 한 «회원»이 두 번 세어지지 않아요\n8. 기사 급여는 <b>출퇴근 시간</b>으로 계산해서 이것과 상관없어요\n9. 차량을 지우면 그 차량을 하원으로 쓰던 «회원»도 「등원과 같음」으로 돌아가요'},
@@ -5195,9 +5220,14 @@ var HELP_QA=[
   {role:'admin', keys:['알림톡','카카오','sms','lms','문자언제'], t:'알림톡·문자는 언제 나가나요',
    a:'1. 카카오 알림톡: 하차 완료 · 납품 완료 · PIN 체크인 알림에 나가요 — 실패하면 문자로 자동 재발송돼요\n2. 문자(LMS): «알림장» 발송, 미납 알림, 「🚐 곧도착」 안내에 쓰여요\n3. 발송 설정은 서버에만 있어서 앱에는 키가 저장되지 않아요\n4. 안 나갈 땐 받는 분 연락처가 등록돼 있는지 먼저 확인해 주세요'},
   {role:'driver', keys:['기사화면','내화면','오늘운행','내차량','자기차량','차량탭','다른차량','회원탭','명단','탑승','카드'], t:'기사 운행 화면 사용법',
-   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n4-1. 학원·공공은 <b>등원 탭과 하원 탭에 나오는 «회원»이 다를 수 있어요</b> — 등원은 다른 차량, 하원만 내 차량인 «회원»은 <b>하원 탭에만</b> 나와요 (관리자가 그렇게 배정한 거예요)\n4-2. 「«회원»」 탭에는 등원·하원 <b>어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n5. 배정된 차량이 없으면 운행 화면·«회원» 탭에 「배정된 차량이 없어요」만 나와요 — 관리자가 차량을 배정해 주면 바로 보여요\n6. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n7. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n8. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n9. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n10. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
+   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n4-1. 학원·공공은 <b>등원 탭과 하원 탭에 나오는 «회원»이 다를 수 있어요</b> — 등원은 다른 차량, 하원만 내 차량인 «회원»은 <b>하원 탭에만</b> 나와요 (관리자가 그렇게 배정한 거예요)\n4-2. 「«회원»」 탭에는 등원·하원 <b>어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n5. 배정된 차량이 없으면 운행 화면·«회원» 탭에 「배정된 차량이 없어요」만 나와요 — 관리자가 차량을 배정해 주면 바로 보여요\n6. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n7. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n7-1. <b>동승 도우미</b>로 들어오면 출근·퇴근 단추가 없고 차계부는 보기만이에요 — 운행은 기사와 똑같이 해요\n8. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n9. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n10. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
   {role:'driver', keys:['기사차계부','내차계부','주유기록'], t:'기사 차계부 (내 차량 기록)',
-   a:'1. 운행 화면 → 「⛽ 차계부」 — 배정된 내 차량에 바로 기록돼요\n2. 주유 · 정비 · 기타를 넣을 수 있어요\n3. 잘못 넣었으면 관리자에게 요청하세요 — 기사 화면에서는 수정·삭제가 안 돼요\n4. 관리자와 같은 기록을 함께 봐요'},
+   a:'1. 운행 화면 → 「⛽ 차계부」 — 배정된 내 차량에 바로 기록돼요\n2. 주유 · 정비 · 기타를 넣을 수 있어요\n3. 잘못 넣었으면 관리자에게 요청하세요 — 기사 화면에서는 수정·삭제가 안 돼요\n4. 관리자와 같은 기록을 함께 봐요\n5. <b>동승 도우미는 보기만</b> 할 수 있어요 — 입력 칸이 없어요. 주유·정비는 그 차량 기사나 관리자가 넣어요'},
+  /* ── 43-B: 동승 도우미 — 관리자·도우미 **양쪽**이 찾아야 하므로 role:'all' 이다.
+     ★ 검색어에 바른 낱말(동승·동승도우미·직원pin)을 넣는다. 그냥 '도우미' 는 넣지 않는다 —
+       도우미 「코스」 문답(저는 코스예요)의 검색어와 겹쳐 엉뚱한 답이 먼저 나온다. */
+  {role:'all', keys:['동승','동승도우미','동승로그인','함께타','보조기사','직원pin','직원로그인','도우미로그인','도우미배정'], t:'동승 도우미 (함께 타는 직원 로그인)',
+   a:'차량에 기사와 <b>함께 타는 직원</b>이 그 차량 운행 화면을 볼 수 있어요 (학원·공공)\n1. 관리자: 🚐 차량관리 → 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 직원을 고르세요 — 한 차량에 <b>한 명</b>, 한 직원은 <b>한 차량</b>이에요\n2. 그 직원에게 <b>PIN 이 먼저 있어야</b> 해요 — 없으면 근태 화면에서 「🔢 PIN 정하기」로 정해 주세요\n3. 도우미: 로그인 화면의 「🚐 기사 로그인」에 <b>업체 번호 6자리 + 내 직원 PIN 4자리</b>를 넣으세요 (따로 입구가 없어요)\n4. 들어가면 윗머리에 「동승」 배지와 「🧑‍🤝‍🧑 동승 도우미 · ○호차」가 보여요\n5. 할 수 있는 것: 그 차량 운행(탑승·하차·완료 체크) · 「🚐 곧도착」 같은 알림 보내기 · «회원» 목록 보기\n6. 할 수 없는 것: <b>출근·퇴근 단추가 없어요</b>(직원 출퇴근은 관리자 PIN 판으로 해요) · <b>차계부는 보기만</b> 이에요\n7. 관리자가 배정을 다른 차량으로 바꾸면 도우미 화면이 <b>바로</b> 새 차량으로 바뀌어요 — 옛 차량 자료는 그 자리에서 막혀요\n8. 배정을 떼면 「동승할 차량이 배정되지 않았어요」가 나와요. PIN 을 지워도 바로 못 들어와요\n9. 처음 로그인한 폰에 묶여요 — 기사와 같아요\n10. 업체 이용 기간이 끝나면 도우미도 함께 잠겨요'},
   {role:'all', keys:['뒤로','뒤로가기','back','창닫기','앱이꺼져','나가짐'], t:'뒤로가기를 누르면 어떻게 되나요?',
    a:'1. 창이 열려 있으면 뒤로가기는 <b>그 창만</b> 닫아요 — 「✕」를 누른 것과 같아요\n2. 창이 겹쳐 있으면 <b>맨 위 창부터</b> 하나씩 닫혀요 (예: 문서 보기 위에 카톡 보내기 창)\n3. 삭제·결제 <b>확인창에서 뒤로가기는 「취소」</b>예요 — 눌러도 지워지거나 처리되지 않아요\n4. 열린 창이 없을 때 누르면 <b>앱이 닫혀요</b> (전과 같아요)\n5. 승인 대기·이용 기간 끝 같은 <b>안내 화면은 뒤로가기로 닫히지 않아요</b> — 로그아웃으로 나가세요'}
 ];
@@ -5479,7 +5509,8 @@ function initApp(){
   const badge=document.getElementById('mode-badge');
   const header=document.getElementById('main-header');
   /* v259: 배지 글자를 「기사」로 — 앱의 다른 글이 모두 「기사」다(클래스 이름은 그대로) */
-  if(currentMode==='driver'){badge.textContent='기사';badge.className='header-badge badge-driver';header.classList.remove('admin-mode');}
+  /* 43-B: 동승 도우미는 배지도 「동승」 — 두 탭(운행·회원)에서 늘 보인다(윗머리) */
+  if(currentMode==='driver'){badge.textContent=isHelperAcct()?'동승':'기사';badge.className='header-badge badge-driver';header.classList.remove('admin-mode');}
   else{badge.textContent='관리자';badge.className='header-badge badge-admin';header.classList.add('admin-mode');}
 
   const btns=document.getElementById('header-btns');
@@ -5701,8 +5732,46 @@ function driverScopeMembers(list){
   return (list||[]).filter(function(m){ return inCarEitherLeg(m, lock); });
 }
 function driverNoCarHtml(){
+  /* ★ 43-B: 도우미는 **다른 까닭**이다 — 기사는 PIN 이 차량에 걸려 있어 이 글이 드물지만,
+     도우미는 관리자가 배정을 떼면 바로 이 화면이 된다(그때 왜 그런지 알려 줘야 한다).
+     문구는 **이 함수 한 곳**에서만 쓴다(기사 화면 원칙). */
+  if(isHelperAcct()){
+    return '<div class="empty-state" style="padding:40px 24px;line-height:1.8;">'
+         + '동승할 차량이 배정되지 않았어요.<br>관리자에게 말씀해 주세요.</div>';
+  }
   return '<div class="empty-state" style="padding:40px 24px;line-height:1.8;">'
        + '배정된 차량이 없어요.<br>관리자에게 문의하세요.</div>';
+}
+/* ── 동승 도우미 (43-B) ───────────────────────────────────────────────────
+   기사와 **같은 화면**을 쓰고, 다른 점은 셋뿐이다:
+     ① 출근·퇴근 단추 없음(직원 근태는 43-C) ② 차계부는 **보기만** ③ 차량이 **배정 문서**에서 온다.
+   ★ 차량을 토큰에 넣지 않는 이유 — 배정이 수시로 바뀐다. 토큰에 박으면 배정을 뗀 뒤에도
+     옛 차량 자료를 열고 문자까지 보낼 수 있다(서버 send-guard 도 같은 문서를 본다). */
+function isHelperAcct(){ return window._isHelperAcct === true; }
+/* 지금 로그인한 uid — 기사·도우미는 custom token 으로 들어와 `_userUid` 가 빌 수 있다
+   (loginDriverPin 은 loadUserProfile 을 거치지 않는다). 그래서 Auth 에게 직접 묻는다. */
+function myAuthUid(){
+  try{ if(window._auth && window._auth.currentUser) return String(window._auth.currentUser.uid||''); }catch(e){}
+  return String(window._userUid||'');
+}
+/* 배정 차량 한 번 읽기 — 규칙 `drivers` read 의 `request.auth.uid == driverUid` 로 열린다 */
+async function helperReadCarId(uid){
+  try{
+    if(!window._db || !window._firestore) return;
+    var { doc, getDoc } = window._firestore;
+    var who = String(uid || myAuthUid() || '');
+    if(!who) return;
+    var snap = await getDoc(doc(window._db,'orgs',getFbOrgId(),'drivers',who));
+    var cid = String(((snap.exists() && snap.data()) || {}).carId || '');
+    window._driverCarId = cid || null;
+  }catch(e){ console.log('도우미 배정 읽기 실패:', e && e.message); }
+}
+/* 머리줄 — **단추가 아니다**(기사 화면 원칙: 단추를 늘리지 않는다) */
+function helperBarHtml(car){
+  var nm = (car && car.name) ? String(car.name) : '';
+  return '<div style="margin:8px 16px 0;padding:10px 12px;background:#EEF4FF;border:1px solid #C7D7FE;'
+       + 'border-radius:12px;font-size:13px;font-weight:700;color:#3538CD;">🧑‍🤝‍🧑 동승 도우미'
+       + (nm ? ' · ' + escapeMasterHtml(nm) : '') + '</div>';
 }
 function renderDrive(){
   cars=loadCars(); members=loadMembers(); courses=loadCourses();
@@ -5792,7 +5861,12 @@ function renderDrive(){
      기사 화면에 남는 것: 출근·퇴근 · 차계부 · 자기 차량 운행. 그것뿐이다.
      둘러보기(_demo)는 서버를 부르지 않아 종전 PIN 판 그대로 둔다(이번 회차 범위 밖). */
   if(currentMode==='driver'){
-    if(typeof isDemoMode==='function' && isDemoMode()){
+    if(isHelperAcct()){
+      /* ★ 43-B: 동승 도우미는 **출근·퇴근 단추가 없다**(직원 근태로 여는 것은 43-C).
+         서버도 받지 않는다 — `checkin`/`checkout` 의 requireDriver 가 기사 claim 만 통과시킨다.
+         대신 「내가 지금 어느 차량의 도우미인가」를 한 줄로 보여 준다. */
+      html+=helperBarHtml(car);
+    } else if(typeof isDemoMode==='function' && isDemoMode()){
       /* v257: 둘러보기도 실서비스와 같은 모양 — 출근·퇴근 단추. PIN 판은 없다. */
       html+=demoPunchBarHtml();
     } else {
@@ -15606,7 +15680,13 @@ function renderDriverCarlog(){
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
     +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;">⛽ 차계부 — '+escapeMasterHtml(car.name)+'</div>'
     +'<button onclick="document.getElementById(\'dcarlog-modal\').remove();" style="padding:6px 12px;background:#F2F4F7;color:#475467;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">닫기</button></div>'
-    +'<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">배정 차량에 바로 기록돼요. (수정·삭제는 관리자에게 요청)</div>';
+    +'<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">'
+    + (isHelperAcct() ? '동승 도우미는 보기만 할 수 있어요. 기록은 그 차량 기사나 관리자가 남겨요.'
+                      : '배정 차량에 바로 기록돼요. (수정·삭제는 관리자에게 요청)')+'</div>';
+  /* ★ 43-B: 동승 도우미는 **입력 칸을 아예 그리지 않는다**(사장님 결정 ② — 보기만).
+     이것은 **화면에서 가리는 것**이다 — 규칙은 그 차량 기사와 도우미를 같게 본다
+     (`carState` 쓰기가 열려 있다). 그래서 아래 saveDriverCarlogEntry 에서도 한 번 더 막는다. */
+  if(!isHelperAcct()){
   h+='<div style="border:1px solid #EAECF0;border-radius:10px;padding:10px;margin-bottom:12px;background:#F9FAFB;">';
   h+='<div style="display:flex;gap:5px;margin-bottom:6px;">';
   [['fuel','⛽ 주유'],['repair','🔧 정비'],['etc','💳 기타']].forEach(function(t){
@@ -15625,6 +15705,7 @@ function renderDriverCarlog(){
   h+='<input id="dcl-odo" type="number" placeholder="계기판km(선택)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   h+='<button onclick="saveDriverCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>';
   h+='</div></div>';
+  }
   var recs=carlogRecords(car.id).slice(0,20);
   if(recs.length===0){ h+='<div style="font-size:12px;color:#98A2B3;text-align:center;padding:12px;">기록이 없습니다.</div>'; }
   recs.forEach(function(r){
@@ -15665,6 +15746,8 @@ function renderDriverCarlog(){
   document.body.insertAdjacentHTML('beforeend', h);
 }
 function saveDriverCarlogEntry(){
+  /* 43-B: 도우미는 차계부 보기만 — 단추를 안 그리지만 함수로도 막는다(화면만 믿지 않는다) */
+  if(isHelperAcct()){ alert('동승 도우미는 차계부를 보기만 할 수 있어요.'); return; }
   var car=cars.find(function(c){ return c.id===currentCarId; })||cars[0];
   if(!car){ alert('배정된 차량이 없습니다.'); return; }
   var amount=Number((((document.getElementById('dcl-amount')||{}).value)||'').replace(/[^0-9]/g,''))||0;
@@ -17470,6 +17553,88 @@ async function syncFromFirebase(){
   startFirebaseListeners();
 }
 
+/* ── 내 차량 두 문서(사본·기록) 리스너 — **갈아 끼울 수 있게** 따로 뺐다 (43-B) ──
+   v274·v275 는 이 둘을 startFirebaseListeners 안에서 바로 붙였다. 도우미는 **배정이 바뀌므로**
+   옛 차량 리스너를 **떼고** 새 차량에 붙여야 한다 — 안 떼면 두 차량을 같이 듣게 되고
+   나중에 온 쪽이 이겨 **남의 차량 명단이 화면에 남는다**(v272 orgDriver 함정과 같은 꼴).
+   ★ 기사 쪽 동작은 그대로다 — 같은 두 리스너를 같은 조건으로 붙인다. */
+var _carDocUnsub = [];
+function attachCarDocListeners(orgId, carId){
+  try{
+    if(!window._db || !window._firestore) return;
+    var { doc, onSnapshot } = window._firestore;
+    /* 옛 차량 리스너 떼기 (없으면 아무 일도 안 한다) */
+    _carDocUnsub.forEach(function(fn){ try{ if(typeof fn==='function') fn(); }catch(e){} });
+    _carDocUnsub = [];
+    var _myCar = String(carId||'');
+    if(!_myCar) return;
+    _carDocUnsub.push(onSnapshot(doc(window._db, 'orgs', orgId, 'carData', _myCar), function(snap){
+      if(!snap.exists()) return;
+      try{
+        if(applyCarData(JSON.parse(snap.data().value))){
+          renderByTab();
+        }
+      }catch(e){ console.log('차량 사본 반영 실패:', e && e.message); }
+    }, function(err){ console.log('차량 사본 리스너 거부:', err && err.code); }));
+    /* v275: 운행 기록(carState)도 내 차량 문서 하나만 듣는다 —
+       다른 기기(관리자 수기 토글 등)에서 바뀌면 바로 반영된다. */
+    _carDocUnsub.push(onSnapshot(doc(window._db, 'orgs', orgId, 'carState', _myCar), function(snap){
+      if(!snap.exists()) return;
+      try{
+        var _got = JSON.parse(snap.data().value);
+        _csSetBase(_myCar, _got);        /* v277: 받은 값이 **기준본** (합쳐 쓰기가 이것을 본다) */
+        var mg = mergeCarState({ [String(_myCar)]: _got }, {});
+        localStorage.setItem('tkd_ridestate', JSON.stringify(mg.rideState||{}));
+        localStorage.setItem('tkd_carlog', JSON.stringify(mg.carlog||{records:[],plans:{}}));
+        localStorage.setItem(deliveryDoneKey(), JSON.stringify(mg.deliveryDone||{}));
+        localStorage.setItem(dropoffDoneKey(), JSON.stringify(mg.dropoffDone||{}));
+        localStorage.setItem('tkd_driver_att', JSON.stringify(mg.driverAtt||{}));
+        members = applyRideState(members);
+        renderByTab();
+      }catch(e){ console.log('차량 기록 반영 실패:', e && e.message); }
+    }, function(err){ console.log('차량 기록 리스너 거부:', err && err.code); }));
+  }catch(e){ console.log('차량 리스너 못 붙임:', e && e.message); }
+}
+/* 도우미 배정 지켜보기 — `orgs/{org}/drivers/{내 uid}` 한 문서 (43-B) */
+function helperWatchCar(orgId){
+  try{
+    if(!window._db || !window._firestore) return;
+    if(window._helperCarUnsub) return;            /* 두 번 붙지 않게(동기화가 여러 번 돈다) */
+    var { doc, onSnapshot } = window._firestore;
+    var who = myAuthUid();
+    if(!who) return;
+    window._helperCarUnsub = onSnapshot(doc(window._db, 'orgs', orgId, 'drivers', who), function(snap){
+      /* ★ 로그아웃한 뒤에도 리스너가 살아 있으면(아래 logout 이 떼지만 두 겹으로 막는다)
+         **관리자로 다시 들어온 화면**에서 이것이 깨어나 helperSwitchCar 가 폰을 비운다.
+         (같은 탭에서 도우미 → 로그아웃 → 관리자 로그인으로 실제로 그렇게 된다) */
+      if(!isHelperAcct() || currentMode!=='driver') return;
+      var cid = String(((snap.exists() && snap.data()) || {}).carId || '');
+      if(cid === String(window._driverCarId||'')) return;       /* 안 바뀌었으면 가만히 */
+      helperSwitchCar(orgId, cid);
+    }, function(err){ console.log('도우미 배정 리스너 거부:', err && err.code); });
+  }catch(e){ console.log('도우미 배정 리스너 못 붙임:', e && e.message); }
+}
+/* 배정이 바뀌었다 — 폰을 **비우고** 새 차량으로 갈아 끼운다.
+   ★ 비우는 까닭: 새 차량 사본이 아직 없을 때(관리자가 아직 안 만듦) 옛 차량 명단이
+     화면에 남으면 **남의 «회원» 이 보인다.** 빈 화면이 낫다(사본이 오면 바로 채워진다). */
+function helperSwitchCar(orgId, cid){
+  cid = String(cid||'');
+  window._driverCarId = cid || null;
+  try{ currentCarId = cid || ''; }catch(e){}
+  try{
+    members = []; localStorage.setItem('tkd_members','[]');
+    cars = [];    localStorage.setItem('tkd_cars','[]');
+    localStorage.setItem('tkd_ridestate','{}');
+    localStorage.setItem('tkd_carlog', JSON.stringify({records:[],plans:{}}));
+    localStorage.setItem(deliveryDoneKey(),'{}');
+    localStorage.setItem(dropoffDoneKey(),'{}');
+    localStorage.setItem('tkd_driver_att','{}');
+    _csBase = {};                       /* 기준본도 비운다 — 옛 차량 값으로 새 차량에 쓰지 않게 */
+  }catch(e){}
+  attachCarDocListeners(orgId, cid);    /* 옛 차량을 떼고 새 차량에 붙인다(바로 한 번 온다) */
+  try{ renderByTab(); }catch(e){}
+}
+
 function startFirebaseListeners(){
   if(!window._db || !window._firestore) return;
   var { doc, onSnapshot } = window._firestore;
@@ -17502,36 +17667,10 @@ function startFirebaseListeners(){
        사본 리스너가 같이 붙으면 그 셋을 **자기 차량 하나 몫으로 덮어** 버린다
        (v272 orgDriver 가 orgSettings 를 7칸으로 깎던 것과 **같은 꼴**이다). */
   if(currentMode==='driver'){
-    try{
-      var _myCar = driverLockedCarId();
-      if(_myCar){
-        onSnapshot(doc(window._db, 'orgs', orgId, 'carData', String(_myCar)), function(snap){
-          if(!snap.exists()) return;
-          try{
-            if(applyCarData(JSON.parse(snap.data().value))){
-              renderByTab();
-            }
-          }catch(e){ console.log('차량 사본 반영 실패:', e && e.message); }
-        }, function(err){ console.log('차량 사본 리스너 거부:', err && err.code); });
-        /* v275: 운행 기록(carState)도 내 차량 문서 하나만 듣는다 —
-           다른 기기(관리자 수기 토글 등)에서 바뀌면 바로 반영된다. */
-        onSnapshot(doc(window._db, 'orgs', orgId, 'carState', String(_myCar)), function(snap){
-          if(!snap.exists()) return;
-          try{
-            var _got = JSON.parse(snap.data().value);
-            _csSetBase(_myCar, _got);        /* v277: 받은 값이 **기준본** (합쳐 쓰기가 이것을 본다) */
-            var mg = mergeCarState({ [String(_myCar)]: _got }, {});
-            localStorage.setItem('tkd_ridestate', JSON.stringify(mg.rideState||{}));
-            localStorage.setItem('tkd_carlog', JSON.stringify(mg.carlog||{records:[],plans:{}}));
-            localStorage.setItem(deliveryDoneKey(), JSON.stringify(mg.deliveryDone||{}));
-            localStorage.setItem(dropoffDoneKey(), JSON.stringify(mg.dropoffDone||{}));
-            localStorage.setItem('tkd_driver_att', JSON.stringify(mg.driverAtt||{}));
-            members = applyRideState(members);
-            renderByTab();
-          }catch(e){ console.log('차량 기록 반영 실패:', e && e.message); }
-        }, function(err){ console.log('차량 기록 리스너 거부:', err && err.code); });
-      }
-    }catch(e){ console.log('차량 리스너 못 붙임:', e && e.message); }
+    attachCarDocListeners(orgId, driverLockedCarId());
+    /* ★ 43-B: **도우미는 배정 문서를 듣는다** — 관리자가 차량을 바꾸면 바로 따라간다.
+       기사는 붙이지 않는다(기사 PIN 은 차량에 걸려 있어 배정이 안 바뀐다). */
+    if(isHelperAcct()) helperWatchCar(orgId);
   }
   /* ★★ v277(43-0): **관리자도 차량 기록을 듣는다** — v275 에서 뺐던 것을 되살린다.
      v275 는 「관리자가 저장할 때 다시 쪼개니 리스너가 필요 없다」고 적었는데,
