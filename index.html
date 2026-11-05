@@ -491,6 +491,13 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
         <select class="form-input" id="m-car"></select>
       </div>
     </div>
+    <!-- v273: 하원 차량 — 학원·공공만 보인다(물류·택배는 하원 개념이 없다).
+         기본 「등원과 같음」(빈 값 저장) → 옛 «회원» 은 지금처럼 한 대로 다닌다. -->
+    <div class="form-row" id="wrap-dropcar">
+      <div style="flex:1;"><label class="form-label">하원 차량</label>
+        <select class="form-input" id="m-dropcar"></select>
+      </div>
+    </div>
     <div id="wrap-location">
     <label class="form-label" id="lbl-location">픽업 장소 *</label>
     <div style="display:flex;gap:6px;align-items:center;">
@@ -629,7 +636,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 272;
+const APP_VERSION = 273;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -4511,7 +4518,7 @@ var HELP_QA=[
   {role:'admin', keys:['회원','거래처','회원등록','거래처등록'], t:'회원/거래처 등록',
    a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
   {role:'admin', keys:['엑셀','업로드','일괄','양식','다운','내려받기'], t:'엑셀 일괄 업로드·데이터 다운',
-   a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록\n5. 「⬇ 데이터 다운」은 지금 «회원» 목록을 샘플 양식과 같은 칸으로 내려받아요 — 고쳐서 그대로 다시 업로드할 수 있어요'},
+   a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록\n5. 「⬇ 데이터 다운」은 지금 «회원» 목록을 샘플 양식과 같은 칸으로 내려받아요 — 고쳐서 그대로 다시 업로드할 수 있어요\n6. 학원·공공 양식에 <b>「하원 차량」</b> 칸이 생겼어요 — 비우면 「등원과 같음」이에요. <b>옛 엑셀(그 칸이 없는 파일)도 그대로 올라가요</b>'},
   {role:'admin', keys:['주소','검색','좌표','위치'], t:'주소 검색 요령',
    a:'1. 건물명 또는 도로명+번지까지 입력하세요 (예: 유원아파트 5동)\n2. 기관에서 가까운 곳이 먼저 나와요\n3. 카카오 지도에 없는 곳은 네이버 결과로 보조 검색돼요'},
   {role:'all', keys:['최적화','코스','경로','순서'], t:'코스 최적화',
@@ -4589,7 +4596,10 @@ var HELP_QA=[
   {role:'admin', keys:['현황','대시보드','통계'], t:'현황(대시보드) 보는 법',
    a:'1. 관리자 → 「📊 현황」 탭\n2. 위 카드: 전체 «회원» · 오늘 «출석» · 차량별 오늘 인원 — 카드를 누르면 명단이 아래에 펼쳐져요\n3. 「오늘 «출석률»」 막대와 차량별 진행 막대로 한눈에 확인해요\n4. 「💰 정부 지원사업」 카드를 누르면 공고 목록이 열려요\n5. 「📑 서류·인증 도움」에는 자주 쓰는 정부 사이트 바로가기가 있어요'},
   {role:'admin', keys:['차량','호차','기사','배정','차량번호','차종'], t:'차량 등록·기사 배정',
-   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
+   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
+  /* v273 — 두 차량 칸. 학원·공공만 쓰는 기능이라 그 점을 먼저 적는다. */
+  {role:'admin', keys:['하원차량','하원','등원','두차량','따로배정'], t:'등원·하원 차량을 따로 (하원 차량)',
+   a:'한 «회원»이 <b>등원은 1호차, 하원은 2호차</b>로 다닐 수 있어요 (학원·공공만 — 물류·택배는 하원이 없어 칸이 안 보여요)\n1. «회원»관리 → 수정 → 「차량」 아래 <b>「하원 차량」</b> 에서 고르세요. 기본은 <b>「등원과 같음」</b> 이에요\n2. 「등원과 같음」이면 지금까지처럼 <b>한 대</b>로 등·하원을 다 돌아요 — 쓰던 «회원»은 손댈 것이 없어요\n3. 차량관리에서도 바꿀 수 있어요 — 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요\n4. <b>운행 화면</b>은 방향에 따라 갈려요 — 등원 탭에는 등원 차량의 «회원», 하원 탭에는 하원 차량의 «회원»이 나와요\n5. 기사 「«회원»」 탭에는 <b>등원·하원 어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n6. 하원 차량 기사도 그 «회원»에게 <b>하차 알림 문자</b>를 보낼 수 있어요\n7. <b>수강료·«출결»은 등원 차량 하나 기준</b>이에요 — 한 «회원»이 두 번 세어지지 않아요\n8. 기사 급여는 <b>출퇴근 시간</b>으로 계산해서 이것과 상관없어요\n9. 차량을 지우면 그 차량을 하원으로 쓰던 «회원»도 「등원과 같음」으로 돌아가요'},
   {role:'admin', keys:['노선','운행시각','출발시간','도착시간'], t:'코스(노선) 추가·운행 시각',
    a:'1. 관리자 → 스케줄 탭 (물류·택배는 이 자리가 「배송현황」이라 화면이 달라요)\n2. 「코스 운행 시각」에서 코스마다 출발·도착 시각을 넣어요\n3. 「코스 추가/삭제」로 코스를 늘리거나 줄여요\n4. «회원» 등록 화면에서 각자 어느 코스인지 골라 주면 돼요'},
   {role:'admin', keys:['배송현황','요일별','배송지목록'], t:'배송현황 (물류·택배)',
@@ -4649,7 +4659,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림톡','카카오','sms','lms','문자언제'], t:'알림톡·문자는 언제 나가나요',
    a:'1. 카카오 알림톡: 하차 완료 · 납품 완료 · PIN 체크인 알림에 나가요 — 실패하면 문자로 자동 재발송돼요\n2. 문자(LMS): «알림장» 발송, 미납 알림, 「🚐 곧도착」 안내에 쓰여요\n3. 발송 설정은 서버에만 있어서 앱에는 키가 저장되지 않아요\n4. 안 나갈 땐 받는 분 연락처가 등록돼 있는지 먼저 확인해 주세요'},
   {role:'driver', keys:['기사화면','내화면','오늘운행','내차량','자기차량','차량탭','다른차량','회원탭','명단','탑승','카드'], t:'기사 운행 화면 사용법',
-   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n5. 배정된 차량이 없으면 운행 화면·«회원» 탭에 「배정된 차량이 없어요」만 나와요 — 관리자가 차량을 배정해 주면 바로 보여요\n6. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n7. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n8. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n9. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n10. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
+   a:'1. 오늘 돌 «회원»이 순서대로 카드로 나와요\n2. 카드의 동그란 단추를 누르면 <b>오늘 태울지 말지</b>를 바꿔요 (학원·공공은 탑승/미탑승, 물류·택배는 완료/미완료)\n3. 이것은 <b>«출결»과 다른 기능이에요</b> — «출석» 기록은 바뀌지 않아요. 코스에서 넣고 빼는 표시일 뿐이에요\n4. 맨 위에 <b>내 차량 한 칸만</b> 보여요 — 다른 차량으로 바꿀 수 없어요. 차량이 바뀌었으면 관리자에게 말씀하세요\n4-1. 학원·공공은 <b>등원 탭과 하원 탭에 나오는 «회원»이 다를 수 있어요</b> — 등원은 다른 차량, 하원만 내 차량인 «회원»은 <b>하원 탭에만</b> 나와요 (관리자가 그렇게 배정한 거예요)\n4-2. 「«회원»」 탭에는 등원·하원 <b>어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n5. 배정된 차량이 없으면 운행 화면·«회원» 탭에 「배정된 차량이 없어요」만 나와요 — 관리자가 차량을 배정해 주면 바로 보여요\n6. 위쪽 「📍 공유」·「🔀 최적화」·「T맵 출발 →」로 코스를 다뤄요\n7. 아래 「🌅 출근」·「🌆 퇴근」·「⛽ 차계부」를 써요\n8. 위쪽 「👥 «회원»」 탭도 <b>내 차량 «회원»만</b> 나와요 — 검색·반 고르기도 내 차량 안에서만 찾아요\n9. 기사 화면에는 PIN 판이 없어요 — «회원» 출석 PIN 은 관리자 화면에서 써요\n10. 전부 완료하면 T맵 출발 자리에 완료 안내가 떠요'},
   {role:'driver', keys:['기사차계부','내차계부','주유기록'], t:'기사 차계부 (내 차량 기록)',
    a:'1. 운행 화면 → 「⛽ 차계부」 — 배정된 내 차량에 바로 기록돼요\n2. 주유 · 정비 · 기타를 넣을 수 있어요\n3. 잘못 넣었으면 관리자에게 요청하세요 — 기사 화면에서는 수정·삭제가 안 돼요\n4. 관리자와 같은 기록을 함께 봐요'},
   {role:'all', keys:['뒤로','뒤로가기','back','창닫기','앱이꺼져','나가짐'], t:'뒤로가기를 누르면 어떻게 되나요?',
@@ -4995,8 +5005,37 @@ function switchTab(tab){
 function renderByTab(){switchTab(currentTab);}
 
 // ── 운행 화면 ──
+/* ── 두 차량 칸 (v273) ───────────────────────────────────────────────────
+   «회원» 한 명이 **등원은 1호차, 하원은 2호차** 로 다닐 수 있다.
+     · `m.carId`     = 등원(픽업) 차량
+     · `m.carIdDrop` = 하원(하차) 차량 — **비면 `carId` 와 같다**
+   그래서 옛 자료(칸이 없는 «회원»)는 **그대로 한 대로** 다닌다(옮기기 없음).
+   ★ 차량을 보는 자리는 **흩어진 `m.carIdDrop||m.carId` 를 쓰지 않고** 이 함수를 쓴다 —
+     한 곳만 고치면 모든 자리가 같이 맞는다.
+   ★ **학원·공공만** 쓴다. 물류·택배는 하원 개념이 없어(아래 isDropLeg) 화면에 칸도 안 보이고
+     값도 안 쓴다 — `dropCarOf` 는 그 업종에서 언제나 `carId` 를 돌려준다. */
+function dropCarOf(m){
+  if(!m) return '';
+  var biz=getBizType();
+  if(biz!=='academy' && biz!=='public') return String(m.carId||'');
+  return String(m.carIdDrop || m.carId || '');
+}
+/* 이 «회원»이 그 차량과 **어느 쪽으로든** 엮여 있나 (등원 또는 하원) */
+function inCarEitherLeg(m, carId){
+  var c=String(carId||'');
+  if(!c || !m) return false;
+  return String(m.carId||'')===c || dropCarOf(m)===c;
+}
+/* 하원만 그 차량인가 (차량관리·회원 목록에서 「하원」 표시에 쓴다) */
+function isDropOnly(m, carId){
+  var c=String(carId||'');
+  if(!c || !m) return false;
+  return dropCarOf(m)===c && String(m.carId||'')!==c;
+}
 // ── 픽업/하차(등원·하원) 구분 헬퍼 ──
 function isDropLeg(){ return driveLeg==='dropoff' && (getBizType()==='academy'||getBizType()==='public'); }
+/* 지금 방향에서 이 «회원»을 태우는 차량 — 등원이면 carId, 하원이면 dropCarOf */
+function legCarOf(m){ return isDropLeg() ? dropCarOf(m) : String((m&&m.carId)||''); }
 function legLoc(m){ return isDropLeg() ? (m.dropLocation||m.location) : m.location; }
 function legLat(m){ return isDropLeg() ? (m.dropLat!=null?m.dropLat:m.lat) : m.lat; }
 function legLon(m){ return isDropLeg() ? (m.dropLon!=null?m.dropLon:m.lon) : m.lon; }
@@ -5089,7 +5128,7 @@ function sendDropoffDone(memberId){
 
 function getActiveStudents(){
   var _logi=getBizType()==='logistics'||getBizType()==='delivery';
-  const today=members.filter(m=>m.days.includes(currentDay)&&(_logi||m.courseId===currentCourseId)&&m.carId===currentCarId);
+  const today=members.filter(m=>m.days.includes(currentDay)&&(_logi||m.courseId===currentCourseId)&&legCarOf(m)===currentCarId);   /* v273: 하원이면 하원 차량 */
   if(optimizedOrder)return optimizedOrder.filter(s=>{var mm=members.find(m=>m.id===s.id);return mm&&legOn(mm);});
   return today.filter(m=>legOn(m)).map(legView);
 }
@@ -5122,7 +5161,8 @@ function driverScopeMembers(list){
   if(currentMode!=='driver') return list||[];
   var lock = driverLockedCarId();
   if(!lock) return [];
-  return (list||[]).filter(function(m){ return String(m.carId||'')===lock; });
+  /* v273: **등원 또는 하원** 어느 쪽이든 내 차량이면 내 «회원» 이다 */
+  return (list||[]).filter(function(m){ return inCarEitherLeg(m, lock); });
 }
 function driverNoCarHtml(){
   return '<div class="empty-state" style="padding:40px 24px;line-height:1.8;">'
@@ -5186,7 +5226,7 @@ function renderDrive(){
   /* v256 보정2: 기사는 **자기 차량 한 칸만** — 누를 수 없는 이름표다(바꿀 길이 없다) */
   var _carTabs = _lockCar ? cars.filter(function(c){ return c.id===_lockCar; }) : cars;
   _carTabs.forEach(car=>{
-    const cnt=todayM.filter(m=>(_logiDrive||m.courseId===currentCourseId)&&m.carId===car.id&&m.on).length;
+    const cnt=todayM.filter(m=>(_logiDrive||m.courseId===currentCourseId)&&legCarOf(m)===car.id&&legOn(m)).length;   /* v273 */
     const isActive=car.id===currentCarId;
     if(_lockCar){
       tabHtml+=`<div style="flex:1;padding:10px;border-radius:10px;background:#ABEFC6;color:#067647;font-size:12px;font-weight:700;text-align:center;">${escapeMasterHtml(car.name)}<br><span style="font-size:10px;font-weight:400;">${cnt}곳</span></div>`;
@@ -5197,7 +5237,7 @@ function renderDrive(){
   tabHtml += '</div></div>';
   document.getElementById('drive-tabs').innerHTML = tabHtml;
 
-  const clsSt=todayM.filter(m=>(_logiDrive||m.courseId===currentCourseId)&&m.carId===currentCarId).map(legView);
+  const clsSt=todayM.filter(m=>(_logiDrive||m.courseId===currentCourseId)&&legCarOf(m)===currentCarId).map(legView);   /* v273 */
   const activeSt=getActiveStudents();
   const course=courses.find(c=>c.id===currentCourseId)||courses[0];
   const car=cars.find(c=>c.id===currentCarId)||cars[0];
@@ -5478,7 +5518,7 @@ function openTmap(){
 
   /* 진행 상황: 오늘 명단 기준 완료 수 */
   var _logiT=getBizType()==='logistics'||getBizType()==='delivery';
-  var todayListT=members.filter(function(m){ return m.days.includes(currentDay)&&(_logiT||m.courseId===currentCourseId)&&m.carId===currentCarId; });
+  var todayListT=members.filter(function(m){ return m.days.includes(currentDay)&&(_logiT||m.courseId===currentCourseId)&&legCarOf(m)===currentCarId; });   /* v273 */
   var doneCnt=todayListT.filter(function(m){ return isStopCompleted(m.id); }).length;
 
   if(remaining.length===0){
@@ -6584,10 +6624,10 @@ function downloadSampleExcel(){
   } else {
     // 학원·공공 (기본)
     data=[
-      ['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항','하차장소'],
-      ['홍길동','3시30분반','1호차','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기','행복아파트 101동'],
-      ['김영희','5~6시반','2호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678','',''],
-      ['이철수','3시30분반','1호차','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞',''],
+      ['이름','코스(수업반)','차량','하원 차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항','하차장소'],
+      ['홍길동','3시30분반','1호차','','용현초 정문','010-1234-5678','010-9876-5432','월,화,수,목,금',50000,100000,'1234','정문 우측 대기','행복아파트 101동'],
+      ['김영희','5~6시반','2호차','1호차','행복유치원','010-2222-3333','','월,수,금',0,80000,'5678','',''],
+      ['이철수','3시30분반','1호차','','행복아파트 101동','010-4444-5555','','월,화,수,목,금',50000,100000,'9012','경비실 앞',''],
     ];
     note=[
       ['항목','작성 방법','예시'],
@@ -6598,6 +6638,7 @@ function downloadSampleExcel(){
       ['보호자연락처','하이픈(-) 포함','010-1234-5678'],
       ['등원요일','쉼표(,)로 구분','월,화,수,목,금'],
       ['차량','1호차~5호차 중','1호차, 2호차'],
+      ['하원 차량','하원만 다른 차량일 때 그 차량 이름 (비우면 등원과 같음)','2호차'],
       ['PIN','출석 4자리','1234'],
       ['특이사항','메모 (없으면 빈칸)','정문 우측 대기'],
     ];
@@ -6627,10 +6668,16 @@ function handleExcelFile(file){
       var pending=[];
       /* v255: 기사 PIN 은 앱 자료에 없다(서버 해시) → 들어온 PIN 종류를 한 번에 서버에 묻는다.
          PIN 칸은 학원·공공 양식에만 있다(물류·택배 양식에는 없음 — 위 분기에서 pin='') */
-      var _pinCol=(biz==='logistics'||biz==='delivery')?-1:9;
+      /* v273: 학원·공공 양식에 **「하원 차량」 칸이 생겼다**(「차량」 바로 뒤).
+         옛 엑셀에는 없으므로 **머리글을 보고** 칸 위치를 정한다 — 없으면 옛 자리 그대로 읽고
+         하원은 빈 값(= 등원과 같음)이 된다. 그래서 옛 파일이 그대로 들어온다. */
+      var _hdr=(rows[0]||[]).map(function(h){ return String(h||'').replace(/\s/g,''); });
+      var _hasDropCar=(biz!=='logistics'&&biz!=='delivery') && _hdr.indexOf('하원차량')>=0;
+      var _sh=_hasDropCar?1:0;          /* 「하원 차량」 뒤쪽 칸들이 한 칸 밀린다 */
+      var _pinCol=(biz==='logistics'||biz==='delivery')?-1:(9+_sh);
       var _drvTaken=(_pinCol<0)?{}:await drvPinTakenSet(dataRows.map(function(r){ return r[_pinCol]; }));
       dataRows.forEach(r=>{
-        var name,courseName,carName,location,phone,phone2,daysRaw,regfee,monthly,pin,note;
+        var name,courseName,carName,location,phone,phone2,daysRaw,regfee,monthly,pin,note,dropCarName;
         var dropLocation='';
         var courier='',invoice='',ordNo='',sender='',senderPhone='';
         var bizNo='',ceo='',bizCat='',bizItem='',bizEmail='';
@@ -6655,11 +6702,13 @@ function handleExcelFile(file){
         } else {
           // 학원·공공: 이름/코스/차량/픽업장소/연락처1/연락처2/등원요일/등록비/월정액/PIN/특이사항
           name=String(r[0]||'').trim(); courseName=String(r[1]||'').trim();
-          carName=String(r[2]||'1호차').trim(); location=String(r[3]||'').trim();
-          phone=String(r[4]||'').trim(); phone2=String(r[5]||'').trim();
-          daysRaw=String(r[6]||'월,화,수,목,금').trim(); regfee=parseInt(r[7])||0;
-          monthly=parseInt(r[8])||0; pin=String(r[9]||'').trim(); note=String(r[10]||'').trim();
-          dropLocation=String(r[11]||'').trim();
+          carName=String(r[2]||'1호차').trim();
+          dropCarName=_hasDropCar?String(r[3]||'').trim():'';          /* v273 */
+          location=String(r[3+_sh]||'').trim();
+          phone=String(r[4+_sh]||'').trim(); phone2=String(r[5+_sh]||'').trim();
+          daysRaw=String(r[6+_sh]||'월,화,수,목,금').trim(); regfee=parseInt(r[7+_sh])||0;
+          monthly=parseInt(r[8+_sh])||0; pin=String(r[9+_sh]||'').trim(); note=String(r[10+_sh]||'').trim();
+          dropLocation=String(r[11+_sh]||'').trim();
         }
         if(!name||!location){skipped++;return;}
         var course=courses.find(c=>c.name===courseName);
@@ -6670,12 +6719,17 @@ function handleExcelFile(file){
         }
         if(!course) course=courses[0];
         const car=cars.find(c=>c.name===carName)||cars[0];
+        /* v273: 하원 차량 — 이름으로 찾는다. 비었거나 「등원과 같음」이면 빈 값(= 등원과 같음). */
+        var _dropCar=null;
+        if(dropCarName && dropCarName!=='등원과 같음'){ _dropCar=cars.find(function(c){return c.name===dropCarName;})||null; }
+        var _carIdDrop=(_dropCar && _dropCar.id!==(car&&car.id)) ? _dropCar.id : '';
         const days=daysRaw.split(',').map(d=>d.trim()).filter(d=>DAYS.includes(d));
         if(members.find(m=>m.name===name) || pending.find(m=>m.name===name)){skipped++;return;}
         if(pin && (members.find(m=>m.pin===pin) || pending.find(m=>m.pin===pin) || _drvTaken[pin] || activeStaff().find(s=>s.pin===pin))){skipped++;return;}
         var obj={id:nextId++,name,courseId:course?.id||'c1',carId:car?.id||'car1',location,lat:null,lon:null,dropLocation:(dropLocation||location),dropLat:null,dropLon:null,phone,phone2,days:days.length?days:DAYS,regfee:regfee,monthly:monthly,pin:pin,note,on:true};
         if(biz==='delivery'){ obj.courier=courier; obj.invoice=invoice; obj.ordNo=ordNo; obj.sender=sender; obj.senderPhone=senderPhone; }
         if(biz==='logistics'){ obj.bizNo=bizNo; obj.ceo=ceo; obj.bizCat=bizCat; obj.bizItem=bizItem; obj.bizEmail=bizEmail; }
+        if(biz==='academy'||biz==='public'){ obj.carIdDrop=_carIdDrop; }   /* v273 */
         pending.push(obj);
       });
       /* ── 주소 → 좌표 변환 (2026-07-22 근본수정) ──
@@ -6748,20 +6802,55 @@ function toggleMemberDay(memberId, day){
   renderAdminTab('cars');
 }
 
-function assignMemberToCar(memberId, carId){
-  carId = carId.replace(/&quot;/g, '');
+/* ── 차량관리 빠른 배정 (v273) ─────────────────────────────────────────────
+   사장님 11-05: 「등하원·거래처 배정은 **관리자가** 한다 · 차량 배정은 **유동적**이다」
+   → 날짜별 배차표는 두지 않고, 관리자가 **그때그때** 바꾼다. 학원·공공은 등원·하원을 따로 고른다.
+   ★ 자료 모양이 「`carIdDrop` 이 비면 `carId` 와 같다」이므로 **「하원만 미배정」은 없다** —
+     등원이 이 차량인데 하원만 떼어 내려면 하원을 **다른 차량에** 주어야 한다(그 차량에서 「하원」으로 넣는다).
+     그래서 아래 해제는 상태에 따라 **되는 것만** 보여 준다(없는 상태를 만들지 않는다).
+   mode: 'both'(둘 다) | 'pickup'(등원만) | 'drop'(하원만) */
+function assignMemberToCar(memberId, carId, mode){
+  carId = String(carId||'').replace(/&quot;/g, '');
   const m=members.find(m=>m.id===memberId);
   if(!m)return;
-  m.carId=carId;
+  var biz=getBizType();
+  /* 물류·택배는 하원 개념이 없다 — 지금 그대로 등원(carId)만 바꾼다 */
+  if(biz!=='academy' && biz!=='public') mode='both';
+  mode = mode || 'both';
+  if(mode==='pickup'){
+    /* 등원만 이 차량으로. 하원은 **안 바뀌어야** 하므로, 원래 「등원과 같음」(빈 값)이었으면
+       옛 등원 차량을 carIdDrop 에 적어 둔다 — 안 그러면 하원도 따라와 버린다. */
+    if(!String(m.carIdDrop||'')) m.carIdDrop=String(m.carId||'');
+    m.carId=carId;
+    if(String(m.carIdDrop||'')===carId) m.carIdDrop='';     /* 같아지면 빈 값 */
+  } else if(mode==='drop'){
+    m.carIdDrop = (String(m.carId||'')===carId) ? '' : carId;
+  } else {
+    m.carId=carId;
+    m.carIdDrop='';                                          /* 둘 다 = 하원은 「등원과 같음」 */
+  }
   saveMembers();
   renderAdminTab('cars');
 }
 
-function removeMemberFromCar(memberId){
+/* mode: 'both'(전체 해제) | 'pickup'(등원만 빼기) | 'drop'(하원만 빼기) */
+function removeMemberFromCar(memberId, mode){
   const m=members.find(m=>m.id===memberId);
   if(!m)return;
+  var biz=getBizType();
+  if(biz!=='academy' && biz!=='public') mode='both';
+  mode = mode || 'both';
   showConfirmModal(function(){
-    m.carId='';
+    if(mode==='pickup'){
+      /* 등원만 뺀다 — 하원은 이 차량에 **남는다**(옛 등원 차량을 carIdDrop 에 적어 둔다) */
+      if(!String(m.carIdDrop||'')) m.carIdDrop=String(m.carId||'');
+      m.carId='';
+    } else if(mode==='drop'){
+      /* 하원만 뺀다 — 하원을 등원과 같게 되돌린다(등원이 다른 차량이면 이 차량에서 빠진다) */
+      m.carIdDrop='';
+    } else {
+      m.carId=''; m.carIdDrop='';
+    }
     saveMembers();
     renderAdminTab('cars');
   });
@@ -7332,7 +7421,7 @@ function renderMembers(){
     if(query&&!m.name.toLowerCase().includes(query))return false;
     if(filterRiding&&!m.on)return false;
     if(filterCourse&&m.courseId!==filterCourse)return false;
-    if(filterCar&&m.carId!==filterCar)return false;
+    if(filterCar&&!inCarEitherLeg(m,filterCar))return false;   /* v273: 등원·하원 둘 다 */
     return true;
   });
   const listEl=document.getElementById('member-list');
@@ -7364,10 +7453,22 @@ function populateSelects(){
   const cs=document.getElementById('m-class');const cv=document.getElementById('m-car');
   cs.innerHTML=courses.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
   cv.innerHTML=cars.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
+  /* v273: 하원 차량 — 맨 위가 「등원과 같음」(빈 값) */
+  var dv=document.getElementById('m-dropcar');
+  if(dv) dv.innerHTML='<option value="">등원과 같음</option>'
+    + cars.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
+}
+/* 하원 차량 칸은 **학원·공공만** 보인다 */
+function applyDropCarVisibility(){
+  var w=document.getElementById('wrap-dropcar');
+  if(!w) return;
+  var biz=getBizType();
+  w.style.display=(biz==='academy'||biz==='public') ? '' : 'none';
 }
 // 물류 거래처용 모달 변환 (물류일 때만 라벨/칸 변경)
 function applyBizModalLayout(){
   var biz = getBizType();
+  applyDropCarVisibility();        /* v273: 하원 차량 칸은 학원·공공만 */
   var lblName=document.getElementById('lbl-name');
   var lblLoc=document.getElementById('lbl-location');
   var lblPhone=document.getElementById('lbl-phone');
@@ -7517,6 +7618,7 @@ function openAddModal(){
   var _lar=document.getElementById('member-addr-result'); if(_lar){ _lar.style.display='none'; _lar.innerHTML=''; }
   document.getElementById('m-class').value=courses[0]?.id||'';
   document.getElementById('m-car').value=cars[0]?.id||'';
+  var _dc0=document.getElementById('m-dropcar'); if(_dc0) _dc0.value='';   /* v273: 하원은 「등원과 같음」 */
   Object.values(dayIdMap).forEach(d=>document.getElementById('d-'+d).checked=false);
   // 삭제 버튼 제거됨
   var m2=document.getElementById('member-modal');m2.style.display='';m2.classList.add('show');
@@ -7530,6 +7632,7 @@ function openEditModal(id){
   document.getElementById('m-name').value=m.name;
   document.getElementById('m-class').value=m.courseId;
   document.getElementById('m-car').value=m.carId;
+  var _dc=document.getElementById('m-dropcar'); if(_dc) _dc.value=String(m.carIdDrop||'');   /* v273 */
   document.getElementById('m-phone').value=m.phone;
   document.getElementById('m-phone2').value=m.phone2||'';
   document.getElementById('m-location').value=m.location;
@@ -7616,7 +7719,16 @@ async function saveMember(){
   function dv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
   var deliveryFields = (biz==='delivery') ? {courier:dv('m-courier'),invoice:dv('m-invoice'),ordNo:dv('m-ordno'),sender:dv('m-sender'),senderPhone:dv('m-senderphone')} : {};
   var bizInfoFields = (biz==='logistics') ? {bizNo:dv('m-bizno'),ceo:dv('m-ceo'),bizEmail:dv('m-bizemail'),bizCat:dv('m-bizcat'),bizItem:dv('m-bizitem')} : {};
-  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,addrDetail:(document.getElementById('m-addrdetail')?document.getElementById('m-addrdetail').value.trim():''),days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields);
+  /* v273 하원 차량 — **학원·공공만**. 등원과 같은 값이면 **빈 값**으로 저장한다
+     (같은 뜻을 두 모양으로 두지 않는다 — 「등원과 같음」은 언제나 빈 값이다). */
+  var dropCarFields = {};
+  if(biz==='academy' || biz==='public'){
+    var _dcEl=document.getElementById('m-dropcar');
+    var _dcVal=_dcEl ? String(_dcEl.value||'') : '';
+    if(_dcVal === document.getElementById('m-car').value) _dcVal='';
+    dropCarFields = { carIdDrop: _dcVal };
+  }
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,addrDetail:(document.getElementById('m-addrdetail')?document.getElementById('m-addrdetail').value.trim():''),days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields, dropCarFields);
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -9971,7 +10083,7 @@ function filterDriverMembers(q){
     if(!m.name.toLowerCase().includes(q)) return false;
     if(filterRiding && !m.on) return false;
     if(filterCourse && m.courseId!==filterCourse) return false;
-    if(filterCar && m.carId!==filterCar) return false;
+    if(filterCar && !inCarEitherLeg(m,filterCar)) return false;   /* v273: 등원·하원 둘 다 */
     return true;
   }).slice().sort(function(a,b){ return memberSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
   var html='';
@@ -13377,6 +13489,9 @@ function fillAligoInputs(){ /* 알리고 키는 서버에만 있습니다. 입�
 
 
 var currentCarTab = 0;
+/* v273: 차량관리 빠른 배정에서 「넣을 때」 고른 것 — 'both'|'pickup'|'drop'.
+   기본 'both' = 지금까지와 같은 결과(등원·하원 한 대). 화면에만 쓰는 값이라 저장하지 않는다. */
+var carAssignMode = 'both';
 function setCarTab(idx){ currentCarTab=idx; renderAdminTab('cars'); }
 // ══════════════════════
 // 차계부 (4업종 공통, 관리자+기사 공유)
@@ -15393,8 +15508,10 @@ function renderCars(){
   if(!_drvInfoLoaded && !_drvInfoErr && !_drvInfoLoading && !isDemoMode()){ driverInfoLoad().then(function(){ try{ renderAdminTab(currentAdminTab); }catch(e){} }); }
   if(!_orgCode && !_orgCodeErr && !_orgCodeAsked && !isDemoMode()){ _orgCodeAsked=true; orgCodeLoad(); }
   if(!car) return;
-  var carMembers=members.filter(function(m){return m.carId===car.id;});
-  var unassigned=members.filter(function(m){return m.carId!==car.id;});
+  /* v273: 이 차량에 **등원 또는 하원** 어느 쪽으로든 엮인 «회원» (하원만인 사람도 보인다) */
+  var carMembers=members.filter(function(m){return inCarEitherLeg(m, car.id);});
+  var unassigned=members.filter(function(m){return !inCarEitherLeg(m, car.id);});
+  var _twoLeg=(getBizType()==='academy'||getBizType()==='public');   /* 하원 개념이 있는 업종 */
   var html='<div style="padding:0;">';
   // 추가/삭제 버튼 + 호차탭 sticky
   html+='<div style="position:sticky;top:0;z-index:97;background:white;">';
@@ -15449,8 +15566,32 @@ function renderCars(){
     html+='<div style="background:#F2F4F7;border-radius:8px;padding:9px 11px;margin-bottom:6px;">';
     html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
     html+='<span style="font-size:13px;font-weight:700;">'+escapeMasterHtml(m.name)+'</span>';
-    html+='<div style="display:flex;gap:4px;align-items:center;"><span style="font-size:10px;color:#98A2B3;">'+escapeMasterHtml(((courses.find(function(c){return c.id===m.courseId;})||{}).name||''))+'</span>';
-    html+='<button onclick="removeMemberFromCar('+m.id+')" style="padding:2px 8px;border:1px solid #F04438;border-radius:5px;font-size:10px;color:#F04438;background:white;cursor:pointer;">해제</button></div></div>';
+    html+='<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;"><span style="font-size:10px;color:#98A2B3;">'+escapeMasterHtml(((courses.find(function(c){return c.id===m.courseId;})||{}).name||''))+'</span>';
+    /* v273: 등원·하원이 다르면 어느 쪽으로 엮였는지 띠로 보여 준다 */
+    var _rmBtn=function(mode,label,title){
+      return '<button onclick="removeMemberFromCar('+m.id+',&quot;'+mode+'&quot;)" title="'+title+'"'
+        +' style="padding:2px 8px;border:1px solid #F04438;border-radius:5px;font-size:10px;color:#F04438;background:white;cursor:pointer;">'+label+'</button>';
+    };
+    if(_twoLeg && isDropOnly(m, car.id)){
+      /* 하원만 이 차량 — 등원은 다른 차량이다 */
+      var _pk=cars.find(function(c){ return c.id===String(m.carId||''); });
+      html+='<span style="font-size:10px;font-weight:700;color:#067647;background:#ABEFC6;border-radius:4px;padding:1px 5px;">하원</span>';
+      if(_pk) html+='<span style="font-size:10px;color:#98A2B3;">등원 '+escapeMasterHtml(_pk.name)+'</span>';
+      html+=_rmBtn('drop','하원 해제','하원을 등원 차량과 같게 되돌립니다');
+    } else if(_twoLeg && String(m.carIdDrop||'') && String(m.carIdDrop)!==car.id){
+      /* 등원만 이 차량 — 하원은 다른 차량이다 */
+      var _dp=cars.find(function(c){ return c.id===String(m.carIdDrop); });
+      html+='<span style="font-size:10px;font-weight:700;color:#B54708;background:#FEF0C7;border-radius:4px;padding:1px 5px;">등원</span>';
+      if(_dp) html+='<span style="font-size:10px;color:#98A2B3;">하원 '+escapeMasterHtml(_dp.name)+'</span>';
+      html+=_rmBtn('pickup','해제','이 차량에서 등원을 뺍니다');
+    } else if(_twoLeg){
+      /* 등원·하원 둘 다 이 차량 — 등원만 떼거나 전체 해제 */
+      html+=_rmBtn('pickup','등원 해제','등원만 빼고 하원은 이 차량에 남깁니다');
+      html+=_rmBtn('both','전체 해제','등원·하원 모두 뺍니다');
+    } else {
+      html+=_rmBtn('both','해제','이 차량에서 뺍니다');
+    }
+    html+='</div></div>';
     html+='<div style="display:flex;gap:4px;">';
     DAYS.forEach(function(d){
       var on=m.days.indexOf(d)>=0;
@@ -15459,9 +15600,33 @@ function renderCars(){
     html+='</div></div>';
   });
   html+='</div><div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">➕ '+T('회원')+' 추가</div>';
+  /* v273: 학원·공공은 **넣을 때 등원/하원/둘 다** 를 먼저 고른다.
+     단추를 «회원» 마다 셋으로 늘리지 않고 **위에서 한 번** 고르게 했다(이름 단추는 그대로 하나). */
+  if(_twoLeg && unassigned.length>0){
+    html+='<div style="display:flex;gap:4px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">';
+    html+='<span style="font-size:11px;color:#667085;">넣을 때:</span>';
+    [['both','둘 다'],['pickup','등원만'],['drop','하원만']].forEach(function(o){
+      var on=(carAssignMode===o[0]);
+      html+='<button onclick="carAssignMode=&quot;'+o[0]+'&quot;;renderAdminTab(&quot;cars&quot;);"'
+        +' style="padding:4px 10px;border-radius:14px;border:1px solid '+(on?'#EA580C':'#EAECF0')+';'
+        +'background:'+(on?'#EA580C':'white')+';color:'+(on?'white':'#667085')+';font-size:11px;font-weight:700;cursor:pointer;">'
+        +o[1]+'</button>';
+    });
+    html+='</div>';
+  }
   if(unassigned.length===0) html+='<div style="font-size:12px;color:#98A2B3;">미배정 '+조사(T('회원'),'이','가')+' 없습니다.</div>';
   else { html+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-    unassigned.forEach(function(m){ html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+escapeMasterHtml(m.name)+' +</button>'; });
+    unassigned.forEach(function(m){
+      /* 어느 차량에 엮여 있는지 짧게 보여 준다(미배정이 아니라 「다른 차량」일 수 있다) */
+      var _tag='';
+      if(_twoLeg){
+        var _pc=cars.find(function(c){ return c.id===String(m.carId||''); });
+        var _dc2=cars.find(function(c){ return c.id===dropCarOf(m); });
+        if(_pc && _dc2 && _pc.id!==_dc2.id) _tag=' <span style="font-size:9px;color:#98A2B3;">('+escapeMasterHtml(_pc.name)+'/'+escapeMasterHtml(_dc2.name)+')</span>';
+        else if(_pc) _tag=' <span style="font-size:9px;color:#98A2B3;">('+escapeMasterHtml(_pc.name)+')</span>';
+      }
+      html+='<button onclick="assignMemberToCar('+m.id+',&quot;'+car.id+'&quot;,&quot;'+(_twoLeg?carAssignMode:'both')+'&quot;)" style="padding:5px 10px;border:1px solid #FB923C;border-radius:20px;font-size:11px;color:#EA580C;background:white;cursor:pointer;">'+escapeMasterHtml(m.name)+_tag+' +</button>';
+    });
     html+='</div>'; }
   html+='</div>';
   // 학원·공공: 차량관리 안에 기사 근태관리 함께 표시
@@ -15588,6 +15753,13 @@ function downloadMembersExcel(){
   var biz=getBizType();
   var rows,cols,sheetName,fileWord;
   var carName=function(m){ var c=cars.find(function(x){return x.id===m.carId;}); return c?c.name:''; };
+  /* v273: 하원 차량 — 등원과 같으면 「등원과 같음」으로 적는다(빈 칸보다 뜻이 분명하다) */
+  var dropCarName=function(m){
+    var d=dropCarOf(m);
+    if(!d) return '';
+    if(d===String(m.carId||'')) return '등원과 같음';
+    var c=cars.find(function(x){return x.id===d;}); return c?c.name:'';
+  };
   if(biz==='logistics'){
     rows=[['거래처명','배정차량','거래처주소','거래처전화','배송요일','사업자등록번호','대표자','업태','종목','계산서이메일','특이사항']];
     members.forEach(function(m){
@@ -15605,12 +15777,12 @@ function downloadMembersExcel(){
     cols=[{wch:8},{wch:12},{wch:12},{wch:16},{wch:24},{wch:12},{wch:12},{wch:14},{wch:12},{wch:14},{wch:20}];
     sheetName='배송지명단'; fileWord='배송지명단';
   } else {
-    rows=[['이름','코스(수업반)','차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항']];
+    rows=[['이름','코스(수업반)','차량','하원 차량','픽업장소','보호자연락처1','보호자연락처2','등원요일','등록비','월정액','PIN','특이사항']];
     members.forEach(function(m){
       var course=courses.find(function(c){return c.id===m.courseId;});
-      rows.push([m.name,course?course.name:'',carName(m),fullLoc(m),m.phone||'',m.phone2||'',(m.days||[]).join(','),m.regfee||0,m.monthly||0,m.pin||'',m.note||'']);
+      rows.push([m.name,course?course.name:'',carName(m),dropCarName(m),fullLoc(m),m.phone||'',m.phone2||'',(m.days||[]).join(','),m.regfee||0,m.monthly||0,m.pin||'',m.note||'']);
     });
-    cols=[{wch:12},{wch:12},{wch:8},{wch:20},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:8},{wch:20}];
+    cols=[{wch:12},{wch:12},{wch:8},{wch:10},{wch:20},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:8},{wch:20}];
     sheetName=T('회원')+'명단'; fileWord=T('회원')+'명단';
   }
   var wb=XLSX.utils.book_new(); var ws=XLSX.utils.aoa_to_sheet(rows);
@@ -15694,9 +15866,14 @@ function deleteCurrentCar(){
   var car = cars[currentCarTab];
   if(!car) return;
   showConfirmModal(function(){
-  var assigned = members.filter(function(m){return m.carId===car.id;});
+  /* v273: 등원(carId)뿐 아니라 **하원(carIdDrop)도** 이 차량이면 비운다.
+     안 비우면 지운 차량 id 가 남아 dropCarOf 가 없는 차량을 가리킨다. */
+  var assigned = members.filter(function(m){return m.carId===car.id || String(m.carIdDrop||'')===car.id;});
   if(assigned.length > 0){
-    members.forEach(function(m){ if(m.carId===car.id) m.carId=''; });
+    members.forEach(function(m){
+      if(m.carId===car.id) m.carId='';
+      if(String(m.carIdDrop||'')===car.id) m.carIdDrop='';
+    });
     saveMembers();
   }
   cars.splice(currentCarTab, 1);
