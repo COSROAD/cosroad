@@ -49,6 +49,12 @@
     v255 추가: 기사 로그인 관리 — `issueOrgCode`(업체 번호 6자리) · `setDriverPin` · `checkPinDup`
     · `removeDriverPin` · `unbindDevice` · `driverInfo`(PIN 설정 여부·기기·최근 로그인 5건)
     · `migrateDriverData`(옛 `cars[].driverPin` → 해시). 권한은 모두 **마스터 · 소유자 · `_test` 출입 계정** 세 갈래.
+    **v278(47): 업체 쪽 「쓰기」 다섯은 이용 기간도 본다** — `issueOrgCode`·`setDriverPin`
+    ·`removeDriverPin`·`unbindDevice`·`migrateDriverData` 는 `canManage` 뒤에 `orgAlive(org)`
+    (= `lib/period.js isAliveUser`)를 한 번 더 본다. 막히면 403 `why:'expired'`.
+    **읽기 둘(`driverInfo`·`checkPinDup`)은 그대로 열어 둔다** — 규칙도 「만료 업체는 읽기만」이다.
+    **마스터는 통과**(기간을 정하는 쪽) · **`_test`** 는 소유자가 마스터라 통과한다.
+    마스터 전용 동작(승인·연장·기간·승인취소·비번·할인조회)은 **기간을 보면 안 된다**.
     PIN 해시 = `sha256(pin|org|OTP_SECRET)` — 새 환경변수 없음. **PIN 원문·해시는 응답·로그에 넣지 않는다.**
   - `driver-auth.js` 기사 로그인·출퇴근 (firebase-admin, v255) — `login` / `checkin` / `checkout` / `pinCheckin`
     환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET` 필요
@@ -302,6 +308,13 @@
   - 앱 읽기 전용: `isReadOnlyMode()` → `saveToFirebase`·공유 4곳·사진 2곳·복원을 앞에서 막고,
     막히면 **안내 + 서버 자료로 되돌린다**(`readOnlyBlocked`). 저장 함수는 전부 로컬+서버를 함께 쓰므로
     서버만 막으면 **조용히 사라진다** — 반드시 되돌려야 한다. 내보내기(엑셀·PDF·백업 받기)는 된다.
+    ★★ **v278(47): PIN 패드도 `checkPin()` 맨 앞에서 막고 안내한다**(둘러보기는 제외).
+      v275·v277 에서 출퇴근·출석 저장이 `saveCarState()` 를 거치게 되면서, 읽기 전용이면 그 함수가
+      **거짓만 돌려주고 조용히** 끝났다 — 화면에는 「✅ ○○님 출근」이 떠서 **기록된 것처럼 보였다**
+      (크롬으로 실측: 옛 판은 폰에 기록까지 남았다). 안내는 **기존 `readOnlyBlocked`** 를 그대로 쓰고,
+      패드가 서버 오류를 보여 주던 `#pin-result` 자리에 한 줄을 띄운다(새 창 0 · `BACK_PANEL_IDS` 무관).
+      ★ **`saveCarState()` 를 거치는 다른 저장(탑승 토글·차계부·납품/하차 완료·수기 근태)은
+        아직 조용히 막힌다** — 화면만 바뀌고 서버에 안 간다(47 에서 표로 보고, 고치지 않음).
   - 승인·연장·기간 정하기·승인 취소는 **서버만** 쓴다 — `api/admin-account.js`
     (`approveOrg`·`extendOrg`·`setPeriod`·`unapproveOrg`, 날짜 셈은 `lib/period.js` 한 벌).
     규칙의 마스터 쓰기는 **`testAccess` 하나로** 좁혔다. 기록은 `billingLog/{uid}/items`(마스터 읽기만).

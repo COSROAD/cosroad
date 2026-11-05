@@ -21,7 +21,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { createHash, randomInt } from 'crypto';
 /* v263: 이용 기간 날짜 셈 — 승인·연장·기간 정하기가 **같은 한 벌**을 쓴다 (lib/period.js) */
-import { approvePeriod, extendPeriod, dateStrEnd, dateStr } from '../lib/period.js';
+import { approvePeriod, extendPeriod, dateStrEnd, dateStr, isAliveUser } from '../lib/period.js';
 import { PLANS } from '../lib/price.js';
 
 /* v266: 안 쓰는 주소 셋(roadjob.co.kr·www.roadjob.co.kr·roadcrew.kr)을 뺐다.
@@ -67,7 +67,11 @@ function phoneLoginId(raw) {
   return d ? (d + '@phone.cosroad.com') : '';
 }
 
-const fail = (res, code, message) => res.status(code).json({ ok: false, message });
+/* ★ v278(47): 네 번째 `why` 를 받는다 — `api/driver-auth.js` 의 `fail` 과 **같은 꼴**이다.
+   안 주면 지금까지와 **글자 그대로 같은 응답**(`{ok:false, message}`)이라 옛 호출은 안 바뀐다.
+   화면이 「권한 없음」과 「기간 끝남」을 가려 안내하려면 이 한 칸이 필요하다. */
+const fail = (res, code, message, why) =>
+  res.status(code).json(why ? { ok: false, message, why } : { ok: false, message });
 
 /* ── 기사 로그인 (v255) ───────────────────────────────────────────────────
    PIN 은 서버에만 **해시**로 둔다. 해시 비밀값은 `OTP_SECRET` 을 **그대로 쓴다** —
@@ -213,6 +217,27 @@ export default async function handler(req, res) {
        PIN 원문은 응답·로그 어디에도 담지 않는다. */
     const canManage = async (org) =>
       !!org && (isMaster || await isOwnerOf(org) || await isTestAccessFor(org));
+    /* ★★ 코스로드47: **업체 쪽 「쓰기」 동작은 이용 기간도 본다.**
+       `canManage`(= orgId·approved·withdrawn)만 보던 때는 **기간이 끝난 업체도**
+       업체 번호를 만들고 기사 PIN 을 정하고 기기를 풀 수 있었다(고치기 전 코드로 실측).
+       · **읽기 둘(`driverInfo`·`checkPinDup`)은 그대로 둔다** — 규칙도 「만료 업체는 읽기만」이다
+         (`isMyOrgReadable`). 보는 것까지 막으면 왜 막혔는지도 못 보게 된다.
+       · **마스터는 통과** — 기간을 정하는 쪽이다.
+       · **`_test`** 는 소유자가 마스터(resolveOwnerUid 의 `_test` 분기)라 `admins` 에서 통과한다.
+       · 마스터 전용 동작(승인·연장·기간·승인취소·비번·할인조회)은 **건드리지 않았다.**
+       판정은 `lib/period.js isAliveUser` 한 줄 — 규칙·send-guard·driver-auth 와 같다(코스로드45). */
+    const orgAlive = async (org) => {
+      if (isMaster) return true;
+      const r = await resolveOwnerUid(org);
+      if (r.error || !r.uid) return false;
+      try {
+        if ((await A.db.collection('admins').doc(r.uid).get()).exists) return true;   /* _test 등 */
+        const s = await A.db.collection('users').doc(r.uid).get();
+        if (!s.exists) return false;
+        return isAliveUser(s.data() || {}, Date.now());
+      } catch (e) { return false; }
+    };
+    const EXPIRED_MSG = '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.';
     const secretOf = () => process.env.OTP_SECRET || '';
 
     /* ── e) 업체 번호 발급 — 없으면 만들고, 있으면 그대로 돌려준다 ── */
@@ -220,6 +245,8 @@ export default async function handler(req, res) {
       const org = String(b.org || '').trim();
       if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 번호를 볼 권한이 없어요.');
+      /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
       /* 이미 있으면 그것 */
       try {
         const snap = await A.db.collection('orgCodes').where('orgId', '==', org).limit(1).get();
@@ -251,6 +278,8 @@ export default async function handler(req, res) {
       const pin = String(b.pin || '').replace(/[^0-9]/g, '');
       if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 기사 PIN 을 정할 권한이 없어요.');
+      /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
       if (!/^\d{4}$/.test(pin)) return fail(res, 400, 'PIN 은 숫자 4자리여야 해요.');
       const secret = secretOf();
       if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
@@ -304,6 +333,8 @@ export default async function handler(req, res) {
       const carId = String(b.carId || '').trim();
       if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 기사 PIN 을 지울 권한이 없어요.');
+      /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
       const uid = driverUidOf(org, carId);
       /* ① PIN 삭제 ② 기기 풀기 ③ 명부 삭제(규칙 isActiveDriver 가 막는다) ④ 토큰 무효 */
       try { await A.db.collection('driverPins').doc(org + '_' + carId).delete(); } catch (e) {}
@@ -321,6 +352,8 @@ export default async function handler(req, res) {
       const carId = String(b.carId || '').trim();
       if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 기기를 풀 권한이 없어요.');
+      /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
       try { await A.db.collection('driverDevices').doc(org + '_' + carId).delete(); } catch (e) {
         return fail(res, 500, '기기를 풀지 못했어요. 잠시 뒤 다시 시도해 주세요.');
       }
@@ -380,6 +413,8 @@ export default async function handler(req, res) {
       const list = Array.isArray(b.cars) ? b.cars : [];
       if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '권한이 없어요.');
+      /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
       const secret = secretOf();
       if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요.');
       let moved = 0, dup = 0, bad = 0;
