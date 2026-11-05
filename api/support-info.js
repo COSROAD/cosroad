@@ -50,6 +50,29 @@
 //     이 코드가 읽는 서비스명·소관기관명·접수기관명·신청기한·지원유형·지원대상·
 //     온라인신청사이트URL 은 위 목록에 모두 있어 그대로 유효.
 //
+// ── [3] 「지역을 따로 주는 칸이 있나」 공식 문서 대조 (코스로드51 · 검증 원칙 A) ──────
+//     기업마당 (위 [1] 과 같은 명세 페이지, 2026-11-06 다시 받아 확인)
+//       · 요청 파라미터: crtfcKey · dataType · searchCnt · searchLclasId · **hashtags** ·
+//         pageUnit · pageIndex  → **지역 전용 파라미터는 없다.** 지역은 `hashtags` 로만 준다.
+//         해시태그 코드표 = 분야 8개(금융·기술·인력·수출·내수·창업·경영·기타) +
+//         **지역 16개**(서울·부산·대구·인천·**전남광주**·대전·울산·세종·경기·강원·충북·충남·
+//         전북·경북·경남·제주)  ← `전남광주` 가 **한 이름**이다(전남+광주 묶음).
+//       · 응답 item: title·link·seq·author·excInsttNm·description·lcategory·pubDate·reqstDt·
+//         trgetNm·inqireCo·flpthNm·fileNm·printFlpthNm·printFileNm·**hashTags**·totCnt·
+//         pblancNm·pblancUrl·pblancId·jrsdInsttNm·bsnsSumryCn·reqstMthPapersCn·refrncNm·
+//         rceptEngnHmpgUrl·pldirSportRealmLclasCodeNm·creatPnttm·reqstBeginEndDe
+//         → **지역명·지자체 전용 칸은 없다.** 지역은 `hashTags` 안에 섞여 온다
+//           (명세 예시 `"2022,금융,충북,대전,중소벤처기업부"`). 그래서 이 코드는 `hashTags` 를
+//           **`tags` 로 따로 담아** 지역 판정의 네 번째 신호로 쓴다(v281-1).
+//     정부24/보조금24 (위 [2] 의 공식 OAS, 같은 날 다시 확인)
+//       · serviceDetail 응답 18칸(SVC_ID·지원유형·서비스명·서비스목적·신청기한·지원대상·
+//         선정기준·지원내용·신청방법·구비서류·접수기관명·문의처전화번호·온라인신청사이트URL·
+//         수정일시·소관기관명·행정규칙·자치법규·법령) → **지역 칸 없음** ·
+//         요청 cond 도 `SVC_ID` 하나뿐이라 **지역으로 거를 수 없다.**
+//       → 그래서 정부24 항목은 `tags:''` 로 두고 **제목·기관 이름**으로만 지역을 본다.
+//     ※ 이 코드가 지역 판정에 쓰는 글자(regionHay) = 제목(title) + 기관(org: author·jrsdInsttNm·
+//       excInsttNm / 소관기관명·접수기관명) + 분야(field: lcategory·지원유형) · 그리고 tags.
+//
 // 키는 Vercel 환경변수에만 둔다: DATA_GO_KR_KEY (정부24) / BIZINFO_KEY (기업마당)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -110,6 +133,94 @@ const SIDO_LIST = [
   { key: '제주', official: '제주특별자치도', alias: ['제주', '제주도'] }
 ];
 
+/* ── 짧은 이름 → 시도 키 (v281-1 · 코스로드51) ────────────────────────────
+   공고 제목·해시태그는 **짧은 이름**을 쓴다(`[전남]`·`경남`·`전남광주`). v211 은 정식 명칭만
+   보았기 때문에 그런 공고가 「지역 표기 없음 = 전국 공고」로 통과했다(사장님 11-06 캡처).
+   ★ `전남광주` 는 **기업마당 해시태그 코드표에 실제로 있는 이름**이다(공식 명세 대조) —
+     전남과 광주를 한 태그로 묶어 둔 것이라 **두 지역 모두**로 센다. */
+const SHORT_TO_KEYS = {
+  '서울': ['서울'], '서울시': ['서울'], '부산': ['부산'], '부산시': ['부산'],
+  '대구': ['대구'], '대구시': ['대구'], '인천': ['인천'], '인천시': ['인천'],
+  '광주': ['광주'], '광주시': ['광주'], '대전': ['대전'], '대전시': ['대전'],
+  '울산': ['울산'], '울산시': ['울산'], '세종': ['세종'], '세종시': ['세종'],
+  '경기': ['경기'], '강원': ['강원'], '강원도': ['강원'],
+  '충북': ['충북'], '충남': ['충남'], '전북': ['전북'], '전라북도': ['전북'],
+  '전남': ['전남'], '경북': ['경북'], '경남': ['경남'],
+  '제주': ['제주'], '제주도': ['제주'],
+  '전남광주': ['전남', '광주']          /* 기업마당 지역 해시태그(전남+광주 묶음) */
+};
+/* 낱말 단위 「제외」에 쓰는 짧은 이름 — 다른 뜻으로 자주 쓰이는 이름은 **뺀다.**
+   ★ `경기` 제외: 「경기 침체」·「경기장」·「경기 활성화」가 지역과 무관하게 쓰인다.
+     (머리말 `[경기]` 안에서는 쓴다 — 그 자리는 지역이 거의 확실하다)
+   ※ `대전`·`세종` 은 **낱말 단위**라 「대전환」·「세종대왕」에 안 걸린다(뒤가 한글이면 낱말이 아니다). */
+const WORD_NAMES = ['서울', '서울시', '부산', '부산시', '대구', '대구시', '인천', '인천시',
+  '광주', '광주시', '대전', '대전시', '울산', '울산시', '세종', '세종시',
+  '강원', '강원도', '충북', '충남', '전북', '전라북도', '전남', '경북', '경남',
+  '제주', '제주도', '전남광주'];
+/* 기관 이름에 **붙어 있는** 도 약칭 — 「(재)전남정보문화산업진흥원」·「경남테크노파크」.
+   기관명에서 이 여섯 글자는 지역을 뜻하지 않는 경우를 찾기 어렵다.
+   ★ 광역시 이름(대전·광주·세종·경기 등)은 **넣지 않는다** — 「대전환」류 오탐이 생긴다. */
+const ORG_GLUE_NAMES = ['전남', '전북', '경남', '경북', '충남', '충북', '강원'];
+
+const isHangul = (ch) => !!ch && /[가-힣]/.test(ch);
+/* 같은 키를 한 번만 담는다 */
+function pushKeys(out, name) {
+  const ks = SHORT_TO_KEYS[name];
+  if (!ks) return;
+  for (let i = 0; i < ks.length; i++) { if (out.indexOf(ks[i]) < 0) out.push(ks[i]); }
+}
+/* ① 기업마당 해시태그(지역 칸) — "2026,금융,충북,대전,중소벤처기업부" 꼴.
+   공식 명세: 응답 hashTags · 요청 hashtags 코드표에 지역 16개가 있다. */
+function tagKeys(tags) {
+  const out = [];
+  String(tags || '').split(/[,·/|、\s]+/).forEach(function (t) {
+    const s = String(t || '').trim();
+    if (s) pushKeys(out, s);
+  });
+  return out;
+}
+/* ② 제목 맨 앞 꺾쇠·괄호 머리말 — "[전남광주·제주] …" · "(경남) …" · "【부산】 …" */
+function headKeys(s) {
+  const m = String(s || '').match(/^\s*[[({【〔<]([^\])}】〕>]{1,40})[\])}】〕>]/);
+  if (!m) return [];
+  const out = [];
+  m[1].split(/[,·/|、\s]+/).forEach(function (t) {
+    const x = String(t || '').trim();
+    if (x) pushKeys(out, x);
+  });
+  return out;
+}
+/* ③ 낱말 단위로 **정확히 같은** 짧은 이름 (앞뒤가 한글이 아니어야 한다) */
+function wordKeys(s) {
+  const str = String(s || '');
+  const out = [];
+  for (let i = 0; i < WORD_NAMES.length; i++) {
+    const n = WORD_NAMES[i];
+    let at = str.indexOf(n);
+    while (at >= 0) {
+      if (!isHangul(str.charAt(at - 1)) && !isHangul(str.charAt(at + n.length))) {
+        pushKeys(out, n); break;
+      }
+      at = str.indexOf(n, at + 1);
+    }
+  }
+  return out;
+}
+/* ④ 기관 이름에 붙어 있는 도 약칭 (한글 덩어리의 **맨 앞**이면 인정) */
+function orgGlueKeys(org) {
+  const str = String(org || '');
+  const out = [];
+  for (let i = 0; i < ORG_GLUE_NAMES.length; i++) {
+    const n = ORG_GLUE_NAMES[i];
+    let at = str.indexOf(n);
+    while (at >= 0) {
+      if (!isHangul(str.charAt(at - 1))) { pushKeys(out, n); break; }
+      at = str.indexOf(n, at + 1);
+    }
+  }
+  return out;
+}
+
 /* 사용자가 보낸 sido 값(짧은 키 '인천' 또는 정식 명칭 '인천광역시') → 표의 항목 */
 function findSido(v) {
   const s = String(v || '').trim();
@@ -126,35 +237,51 @@ function findSido(v) {
 }
 
 /* 지역 판정 — 우리 지역 + 지역 표기 없는 전국·정부 공고만 통과.
-   판정 순서 (강한 신호 우선):
-     1) 우리 시군구가 있으면        → 통과 (사용자가 직접 지정한 값)
-     2) 우리 시도 정식 명칭이 있으면 → 통과 (타 시도와 공동 공고여도 우리 것)
-     3) 다른 시도 정식 명칭이 있으면 → 제외 (확실한 타 지역)
-     4) 우리 시도 짧은 별칭이 있으면 → 통과
-     5) 어느 시도도 없으면          → 통과 (전국·정부 공고로 간주)
-   ※ 2)가 3)보다 앞서고 4)가 3)보다 뒤인 이유: 정식 명칭은 강한 신호, 짧은 별칭은
-     약한 신호다. 그래서 광주광역시 사용자에게 "경기도 광주시 …"는 3)에서 제외된다
-     (별칭 '광주'가 4)에 있으므로 3)을 넘지 못한다). */
-function regionPass(hay, sidoEntry, sigungu) {
+   ── 판정 순서 (강한 신호 우선 · v281-1 코스로드51에서 다시 적었다) ─────────
+     1) 우리 시군구가 있으면            → 통과 (사용자가 직접 지정한 값)
+     2) 우리 시도 **정식 명칭**이 있으면  → 통과 (타 시도와 공동 공고여도 우리 것)
+     3) 다른 시도 **정식 명칭**이 있으면  → 제외 (확실한 타 지역)
+     4) **지역 해시태그**(기업마당 지역 칸)가 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     5) 제목 **머리말 꺾쇠·괄호** 안에 시도 이름이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     6) 우리 시도 짧은 별칭이 아무 데나 있으면 → 통과
+     7) **낱말 단위**로 짧은 이름이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     8) **기관 이름에 붙은** 도 약칭이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     9) 아무 것도 없으면                → 통과 (전국·정부 공고로 간주)
+   ★ 정식 명칭(2·3)을 해시태그(4)보다 **앞에** 둔 이유 — 기업마당 지역 태그 `전남광주` 는
+     전남과 광주를 **묶어** 둔 이름이라, 「광주광역시 …」 공고가 전남 업체에도 통과해 버린다.
+     제목·기관의 정식 명칭이 더 정확하므로 그쪽을 먼저 본다(실측으로 확인).
+   ★ **확실할 때만 뺀다** — 전국·정부 공고(중소벤처기업부·교육부…)가 빠지면 안 된다.
+     그래서 짧은 이름은 ⓐ 해시태그 ⓑ 머리말 ⓒ 낱말 단위 ⓓ 기관명 앞머리 **네 자리에서만**
+     쓰고, 「경기」처럼 다른 뜻으로 흔한 이름은 낱말 단위에서 **뺐다**(WORD_NAMES 쪽지 참고). */
+function regionPass(hay, sidoEntry, sigungu, tags, org) {
   if (!sidoEntry && !sigungu) return true;          /* 필터 미설정 — 기존과 동일 */
   const s = String(hay || '');
   if (sigungu && s.indexOf(sigungu) >= 0) return true;
-  if (sidoEntry) {
-    if (s.indexOf(sidoEntry.official) >= 0) return true;
-    for (let i = 0; i < SIDO_LIST.length; i++) {
-      const e = SIDO_LIST[i];
-      if (e.key === sidoEntry.key) continue;
-      if (s.indexOf(e.official) >= 0) return false;  /* 다른 시도 정식 명칭 → 타 지역 */
-    }
-    for (let i = 0; i < sidoEntry.alias.length; i++) {
-      if (s.indexOf(sidoEntry.alias[i]) >= 0) return true;
-    }
-  } else {
-    /* 시도 없이 시군구만 지정된 경우 — 다른 시도 정식 명칭이 있으면 타 지역 */
-    for (let i = 0; i < SIDO_LIST.length; i++) {
-      if (s.indexOf(SIDO_LIST[i].official) >= 0) return false;
-    }
+  const mine = sidoEntry ? sidoEntry.key : '';
+  /* 2·3) 정식 명칭 — 가장 강한 신호 */
+  if (sidoEntry && s.indexOf(sidoEntry.official) >= 0) return true;
+  for (let i = 0; i < SIDO_LIST.length; i++) {
+    const e = SIDO_LIST[i];
+    if (mine && e.key === mine) continue;
+    if (s.indexOf(e.official) >= 0) return false;    /* 다른 시도 정식 명칭 → 타 지역 */
   }
+  /* 4) 지역 해시태그 (기업마당의 구조화된 지역 칸) */
+  const tk = tagKeys(tags);
+  if (tk.length) return mine ? tk.indexOf(mine) >= 0 : false;
+  if (!sidoEntry) return true;                      /* 시군구만 지정 — 여기까지면 통과 */
+  /* 5) 제목 머리말 */
+  const hk = headKeys(s);
+  if (hk.length) return hk.indexOf(mine) >= 0;
+  /* 6) 우리 짧은 별칭이 아무 데나 */
+  for (let i = 0; i < sidoEntry.alias.length; i++) {
+    if (s.indexOf(sidoEntry.alias[i]) >= 0) return true;
+  }
+  /* 7) 낱말 단위 짧은 이름 */
+  const wk = wordKeys(s);
+  if (wk.length) return wk.indexOf(mine) >= 0;
+  /* 8) 기관 이름에 붙은 도 약칭 */
+  const ok = orgGlueKeys(org);
+  if (ok.length) return ok.indexOf(mine) >= 0;
   return true;
 }
 
@@ -232,7 +359,9 @@ function finalize(items, biz, q, region) {
     const m = matchFilter(it, biz, q);
     if (!m) continue;
     if (it.endDate && it.endDate < today) continue;   /* 종료일이 오늘 이전이면 제외 */
-    if (!regionPass(regionHay(it), sidoEntry, sigungu)) continue;
+    /* v281-1: 지역 해시태그(`it.tags`)와 기관명(`it.org`)을 **따로** 넘긴다 —
+       태그는 구조화된 지역 칸이고, 기관명은 붙어 쓰는 약칭을 보는 자리다. */
+    if (!regionPass(regionHay(it), sidoEntry, sigungu, it.tags, it.org)) continue;
     (m === 2 ? bizHit : commonHit).push(it);
     if (bizHit.length >= MAX_ITEMS) break;            /* 업종만으로 이미 50칸이면 더 볼 필요 없다 */
   }
@@ -282,6 +411,11 @@ async function loadBizinfo(biz, q, region) {
       period:  period,
       endDate: parseEndDate(period),
       field:   String(r.lcategory || r.pldirSportRealmLclasCodeNm || r.hashTags || '').trim(),
+      /* ★ v281-1(코스로드51): 해시태그를 **따로** 담는다.
+         공식 명세에 지역 전용 칸은 없지만, `hashTags` 에 지역 태그 16개 중 하나가
+         들어온다("2026,금융,충북,대전,중소벤처기업부"). 지금까지는 `field` 가
+         `lcategory` 를 먼저 쓰기 때문에 **지역 태그가 버려지고 있었다.** */
+      tags:    String(r.hashTags || '').trim(),
       url:     String(r.link || r.pblancUrl || '').trim(),
       src:     'bizinfo'
     };
@@ -348,6 +482,9 @@ async function loadGov24(biz, q, region) {
         period:  period,
         endDate: parseEndDate(period),
         field:   String(r['지원유형'] || r['지원대상'] || '').trim(),
+        /* 정부24(보조금24)에는 **지역 칸이 아예 없다**(공식 OAS 대조 — 위 머리글 [2] 참고).
+           그래서 지역은 제목·기관 이름으로만 본다. */
+        tags:    '',
         url:     String(r['온라인신청사이트URL'] || '').trim(),
         src:     'gov24'
       };
