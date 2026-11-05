@@ -534,6 +534,16 @@ export default async function handler(req, res) {
       /* 기사 PIN 이 아니면 **앱이 직원·회원 PIN 으로 이어서 본다** — 404 로 알려 준다 */
       if (!carId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');
 
+      /* ★★ 코스로드46: 여기서도 **이용 기간**을 본다 (로그인·출퇴근과 같은 함수·같은 문구).
+         `requireManager` 는 `orgId`·`approved`·`withdrawn` 만 보고 `paidUntil` 을 안 본다 —
+         그래서 **기간이 끝난 업체도 이 패드로 기사 출퇴근을 계속 찍을 수 있었다**
+         (punch 는 Admin SDK 라 규칙을 안 거친다 · 고치기 전 코드로 실측).
+         ★ 자리를 **404 `notdriver` 뒤**에 둔다 — 앞에 두면 기간이 끝났을 때 직원·회원 PIN 도
+           403 이 되어, 앱이 「기사 PIN 이 아니면 직원·회원으로 이어 본다」는 흐름을 못 탄다. */
+      if (!(await ownerAlive((await resolveOwnerUid(org))))) {
+        return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
+      }
+
       const r = await punch(org, carId);
       if (r.error) return fail(res, 500, r.error);
       await writeLogin(org, carId, true, 'pad:' + r.kind, '', null);

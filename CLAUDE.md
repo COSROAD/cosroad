@@ -66,6 +66,9 @@
     `checkin`/`checkout`: carId·org 는 **토큰 claim 만** 쓴다(본문 값 불신) · `driverAtt` 를 트랜잭션으로 고친다
     시각은 **서버 KST**(`new Date(ms+9h)` 후 UTC getter) — 폰 시계를 바꿔도 안 바뀐다
     `pinCheckin`: 관리자 공용 패드용. 기사 PIN 이 아니면 404 `why:'notdriver'` → 앱이 직원·회원 PIN 으로 이어 본다
+    **기간 판정 `ownerAlive` (코스로드46)** — `requireManager` 는 `paidUntil` 을 안 봐서
+    기간 끝난 업체도 패드로 기사 출퇴근을 찍을 수 있었다. 검사는 **404 `notdriver` 뒤**에 둔다
+    (앞에 두면 기간이 끝났을 때 직원·회원 PIN 까지 403 이 되어 앱의 이어 보기 흐름이 끊긴다).
     서버 전용 컬렉션(규칙 `read, write: if false`): `orgCodes`·`driverPins`·`driverDevices`·`driverLogins`·`driverRl`
   - `signup.js` **가입** (firebase-admin, v261) — `bizCheck` / `create`
     환경변수 `FIREBASE_SERVICE_ACCOUNT`·`OTP_SECRET`·`ALIGO_*`·**`DATA_GO_KR_KEY`**(국세청) 필요
