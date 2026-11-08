@@ -1,0 +1,23 @@
+{
+ "read data/members  (v275 까지 이것을 찔렀다)": "deny",
+ "read data/orgDriver (v276 은 이것을 찌른다)": "allow",
+ "read data/orgDriver — **문서가 없는 업체**에서도 오류 아님": "allow",
+ "read  carData/car1   (내 차량 사본)": "allow",
+ "read  carData/car2   (남의 차량)": "deny",
+ "read  carState/car1  (내 차량 기록)": "allow",
+ "read  carState/car2  (남의 차량)": "deny",
+ "write carState/car1  (탑승·차계부·완료 저장)": "allow",
+ "write carState/car2": "deny",
+ "create backups (key=carState/car1)": "allow",
+ "create backups (key=carState/car2)": "deny",
+ "list   backups  (_backupBeforeSave 의 오래된 것 정리)": "deny",
+ "read  users/<내 uid>": "allow",
+ "read  data/staffAtt (직원 근태)": "deny",
+ "read  data/rideState (옛 키)": "deny",
+ "write data/rideState (옛 키)": "deny",
+ "[만료] read data/orgDriver": "deny",
+ "[만료] read carData/car1": "deny",
+ "[만료] write carState/car1": "deny",
+ "[PIN 지움] read data/orgDriver": "deny",
+ "[PIN 지움] read carData/car9": "deny"
+}
