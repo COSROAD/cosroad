@@ -121,9 +121,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       /'tkd_attendance_time','tkd_ridestate','tkd_driver_pay','tkd_certificates'\]/.test(NEW_SRC), true);
     ck('  (옛 판에는 없었다 — 대조)',
       /'tkd_driver_pay','tkd_certificates'\]/.test(OLD_SRC), false);
+    /* ★ v292(59-B3) 부터 꼬리는 **「로그인한 업체」**(`getFbOrgId()`)다 —
+       칸 이름을 글자로 박지 않고 그 함수로 만든다(한쪽만 고치면 거짓으로 깨진다). */
     ck('  꼬리 붙은 칸으로 읽고 쓴다',
       n.R.ev("(function(){ saveCertificates([{id:5,name:'새것'}]);"
-           + " return String((JSON.parse(localStorage.getItem('tkd_certificates__cosroad_default')||'[]')[0]||{}).id); })()"), '5');
+           + " return String((JSON.parse(localStorage.getItem('tkd_certificates__'+getFbOrgId())||'[]')[0]||{}).id); })()"), '5');
   }
 
   console.log('\n════ ② 동기화가 **내려받나**');

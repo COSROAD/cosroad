@@ -577,13 +577,46 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   // (tkd_adminpw 는 v249 에서 없앴다 — 기기 비밀번호 진입 폐지)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
   var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_attendance_time','tkd_ridestate','tkd_driver_pay','tkd_certificates'];
-  function curOrgId(){
+  /* 주소(`?org=`)만 보고 정하는 **되돌림용** 값 — 앱 코드가 아직 안 떴을 때 쓴다.
+     v291 까지는 이것이 꼬리의 **전부**였다(아래 v292 쪽지). */
+  function urlOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
       var o = p.get('org');
       if(o){ o=o.replace(/[^a-zA-Z0-9_]/g,''); if(o){ return (o==='academy_taekwondo')?'cosroad_default':o; } }
     }catch(e){}
     return 'cosroad_default';
+  }
+  /* ★★ v292(59-B3): 기기 저장 칸 꼬리를 **「로그인한 업체」** 하나로 맞춘다.
+     v291 까지는 `?org=` 만 보았다 — `cosroad.com` 에는 `?org=` 가 없으니
+     **모든 업체가 `cosroad_default` 한 칸**을 같이 썼다(59-A 실측). 그래서
+     A 로 쓰던 폰에 B 가 로그인하면 **첫 동기화가 끝나기 전까지 A 자료가 보이고**,
+     차량 id(`car1`…)·«회원» id(1…)가 업체 사이에 겹쳐 남의 자료에 얹히기까지 했다.
+     → 서버에 읽고 쓰는 자리(`saveToFirebase`·`loadFromFirebase`)와 「납품·하차 완료」
+       칸(`deliveryDoneKey`·`dropoffDoneKey`)이 **이미 쓰는 그 함수**를 그대로 부른다.
+       `getFbOrgId()` = 기사·도우미면 `_driverOrg`, 아니면 `orgIdFromUrlOrDefault()`
+       (= `?org=` → `_userOrgId` → `FIXED_ORG_ID` → `cosroad_default`).
+     ★ 기사·도우미는 `_userOrgId` 를 **일부러 비워 둔다**(「로그인 유지」 키가 갈리지 않게) —
+       그래서 `orgIdFromUrlOrDefault()` 가 아니라 **`getFbOrgId()`** 를 불러야 갈린다.
+     ★ 옛 `cosroad_default` 칸은 **지우지도 옮기지도 않는다** — 새 칸은 비어 있고
+       첫 동기화가 **서버 값으로** 채운다(서버가 이긴다). 되돌릴 길을 남겨 둔다.
+     ★★ 되돌아 들어오기 막기 — `getFbOrgId()` 안에서 `localStorage` 를 읽으므로
+       (`orgIdFromUrlOrDefault` 의 `tkd_orgId`) 깃발 하나로 **한 겹만** 허용한다. */
+  var _inScope = false;
+  function curOrgId(){
+    if(_inScope) return urlOrgId();
+    _inScope = true;
+    try{
+      if(typeof getFbOrgId === 'function'){
+        var o = getFbOrgId();
+        if(typeof o === 'string'){
+          o = o.replace(/[^a-zA-Z0-9_]/g,'');
+          if(o) return (o==='academy_taekwondo') ? 'cosroad_default' : o;
+        }
+      }
+    }catch(e){}
+    finally{ _inScope = false; }
+    return urlOrgId();
   }
   function mapKey(key){
     if(typeof key!=='string') return key;
@@ -639,7 +672,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 291;
+const APP_VERSION = 292;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5853,6 +5886,13 @@ function initApp(){
     return;
   }
   orgSettings=loadOrgSettings();courses=loadCourses();cars=loadCars();
+  /* ★★ v292(59-B3): «회원»·«알림장» 도 **여기서 다시 읽는다.**
+     이 둘은 글 맨 위에서 `let members=loadMembers()` 로 **로그인 전에 한 번** 읽힌다 —
+     그때는 로그인한 업체를 알 수 없어 **되돌림 칸**(`cosroad_default`)을 읽는다.
+     칸이 업체별로 갈린 뒤에도 그 값이 메모리에 남아 있으면, **서버에 그 업체 문서가
+     아직 없을 때**(갓 만든 업체) 동기화가 `if(fbMembers)` 에서 덮지 않아
+     **앞 업체 명단이 화면에 남는다**(크롬으로 실측). 한 줄로 그 값을 버린다. */
+  members=loadMembers();notices=loadNotices();
   ensureHelperBtn();   /* 도우미 '코스' 버튼+안내 라벨 — 모든 화면·두 모드 공통 */
   /* 기사 계정: 기관 자료가 열리는지 한 번 확인한다 (업체 만료·계정 끊김이면 안내 화면) — v250 */
   try{ if(window._isDriverAcct && typeof driverAccessCheck==='function') driverAccessCheck(); }catch(e){}

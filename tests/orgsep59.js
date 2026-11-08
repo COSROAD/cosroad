@@ -119,12 +119,17 @@ const SERVER = {
     /* 로그아웃이 하는 일(전역 비우기) — DOM 없는 자리는 try 로 넘긴다 */
     p.R.ev('try{ csQueueReset(); }catch(e){}');
     p.R.ev("window._userOrgId='B'; window._userUid='uB';");
-    /* B 가 들어온 **직후**(동기화 전) 화면이 읽는 값 */
-    ck('B 가 보는 «회원» 이름 (동기화 전)', p.R.ev("JSON.stringify((loadMembers()[0]||{}).name)"), '"가하은"');
-    ck('B 가 보는 업체 이름', p.R.ev("JSON.stringify(loadOrgSettings().name)"), '"A학원"');
-    ck('B 가 보는 입금 계좌', p.R.ev("JSON.stringify(loadOrgSettings().bankAccount||null)"), '"A은행 111"');
-    ck('B 가 보는 직원', p.R.ev("JSON.stringify((loadStaff()[0]||{}).name)"), '"A직원"');
-    ck('B 가 보는 탑승 토글', p.R.ev("JSON.stringify(loadRideState()['1'])"), '{"on":false}');
+    /* B 가 들어온 **직후**(동기화 전) 화면이 읽는 값
+       ★★ v292(59-B3)에서 고쳤다 — 기기 저장 칸 꼬리가 **「로그인한 업체」**(`getFbOrgId()`)로
+         갈린다. 그래서 B 는 앞 업체(A) 자료를 **하나도 못 본다**(아래 전부 빈 값).
+         고치기 전에는 «회원»'가하은'·업체'A학원'·계좌'A은행 111'·직원'A직원'·탑승 토글이
+         **그대로 보였다**(tests/orgbox292.js ② 가 그 대조를 든다). */
+    ck('★ B 가 보는 «회원» (동기화 전) — **없다**', p.R.ev("String(loadMembers().length)"), '0');
+    ck('★ B 가 보는 업체 이름 — 앞 업체가 아니다',
+      p.R.ev("JSON.stringify(loadOrgSettings().name==='A학원')"), 'false');
+    ck('★ B 가 보는 입금 계좌 — 없다', p.R.ev("JSON.stringify(loadOrgSettings().bankAccount||null)"), 'null');
+    ck('★ B 가 보는 직원 — 없다', p.R.ev("String(loadStaff().length)"), '0');
+    ck('★ B 가 보는 탑승 토글 — 없다', p.R.ev("JSON.stringify(loadRideState()['1']||null)"), 'null');
     /* ★★ v290(59-B5)에서 고쳤다 — `tkd_certificates` 가 ORG_KEYS 에 들어가
        **업체 꼬리**가 붙는다. 그래서 앞 업체 자격증이 **안 보인다**(0건).
        (고치기 전에는 꼬리가 없어 'A학원 자격증' 이 그대로 보였다 — tests/cert290.js 가 그 대조를 든다.) */
@@ -134,13 +139,14 @@ const SERVER = {
     ck('하차 완료 키도 그렇다', p.R.ev("dropoffDoneKey()"), 'tkd_dropoff_done_B');
     ck('「로그인 유지」 키도 그렇다', p.R.ev("keepLoginKey()"), 'tkd_keeplogin_B');
     /* ★ 명단 키가 **업체별로 갈리는지**를 직접 재 본다 —
-       B 로 넣고 A 로 바꿔 읽었을 때 **같은 값이 나오면 안 갈린 것**이다. */
-    ck('★ 명단 키는 **안 갈린다**(B 로 넣고 A 로 읽어도 같다)',
+       B 로 넣고 A 로 바꿔 읽었을 때 **같은 값이 나오면 안 갈린 것**이다.
+       v292 부터는 갈리므로 A 로 읽으면 **안 보인다**(undefined). */
+    ck('★ 명단 키가 **갈린다**(B 로 넣고 A 로 읽으면 없다 · v292에서 고침)',
       p.R.ev("(function(){"
            + " window._userOrgId='B'; localStorage.setItem('tkd_members', JSON.stringify([{id:9,name:'B만'}]));"
            + " window._userOrgId='A'; var a=(JSON.parse(localStorage.getItem('tkd_members')||'[]')[0]||{}).name;"
-           + " window._userOrgId='B'; return JSON.stringify(a); })()"),
-      '"B만"');
+           + " window._userOrgId='B'; return String(a===undefined); })()"),
+      'true');
   }
 
   console.log('\n════ ② ★ 동기화가 끝나기 전에 저장하면 **어디로** 가나');
@@ -175,6 +181,10 @@ const SERVER = {
   {
     const p = phone(makeServer(SERVER), {});
     p.R.ev("window._userOrgId='A'; window._userUid='uA';");
+    /* ★ v292 부터 칸이 업체별로 갈리므로, **A 업체 칸**에 넣어 두고 읽는다
+       (이 장면이 보려는 것은 「로그아웃이 메모리 전역을 거두나」다 — 칸 이름이 아니다) */
+    p.R.ev("localStorage.setItem('tkd_members', JSON.stringify([{id:1,name:'가하은'}]));"
+         + " localStorage.setItem('tkd_org', JSON.stringify({name:'A학원',icon:'🅰',bizType:'academy'}));");
     p.R.ev('members = loadMembers(); orgSettings = loadOrgSettings();');
     p.R.ev('_readOnlyMode = true;');                 /* A 가 기간 끝난 업체였다 */
     p.R.ev('try{ csQueueReset(); }catch(e){}');
