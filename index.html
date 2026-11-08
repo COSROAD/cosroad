@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 284;
+const APP_VERSION = 285;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1131,8 +1131,20 @@ async function writeStaffAttPatch(orgId, patch){
      ② 받을 때는 통째로 덮지 말고 **「서버값 + 아직 안 올린 내 변경」**
    ★ v283(54)의 「차이표는 첫 기다림 앞에서 한꺼번에」는 **그대로 지킨다**. */
 var _csSyncing = false;        /* 동기화가 기준본↔로컬을 맞추는 **그 사이** */
+var _csSyncDepth = 0;          /* v285: 동기화가 **겹쳐** 불릴 수 있다 — 몇 겹인지 센다 */
 var _csSaveRun = null;         /* 지금 도는 저장 (Promise) */
 var _csSaveAgain = false;      /* 끝난 뒤 한 번 더 */
+/* ★★ v285(58 보정1): 동기화 구간을 닫는 **한 자리**.
+   왜 — v284 는 `_csSyncing` 을 켜고 몇 줄 뒤에 껐는데 **try/finally 가 없었다**.
+   그 사이에서 무엇이든 던지면 표시가 켜진 채 남아, 그 뒤 `saveCarState()` 가
+   **조용히 거짓만** 돌려주며 운행 기록이 새로고침 전까지 안 올라갔다(스텁으로 실측).
+   ★ 겹쳐 불릴 때(로그인 직후 + readOnlyBlocked 재호출 등) **먼저 끝난 쪽이 꺼 버리지 않게**
+     겹 수를 센다 — 마지막 한 겹만 끈다. */
+function _csSyncEnd(){
+  if(_csSyncDepth > 1) return;         /* 다른 동기화가 아직 구간 안에 있다 */
+  _csSyncing = false;
+  if(_csSaveAgain){ _csSaveAgain = false; try{ saveCarState(); }catch(e){} }
+}
 /* 로그아웃·차량 바뀜 때 **줄을 비운다** — 안 비우면 줄에 남은 저장이
    **다음 사람·다음 차량 문서**로 간다(저장 함수가 그때의 getFbOrgId()·내 차량을 본다). */
 function csQueueReset(){ _csSaveAgain = false; _csSaveRun = null; _csSyncing = false; }
@@ -1170,6 +1182,14 @@ function driverCarStateLocal(cid){
    ★ 얹기는 **화면·로컬용**이다. 기준본은 **받은 서버값 그대로** 둔다(그래야 다음 차이표가 맞다). */
 function csRebase(cid, R, L, withAtt, baseOverride){
   try{
+    /* ★★ v285(58 보정1): **서버가 이겨야 하는 때**는 얹지 않는다 — 읽기 전용(기간 끝)·둘러보기.
+       왜 — 읽기 전용에서 `saveCarState()` 는 `readOnlyBlocked()` 로 안내하고
+       `syncFromFirebase` 로 **화면을 서버 자료로 되돌린다**(v279). 그런데 v284 의 얹기가
+       「아직 안 올린 내 변경」으로 **막힌 그 변경을 다시 얹어** 화면이 되돌아가지 않았다
+       (안내는 떴는데 값은 바뀐 채 — 새로고침하면 사라진다 · 스텁으로 실측).
+       둘러보기도 서버에 못 쓰므로 같다. 이 한 자리가 **동기화와 리스너 셋을 모두** 덮는다. */
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
+    if(typeof isDemoMode==='function' && isDemoMode()) return R;
     var B = (baseOverride && typeof baseOverride==='object') ? baseOverride[String(cid)]
                                                             : _csBase[String(cid)];
     if(!B) return R;
@@ -1181,6 +1201,10 @@ function csRebase(cid, R, L, withAtt, baseOverride){
 /* 직원 근태도 같은 방법 — 자료 모양이 `carState.att` 와 같아 **같은 함수**를 쓴다 */
 function saRebase(R, L, baseOverride){
   try{
+    /* ★ v285(58 보정1): 차량 기록과 **같은 이유**로 읽기 전용·둘러보기면 서버가 이긴다
+       (위 csRebase 쪽지 참고 — 직원 수기 근태도 되돌아가야 한다). */
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
+    if(typeof isDemoMode==='function' && isDemoMode()) return R;
     var B = (baseOverride === undefined) ? _saBase : baseOverride;
     if(B === null || B === undefined) return R;
     var p = _csAttDiff(B || {}, L || {});
@@ -1250,7 +1274,7 @@ async function saveCarState(){
      끝나면 syncFromFirebase 가 줄에 남은 것을 한 번 돌린다. */
   if(_csSyncing){ _csSaveAgain = true; return false; }
   if(_csSaveRun){ _csSaveAgain = true; return await _csSaveRun; }
-  _csSaveRun = (async function(){
+  var _myRun = (async function(){
     var ok = true;
     for(var _n=0; _n<20; _n++){                /* 끝없이 도는 것 막기(20번이면 충분하다) */
       _csSaveAgain = false;
@@ -1259,8 +1283,14 @@ async function saveCarState(){
     }
     return ok;
   })();
-  try{ return await _csSaveRun; }
-  finally{ _csSaveRun = null; }
+  _csSaveRun = _myRun;
+  /* ★★ v285(58 보정1): **내 차례의 저장일 때만** 비운다.
+     왜 — v284 는 `finally{ _csSaveRun = null; }` 였다. 저장이 도는 중에
+     `csQueueReset()`(로그아웃·차량 바뀜)이 표시를 비우면 **새 저장이 시작**되는데,
+     먼저 돌던 저장의 finally 가 **그 새 저장의 표시까지** 비워 다음 저장이 줄을 안 서고
+     **겹쳐 돌았다**(스텁 실측: 한꺼번에 2개). 약속은 「한 줄」이므로 내 것만 치운다. */
+  try{ return await _myRun; }
+  finally{ if(_csSaveRun === _myRun) _csSaveRun = null; }
 }
 async function _saveCarStateOnce(){
   try{
@@ -17706,7 +17736,23 @@ function driverKeyAllowed(key){ return DRIVER_READ_KEYS.indexOf(key) >= 0; }
 var DRIVER_WRITE_KEYS = [];
 function driverWriteAllowed(key){ return DRIVER_WRITE_KEYS.indexOf(key) >= 0; }
 
+/* ★★ v285(58 보정1): 동기화를 **try/finally 로 감싼다** — 안에서 무엇이 던져도
+   `_csSyncing` 표시가 켜진 채 남지 않게(위 `_csSyncEnd` 쪽지 참고).
+   겹쳐 불려도 **마지막 한 겹**만 구간을 닫는다. 안쪽 함수는 한 줄도 안 바꿨다. */
 async function syncFromFirebase(){
+  _csSyncDepth++;
+  try{
+    return await _syncFromFirebaseOnce.apply(this, arguments);
+  } finally {
+    _csSyncDepth--;
+    if(_csSyncDepth <= 0){
+      _csSyncDepth = 0;
+      _csSyncing = false;
+      if(_csSaveAgain){ _csSaveAgain = false; try{ saveCarState(); }catch(e){} }
+    }
+  }
+}
+async function _syncFromFirebaseOnce(){
   console.log('🔄 Firebase 동기화 중...');
   var fl=document.getElementById('fb-loading'); if(fl) fl.style.display='block';
   /* ★ v274(40-B): 기사는 `members`·`cars`·`courses` 를 **못 읽는다**(규칙).
@@ -17795,8 +17841,7 @@ async function syncFromFirebase(){
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
   /* ★★ v284(58): 기준본과 로컬을 **다 맞췄다** — 여기서 구간을 닫고, 줄에 남은 저장을 한 번 돌린다.
      (돌리는 저장은 **그때의 로컬·기준본으로 다시 계산**하므로 옛 값이 올라가지 않는다.) */
-  _csSyncing = false;
-  if(_csSaveAgain){ _csSaveAgain = false; try{ saveCarState(); }catch(e){} }
+  _csSyncEnd();        /* v285: 구간 닫기는 **한 자리**로 — 겹친 동기화도 맞게 */
   var fbDlManual = await loadFromFirebase('drivelogManual');
   if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
   var fbPayManual = await loadFromFirebase('payrollManual');
