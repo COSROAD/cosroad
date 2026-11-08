@@ -3,7 +3,7 @@
 # ★ qa252.js·detect.js·env246.js·drvenv.js·sendenv.js 는 묶음이 아니라 **공용 한 벌**이라 여기서 안 돈다
 #   (detect.js 는 detect_check.js 가 따로 검사한다).
 # ★ **돌지 않는 묶음은 통과도 실패도 아니다** — 그래서 맨 끝에 「돈 묶음 수」를 찍는다.
-#   기대: 돈 묶음 66 · 통과 66 · 문제 0. 66보다 적으면 **묶음이 사라진 것이다**.
+#   기대: 돈 묶음 67 · 통과 67 · 문제 0. 67보다 적으면 **묶음이 사라진 것이다**.
 N=0; OK=0; BAD=0
 run(){
   N=$((N+1)); printf "%-18s " "$1"; shift
@@ -82,5 +82,6 @@ run race54b.js     node race54b.js
 run queue58.js     node queue58.js
 run ro285.js       node ro285.js
 run org286.js      node org286.js
+run orgsep59.js    node orgsep59.js
 echo "────────────────────────────────────────"
-echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 66 · 66 · 0)"
+echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 67 · 67 · 0)"
