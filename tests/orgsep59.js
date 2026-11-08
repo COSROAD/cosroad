@@ -125,8 +125,11 @@ const SERVER = {
     ck('B 가 보는 입금 계좌', p.R.ev("JSON.stringify(loadOrgSettings().bankAccount||null)"), '"A은행 111"');
     ck('B 가 보는 직원', p.R.ev("JSON.stringify((loadStaff()[0]||{}).name)"), '"A직원"');
     ck('B 가 보는 탑승 토글', p.R.ev("JSON.stringify(loadRideState()['1'])"), '{"on":false}');
-    ck('★ 자격증은 **꼬리조차 없다**(업체 구분 0)',
-      p.R.ev("JSON.stringify((loadCertificates()[0]||{}).name)"), '"A학원 자격증"');
+    /* ★★ v290(59-B5)에서 고쳤다 — `tkd_certificates` 가 ORG_KEYS 에 들어가
+       **업체 꼬리**가 붙는다. 그래서 앞 업체 자격증이 **안 보인다**(0건).
+       (고치기 전에는 꼬리가 없어 'A학원 자격증' 이 그대로 보였다 — tests/cert290.js 가 그 대조를 든다.) */
+    ck('★ 자격증은 **꼬리가 붙어 안 보인다**(v290에서 고침)',
+      p.R.ev("String(loadCertificates().length)"), '0');
     ck('납품 완료 키는 **로그인한 업체**로 갈린다', p.R.ev("deliveryDoneKey()"), 'tkd_delivery_done_B');
     ck('하차 완료 키도 그렇다', p.R.ev("dropoffDoneKey()"), 'tkd_dropoff_done_B');
     ck('「로그인 유지」 키도 그렇다', p.R.ev("keepLoginKey()"), 'tkd_keeplogin_B');
@@ -190,7 +193,7 @@ const SERVER = {
     await p.R.ev('syncFromFirebase()');
     await wait(400);
     const n1 = SRV.listeners.length;
-    ck('A 로그인 한 번에 붙은 리스너 수', n1, 17);
+    ck('A 로그인 한 번에 붙은 리스너 수', n1, 18);   /* v290: certificates 가 더해져 18 */
     console.log('      (붙은 리스너 ' + n1 + '개 — carState 컬렉션 1 + data 키들)');
     /* 로그아웃이 하는 일만(새로 받기는 스텁에 창이 없다) */
     p.R.ev('try{ csQueueReset(); }catch(e){}');
@@ -205,7 +208,7 @@ const SERVER = {
     p.R.ev("window._userOrgId='B'; window._userUid='uB';");
     await p.R.ev('syncFromFirebase()');
     await wait(400);
-    ck('★ B 동기화 뒤에도 **쌓이지 않는다**(17개 그대로)', SRV.live, 17);
+    ck('★ B 동기화 뒤에도 **쌓이지 않는다**(18개 그대로)', SRV.live, 18);
     console.log('      (살아 있는 리스너 ' + SRV.live + '개 — 모두 새 업체 B 를 듣는다)');
     const aLive = SRV.listeners.filter((l) => l.org === 'A' && l.alive).length;
     ck('★ 그중 **앞 업체(A)를 듣는 것은 0개**', aLive, 0);

@@ -576,7 +576,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   // 업종별로 분리할 키들 (기기 공통 설정인 tkd_nav_* 등은 제외)
   // (tkd_adminpw 는 v249 에서 없앴다 — 기기 비밀번호 진입 폐지)
   // tkd_aligo는 전역 공통(프리존 알리고 계정 1개로 전 계정 발송)이라 분리 목록에서 제외
-  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_attendance_time','tkd_ridestate','tkd_driver_pay'];
+  var ORG_KEYS = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_driver_att','tkd_invoices','tkd_products','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_attendance_time','tkd_ridestate','tkd_driver_pay','tkd_certificates'];
   function curOrgId(){
     try{
       var p = new URLSearchParams(window.location.search);
@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 289;
+const APP_VERSION = 290;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5463,7 +5463,7 @@ var HELP_QA=[
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
-   a:'1. 학원·공공 업종에서만 쓰는 기능이에요 (물류·택배에는 없어요)\n2. 관리자 → 수납 탭을 아래로 내리면 「📄 교육비 납입증명서」(공공은 「장기요양급여비 납부확인서」) 칸이 있어요\n3. 「증명서 발급」(공공은 「납부확인서 발급」) → 대상 연도·대상자, 주민등록번호(또는 생년월일), 신청인 성명·관계를 넣어요\n4. 「👁 미리보기」로 확인한 뒤 「PDF 발급」 — 그해 납부 완료 내역이 자동으로 집계돼요\n5. 「재원증명서」는 재원(재학) 사실 증명서, 「납부 영수증」은 납부 건별 영수증이에요\n6. 상호·사업자번호·대표자·도장은 설정 탭에 넣어 둔 값을 가져다 써요 — 발급 전에 미리 채워 두세요\n7. 발급한 내역은 그 아래에 이력으로 남아요'},
+   a:'1. 학원·공공 업종에서만 쓰는 기능이에요 (물류·택배에는 없어요)\n2. 관리자 → 수납 탭을 아래로 내리면 「📄 교육비 납입증명서」(공공은 「장기요양급여비 납부확인서」) 칸이 있어요\n3. 「증명서 발급」(공공은 「납부확인서 발급」) → 대상 연도·대상자, 주민등록번호(또는 생년월일), 신청인 성명·관계를 넣어요\n4. 「👁 미리보기」로 확인한 뒤 「PDF 발급」 — 그해 납부 완료 내역이 자동으로 집계돼요\n5. 「재원증명서」는 재원(재학) 사실 증명서, 「납부 영수증」은 납부 건별 영수증이에요\n6. 상호·사업자번호·대표자·도장은 설정 탭에 넣어 둔 값을 가져다 써요 — 발급 전에 미리 채워 두세요\n7. 발급한 내역은 그 아래에 이력으로 남아요 — 서버에 함께 저장돼서 다른 기기로 로그인해도 같은 이력이 보여요'},
   {role:'all', keys:['차계부','주유','정비'], t:'차계부',
    a:'관리자: 차량 관리 → 「📒 차계부」 — 주유·정비·기타·계기판 기록, 연비 자동\n기사: 운행 화면 → 「⛽ 차계부」 — 배정 차량에 바로 기록\n📏 계기판은 「🌅 출근 시(주행 전) / 🌆 퇴근 시(주행 후)」를 골라 넣어요 (기본은 퇴근 시) — 같은 날 둘 다 넣으면 한 줄에 나란히 보여요\n같은 기록을 관리자·기사가 함께 봐요'},
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
@@ -17959,6 +17959,9 @@ async function _syncFromFirebaseOnce(){
   var fbDriverAtt = _merged ? _merged.driverAtt : null;
   var fbProducts = await loadFromFirebase('products');
   var fbInvoices = await loadFromFirebase('invoices');
+  /* ★ v290(59-B5): 자격증도 **내려받는다** — 전에는 올리기만 해서(saveCertificates) 서버에
+     있어도 폰으로 안 왔다. 그래서 다른 업체 자격증이 그 기기에 **영구히** 남았다(59-A 실측). */
+  var fbCerts = await loadFromFirebase('certificates');
 
   /* v250: 탑승·완료 토글은 rideState 에 따로 있다 — members 를 내려받은 뒤 덮어씌운다 */
   var fbRide = _merged ? _merged.rideState : null;
@@ -17978,6 +17981,7 @@ async function _syncFromFirebaseOnce(){
   else { driverAttSetLocal({}); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
   if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
   if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
+  if(fbCerts){ localStorage.setItem('tkd_certificates', JSON.stringify(fbCerts)); }
   var fbCarlog = _merged ? _merged.carlog : null;
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
   /* ★★ v284(58): 기준본과 로컬을 **다 맞췄다** — 여기서 구간을 닫고, 줄에 남은 저장을 한 번 돌린다.
@@ -18201,7 +18205,7 @@ function startFirebaseListeners(){
      여기서 빼고, 관리자는 `staffAtt`(직원 근태)를 대신 듣는다.
      차량 기록은 관리자가 저장할 때 다시 쪼개므로 리스너로 받을 필요가 없다
      (받으면 관리자 화면의 합친 값과 서로 덮는다 — v272·v274 와 같은 함정). */
-  var keys = ['members','cars','courses','org','orgDriver','payments','tax','attendance','notices','staffAtt','products','invoices','drivelogManual','payrollManual','staff','attendanceTime','driverPay'];
+  var keys = ['members','cars','courses','org','orgDriver','payments','tax','attendance','notices','staffAtt','products','invoices','drivelogManual','payrollManual','staff','attendanceTime','driverPay','certificates'];
   /* ★ v255: 기사는 **운행에 필요한 키만** 받는다.
      v254 까지는 기사 폰도 이 목록을 통째로 받아 수납·세무·급여·직원까지 내려받았다.
      규칙(firestore.rules driverReadableKey)이 막게 됐으니 앱도 같은 목록만 걸어 둔다 —
@@ -18326,6 +18330,8 @@ function startFirebaseListeners(){
       else if(key==='payrollManual'){ localStorage.setItem('tkd_payroll_manual',JSON.stringify(data)); }
       else if(key==='staff'){ localStorage.setItem('tkd_staff',JSON.stringify(data)); }
       else if(key==='attendanceTime'){ localStorage.setItem('tkd_attendance_time',JSON.stringify(data)); }
+      /* ★ v290(59-B5): 자격증 — 올리기만 하던 키를 받기 쪽에도 넣었다 */
+      else if(key==='certificates'){ localStorage.setItem('tkd_certificates',JSON.stringify(data)); }
       renderByTab();
     });
   });
