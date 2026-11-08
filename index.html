@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 283;
+const APP_VERSION = 284;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1020,14 +1020,25 @@ function carStateApply(srv, p){
   return out;
 }
 /* 차량 문서 하나를 **트랜잭션으로** 고친다. 참/거짓을 돌려준다(v275 보정1 과 같은 약속). */
+/* ★★ v284(58): **보내고 있는 값**을 적어 둔다 — 내 쓰기의 **메아리**가 리스너로 돌아올 때
+   「아직 안 올린 내 변경」을 **그 보낸 값 기준으로** 세기 위해서다.
+   전에는 기준본(아직 옛 것)과 로컬을 견줘 **0으로 보였고**, 그래서 서버값(=내가 방금 보낸 값)이
+   이겨 **그 사이 누른 두 번째 토글이 되돌아갔다**(코스로드54 조사 A · 실측). */
+var _csFlight = {};                            /* 차량 → { at, sent } */
 async function writeCarStatePatch(orgId, cid, patch){
+  var _k = String(cid);
   try{
     var { doc, runTransaction } = window._firestore;
     if(!runTransaction){                       /* 아주 옛 SDK 대비 — 그때는 종전처럼 */
       console.log('runTransaction 없음 — 차량 기록 합치기 건너뜀');
       return false;
     }
-    var ref = doc(window._db,'orgs',orgId,'carState',String(cid));
+    var _at = Date.now();
+    try{
+      _csFlight[_k] = { at: _at,
+        sent: carStateApply(JSON.parse(JSON.stringify(_csBase[_k] || emptyCarState())), patch) };
+    }catch(e){ _csFlight[_k] = { at: _at, sent: null }; }
+    var ref = doc(window._db,'orgs',orgId,'carState',_k);
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = {};
@@ -1035,12 +1046,14 @@ async function writeCarStatePatch(orgId, cid, patch){
         try{ srv = JSON.parse((snap.data()||{}).value || '{}'); }catch(e){ srv = {}; }
       }
       var next = carStateApply(srv, patch);
-      tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
+      tx.set(ref, { value: JSON.stringify(next), updatedAt: _at });
       return next;
     });
     _csSetBase(cid, written);                  /* 쓴 값이 새 기준본 */
+    delete _csFlight[_k];
     return true;
   }catch(e){
+    delete _csFlight[_k];
     console.log('차량 기록 합쳐 쓰기 실패:', e && e.message);
     return false;
   }
@@ -1054,6 +1067,7 @@ async function writeCarStatePatch(orgId, cid, patch){
      `_csAttApply`)를 쓴다. 셈을 두 벌로 베끼면 한쪽만 고쳐져 어긋난다(otp-core 교훈).
    ★ 기준본이 `null`(아직 한 번도 못 받음)이면 **지우기는 안 보낸다** — 안전한 쪽이다. */
 var _saBase = null;                    /* 직원 근태 기준본 — 마지막으로 서버에서 받은 값 */
+var _saFlight = null;                  /* v284(58): 지금 보내고 있는 쓰기의 「보낸 값」 */
 function _saSetBase(obj){
   try{ _saBase = JSON.parse(JSON.stringify(obj || {})); }catch(e){ _saBase = {}; }
 }
@@ -1074,6 +1088,9 @@ async function writeStaffAttPatch(orgId, patch){
       return false;
     }
     var ref = doc(window._db,'orgs',orgId,'data','staffAtt');
+    /* ★ v284(58): 차량 기록과 **같은 방법**으로 「보내고 있는 값」을 적어 둔다(내 메아리 가려내기) */
+    try{ _saFlight = { sent: _csAttApply(JSON.parse(JSON.stringify(_saBase || {})), patch) }; }
+    catch(e){ _saFlight = { sent: null }; }
     /* 덮어쓰기 직전 백업 — 다른 저장과 **같은 자리·같은 꼴**(실패하면 삼킨다) */
     try{
       var _prev = await getDoc(ref);
@@ -1091,11 +1108,94 @@ async function writeStaffAttPatch(orgId, patch){
       return next;
     });
     _saSetBase(written);                      /* 쓴 값이 새 기준본 */
+    _saFlight = null;
     return true;
   }catch(e){
+    _saFlight = null;
     console.log('직원 근태 합쳐 쓰기 실패:', e && e.message);
     return false;
   }
+}
+
+/* ── v284(58): **저장은 한 줄로 · 받을 때는 덮지 말고 얹는다** ─────────────────
+   ★★ 왜 — 저장 하나가 끝나기 전에 다른 저장·리스너·동기화가 끼어들면
+     **로컬과 기준본의 짝이 어긋난다.** 코스로드54 조사에서 셋을 실측했다:
+     A 탑승 토글을 빠르게 두 번 누르면 **두 번째 누름이 사라졌다**(폰·서버 모두 첫 누름)
+       — (a) 둘째 저장은 기준본=로컬이라 차이표가 비어 **안 쓰고**
+         (b) 첫 저장의 **리스너 메아리**가 폰의 새 값을 덮었다
+     B 차계부 계기판 수정(지우기 저장 + 같은 id 넣기 저장)은 끝나는 순서가 뒤집히면
+       뒤늦은 지우기가 방금 넣은 것을 지워 **그 기록이 사라졌다**
+     C 로그인 동기화 중에 누르면 서버에 켜져 있던 탑승이 **폰의 옛 빈 값으로 지워졌다**
+   ★ 셋은 **같은 뿌리**라 한 원칙으로 고친다 —
+     ① 저장은 **한 줄**(돌고 있으면 「한 번 더」만 표시하고, 끝난 뒤 **그때 값으로 다시 계산**)
+     ② 받을 때는 통째로 덮지 말고 **「서버값 + 아직 안 올린 내 변경」**
+   ★ v283(54)의 「차이표는 첫 기다림 앞에서 한꺼번에」는 **그대로 지킨다**. */
+var _csSyncing = false;        /* 동기화가 기준본↔로컬을 맞추는 **그 사이** */
+var _csSaveRun = null;         /* 지금 도는 저장 (Promise) */
+var _csSaveAgain = false;      /* 끝난 뒤 한 번 더 */
+/* 로그아웃·차량 바뀜 때 **줄을 비운다** — 안 비우면 줄에 남은 저장이
+   **다음 사람·다음 차량 문서**로 간다(저장 함수가 그때의 getFbOrgId()·내 차량을 본다). */
+function csQueueReset(){ _csSaveAgain = false; _csSaveRun = null; _csSyncing = false; }
+
+/* 기사·도우미 폰의 「내 차량 몫」 — **저장과 얹기가 같은 함수**를 쓴다(두 벌로 베끼면 어긋난다) */
+function driverCarStateLocal(cid){
+  cid = String(cid||'');
+  var mine = emptyCarState();
+  try{
+    var st = loadRideState();
+    Object.keys(st||{}).forEach(function(id){
+      var r = st[id]||{};
+      /* 기사 폰에는 자기 차량 «회원» 만 있다 — 등원/하원 담당을 보고 제 칸에 넣는다 */
+      if(typeof r.on==='boolean' && _pickCarOf(id)===cid) mine.ride[id]={on:r.on};
+      if(typeof r.offOn==='boolean' && _dropCarOf(id)===cid) mine.rideOff[id]={offOn:r.offOn};
+    });
+  }catch(e){}
+  try{
+    var cl = loadCarlog();
+    mine.carlog.records = (cl.records||[]).filter(function(r){ return String(r.carId||'')===cid; });
+    if((cl.plans||{})[cid]) mine.carlog.plans[cid]=cl.plans[cid];
+  }catch(e){}
+  try{
+    var dv = loadDeliveryDone();
+    Object.keys(dv||{}).forEach(function(id){ if(_pickCarOf(id)===cid) mine.delivDone[id]=dv[id]; });
+  }catch(e){}
+  try{
+    var dp = loadDropoffDone();
+    Object.keys(dp||{}).forEach(function(id){ if(_dropCarOf(id)===cid) mine.dropDone[id]=dp[id]; });
+  }catch(e){}
+  return mine;
+}
+/* 서버에서 받은 값 R 에 **아직 안 올린 내 변경**(기준본 B → 지금 로컬 L)을 얹는다.
+   ★ 기준본이 없으면(첫 로그인) **서버가 이긴다** — 폰의 옛 값을 서버 위에 얹지 않는다.
+   ★ 얹기는 **화면·로컬용**이다. 기준본은 **받은 서버값 그대로** 둔다(그래야 다음 차이표가 맞다). */
+function csRebase(cid, R, L, withAtt, baseOverride){
+  try{
+    var B = (baseOverride && typeof baseOverride==='object') ? baseOverride[String(cid)]
+                                                            : _csBase[String(cid)];
+    if(!B) return R;
+    var p = carStatePatch(B, L, withAtt);
+    if(carStatePatchEmpty(p)) return R;
+    return carStateApply(JSON.parse(JSON.stringify(R||{})), p);
+  }catch(e){ return R; }
+}
+/* 직원 근태도 같은 방법 — 자료 모양이 `carState.att` 와 같아 **같은 함수**를 쓴다 */
+function saRebase(R, L, baseOverride){
+  try{
+    var B = (baseOverride === undefined) ? _saBase : baseOverride;
+    if(B === null || B === undefined) return R;
+    var p = _csAttDiff(B || {}, L || {});
+    if((Object.keys(p.put||{}).length + (p.drop||[]).length) === 0) return R;
+    return _csAttApply(JSON.parse(JSON.stringify(R||{})), p);
+  }catch(e){ return R; }
+}
+/* 지금 폰의 **직원 몫** 근태만 (`st…` 키) */
+function staffAttLocal(){
+  var out = {};
+  try{
+    var cur = loadDriverAtt();
+    Object.keys(cur||{}).forEach(function(k){ if(_isStaffAttKey(k)) out[k]=cur[k]; });
+  }catch(e){}
+  return out;
 }
 
 /* 서버에서 차량 문서 전부 읽기 (관리자) */
@@ -1132,7 +1232,37 @@ async function loadMyCarState(){
      완료 표시(`data/migration`)를 찍는다 — 안 그러면 규칙이 아직 안 올라간 동안
      (앱 먼저 → 규칙 나중 배포의 그 틈) 쓰기가 거부되는데 표시만 찍혀
      **옛 기록이 영원히 안 옮겨진다**(멱등이 깨진다). */
+/* ★★ v284(58): **저장을 한 줄로 세운다.**
+   돌고 있으면 새로 시작하지 않고 「한 번 더」만 표시한다 — 앞 저장이 끝나면
+   **그때의 로컬·기준본으로 차이표를 다시 계산해** 한 번 더 쓴다(같은 값이면 안 쓴다).
+   그래서 빠르게 두 번 누른 토글이 **마지막 누름대로** 남고(A),
+   차계부의 두 저장이 **뒤집히지 않는다**(B).
+   ★ 돌려주는 참·거짓(v275 보정1 — 「옛 자료 옮기기」 표시가 이것을 본다)은 **마지막 저장 결과**다.
+   ★ 둘러보기·읽기 전용은 **줄에 넣지 않는다** — 막힌 저장이 줄에 남아 다시 돌면 안 된다.
+   ★ 동기화가 기준본↔로컬을 맞추는 사이에는 **기다린다**(C) — 그 틈에 쓰면 폰의 옛 값이 올라간다. */
 async function saveCarState(){
+  if(typeof isDemoMode==='function' && isDemoMode()) return false;     /* 둘러보기는 조용히(종전) */
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
+    try{ if(typeof readOnlyBlocked==='function') readOnlyBlocked('운행 기록'); }catch(e){}
+    return false;
+  }
+  /* 동기화 중 — **안 썼으므로 거짓**을 돌려준다(v275 보정1: 정말 썼을 때만 참).
+     끝나면 syncFromFirebase 가 줄에 남은 것을 한 번 돌린다. */
+  if(_csSyncing){ _csSaveAgain = true; return false; }
+  if(_csSaveRun){ _csSaveAgain = true; return await _csSaveRun; }
+  _csSaveRun = (async function(){
+    var ok = true;
+    for(var _n=0; _n<20; _n++){                /* 끝없이 도는 것 막기(20번이면 충분하다) */
+      _csSaveAgain = false;
+      ok = await _saveCarStateOnce();
+      if(!_csSaveAgain) break;
+    }
+    return ok;
+  })();
+  try{ return await _csSaveRun; }
+  finally{ _csSaveRun = null; }
+}
+async function _saveCarStateOnce(){
   try{
     if(typeof isDemoMode==='function' && isDemoMode()) return false;   /* 둘러보기는 조용히(종전) */
     /* ★★ v279(48): 읽기 전용(기간 끝남)이면 **조용히 끝내지 않는다.**
@@ -1154,29 +1284,9 @@ async function saveCarState(){
     if(currentMode==='driver'){
       var cid = String(driverLockedCarId()||'');
       if(!cid) return false;
-      var mine = emptyCarState();
-      try{
-        var st = loadRideState();
-        Object.keys(st||{}).forEach(function(id){
-          var r = st[id]||{};
-          /* 기사 폰에는 자기 차량 «회원» 만 있다 — 등원/하원 담당을 보고 제 칸에 넣는다 */
-          if(typeof r.on==='boolean' && _pickCarOf(id)===cid) mine.ride[id]={on:r.on};
-          if(typeof r.offOn==='boolean' && _dropCarOf(id)===cid) mine.rideOff[id]={offOn:r.offOn};
-        });
-      }catch(e){}
-      try{
-        var cl = loadCarlog();
-        mine.carlog.records = (cl.records||[]).filter(function(r){ return String(r.carId||'')===cid; });
-        if((cl.plans||{})[cid]) mine.carlog.plans[cid]=cl.plans[cid];
-      }catch(e){}
-      try{
-        var dv = loadDeliveryDone();
-        Object.keys(dv||{}).forEach(function(id){ if(_pickCarOf(id)===cid) mine.delivDone[id]=dv[id]; });
-      }catch(e){}
-      try{
-        var dp = loadDropoffDone();
-        Object.keys(dp||{}).forEach(function(id){ if(_dropCarOf(id)===cid) mine.dropDone[id]=dp[id]; });
-      }catch(e){}
+      /* ★ v284(58): 「내 차량 몫 모으기」를 `driverCarStateLocal()` 로 빼냈다 —
+         리스너가 **얹을 때**도 같은 함수를 쓴다(두 벌로 베끼면 한쪽만 고쳐져 어긋난다). */
+      var mine = driverCarStateLocal(cid);
       /* ★ v277: 기사는 **출퇴근(`att`)을 보내지 않는다** — 원본은 서버 `punch` 다.
          (전에는 폰의 값을 통째로 올려, 서버가 찍은 출근 시각을 덮을 수 있었다.) */
       /* ★ v277: 통째 덮어쓰기 → **바뀐 칸만 트랜잭션으로**
@@ -3990,6 +4100,9 @@ function logout(){currentMode='';
      도우미 갈래가 돌고(배정 바뀜으로 보여) 폰의 명단을 비운다. 두 겹 중 한 겹이다. */
   try{ if(window._helperCarUnsub){ window._helperCarUnsub(); window._helperCarUnsub=null; } }catch(e){}
   try{ (_carDocUnsub||[]).forEach(function(fn){ try{ if(typeof fn==='function') fn(); }catch(e){} }); _carDocUnsub=[]; }catch(e){}
+  /* ★★ v284(58): **저장 줄도 비운다** — 「한 번 더」가 남아 있으면 다음 사람이 들어온 뒤에
+     그 저장이 돌아 **다음 업체 문서**로 간다(저장 함수가 그때의 getFbOrgId() 를 본다). */
+  try{ csQueueReset(); }catch(e){}
   localStorage.removeItem(keepLoginKey());window._userOrgId=null;window._userBizType=null;window._userApproved=false;window._userUid=null;window._isDriverAcct=false;window._isHelperAcct=false;window._driverStaffId='';window._driverOrg=null;window._driverCarId=null;window._driverName='';_drvInfo={};_drvInfoLoaded=false;_drvInfoErr=false;_orgCode='';_orgCodeErr=false;_orgCodeAsked=false;if(window._auth&&window._authFns&&window._authFns.signOut){try{window._authFns.signOut(window._auth);}catch(e){}}document.getElementById('login-screen').classList.remove('hide');document.getElementById('main-app').style.display='none';document.getElementById('admin-pw').value='';var ae=document.getElementById('admin-email');if(ae)ae.value='';document.getElementById('login-err').style.display='none';var k=document.getElementById('keep-login');if(k)k.checked=false;}
 
 /* 「로그인 유지」 자동 로그인 (v249 개정)
@@ -14299,8 +14412,16 @@ function loadCarlog(){
   }catch(e){ return {records:[], plans:{}}; }
 }
 /* 공용 저장 함수 — 관리자·기사 모두 이 경로로만 저장 (Firebase 포함) */
+/* ★★ v284(58): 한 동작이 차계부를 **여러 번 고치는** 자리가 있다(계기판 km 「수정」 =
+   지우기 + 같은 id 로 넣기). 전에는 저장이 그때마다 따로 돌아, 두 트랜잭션이 끝나는
+   순서가 뒤집히면 **뒤늦은 지우기가 방금 넣은 것을 지웠다**(코스로드54 조사 B · 실측).
+   → 모으는 중(`_carlogHold`)에는 **로컬만** 고치고, 동작이 끝날 때 **한 번** 저장한다.
+   (저장이 한 줄로 세워졌으니 안 모아도 자료는 안 깨지지만, 뜻이 「바꾸기 한 번」이라
+    쓰기도 한 번이어야 맞다.) */
+var _carlogHold = null;
 function saveCarlog(d){
   localStorage.setItem('tkd_carlog', JSON.stringify(d));
+  if(_carlogHold){ _carlogHold.touched = true; return; }
   saveCarState();      /* v275: 차량별 문서로 */
 }
 function carlogAddRecord(rec){
@@ -14597,21 +14718,30 @@ function saveCarlogEntry(){
     var ov=Number((document.getElementById('cl-odo')||{}).value)||0;
     if(!(ov>0)){ alert('계기판 km를 입력해주세요.'); return; }
     /* 수정은 기존 기록을 지우고 다시 넣는 방식이라, 손대지 않은 반대쪽 값(출근↔퇴근)을 챙겨 뒀다 복원한다 */
-    var keepOdo=null, keepStart=null;
-    if(carlogEditId){
-      var d0=loadCarlog();
-      var old0=d0.records.find(function(r){ return r.id===carlogEditId; });
-      if(old0){ if(Number(old0.odo)>0) keepOdo=Number(old0.odo); if(Number(old0.odoStart)>0) keepStart=Number(old0.odoStart); }
-      d0.records=d0.records.filter(function(r){ return r.id!==carlogEditId; });
-      saveCarlog(d0);
-      carlogEditId=null;
-    }
-    if(carlogOdoWhen==='start'){
-      carlogSetDailyOdoStart(carlogSelCar, date, ov, 'admin');
-      if(keepOdo!=null) carlogSetDailyOdo(carlogSelCar, date, keepOdo, 'admin');
-    } else {
-      carlogSetDailyOdo(carlogSelCar, date, ov, 'admin');
-      if(keepStart!=null) carlogSetDailyOdoStart(carlogSelCar, date, keepStart, 'admin');
+    /* ★★ v284(58): 지우기·넣기를 **한 번의 저장**으로 묶는다(위 `_carlogHold` 쪽지 참고).
+       전에는 저장이 두세 번 따로 돌아, 끝나는 순서가 뒤집히면 그 기록이 사라졌다(실측). */
+    _carlogHold = { touched:false };
+    try{
+      var keepOdo=null, keepStart=null;
+      if(carlogEditId){
+        var d0=loadCarlog();
+        var old0=d0.records.find(function(r){ return r.id===carlogEditId; });
+        if(old0){ if(Number(old0.odo)>0) keepOdo=Number(old0.odo); if(Number(old0.odoStart)>0) keepStart=Number(old0.odoStart); }
+        d0.records=d0.records.filter(function(r){ return r.id!==carlogEditId; });
+        saveCarlog(d0);
+        carlogEditId=null;
+      }
+      if(carlogOdoWhen==='start'){
+        carlogSetDailyOdoStart(carlogSelCar, date, ov, 'admin');
+        if(keepOdo!=null) carlogSetDailyOdo(carlogSelCar, date, keepOdo, 'admin');
+      } else {
+        carlogSetDailyOdo(carlogSelCar, date, ov, 'admin');
+        if(keepStart!=null) carlogSetDailyOdoStart(carlogSelCar, date, keepStart, 'admin');
+      }
+    } finally {
+      var _t = _carlogHold && _carlogHold.touched;
+      _carlogHold = null;
+      if(_t) saveCarState();            /* 모은 것을 **한 번** 올린다 */
     }
     renderCarlogModal();
     return;
@@ -17607,16 +17737,37 @@ async function syncFromFirebase(){
   /* ★ v275(40-C): 다섯 가지(탑승 토글·차계부·납품/하차 완료·출퇴근)는 **차량별 문서**에서 받는다.
      관리자는 **전 차량을 합쳐** 보고(화면 모양은 지금과 똑같다), 기사는 **자기 문서 하나**만.
      옛 `data/*` 키는 **읽지 않는다** — 원본이 둘이 되면 서로 덮는다(삭제는 나중 회차). */
+  /* ★★ v284(58): 여기서부터 **기준본과 로컬이 어긋나 있는 구간**이다 —
+     기준본은 바로 아래 읽기에서 새것이 되는데, 로컬은 **await 두 개 뒤**에야 바뀐다.
+     그 틈에 저장이 돌면 「기준본=서버 최신 / 로컬=폰의 옛 값」으로 차이표를 만들어
+     **서버에 켜져 있던 탑승이 폰의 빈 값으로 지워졌다**(코스로드54 조사 C · 실측).
+     → 그 사이 저장은 **줄에 세워 두고**(`saveCarState` 가 거짓을 돌려준다),
+       맞춘 뒤에 한 번 돌린다. 그리고 **옛 기준본을 떠 두어** 아직 안 올린 내 변경을 얹는다. */
+  var _preBase = {}; try{ _preBase = JSON.parse(JSON.stringify(_csBase||{})); }catch(e){}
+  var _preSaBase = _saBase;
+  _csSyncing = true;
   var _cs = _drvMode0 ? null : await loadAllCarState();
   var _csMine = _drvMode0 ? await loadMyCarState() : null;
   var fbStaffAtt = _drvMode0 ? null : await loadFromFirebase('staffAtt');
   /* ★ 43-C: 받은 값이 **직원 근태 기준본**이다(바뀐 칸만 쓰기가 이것을 본다) */
   if(!_drvMode0) _saSetBase(fbStaffAtt || {});
+  /* ★ v284: 받은 값에 **아직 안 올린 내 변경**을 얹는다(옛 기준본 기준).
+     첫 로그인은 옛 기준본이 없어 **서버가 이긴다** — 폰의 옛 값을 서버 위에 얹지 않는다. */
   var _merged = null;
   if(_drvMode0){
-    if(_csMine) _merged = mergeCarState({ [String(driverLockedCarId()||'')]: _csMine }, {});
+    if(_csMine){
+      var _mc = String(driverLockedCarId()||'');
+      var _useMine = csRebase(_mc, _csMine, driverCarStateLocal(_mc), false, _preBase);
+      _merged = mergeCarState({ [_mc]: _useMine }, {});
+    }
   } else if(_cs){
-    _merged = mergeCarState(_cs, fbStaffAtt || {});
+    var _spS = null; try{ _spS = splitCarState(); }catch(e){}
+    if(_spS){
+      Object.keys(_cs).forEach(function(cid){
+        _cs[cid] = csRebase(cid, _cs[cid], (_spS.byCar||{})[cid] || emptyCarState(), true, _preBase);
+      });
+    }
+    _merged = mergeCarState(_cs, saRebase(fbStaffAtt || {}, staffAttLocal(), _preSaBase));
   }
   var fbDriverAtt = _merged ? _merged.driverAtt : null;
   var fbProducts = await loadFromFirebase('products');
@@ -17642,6 +17793,10 @@ async function syncFromFirebase(){
   if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
   var fbCarlog = _merged ? _merged.carlog : null;
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
+  /* ★★ v284(58): 기준본과 로컬을 **다 맞췄다** — 여기서 구간을 닫고, 줄에 남은 저장을 한 번 돌린다.
+     (돌리는 저장은 **그때의 로컬·기준본으로 다시 계산**하므로 옛 값이 올라가지 않는다.) */
+  _csSyncing = false;
+  if(_csSaveAgain){ _csSaveAgain = false; try{ saveCarState(); }catch(e){} }
   var fbDlManual = await loadFromFirebase('drivelogManual');
   if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
   var fbPayManual = await loadFromFirebase('payrollManual');
@@ -17752,8 +17907,14 @@ function attachCarDocListeners(orgId, carId){
       if(!snap.exists()) return;
       try{
         var _got = JSON.parse(snap.data().value);
-        _csSetBase(_myCar, _got);        /* v277: 받은 값이 **기준본** (합쳐 쓰기가 이것을 본다) */
-        var mg = mergeCarState({ [String(_myCar)]: _got }, {});
+        /* ★★ v284(58): 받은 값으로 통째로 덮지 않고 **아직 안 올린 내 변경을 얹는다**
+           (덮으면 내 쓰기의 메아리가 방금 누른 토글을 되돌린다).
+           ★ 출퇴근(`att`)은 **서버가 원본**이라 얹지 않는다(withAtt=false · v277 과 같은 뜻). */
+        var _fl = _csFlight[String(_myCar)];
+        var _ov = (_fl && _fl.sent) ? (function(){ var o={}; o[String(_myCar)]=_fl.sent; return o; })() : undefined;
+        var _use = csRebase(_myCar, _got, driverCarStateLocal(_myCar), false, _ov);
+        _csSetBase(_myCar, _got);        /* v277: 받은 값이 **기준본** (얹기 뒤에 바꾼다) */
+        var mg = mergeCarState({ [String(_myCar)]: _use }, {});
         localStorage.setItem('tkd_ridestate', JSON.stringify(mg.rideState||{}));
         localStorage.setItem('tkd_carlog', JSON.stringify(mg.carlog||{records:[],plans:{}}));
         localStorage.setItem(deliveryDoneKey(), JSON.stringify(mg.deliveryDone||{}));
@@ -17793,6 +17954,9 @@ function helperWatchCar(orgId){
      화면에 남으면 **남의 «회원» 이 보인다.** 빈 화면이 낫다(사본이 오면 바로 채워진다). */
 function helperSwitchCar(orgId, cid){
   cid = String(cid||'');
+  /* ★★ v284(58): **저장 줄을 먼저 비운다** — 옛 차량 몫으로 줄에 남은 저장이
+     폰을 비운 뒤에 돌면 **새 차량 문서를 빈 값으로 덮는다**(옛 차량 기록도 잃는다). */
+  try{ csQueueReset(); }catch(e){}
   window._driverCarId = cid || null;
   try{ currentCarId = cid || ''; }catch(e){}
   try{
@@ -17868,10 +18032,19 @@ function startFirebaseListeners(){
       onSnapshot(collection(window._db, 'orgs', orgId, 'carState'), function(snap){
         try{
           var byCar = {};
+          /* ★★ v284(58): 받은 값으로 **통째로 덮지 않는다** — 「서버값 + 아직 안 올린 내 변경」을 쓴다.
+             전에는 덮어서, 내 쓰기의 **메아리**가 오면 그 사이 누른 두 번째 토글이 사라졌다.
+             ★ 로컬에서 떠 놓는 것(`sp`)은 **반복 앞에서 한 번만** 만든다(54 교훈).
+             ★ 기준본은 **받은 서버값 그대로** 두고, 얹기는 **그 전 기준본**으로 센다(순서가 중요). */
+          var sp0 = null; try{ sp0 = splitCarState(); }catch(e){}
           snap.forEach(function(d){
             var v; try{ v = JSON.parse((d.data()||{}).value||'{}'); }catch(e){ v = emptyCarState(); }
-            byCar[d.id] = v;
-            _csSetBase(d.id, v);             /* 받은 값이 기준본 */
+            /* ★ 보내고 있는 쓰기가 있으면 **그 보낸 값**이 기준이다(내 메아리) —
+               그래야 「보낸 뒤에 또 누른 것」이 안 사라진다. 없으면 기준본을 쓴다. */
+            var _fl = _csFlight[d.id];
+            var _ov = (_fl && _fl.sent) ? (function(){ var o={}; o[d.id]=_fl.sent; return o; })() : undefined;
+            byCar[d.id] = sp0 ? csRebase(d.id, v, (sp0.byCar||{})[d.id] || emptyCarState(), true, _ov) : v;
+            _csSetBase(d.id, v);             /* 받은 값이 기준본 (얹기 **뒤**에 바꾼다) */
           });
           /* 직원 근태는 지금 폰에 있는 것을 그대로 살려 합친다 */
           var staffPart = {};
@@ -17926,10 +18099,14 @@ function startFirebaseListeners(){
          화면이 보는 `tkd_driver_att` 는 **합친 것**이라 여기서 통째로 덮지 않고 직원 몫만 바꾼다. */
       else if(key==='staffAtt'){
         try{
-          _saSetBase(data || {});          /* 43-C: 받은 값이 기준본 (안 하면 다음 저장이 덮는다) */
+          /* ★★ v284(58): 받은 값에 **아직 안 올린 내 변경을 얹는다**(덮지 않는다) —
+             관리자가 수기로 막 바꾼 직원 근태가 내 쓰기의 메아리에 되돌아가지 않게. */
+          var _use = saRebase(data || {}, staffAttLocal(),
+            (_saFlight && _saFlight.sent) ? _saFlight.sent : undefined);
+          _saSetBase(data || {});          /* 43-C: 받은 값이 기준본 (얹기 뒤에 바꾼다) */
           var _cur = loadDriverAtt();
           Object.keys(_cur).forEach(function(k){ if(_isStaffAttKey(k)) delete _cur[k]; });
-          Object.keys(data||{}).forEach(function(k){ _cur[k]=data[k]; });
+          Object.keys(_use||{}).forEach(function(k){ _cur[k]=_use[k]; });
           localStorage.setItem('tkd_driver_att', JSON.stringify(_cur));
         }catch(e){}
       }

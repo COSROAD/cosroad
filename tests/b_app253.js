@@ -212,14 +212,19 @@ const blockedUp = (R) => !!R.byId['testorg-blocked'] ||
       "try{if(window._helperCarUnsub){window._helperCarUnsub();window._helperCarUnsub=null;}}catch(e){}",
       "try{(_carDocUnsub||[]).forEach(function(fn){try{if(typeoffn==='function')fn();}catch(e){}});_carDocUnsub=[];}catch(e){}",
       "window._isHelperAcct=false;",
-      "window._driverStaffId='';"
+      "window._driverStaffId='';",
+      /* ★ v284(코스로드58): 로그아웃 때 **저장 줄을 비운다** — 줄에 남은 저장이
+         다음 사람 업체 문서로 가지 않게. 이 묶음이 지킬 것은 여전히 「민 나머지가 그대로인가」다. */
+      "try{csQueueReset();}catch(e){}"
     ];
     const strip43 = (s) => ADDED43.reduce((a, x) => a.split(x).join(''), s);
     ck('기존 logout() 이 그대로인가 (기사·도우미 조각만 다름)',
       strip43(norm(logoutOf(NEW)).replace(STRIP, ''))
         === norm(logoutOf(OLD)).replace(STRIP, ''), true);
-    ck('   43-B·43-C 가 더한 조각 넷이 다 있나(리스너 둘·도우미 표시 둘)',
-      ADDED43.filter((x) => norm(logoutOf(NEW)).indexOf(x) >= 0).length, 4);
+    /* ★ v284(58)에서 **다섯째 조각**(저장 줄 비우기)이 더해졌다 — 숫자도 같이 올린다.
+       (이 칸은 「민 조각이 정말 거기 있나」를 보는 자리다 — 목록만 늘리고 두면 헛돈다.) */
+    ck('   43-B·43-C·58 이 더한 조각 다섯이 다 있나(리스너 둘·도우미 표시 둘·저장 줄)',
+      ADDED43.filter((x) => norm(logoutOf(NEW)).indexOf(x) >= 0).length, 5);
     ck('   v255 는 _drvInfo* 와 업체번호를 비운다',
       /_drvInfo=\{\};_drvInfoLoaded=false;_drvInfoErr=false;_orgCode='';_orgCodeErr=false;_orgCodeAsked=false;/.test(logoutOf(NEW)), true);
     ck('   없어진 변수(_drvList·_drvErr)를 더 건드리지 않는다',
