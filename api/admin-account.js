@@ -362,14 +362,19 @@ export default async function handler(req, res) {
     }
 
     /* ── i) 기기 풀기 ── */
+    /* ★ 43-C(v282): **도우미 기기**도 여기서 푼다 — `staffId` 를 주면 사람 기준 문서를 지운다.
+       (기사는 차량 기준 `<org>_<carId>` · 도우미는 사람 기준 `<org>_hlp_<staffId>`)
+       동작을 새로 만들지 않은 이유: 권한·기간 검사와 문구가 **한 자리**에 있어야 어긋나지 않는다. */
     if (action === 'unbindDevice') {
       const org = String(b.org || '').trim();
       const carId = String(b.carId || '').trim();
-      if (!org || !carId) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
+      const staffId = String(b.staffId || '').trim();
+      if (!org || (!carId && !staffId)) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 기기를 풀 권한이 없어요.');
       /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
       if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
-      try { await A.db.collection('driverDevices').doc(org + '_' + carId).delete(); } catch (e) {
+      const devId = staffId ? (org + '_hlp_' + staffId) : (org + '_' + carId);
+      try { await A.db.collection('driverDevices').doc(devId).delete(); } catch (e) {
         return fail(res, 500, '기기를 풀지 못했어요. 잠시 뒤 다시 시도해 주세요.');
       }
       return res.status(200).json({ ok: true });
@@ -487,8 +492,12 @@ export default async function handler(req, res) {
         await A.db.collection('staffPins').doc(org + '_' + staffId)
           .set({ org: org, staffId: staffId, pinHash: want, updatedAt: Date.now() });
       } catch (e) { return fail(res, 500, 'PIN 을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
-      /* 도우미 로그인은 43-B 에서 열린다 — 그때를 위해 토큰을 끊어 둔다(없으면 조용히 지나간다) */
+      /* 도우미 로그인(43-B)이 열렸으므로 **토큰을 끊는다** — 옛 PIN 으로 받은 토큰은 못 쓴다 */
       try { await A.auth.revokeRefreshTokens(helperUidOf(org, staffId)); } catch (e) {}
+      /* ★ 43-C: **묶인 기기도 푼다** — 기사 `setDriverPin` 과 **같은 태도**다.
+         PIN 을 새로 정해 주는 때가 보통 「폰을 바꿨다」는 뜻이라, 안 풀면 새 폰으로 못 들어온다
+         (43-B 보고문 ①에서 그 구멍을 보고드렸던 자리다). */
+      try { await A.db.collection('driverDevices').doc(org + '_hlp_' + staffId).delete(); } catch (e) {}
       return res.status(200).json({ ok: true });
     }
 
@@ -505,6 +514,8 @@ export default async function handler(req, res) {
           .set({ carId: '', updatedAt: Date.now() }, { merge: true });
       } catch (e) {}
       try { await A.auth.revokeRefreshTokens(helperUidOf(org, staffId)); } catch (e) {}
+      /* ★ 43-C: 묶인 기기도 푼다 — PIN 이 없으면 그 기기로 들어올 일도 없다(흔적을 남기지 않는다) */
+      try { await A.db.collection('driverDevices').doc(org + '_hlp_' + staffId).delete(); } catch (e) {}
       return res.status(200).json({ ok: true });
     }
 

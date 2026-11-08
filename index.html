@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 281;
+const APP_VERSION = 282;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1046,6 +1046,58 @@ async function writeCarStatePatch(orgId, cid, patch){
   }
 }
 
+/* ── 직원 근태(`data/staffAtt`)도 **바뀐 칸만** (43-C · v282) ──────────────
+   ★★ 왜 — v275 에서 직원 근태를 `data/staffAtt` 로 떼어낼 때 **통째로(setDoc)** 썼다.
+     43-C 부터 **서버가** 도우미 출퇴근을 그 문서에 찍으므로, 관리자가 아무 저장을 한 번 하면
+     폰이 아직 못 받은 도우미 출근이 **지워진다**(v277 의 `att` 와 똑같은 함정 · 스텁으로 실측).
+   ★ 자료 모양이 carState 의 `att` 와 **같다**(`{키:{in,out}}`) → **같은 함수**(`_csAttDiff`·
+     `_csAttApply`)를 쓴다. 셈을 두 벌로 베끼면 한쪽만 고쳐져 어긋난다(otp-core 교훈).
+   ★ 기준본이 `null`(아직 한 번도 못 받음)이면 **지우기는 안 보낸다** — 안전한 쪽이다. */
+var _saBase = null;                    /* 직원 근태 기준본 — 마지막으로 서버에서 받은 값 */
+function _saSetBase(obj){
+  try{ _saBase = JSON.parse(JSON.stringify(obj || {})); }catch(e){ _saBase = {}; }
+}
+function staffAttPatch(now){
+  var p = _csAttDiff(_saBase || {}, now || {});
+  if(_saBase === null) p.drop = [];     /* 기준본을 모르면 남의 칸을 지우지 않는다 */
+  return p;
+}
+function staffAttPatchEmpty(p){
+  if(!p) return true;
+  return (Object.keys(p.put||{}).length + (p.drop||[]).length) === 0;
+}
+async function writeStaffAttPatch(orgId, patch){
+  try{
+    var { doc, runTransaction, getDoc } = window._firestore;
+    if(!runTransaction){
+      console.log('runTransaction 없음 — 직원 근태 합치기 건너뜀');
+      return false;
+    }
+    var ref = doc(window._db,'orgs',orgId,'data','staffAtt');
+    /* 덮어쓰기 직전 백업 — 다른 저장과 **같은 자리·같은 꼴**(실패하면 삼킨다) */
+    try{
+      var _prev = await getDoc(ref);
+      if(_prev.exists()) await _backupBeforeSave(orgId, 'staffAtt', (_prev.data()||{}).value);
+    }catch(e){ console.log('직원 근태 백업 건너뜀:', e && e.message); }
+    var written = await runTransaction(window._db, async function(tx){
+      var snap = await tx.get(ref);
+      var srv = {};
+      if(snap.exists()){
+        try{ srv = JSON.parse((snap.data()||{}).value || '{}'); }catch(e){ srv = {}; }
+      }
+      if(!srv || typeof srv!=='object' || Array.isArray(srv)) srv = {};
+      var next = _csAttApply(srv, patch);
+      tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
+      return next;
+    });
+    _saSetBase(written);                      /* 쓴 값이 새 기준본 */
+    return true;
+  }catch(e){
+    console.log('직원 근태 합쳐 쓰기 실패:', e && e.message);
+    return false;
+  }
+}
+
 /* 서버에서 차량 문서 전부 읽기 (관리자) */
 async function loadAllCarState(){
   try{
@@ -1154,7 +1206,12 @@ async function saveCarState(){
       wrote++;
       if(!(await writeCarStatePatch(orgId, ids[i], pa))) allOk = false;
     }
-    await saveToFirebase('staffAtt', sp.staffAtt);
+    /* ★ 43-C: 직원 근태도 **바뀐 칸만** 트랜잭션으로 — 통째로 쓰면 서버가 찍은
+       도우미 출퇴근을 지운다(위 writeStaffAttPatch 쪽지 참고 · 스텁으로 실측). */
+    var pst = staffAttPatch(sp.staffAtt);
+    if(!staffAttPatchEmpty(pst)){
+      if(!(await writeStaffAttPatch(orgId, pst))) allOk = false;
+    }
     /* 「옛 자료 옮기기」가 이 값을 본다 — 쓸 것이 없었으면 그것도 성공이다(v275 보정1) */
     return allOk;
   }catch(e){ console.log('차량 기록 저장 실패:', e && e.message); return false; }
@@ -2332,10 +2389,15 @@ function openStaffEdit(id){
         '<input id="st-pin" type="text" inputmode="numeric" maxlength="4" value="" placeholder="'
         + (staffHasPin(st) ? '설정됨 — 바꾸려면 새 4자리' : '예) 1234') + '" style="'+IN+'"/>'
         + (staffHasPin(st)
-            ? '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">'
+            ? '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">'
               + '<span style="font-size:11px;color:#12B76A;font-weight:700;">🔢 PIN 설정됨</span>'
               + '<button type="button" onclick="staffPinClear(this)" style="padding:5px 10px;background:#FEE4E2;color:#B42318;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">PIN 지우기</button>'
+              /* ★ 43-C: 동승 도우미가 폰을 바꿨을 때 — **기사와 같은 단추·같은 말**이다.
+                 PIN 을 새로 정해도 풀리지만(서버), 폰만 바꾼 경우에는 이 단추가 더 알맞다. */
+              + (isNew ? ''
+                  : '<button type="button" onclick="unbindStaffDeviceAsk('+jsArg(String(st.id||''))+')" style="padding:5px 10px;background:#F2F4F7;color:#475467;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">📱 기기 풀기</button>')
               + '<span id="st-pin-note" style="font-size:11px;color:#98A2B3;"></span></div>'
+              + '<div style="font-size:11px;color:#98A2B3;margin-top:5px;line-height:1.6;">동승 도우미로 들어오는 직원이 폰을 바꿨으면 「📱 기기 풀기」를 눌러 주세요</div>'
             : '<div style="font-size:11px;color:#98A2B3;margin-top:6px;">PIN 이 있어야 PIN 판에서 출퇴근할 수 있어요</div>'))
     + '<div style="display:flex;gap:8px;">'
       + '<div style="flex:1;">'+fld('시급 (원)', '<input id="st-wage" type="number" value="'+(st.hourlyWage||'')+'" placeholder="10030" style="'+IN+'"/>')+'</div>'
@@ -5113,11 +5175,11 @@ var HELP_QA=[
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
    a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
   {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
-   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요 (업종 공고에 더해 소상공인·중소기업·경영지원 공고와 업종 관련 부처(학원=교육부·교육청 / 공공=보건복지부 / 물류·택배=국토교통부) 공고도 함께)\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n3-1. 팝업 아래 「7일 동안 알림 팝업 보지 않기」에 체크하고 닫으면 일주일 동안 팝업이 쉬어요 (그 사이에도 대시보드 「💰 정부 지원사업」 카드로 들어가면 목록은 볼 수 있어요)\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 자동으로 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 지역 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
+   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요 (업종 공고에 더해 소상공인·중소기업·경영지원 공고와 업종 관련 부처(학원=교육부·교육청 / 공공=보건복지부 / 물류·택배=국토교통부) 공고도 함께)\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n3-1. 팝업 아래 「7일 동안 알림 팝업 보지 않기」에 체크하고 닫으면 일주일 동안 팝업이 쉬어요 (그 사이에도 대시보드 「💰 정부 지원사업」 카드로 들어가면 목록은 볼 수 있어요)\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 자동으로 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n5-1. 주소에 시도(인천광역시·경기도 …)가 없으면 자동으로 못 찾아요 — 목록 위 「📍」 줄에 <b>「지역을 못 찾았어요 — ⚙ 에서 골라 주세요」</b>가 뜨고, 그동안은 전 지역이 보여요. ⚙ 에서 시도를 고르거나 설정 탭에서 사업장 주소를 시도부터 적어 주세요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 지역 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판사진'], t:'운행기록부 내보내기',
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['직원','직원근태','기사외','알바','휴게','휴게시간','직원출퇴근','직원급여'], t:'기사 말고 직원 출퇴근은?',
-   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 직원 출퇴근은 <b>관리자 기기에서</b> 찍어요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」 판에서 직원이 자기 PIN 4자리를 눌러도 돼요\n4. 기사와는 방식이 달라요 — 기사는 자기 폰 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로 찍어요 (기사 화면에는 PIN 판이 없어요)\n5. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n6. 기사는 휴게를 빼지 않아요 (종전 그대로)\n7. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n8. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n9. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n9-1. <b>PIN 은 서버에만 안전하게 보관돼요</b> — 한 번 정하면 화면에 다시 보이지 않고, 「PIN 설정됨」으로만 나와요. 잊으셨으면 새 번호로 다시 정하시면 돼요\n9-2. 근태 화면 위에 <b>「🔢 옛 직원 PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료 안에 그대로 있던 PIN 을 서버로 옮깁니다 (PIN 판 출퇴근은 그대로 돼요)\n10. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
+   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 직원 출퇴근은 <b>관리자 기기에서</b> 찍어요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」 판에서 직원이 자기 PIN 4자리를 눌러도 돼요\n4. 기사와는 방식이 달라요 — 기사는 자기 폰 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로 찍어요 (기사 화면에는 PIN 판이 없어요)\n4-1. <b>동승 도우미</b>로 들어오는 직원은 <b>자기 폰에서</b> 「🌅 출근」·「🌆 퇴근」을 눌러요 — 같은 직원 근태로 들어와 달력·급여에 함께 나와요 (관리자가 PIN 판으로 찍어 주는 것도 그대로 돼요)\n5. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n6. 기사는 휴게를 빼지 않아요 (종전 그대로)\n7. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n8. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n9. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n9-1. <b>PIN 은 서버에만 안전하게 보관돼요</b> — 한 번 정하면 화면에 다시 보이지 않고, 「PIN 설정됨」으로만 나와요. 잊으셨으면 새 번호로 다시 정하시면 돼요\n9-2. 근태 화면 위에 <b>「🔢 옛 직원 PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료 안에 그대로 있던 PIN 을 서버로 옮깁니다 (PIN 판 출퇴근은 그대로 돼요)\n10. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사·직원 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 사람이 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업','4대보험','요율','국민연금','건강보험'], t:'급여상세 내보내기',
@@ -5227,7 +5289,7 @@ var HELP_QA=[
      ★ 검색어에 바른 낱말(동승·동승도우미·직원pin)을 넣는다. 그냥 '도우미' 는 넣지 않는다 —
        도우미 「코스」 문답(저는 코스예요)의 검색어와 겹쳐 엉뚱한 답이 먼저 나온다. */
   {role:'all', keys:['동승','동승도우미','동승로그인','함께타','보조기사','직원pin','직원로그인','도우미로그인','도우미배정'], t:'동승 도우미 (함께 타는 직원 로그인)',
-   a:'차량에 기사와 <b>함께 타는 직원</b>이 그 차량 운행 화면을 볼 수 있어요 (학원·공공)\n1. 관리자: 🚐 차량관리 → 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 직원을 고르세요 — 한 차량에 <b>한 명</b>, 한 직원은 <b>한 차량</b>이에요\n2. 그 직원에게 <b>PIN 이 먼저 있어야</b> 해요 — 없으면 근태 화면에서 「🔢 PIN 정하기」로 정해 주세요\n3. 도우미: 로그인 화면의 「🚐 기사 로그인」에 <b>업체 번호 6자리 + 내 직원 PIN 4자리</b>를 넣으세요 (따로 입구가 없어요)\n4. 들어가면 윗머리에 「동승」 배지와 「🧑‍🤝‍🧑 동승 도우미 · ○호차」가 보여요\n5. 할 수 있는 것: 그 차량 운행(탑승·하차·완료 체크) · 「🚐 곧도착」 같은 알림 보내기 · «회원» 목록 보기\n6. 할 수 없는 것: <b>출근·퇴근 단추가 없어요</b>(직원 출퇴근은 관리자 PIN 판으로 해요) · <b>차계부는 보기만</b> 이에요\n7. 관리자가 배정을 다른 차량으로 바꾸면 도우미 화면이 <b>바로</b> 새 차량으로 바뀌어요 — 옛 차량 자료는 그 자리에서 막혀요\n8. 배정을 떼면 「동승할 차량이 배정되지 않았어요」가 나와요. PIN 을 지워도 바로 못 들어와요\n9. 처음 로그인한 폰에 묶여요 — 기사와 같아요\n10. 업체 이용 기간이 끝나면 도우미도 함께 잠겨요'},
+   a:'차량에 기사와 <b>함께 타는 직원</b>이 그 차량 운행 화면을 볼 수 있어요 (학원·공공)\n1. 관리자: 🚐 차량관리 → 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 직원을 고르세요 — 한 차량에 <b>한 명</b>, 한 직원은 <b>한 차량</b>이에요\n2. 그 직원에게 <b>PIN 이 먼저 있어야</b> 해요 — 없으면 근태 화면에서 「🔢 PIN 정하기」로 정해 주세요\n3. 도우미: 로그인 화면의 「🚐 기사 로그인」에 <b>업체 번호 6자리 + 내 직원 PIN 4자리</b>를 넣으세요 (따로 입구가 없어요)\n4. 들어가면 윗머리에 「동승」 배지와 「🧑‍🤝‍🧑 동승 도우미 · ○호차」가 보여요\n5. 할 수 있는 것: 그 차량 운행(탑승·하차·완료 체크) · 「🚐 곧도착」 같은 알림 보내기 · «회원» 목록 보기\n6. <b>출근·퇴근도 자기 폰에서 눌러요</b> — 운행 화면 위의 「🌅 출근」·「🌆 퇴근」이에요. 기록은 <b>직원 근태</b>로 들어가서 근태 달력·직원 급여에 그대로 나와요 (차량 배정이 없어도 출퇴근은 돼요 — 근태는 차량과 상관없어요)\n6-1. 할 수 없는 것: <b>차계부는 보기만</b> 이에요 (계기판 km 칸도 안 나와요)\n6-2. 폰을 바꿨으면 관리자가 근태 화면 → 직원 수정 창에서 <b>「📱 기기 풀기」</b>를 눌러 주면 돼요 (PIN 을 새로 정해도 풀려요)\n7. 관리자가 배정을 다른 차량으로 바꾸면 도우미 화면이 <b>바로</b> 새 차량으로 바뀌어요 — 옛 차량 자료는 그 자리에서 막혀요\n8. 배정을 떼면 「동승할 차량이 배정되지 않았어요」가 나와요. PIN 을 지워도 바로 못 들어와요\n9. 처음 로그인한 폰에 묶여요 — 기사와 같아요\n10. 업체 이용 기간이 끝나면 도우미도 함께 잠겨요'},
   {role:'all', keys:['뒤로','뒤로가기','back','창닫기','앱이꺼져','나가짐'], t:'뒤로가기를 누르면 어떻게 되나요?',
    a:'1. 창이 열려 있으면 뒤로가기는 <b>그 창만</b> 닫아요 — 「✕」를 누른 것과 같아요\n2. 창이 겹쳐 있으면 <b>맨 위 창부터</b> 하나씩 닫혀요 (예: 문서 보기 위에 카톡 보내기 창)\n3. 삭제·결제 <b>확인창에서 뒤로가기는 「취소」</b>예요 — 눌러도 지워지거나 처리되지 않아요\n4. 열린 창이 없을 때 누르면 <b>앱이 닫혀요</b> (전과 같아요)\n5. 승인 대기·이용 기간 끝 같은 <b>안내 화면은 뒤로가기로 닫히지 않아요</b> — 로그아웃으로 나가세요'}
 ];
@@ -5762,9 +5824,52 @@ async function helperReadCarId(uid){
     var who = String(uid || myAuthUid() || '');
     if(!who) return;
     var snap = await getDoc(doc(window._db,'orgs',getFbOrgId(),'drivers',who));
-    var cid = String(((snap.exists() && snap.data()) || {}).carId || '');
+    var _d = (snap.exists() && snap.data()) || {};
+    var cid = String(_d.carId || '');
     window._driverCarId = cid || null;
+    helperSeedAtt(_d.att);               /* 43-C: 오늘 내 출퇴근도 같이 받아 둔다 */
   }catch(e){ console.log('도우미 배정 읽기 실패:', e && e.message); }
+}
+/* ★★ 43-C: 폰의 합친 근태(`tkd_driver_att`)를 **차량 쪽 값으로 덮어쓸 때** 쓰는 한 벌.
+   도우미의 「내 출퇴근」은 **직원 키**(`st…_날짜`)인데, 차량 문서(`carState`)에서 온 값에는
+   그 키가 없다. 그래서 동기화·리스너가 통째로 덮으면 **출근 표시가 사라진다**
+   (그러면 「출근」을 또 눌러 퇴근이 찍힌다 — 실제로 그렇게 된다).
+   → 덮기 전에 **내 직원 키만** 챙겨 넣는다. 관리자·기사는 아무 변화가 없다. */
+function driverAttSetLocal(map){
+  var out = (map && typeof map==='object') ? map : {};
+  try{
+    if(isHelperAcct()){
+      var sid = String(window._driverStaffId||'');
+      var cur = loadDriverAtt();
+      Object.keys(cur||{}).forEach(function(k){
+        if(sid && k.indexOf(sid + '_') === 0 && !out[k]) out[k] = cur[k];
+      });
+    }
+  }catch(e){}
+  try{ localStorage.setItem('tkd_driver_att', JSON.stringify(out)); }catch(e){}
+  return out;
+}
+/* 「오늘 내 출퇴근」 받아 넣기 (43-C) — 서버가 배정 문서에 같이 적어 둔 것.
+   ★ 오늘 것만 쓴다(날짜가 다르면 버린다) · 그 **직원 키 하나만** 손댄다. */
+function helperSeedAtt(a){
+  try{
+    if(!a || !isHelperAcct()) return;
+    var sid = String(window._driverStaffId||'');
+    if(!sid) return;
+    if(String(a.date||'') !== todayStr()) return;
+    var k = attKey(sid, todayStr());
+    var att = loadDriverAtt();
+    var cur = att[k] || {};
+    var next = {};
+    if(a.in)  next.in  = String(a.in);
+    if(a.out) next.out = String(a.out);
+    if(JSON.stringify(cur) === JSON.stringify(next)) return;    /* 같으면 가만히 */
+    if(Object.keys(next).length) att[k] = next; else delete att[k];
+    /* ★ 로컬에만 넣는다 — `saveDriverAtt()` 를 부르면 서버에 쓰려 들고(도우미는 권한 없음)
+       그 길에 안내·되돌리기까지 돈다(v272 함정과 같은 자리). */
+    try{ localStorage.setItem('tkd_driver_att', JSON.stringify(att)); }catch(e){}
+    try{ if(currentTab==='drive') renderDrive(); }catch(e){}
+  }catch(e){ console.log('도우미 출퇴근 받기 실패:', e && e.message); }
 }
 /* 머리줄 — **단추가 아니다**(기사 화면 원칙: 단추를 늘리지 않는다) */
 function helperBarHtml(car){
@@ -5800,9 +5905,14 @@ function renderDrive(){
      토큰에 carId 가 없으면 출퇴근도 거부하므로 실제로 일어나지는 않지만,
      화면 원칙(기사는 자기 차량 한 대)을 코드로도 못 박는다.
      출근·퇴근·차계부 단추도 이 자리에서 돌아가므로 함께 안 나온다(누를 차량이 없다). */
+  /* ★ 43-C: 도우미는 **배정이 없어도 출퇴근은 된다**(근태는 차량과 무관) —
+     그래서 차량이 없을 때도 출근·퇴근 단추는 보여 주고 그 아래에 안내를 둔다.
+     기사는 종전 그대로(누를 차량이 없으면 단추도 안 나온다). */
+  var _noCarHead = (currentMode==='driver' && isHelperAcct())
+    ? (helperBarHtml(null) + driverPunchBarHtml()) : '';
   if(currentMode==='driver' && !_lockCar){
     document.getElementById('drive-tabs').innerHTML = '';
-    content.innerHTML = driverNoCarHtml();
+    content.innerHTML = _noCarHead + driverNoCarHtml();
     return;
   }
   if(_lockCar){
@@ -5810,7 +5920,7 @@ function renderDrive(){
     if(!cars.some(function(c){ return c.id===_lockCar; })){
       /* 관리자가 그 차량을 지웠을 때 — 빈 화면 대신 까닭을 적어 준다 (문구는 한 곳에서) */
       document.getElementById('drive-tabs').innerHTML = '';
-      content.innerHTML = driverNoCarHtml();
+      content.innerHTML = _noCarHead + driverNoCarHtml();
       return;
     }
   }
@@ -5862,10 +5972,11 @@ function renderDrive(){
      둘러보기(_demo)는 서버를 부르지 않아 종전 PIN 판 그대로 둔다(이번 회차 범위 밖). */
   if(currentMode==='driver'){
     if(isHelperAcct()){
-      /* ★ 43-B: 동승 도우미는 **출근·퇴근 단추가 없다**(직원 근태로 여는 것은 43-C).
-         서버도 받지 않는다 — `checkin`/`checkout` 의 requireDriver 가 기사 claim 만 통과시킨다.
-         대신 「내가 지금 어느 차량의 도우미인가」를 한 줄로 보여 준다. */
+      /* ★ 43-B: 머리줄로 「내가 지금 어느 차량의 도우미인가」를 보여 준다.
+         ★ 43-C: 출근·퇴근 단추를 **되살렸다** — 기사와 **같은 자리·같은 모양**이고
+           기록만 **직원 근태**로 간다(서버 `punchStaff` → `data/staffAtt`). 새 단추가 아니다. */
       html+=helperBarHtml(car);
+      html+=driverPunchBarHtml();
     } else if(typeof isDemoMode==='function' && isDemoMode()){
       /* v257: 둘러보기도 실서비스와 같은 모양 — 출근·퇴근 단추. PIN 판은 없다. */
       html+=demoPunchBarHtml();
@@ -8804,7 +8915,10 @@ function demoPunch(which){
 /* 기사 화면 「출근·퇴근」 단추 (v255) — 오늘 상태를 함께 보여 준다.
    읽는 값은 driverAtt(기사도 읽을 수 있는 키), 쓰는 일은 서버만 한다. */
 function driverPunchBarHtml(){
-  var cid = window._driverCarId || currentCarId;
+  /* ★ 43-C: 동승 도우미는 **직원 근태**다 — 키가 `st…_날짜`(앱 attKey 와 같은 모양)이고
+     서버가 `data/staffAtt` 에 찍는다(차량과 무관하므로 **배정이 없어도** 찍을 수 있다). */
+  var cid = isHelperAcct() ? String(window._driverStaffId || '')
+                           : (window._driverCarId || currentCarId);
   if(!cid) return '';
   var a = loadDriverAtt()[attKey(cid, todayStr())] || {};
   var inOk=!!a.in, outOk=!!a.out;
@@ -8846,15 +8960,18 @@ async function driverPunch(which){
       if(j && j.why==='expired'){ try{ showDriverBlocked('expired'); }catch(e){} }
       return;
     }
-    var cid = window._driverCarId || currentCarId;
+    /* ★ 43-C: 도우미면 서버가 돌려준 `staffId` 로 **직원 근태 키**(`st…_날짜`)에 적는다 —
+       기사는 종전대로 차량 키(`car1_날짜`). 두 모양을 섞으면 급여·근태가 어긋난다. */
+    var cid = String(j.staffId || window._driverCarId || currentCarId || '');
     driverAttLocalSet(cid, j.date||todayStr(), j.kind, j.time);
     try{ showToast(j.kind==='in' ? ('✅ 출근 '+j.time+' 기록했어요')
                 : j.kind==='out' ? ('🏁 퇴근 '+j.time+' 기록했어요')
                 : '오늘 출퇴근은 이미 기록돼 있어요'); }catch(e){}
     try{ renderDrive(); }catch(e){}
     /* 계기판 km 입력 (선택) — 종전 PIN 판과 같은 뜻: 출근=「주행 전」, 퇴근=「주행 후」.
-       차계부(carlog)는 기사가 쓸 수 있는 키라 앱이 그대로 저장한다 */
-    if(j.kind==='in' || j.kind==='out'){
+       차계부(carlog)는 기사가 쓸 수 있는 키라 앱이 그대로 저장한다
+       ★ 43-C: **도우미에게는 안 띄운다** — 도우미 차계부는 보기만이다(사장님 결정 ②). */
+    if((j.kind==='in' || j.kind==='out') && !isHelperAcct()){
       var ob=document.getElementById('drv-punch-msg');
       if(ob){
         ob.style.color='#475467';
@@ -15318,22 +15435,33 @@ function supportSidoOfficial(key){
 }
 /* 사업장 주소에서 시도·시군구 자동 인식 (별칭 → 정식 key 변환).
    주소가 없거나 인식 실패면 빈 값 — 그러면 필터 없이 전 지역으로 동작한다. */
+/* ★★ 43-C(v282): **주소 아무 낱말에서나** 시도를 찾는다.
+   전에는 **첫 낱말만** 봤다 → 「수원시 영통구 …」처럼 시도를 생략한 주소에서 못 찾고,
+   그러면 `supportRegionEff()` 가 빈 값을 주어 **지역 필터가 조용히 꺼졌다**
+   (전 지역 공고가 다 보였다 — 51 보고문 7-② 로 실측해 드린 그 자리다).
+   ★ 오탐 주의 — 「경기도 광주시」는 **경기**다. 그래서 낱말을 **앞에서부터** 보고
+     **먼저 걸린 시도**를 쓴다(주소는 큰 단위부터 적는다). 51 의 교훈과 같은 방향이다.
+   ★ 시도가 아예 없는 주소(「수원시 …」)는 **못 찾음으로 둔다** — 시군구→시도 표는
+     넣지 않았다(51 결론: 226개 · 동명 시군구 오탐). 화면이 「못 찾았어요」를 알려 준다. */
 function supportRegionAuto(){
   var addr=String((orgSettings&&orgSettings.address)||'').trim();
   if(!addr) return {sido:'', sigungu:''};
   var parts=addr.split(/\s+/);
-  var first=parts[0]||'';
-  var sido='';
   var L=supportSidoList();
-  for(var i=0;i<L.length && !sido;i++){
-    /* alias는 긴 것부터 담겨 있어 '서울시'가 '서울'보다 먼저 걸린다 */
-    for(var j=0;j<L[i].alias.length;j++){
-      if(first.indexOf(L[i].alias[j])===0){ sido=L[i].key; break; }
+  var sido='', at=-1;
+  for(var p=0;p<parts.length && !sido;p++){
+    var w=parts[p]||'';
+    for(var i=0;i<L.length && !sido;i++){
+      /* alias는 긴 것부터 담겨 있어 '서울시'가 '서울'보다 먼저 걸린다 */
+      for(var j=0;j<L[i].alias.length;j++){
+        if(w.indexOf(L[i].alias[j])===0){ sido=L[i].key; at=p; break; }
+      }
     }
   }
+  /* 시군구는 **시도 바로 다음 낱말**에서 본다(전과 같은 규칙) */
   var sigungu='';
-  var second=parts[1]||'';
-  if(sido && /[시군구]$/.test(second)) sigungu=second;
+  var next=(at>=0)?(parts[at+1]||''):'';
+  if(sido && /[시군구]$/.test(next)) sigungu=next;
   return {sido:sido, sigungu:sigungu};
 }
 /* 실제 적용되는 지역 — 설정값이 비어 있으면 자동 인식값을 쓴다 */
@@ -15424,13 +15552,17 @@ function supportCfgHtml(){
   h+='</div>';
   return h;
 }
-/* 목록 상단에 보여줄 현재 필터 문구 */
+/* 목록 상단에 보여줄 현재 필터 문구
+   ★ 43-C: 주소에서 지역을 못 찾으면 **무엇을 하면 되는지**까지 적는다 —
+     전에는 「전 지역 (주소에서 지역을 못 찾았어요)」까지만 적어서, 왜 타 지역 공고가
+     다 보이는지는 알 수 있어도 **어디서 고치는지**를 알 수 없었다(새 창은 만들지 않는다). */
 function supportRegionLabel(){
   var e=supportRegionEff();
   if(!e.on) return '전 지역';
   var nm=supportSidoOfficial(e.sido)||'';
   var txt=(nm+' '+(e.sigungu||'')).trim();
-  return txt ? (txt+' + 전국 공고') : '전 지역 (주소에서 지역을 못 찾았어요)';
+  return txt ? (txt+' + 전국 공고')
+             : '지역을 못 찾았어요 — ⚙ 에서 골라 주세요 (지금은 전 지역이 보여요)';
 }
 
 /* 마감임박 판정 — 오늘부터 설정한 D-기준 이내 */
@@ -16155,6 +16287,19 @@ function removeDriverPinAsk(carId){
         try{ showToast('PIN 을 지웠어요 (기록은 그대로 남아요)'); }catch(e){}
       });
   }, '이 기사의 PIN 을 지울까요? 바로 로그인할 수 없게 됩니다. (출퇴근·차계부 기록은 그대로 남아요)', '지우기');
+}
+/* ★ 43-C: 동승 도우미(직원) 기기 풀기 — **같은 서버 동작·같은 확인 창**을 쓴다.
+   기사와 다른 점은 자리뿐이다(기사=차량 기준 문서 · 도우미=사람 기준 문서). */
+function unbindStaffDeviceAsk(staffId){
+  var st=findStaff(staffId);
+  var nm=st&&st.name?st.name:'이 직원';
+  showConfirmModal(function(){
+    driverAcctApi({ action:'unbindDevice', org:getFbOrgId(), staffId:String(staffId) })
+      .then(function(r){
+        if(!r.ok){ alert(r.message||'풀지 못했어요.'); return; }
+        try{ showToast('📱 기기를 풀었어요 — 다음에 로그인한 폰에 다시 묶여요'); }catch(e){}
+      });
+  }, nm+'님의 묶인 기기를 풀까요? 다음에 로그인하는 폰에 새로 묶입니다.', '풀기');
 }
 function unbindDeviceAsk(carId){
   showConfirmModal(function(){
@@ -17443,6 +17588,8 @@ async function syncFromFirebase(){
   var _cs = _drvMode0 ? null : await loadAllCarState();
   var _csMine = _drvMode0 ? await loadMyCarState() : null;
   var fbStaffAtt = _drvMode0 ? null : await loadFromFirebase('staffAtt');
+  /* ★ 43-C: 받은 값이 **직원 근태 기준본**이다(바뀐 칸만 쓰기가 이것을 본다) */
+  if(!_drvMode0) _saSetBase(fbStaffAtt || {});
   var _merged = null;
   if(_drvMode0){
     if(_csMine) _merged = mergeCarState({ [String(driverLockedCarId()||'')]: _csMine }, {});
@@ -17466,8 +17613,9 @@ async function syncFromFirebase(){
   if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
   /* 알리고 키는 서버(Vercel)에만 있습니다. 클라우드에서 내려받지 않습니다. */
   try{ localStorage.removeItem('tkd_aligo'); }catch(e){}
-  if(fbDriverAtt){ localStorage.setItem('tkd_driver_att', JSON.stringify(fbDriverAtt)); }
-  else { localStorage.setItem('tkd_driver_att', '{}'); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
+  /* 43-C: 덮을 때 **도우미 자기 근태 키**는 챙긴다(driverAttSetLocal 쪽지 참고) */
+  if(fbDriverAtt){ driverAttSetLocal(fbDriverAtt); }
+  else { driverAttSetLocal({}); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
   if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
   if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
   var fbCarlog = _merged ? _merged.carlog : null;
@@ -17588,7 +17736,7 @@ function attachCarDocListeners(orgId, carId){
         localStorage.setItem('tkd_carlog', JSON.stringify(mg.carlog||{records:[],plans:{}}));
         localStorage.setItem(deliveryDoneKey(), JSON.stringify(mg.deliveryDone||{}));
         localStorage.setItem(dropoffDoneKey(), JSON.stringify(mg.dropoffDone||{}));
-        localStorage.setItem('tkd_driver_att', JSON.stringify(mg.driverAtt||{}));
+        driverAttSetLocal(mg.driverAtt||{});     /* 43-C: 도우미 자기 근태 키는 지키고 덮는다 */
         members = applyRideState(members);
         renderByTab();
       }catch(e){ console.log('차량 기록 반영 실패:', e && e.message); }
@@ -17608,7 +17756,11 @@ function helperWatchCar(orgId){
          **관리자로 다시 들어온 화면**에서 이것이 깨어나 helperSwitchCar 가 폰을 비운다.
          (같은 탭에서 도우미 → 로그아웃 → 관리자 로그인으로 실제로 그렇게 된다) */
       if(!isHelperAcct() || currentMode!=='driver') return;
-      var cid = String(((snap.exists() && snap.data()) || {}).carId || '');
+      var _d = (snap.exists() && snap.data()) || {};
+      /* ★ 43-C: 「오늘 내 출퇴근」을 여기서 받아 **출근·퇴근 단추에 물려 준다**
+         (원본은 서버 `data/staffAtt` — 도우미 폰은 그 문서를 못 읽는다). */
+      helperSeedAtt(_d.att);
+      var cid = String(_d.carId || '');
       if(cid === String(window._driverCarId||'')) return;       /* 안 바뀌었으면 가만히 */
       helperSwitchCar(orgId, cid);
     }, function(err){ console.log('도우미 배정 리스너 거부:', err && err.code); });
@@ -17628,7 +17780,15 @@ function helperSwitchCar(orgId, cid){
     localStorage.setItem('tkd_carlog', JSON.stringify({records:[],plans:{}}));
     localStorage.setItem(deliveryDoneKey(),'{}');
     localStorage.setItem(dropoffDoneKey(),'{}');
-    localStorage.setItem('tkd_driver_att','{}');
+    /* ★ 43-C: 근태는 **차량과 무관**하다 — 차량이 바뀌어도 **내 출퇴근 칸은 남긴다**
+       (비우면 출근해 둔 표시가 사라져 「출근」을 또 누르게 된다). 차량 몫만 버린다. */
+    try{
+      var _keepAtt = {};
+      var _at = loadDriverAtt();
+      var _sid = String(window._driverStaffId||'');
+      if(_sid && _at[attKey(_sid, todayStr())]) _keepAtt[attKey(_sid, todayStr())] = _at[attKey(_sid, todayStr())];
+      localStorage.setItem('tkd_driver_att', JSON.stringify(_keepAtt));
+    }catch(e){ localStorage.setItem('tkd_driver_att','{}'); }
     _csBase = {};                       /* 기준본도 비운다 — 옛 차량 값으로 새 차량에 쓰지 않게 */
   }catch(e){}
   attachCarDocListeners(orgId, cid);    /* 옛 차량을 떼고 새 차량에 붙인다(바로 한 번 온다) */
@@ -17744,6 +17904,7 @@ function startFirebaseListeners(){
          화면이 보는 `tkd_driver_att` 는 **합친 것**이라 여기서 통째로 덮지 않고 직원 몫만 바꾼다. */
       else if(key==='staffAtt'){
         try{
+          _saSetBase(data || {});          /* 43-C: 받은 값이 기준본 (안 하면 다음 저장이 덮는다) */
           var _cur = loadDriverAtt();
           Object.keys(_cur).forEach(function(k){ if(_isStaffAttKey(k)) delete _cur[k]; });
           Object.keys(data||{}).forEach(function(k){ _cur[k]=data[k]; });

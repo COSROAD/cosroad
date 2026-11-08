@@ -342,19 +342,83 @@ export default async function handler(req, res) {
     }
   }
 
-  /* 호출자 확인 — 기사 토큰인가 (checkin·checkout) */
-  async function requireDriver() {
+  /* ── 직원 근태 출퇴근 (43-C · v282) ──────────────────────────────────────
+     동승 도우미는 **차량 근태가 아니라 직원 근태**다 → `orgs/{org}/data/staffAtt` 에 찍는다.
+     ★ 키는 앱 `attKey(staffId, 날짜)` 와 **같은 모양**(`st…_YYYY-MM-DD`) —
+       그래서 근태 달력·직원 급여 화면이 **한 줄도 안 바뀐다**.
+     ★ 그 문서는 규칙상 **관리자 전용**이라 도우미 폰은 못 쓴다 → 서버(Admin SDK)가 쓴다.
+     ★ **트랜잭션으로 그 칸만** 고친다 — 통째로 쓰면 관리자·다른 직원 기록을 지운다
+       (앱 쪽도 같은 회차에 「바뀐 칸만」으로 바꿨다: writeStaffAttPatch).
+     반환: { ok, kind:'in'|'out'|'done', time } | { error } */
+  async function punchStaff(org, staffId) {
+    const ref = A.db.collection('orgs').doc(org).collection('data').doc('staffAtt');
+    const now = Date.now();
+    const dateStr = kstDateStr(now);
+    const timeStr = kstTimeStr(now);
+    const key = String(staffId) + '_' + dateStr;
+    try {
+      return await A.db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        let st = {}, prevStr = null;
+        if (snap.exists) {
+          prevStr = (snap.data() || {}).value || null;
+          try { st = prevStr ? JSON.parse(prevStr) : {}; } catch (e) { st = {}; }
+          if (!st || typeof st !== 'object' || Array.isArray(st)) st = {};
+        }
+        if (!st[key] || typeof st[key] !== 'object') st[key] = {};
+        const rec = st[key];
+        let kind;
+        if (!rec.in)       { rec.in = timeStr;  kind = 'in'; }
+        else if (!rec.out) { rec.out = timeStr; kind = 'out'; }
+        else               { return { ok: true, kind: 'done', time: rec.out }; }
+        tx.set(ref, { value: JSON.stringify(st), updatedAt: now });
+        /* ★★ 「오늘 내 출퇴근」을 **배정 문서에도 같이** 적는다 (보여 주기 전용).
+           왜 — `data/staffAtt` 는 규칙상 **관리자 전용**이라 도우미 폰이 못 읽는다.
+           그것만 두면 도우미가 새로고침했을 때 출근 표시가 사라져, 「출근」 단추를 또 눌러
+           **퇴근이 찍히는** 혼란이 생긴다(실제로 그렇게 된다).
+           ★ 규칙을 바꾸지 않는 길을 골랐다 — 도우미는 **자기 배정 문서**를 읽을 수 있다
+             (규칙 `drivers` read 의 `request.auth.uid == driverUid`).
+           ★ 원본은 어디까지나 `data/staffAtt` 다. 이 칸은 **그 사람 오늘치 하나**뿐이고
+             급여·근태 화면은 보지 않는다(같은 자료를 두 곳에서 고치는 일이 없다 — v272 교훈).
+           ★ 같은 트랜잭션에 넣어 둘이 어긋나지 않게 한다. */
+        tx.set(A.db.collection('orgs').doc(org).collection('drivers')
+                 .doc(helperUidOf(org, staffId)),
+               { att: { date: dateStr, in: rec.in || '', out: rec.out || '' } }, { merge: true });
+        /* 백업 — 앱 `_backupBeforeSave` 와 **같은 자리·같은 꼴** */
+        if (prevStr) {
+          tx.set(A.db.collection('orgs').doc(org).collection('backups')
+                   .doc('staffAtt__' + now),
+                 { key: 'staffAtt', value: prevStr, backupAt: now });
+        }
+        return { ok: true, kind: kind, time: timeStr };
+      });
+    } catch (e) {
+      console.log('[driver-auth] 직원 출퇴근 기록 실패');
+      return { error: '기록하지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
+    }
+  }
+
+  /* 호출자 확인 — 출퇴근을 찍을 수 있는 토큰인가 (checkin·checkout)
+     ★ 43-C: **기사(차량) 또는 동승 도우미(직원)** 둘이다. 그 전에는 기사만이었다.
+       앱은 같은 동작 이름(`checkin`·`checkout`)을 그대로 부르고, **누구인지는 토큰이 정한다**
+       (동작을 새로 만들지 않은 이유: 앱 `driverPunch()` 와 화면이 그대로 쓰인다).
+     ★ carId·staffId·org 는 **토큰에 박힌 값**만 쓴다 — 요청 본문의 값은 믿지 않는다. */
+  async function requirePuncher() {
     const authz = String(req.headers.authorization || '');
     const idToken = authz.startsWith('Bearer ') ? authz.slice(7).trim() : '';
     if (!idToken) return { error: '다시 로그인해 주세요.', code: 401 };
     let t;
     try { t = await A.auth.verifyIdToken(idToken); }
     catch (e) { return { error: '로그인이 만료됐어요. 다시 로그인해 주세요.', code: 401 }; }
-    /* ★ carId·org 는 **토큰에 박힌 값**만 쓴다 — 요청 본문의 값은 믿지 않는다 */
-    if (t.driver !== true || !t.org || !t.carId) {
-      return { error: '기사 로그인으로만 쓸 수 있어요.', code: 403 };
+    if (t.driver === true && t.org && t.carId) {
+      return { uid: t.uid, org: String(t.org), carId: String(t.carId) };
     }
-    return { uid: t.uid, org: String(t.org), carId: String(t.carId) };
+    if (t.helper === true && t.org && t.staffId) {
+      /* 도우미는 **배정이 없어도 출퇴근은 된다** — 근태는 차량과 무관하다(사장님 추천대로).
+         자료 범위(carData·carState)는 배정 문서가 가리지만, 출퇴근은 그 사람의 근태다. */
+      return { uid: t.uid, org: String(t.org), staffId: String(t.staffId), helper: true };
+    }
+    return { error: '기사 로그인으로만 쓸 수 있어요.', code: 403 };
   }
 
   /* 호출자 확인 — 관리자인가 (pinCheckin) : v254 와 같은 세 갈래 */
@@ -587,18 +651,25 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, token: token, org: org, carId: carId });
     }
 
-    /* ── b) 출근 / 퇴근 (기사 본인) ── */
+    /* ── b) 출근 / 퇴근 (기사 본인 · 43-C 부터 동승 도우미도) ── */
     if (action === 'checkin' || action === 'checkout') {
-      const who = await requireDriver();
+      const who = await requirePuncher();
       if (who.error) return fail(res, who.code, who.error);
       if (!(await ownerAlive((await resolveOwnerUid(who.org))))) {
         return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
       }
-      const r = await punch(who.org, who.carId);
+      /* 기사는 차량 기록(`carState/{carId}.att`) · 도우미는 직원 근태(`data/staffAtt`) */
+      const r = who.helper ? await punchStaff(who.org, who.staffId)
+                           : await punch(who.org, who.carId);
       if (r.error) return fail(res, 500, r.error);
-      await writeLogin(who.org, who.carId, true, 'punch:' + r.kind, String(b.deviceId || ''),
+      await writeLogin(who.org, who.carId || '', true,
+                       (who.helper ? 'punch:helper:' : 'punch:') + r.kind,
+                       String(b.deviceId || ''),
                        b.loc && typeof b.loc === 'object' ? b.loc : null);
-      return res.status(200).json({ ok: true, kind: r.kind, time: r.time, date: kstDateStr() });
+      const out = { ok: true, kind: r.kind, time: r.time, date: kstDateStr() };
+      /* 앱이 **같은 키**(`st…_날짜`)로 폰에도 적을 수 있게 알려 준다 */
+      if (who.helper) out.staffId = who.staffId;
+      return res.status(200).json(out);
     }
 
     /* ── c) 관리자 공용 기기의 PIN 출퇴근 패드 ── */
