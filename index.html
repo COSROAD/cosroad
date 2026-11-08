@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 287;
+const APP_VERSION = 288;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -761,6 +761,12 @@ async function rebuildCarData(){
        (v272 결함 ②: 들어오자마자 데모 토스트·읽기 전용 alert). */
     if(typeof isDemoMode==='function' && isDemoMode()) return;
     if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return;
+    /* ★★ v288(59-B2): **첫 동기화가 끝나기 전에는 만들지 않는다.**
+       이 함수는 `saveToFirebase` 를 거치지 않고 **직접** `carData/*` 를 쓴다 —
+       그래서 깃발을 따로 봐야 한다. 안 보면 로그인 직후 **앞 업체 명단으로 차량별 사본**을
+       만들어 새 업체 기사 폰에 남의 «회원» 이 내려간다(스텁으로 실측해 찾았다).
+       동기화가 스스로 부르는 길은 `okToWriteNow()` 가 통과시킨다(`_csSyncDepth`). */
+    if(typeof okToWriteNow==='function' && !okToWriteNow()) return;
     if(!window._db || !window._firestore) return;
     var { doc, setDoc, deleteDoc, collection, getDocs } = window._firestore;
     var orgId = getFbOrgId();
@@ -1284,6 +1290,9 @@ async function saveCarState(){
     try{ if(typeof readOnlyBlocked==='function') readOnlyBlocked('운행 기록'); }catch(e){}
     return false;
   }
+  /* ★★ v288(59-B2): **첫 동기화가 끝나기 전에는 쓰지 않는다** — 화면이 아직 앞 업체 자료다.
+     줄에 세워 두고(`_csSaveAgain`) 첫 동기화가 끝나면 **그때 값으로 다시 계산**해 한 번 쓴다. */
+  if(!okToWriteNow()){ _csSaveAgain = true; firstSyncBlocked('운행 기록'); return false; }
   /* 동기화 중 — **안 썼으므로 거짓**을 돌려준다(v275 보정1: 정말 썼을 때만 참).
      끝나면 syncFromFirebase 가 줄에 남은 것을 한 번 돌린다. */
   if(_csSyncing){ _csSaveAgain = true; return false; }
@@ -4167,6 +4176,58 @@ function logout(){currentMode='';
      새로 받은 화면이 **자동으로 다시 로그인**된다(「로그인 유지」를 지워도 Firebase 세션이 산다).
    ★ 그래서 `currentUser` 가 비는 것을 보고 간다 · **실패해도 3초 뒤에는 새로 받는다**
      (signOut 이 망에 걸려 끝나지 않을 수 있다 — 그때도 앞 사람 기억은 버려야 한다). */
+/* ── v288(59-B2): **첫 동기화가 끝나기 전에는 서버로 쓰지 않는다** ──────────────────
+   ★★ 왜 — `initApp()` 은 **로컬에서** 업체 설정·명단·차량을 읽어 **화면을 먼저 그린다.**
+     그런데 기기 저장 칸은 아직 업체별로 갈려 있지 않아(59-A · B3 예정) 로그인 직후 화면이
+     **앞 업체 자료**다. 그 창에서 사람이 한 동작은 **새 업체 문서로 저장됐다** — 59-A 실측:
+     토글 한 번에 앞 업체 값이 올라가고, «회원» 저장 한 번에 **새 업체 명단이 앞 업체 것으로
+     바뀌었다**(남의 업체 자료가 번진다).
+   ★ 전에는 동기화를 `setTimeout(…,1000)` 으로 **어림짐작** 1초 뒤에 시작했다.
+     그 1초는 「파이어베이스 모듈(gstatic)이 뜰 때까지」였는데, **1초 안에 안 뜨면
+     `if(window._fbReady)` 가 거짓이라 동기화가 아예 안 돌았다**(느린 망에서 조용히 그랬다).
+     → 이제 **뜨면 바로** 받고, 10초까지 기다린다.
+   ★ 실패하면 **막아 둔 채** 두 번 더 해 보고, 그래도 안 되면 한 번 안내한다.
+   ★★ 동기화 **안에서** 서버로 쓰는 것(`rebuildCarData`·`saveOrgDriver`·옛 자료 옮기기)은
+     막으면 안 된다 → 깃발은 `_csSyncDepth === 0`(동기화 밖) 일 때만 본다. */
+var _firstSyncOk = false;      /* 첫 동기화가 **끝났나** */
+var _firstSyncRetry = 0;
+function firstSyncBlocked(what){
+  /* 막혔다는 것을 조용히 두지 않는다 — 안내는 **가벼운 토스트** 하나(새 창 0) */
+  try{
+    if(typeof showToast==='function') showToast('잠시만요 — 자료를 불러오는 중이라 '+(what||'방금 바꾼 내용')+'은 저장하지 않았어요');
+  }catch(e){}
+}
+/* 지금 서버로 써도 되나 — 쓰면 안 되면 거짓 */
+function okToWriteNow(){
+  if(_firstSyncOk) return true;
+  if(typeof _csSyncDepth!=='undefined' && _csSyncDepth > 0) return true;   /* 동기화가 스스로 쓰는 길 */
+  return false;
+}
+function startFirstSync(){
+  var waited = 0;
+  /* ★ 이름을 고유하게 — run·go 처럼 흔한 안쪽 이름은 **이름으로 잇는** 호출 그래프
+     검사(tests/reach257.js)에서 남의 함수와 엉켜 거짓 경로를 만든다(v287 에 겪었다). */
+  var _fsTick = function(){
+    if(!window._fbReady){
+      if(waited++ < 100){ setTimeout(_fsTick, 100); return; }    /* 10초까지 기다린다 */
+      console.log('파이어베이스가 안 떴다 — 첫 동기화 건너뜀');
+      try{ if(typeof showToast==='function') showToast('연결이 느려요 — 자료를 못 불러왔어요. 새로고침해 주세요'); }catch(e){}
+      return;
+    }
+    Promise.resolve().then(function(){ return syncFromFirebase(); }).then(function(){
+      _firstSyncOk = true;
+      try{ renderByTab(); }catch(e){}
+      /* 막혀서 줄에 서 있던 차량 기록 저장이 있으면 **그때 값으로** 한 번 돌린다 */
+      try{ if(_csSaveAgain){ _csSaveAgain = false; saveCarState(); } }catch(e){}
+    }).catch(function(err){
+      console.log('첫 동기화 실패:', err && err.message);
+      if(_firstSyncRetry < 2){ _firstSyncRetry++; setTimeout(_fsTick, 2000); return; }
+      try{ alert('자료를 불러오지 못했어요.\n\n저장은 잠시 멈춰 두었어요(자료가 섞이지 않게).\n\n연결을 확인하고 새로고침해 주세요.'); }catch(e){}
+    });
+  };
+  _fsTick();
+}
+
 /* 아직 **내 계정으로** 로그인돼 있나 — 한 함수로 둔다(검사가 바꿔 끼울 수 있게).
    ★★ **익명은 로그아웃된 것으로 본다.** 이 앱은 `onAuthStateChanged` 에서 사용자가 없으면
      **곧바로 익명 로그인**을 한다(머리글 294행). 그래서 `signOut()` 뒤 `currentUser` 가
@@ -5792,7 +5853,7 @@ function initApp(){
   /* 기사 계정: 기관 자료가 열리는지 한 번 확인한다 (업체 만료·계정 끊김이면 안내 화면) — v250 */
   try{ if(window._isDriverAcct && typeof driverAccessCheck==='function') driverAccessCheck(); }catch(e){}
   // Firebase 동기화 (비동기)
-  setTimeout(function(){ if(window._fbReady) syncFromFirebase().then(function(){ renderByTab(); }); }, 1000);
+  startFirstSync();   /* ★ v288(59-B2): 1초 어림짐작 대신 **파이어베이스가 뜨면 바로** 받는다 */
   document.getElementById('today-date').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${['일','월','화','수','목','금','토'][now.getDay()]})`;
   document.getElementById('org-name-display').textContent=orgSettings.name;
   applyOrgNameFit();
@@ -17702,6 +17763,11 @@ async function saveToFirebase(key, data){
     /* v263: 이용 기간이 끝난 업체는 **보기만** 된다. 규칙도 막지만 여기서 먼저 막고
        화면을 서버 자료로 되돌린다 — 안 그러면 로컬에만 남아 조용히 사라진다. */
     if(isReadOnlyMode()){ readOnlyBlocked('바꾼 내용'); return; }
+    /* ★★ v288(59-B2): **첫 동기화가 끝나기 전에는 쓰지 않는다.**
+       로그인 직후 화면은 아직 **앞 업체 자료**다 — 그 창에서 저장하면 59-A 실측처럼
+       **새 업체 문서가 앞 업체 명단으로 바뀐다**. 동기화가 스스로 쓰는 길은 통과시킨다
+       (`okToWriteNow()` 가 `_csSyncDepth` 를 본다). */
+    if(!okToWriteNow()){ firstSyncBlocked('바꾼 내용'); return; }
     /* v257: 기사 모드는 규칙이 허락한 키만 쓴다 (규칙에서 거부당해 콘솔만 더럽히는 일을 막는다).
        목록은 firestore.rules 의 driverWritableKey 와 같다 — 한쪽만 고치지 말 것. */
     if(currentMode==='driver' && !driverWriteAllowed(key)){
@@ -17806,7 +17872,14 @@ function driverWriteAllowed(key){ return DRIVER_WRITE_KEYS.indexOf(key) >= 0; }
 async function syncFromFirebase(){
   _csSyncDepth++;
   try{
-    return await _syncFromFirebaseOnce.apply(this, arguments);
+    var _sfr = await _syncFromFirebaseOnce.apply(this, arguments);
+    /* ★★ v288(59-B2): **한 번이라도 동기화가 끝나면** 쓰기를 연다.
+       깃발의 뜻은 「첫 동기화가 끝났나」다 — `startFirstSync()` 로 들어왔든
+       다른 길(읽기 전용 되돌리기 등)로 돌았든 **끝났으면 열어야** 한다.
+       (처음에는 `startFirstSync()` 에서만 켰더니, 동기화를 직접 부르는 길에서
+        저장이 영영 막혔다 — 묶음 아홉이 그것을 잡아 주었다.) */
+    _firstSyncOk = true;
+    return _sfr;
   } finally {
     _csSyncDepth--;
     if(_csSyncDepth <= 0){

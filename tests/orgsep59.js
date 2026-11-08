@@ -146,14 +146,17 @@ const SERVER = {
          + " localStorage.setItem('tkd_ridestate', JSON.stringify(st)); })()");
     await p.R.ev('saveCarState()');
     await wait(300);
-    ck('B 서버 차량 기록에 **A 의 값이 올라갔다**',
-      JSON.stringify((((SRV.byOrg.B || {}).carState || {}).car1 || {}).ride || {}), '{"1":{"on":false}}');
+    ck('B 서버 차량 기록 **그대로**(v288에서 고침)',
+      JSON.stringify((((SRV.byOrg.B || {}).carState || {}).car1 || {}).ride || {}), '{"1":{"on":true}}');
     /* 명단 저장(주소 고침 등)도 같은 창에서 */
     SRV.writes.length = 0;
     await p.R.ev("(function(){ try{ saveMembers(members); }catch(e){} })()");
     await wait(300);
-    ck('B 서버 명단에 **A 명단이 올라갔다**',
-      JSON.stringify((((SRV.byOrg.B || {}).data || {}).members || [{}])[0].name || null), '"가하은"');
+    /* ★★ v288(59-B2)에서 **고쳤다** — 첫 동기화가 끝나기 전에는 서버로 쓰지 않는다.
+       그래서 아래 두 칸은 「올라갔다」가 아니라 **「B 서버가 그대로」**여야 한다.
+       고치기 전/뒤 대조는 `tests/sync288.js` 가 본다(여기는 조사 기록을 남겨 둔다). */
+    ck('B 서버 명단 **그대로**(v288에서 고침)',
+      JSON.stringify((((SRV.byOrg.B || {}).data || {}).members || [{}])[0].name || null), '"나래비"');
     ck('  (A 서버 명단은 그대로)',
       JSON.stringify((((SRV.byOrg.A || {}).data || {}).members || [{}])[0].name || null), '"가하은"');
   }
