@@ -30,7 +30,7 @@ function emptyCar(o) {
   return Object.assign({ ride: {}, rideOff: {}, carlog: { records: [], plans: {} },
                          delivDone: {}, dropDone: {}, att: {} }, o || {});
 }
-function makeServer(init) { return { byOrg: JSON.parse(JSON.stringify(init || {})), writes: [], listeners: [] }; }
+function makeServer(init) { return { byOrg: JSON.parse(JSON.stringify(init || {})), writes: [], listeners: [], live: 0 }; }
 
 function phone(SRV, opt) {
   opt = opt || {};
@@ -84,7 +84,14 @@ function phone(SRV, opt) {
         bag(ref.org, ref.col)[ref.key] = JSON.parse(d.value);
       }
     }),
-    onSnapshot: (ref, cb) => { SRV.listeners.push({ org: ref.org, col: ref.col, key: ref.key }); return () => {}; }
+    /* ★ v289(59-B4): 해지 함수를 **진짜로** 돌려준다 — 떼면 `live` 가 줄어든다.
+       (전에는 빈 함수를 돌려줘서 「떼었는가」를 잴 수 없었다.) */
+    onSnapshot: (ref, cb) => {
+      const rec = { org: ref.org, col: ref.col, key: ref.key, alive: true };
+      SRV.listeners.push(rec);
+      SRV.live = (SRV.live || 0) + 1;
+      return () => { if (rec.alive) { rec.alive = false; SRV.live--; } };
+    }
   };
   R.sandbox._db = R.win._db = {};
   R.ev("currentMode='admin';");
@@ -187,17 +194,21 @@ const SERVER = {
     console.log('      (붙은 리스너 ' + n1 + '개 — carState 컬렉션 1 + data 키들)');
     /* 로그아웃이 하는 일만(새로 받기는 스텁에 창이 없다) */
     p.R.ev('try{ csQueueReset(); }catch(e){}');
-    ck('★ 로그아웃 뒤에도 리스너가 **그대로 붙어 있다**', SRV.listeners.length, n1);
+    /* ★★ v289(59-B4)에서 고쳤다 — 관리자 리스너도 해지 함수를 들고,
+       `logout()` 이 뗀다. 그래서 **로그아웃 뒤에는 0개**여야 한다.
+       (가짜 onSnapshot 이 해지 함수를 돌려주면 그 수를 줄이도록 아래 셈을 바꿨다.) */
+    p.R.ev('try{ stopAdminListeners(); }catch(e){}');
+    ck('★ 로그아웃이 리스너를 **뗀다**(v289에서 고침)', SRV.live, 0);
     ck('  (해지 함수를 들고 있는 것은 내 차량·도우미 셋뿐)',
       p.R.ev("String((_carDocUnsub||[]).length) + '/' + String(!!window._helperCarUnsub)"), '0/false');
     /* B 로 들어와 또 동기화하면 **쌓인다** */
     p.R.ev("window._userOrgId='B'; window._userUid='uB';");
     await p.R.ev('syncFromFirebase()');
     await wait(400);
-    ck('★ B 동기화 뒤 리스너가 **두 배로 쌓인다**', SRV.listeners.length >= n1 * 2, true);
-    console.log('      (이제 ' + SRV.listeners.length + '개 — 절반이 A 업체를 듣는다)');
-    const aLive = SRV.listeners.filter((l) => l.org === 'A').length;
-    ck('  그중 **A 업체를 듣는 것**이 남아 있다', aLive, 17);
+    ck('★ B 동기화 뒤에도 **쌓이지 않는다**(17개 그대로)', SRV.live, 17);
+    console.log('      (살아 있는 리스너 ' + SRV.live + '개 — 모두 새 업체 B 를 듣는다)');
+    const aLive = SRV.listeners.filter((l) => l.org === 'A' && l.alive).length;
+    ck('★ 그중 **앞 업체(A)를 듣는 것은 0개**', aLive, 0);
   }
 
   console.log('\n════ ⑤ 고친 판 — 로그아웃이 **새로 받기**로 끝나나 (v287)');

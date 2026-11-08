@@ -219,7 +219,10 @@ const blockedUp = (R) => !!R.byId['testorg-blocked'] ||
       /* ★ v287(코스로드59-B1): 로그아웃의 마지막이 **화면 새로 받기**다(앞 사람 기억을 한 번에
          버린다) + 읽기 전용 표시 끄기(새로 받기가 막히는 자리 대비). */
       "try{_readOnlyMode=false;}catch(e){}",
-      "_logoutReload();"
+      "_logoutReload();",
+      /* ★ v289(코스로드59-B4): 관리자 리스너 17개도 **뗀다**(해지 함수를 들게 했다).
+         새로 받기로도 사라지지만 두 겹으로 둔다(43-B 와 같은 태도). */
+      "try{stopAdminListeners();}catch(e){}"
     ];
     const strip43 = (s) => ADDED43.reduce((a, x) => a.split(x).join(''), s);
     ck('기존 logout() 이 그대로인가 (기사·도우미 조각만 다름)',
@@ -227,8 +230,8 @@ const blockedUp = (R) => !!R.byId['testorg-blocked'] ||
         === norm(logoutOf(OLD)).replace(STRIP, ''), true);
     /* ★ v284(58)에서 **다섯째 조각**(저장 줄 비우기)이 더해졌다 — 숫자도 같이 올린다.
        (이 칸은 「민 조각이 정말 거기 있나」를 보는 자리다 — 목록만 늘리고 두면 헛돈다.) */
-    ck('   43-B·43-C·58 이 더한 조각 일곱이 다 있나(리스너 둘·도우미 표시 둘·저장 줄·읽기전용·새로받기)',
-      ADDED43.filter((x) => norm(logoutOf(NEW)).indexOf(x) >= 0).length, 7);
+    ck('   43-B·43-C·58 이 더한 조각 여덟이 다 있나(리스너 둘·도우미 표시 둘·저장 줄·읽기전용·새로받기·관리자리스너)',
+      ADDED43.filter((x) => norm(logoutOf(NEW)).indexOf(x) >= 0).length, 8);
     ck('   v255 는 _drvInfo* 와 업체번호를 비운다',
       /_drvInfo=\{\};_drvInfoLoaded=false;_drvInfoErr=false;_orgCode='';_orgCodeErr=false;_orgCodeAsked=false;/.test(logoutOf(NEW)), true);
     ck('   없어진 변수(_drvList·_drvErr)를 더 건드리지 않는다',
