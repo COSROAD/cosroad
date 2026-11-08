@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 290;
+const APP_VERSION = 291;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -13238,6 +13238,14 @@ async function shareIssueClientRange(mid, startYm, endYm){
   if(!window._db || !window._firestore){
     return { error:'서버 연결이 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요.' };
   }
+  /* ★ v291(59-B2 보정1): **첫 동기화가 끝나기 전에는 만들지 않는다.**
+     v288 은 `saveToFirebase`·`saveCarState`·`rebuildCarData` 셋만 막았는데, 이 네 창구는
+     `setDoc(doc(_db,'shares',token))` 를 **직접** 불러 깃발을 안 봤다 — 로그인 직후
+     동기화 전에 누르면 **폰에 남은 앞 업체 자료로** 링크가 나가고, 그 링크는 로그인 없이
+     30일간 누구나 열 수 있다(스텁으로 실측). 자료 만들기·사진 올리기보다 **앞**에 둔다. */
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){
+    return { error:'자료를 불러오는 중이에요. 잠시 뒤 다시 시도해 주세요.' };
+  }
 
   // PDF와 같은 buildClientRangeData 를 쓴다 (계산 두 벌 금지)
   var D = buildClientRangeData(mid, startYm, endYm);
@@ -13414,6 +13422,14 @@ async function shareIssueOneInvoice(id){
   if(!window._db || !window._firestore){
     return { error:'서버 연결이 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요.' };
   }
+  /* ★ v291(59-B2 보정1): **첫 동기화가 끝나기 전에는 만들지 않는다.**
+     v288 은 `saveToFirebase`·`saveCarState`·`rebuildCarData` 셋만 막았는데, 이 네 창구는
+     `setDoc(doc(_db,'shares',token))` 를 **직접** 불러 깃발을 안 봤다 — 로그인 직후
+     동기화 전에 누르면 **폰에 남은 앞 업체 자료로** 링크가 나가고, 그 링크는 로그인 없이
+     30일간 누구나 열 수 있다(스텁으로 실측). 자료 만들기·사진 올리기보다 **앞**에 둔다. */
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){
+    return { error:'자료를 불러오는 중이에요. 잠시 뒤 다시 시도해 주세요.' };
+  }
   var D = buildOneInvoiceData(id);
   if(!D) return { error:'명세서를 찾을 수 없어요.' };
   var iv = D.list[0];
@@ -13477,6 +13493,14 @@ async function shareIssueNotice(id){
   }
   if(!window._db || !window._firestore){
     return { error:'서버 연결이 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요.' };
+  }
+  /* ★ v291(59-B2 보정1): **첫 동기화가 끝나기 전에는 만들지 않는다.**
+     v288 은 `saveToFirebase`·`saveCarState`·`rebuildCarData` 셋만 막았는데, 이 네 창구는
+     `setDoc(doc(_db,'shares',token))` 를 **직접** 불러 깃발을 안 봤다 — 로그인 직후
+     동기화 전에 누르면 **폰에 남은 앞 업체 자료로** 링크가 나가고, 그 링크는 로그인 없이
+     30일간 누구나 열 수 있다(스텁으로 실측). 자료 만들기·사진 올리기보다 **앞**에 둔다. */
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){
+    return { error:'자료를 불러오는 중이에요. 잠시 뒤 다시 시도해 주세요.' };
   }
   var n = notices.find(function(x){ return String(x.id)===String(id); });
   if(!n) return { error: 조사(T('알림장'),'을','를') + ' 찾을 수 없어요.' };
@@ -13601,6 +13625,14 @@ async function shareIssuePayslip(ym, pid, payDate){
   }
   if(!window._db || !window._firestore){
     return { error:'서버 연결이 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요.' };
+  }
+  /* ★ v291(59-B2 보정1): **첫 동기화가 끝나기 전에는 만들지 않는다.**
+     v288 은 `saveToFirebase`·`saveCarState`·`rebuildCarData` 셋만 막았는데, 이 네 창구는
+     `setDoc(doc(_db,'shares',token))` 를 **직접** 불러 깃발을 안 봤다 — 로그인 직후
+     동기화 전에 누르면 **폰에 남은 앞 업체 자료로** 링크가 나가고, 그 링크는 로그인 없이
+     30일간 누구나 열 수 있다(스텁으로 실측). 자료 만들기·사진 올리기보다 **앞**에 둔다. */
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){
+    return { error:'자료를 불러오는 중이에요. 잠시 뒤 다시 시도해 주세요.' };
   }
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(payDate||''))){
     return { error:'지급일을 넣어 주세요.' };
