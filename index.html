@@ -639,7 +639,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 282;
+const APP_VERSION = 283;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1179,6 +1179,13 @@ async function saveCarState(){
       }catch(e){}
       /* ★ v277: 기사는 **출퇴근(`att`)을 보내지 않는다** — 원본은 서버 `punch` 다.
          (전에는 폰의 값을 통째로 올려, 서버가 찍은 출근 시각을 덮을 수 있었다.) */
+      /* ★ v277: 통째 덮어쓰기 → **바뀐 칸만 트랜잭션으로**
+         ★★ v283(54): 차이표를 **기다리기 전에** 만든다. 전에는 아래 백업 읽기(`await getDoc`)
+           **뒤에** 만들었다 — 그 사이 내 차량 리스너가 기준본(`_csBase`)을 새것으로 바꾸면,
+           폰의 값(`mine`, 위에서 이미 떠 놓은 것)과 견줘 **관리자가 방금 바꾼 칸을
+           「되돌리기」로 계산**했다(스텁 실측: 관리자가 끈 토글이 되살아났다).
+           기준본과 견줄 값은 **같은 순간의 것**이어야 한다. */
+      var pd = carStatePatch(_csBase[cid], mine, false);
       /* 덮어쓰기 직전 백업 — 앱 다른 저장과 **같은 자리·같은 꼴**(orgs/{org}/backups/{key}__{시각}).
          `key` 를 `carState/<내 차량>` 으로 적는다 — 규칙이 그 글자로 기사 백업을 가린다.
          실패하면 삼킨다(백업이 안 되더라도 **본 저장은 계속**한다 — v255와 같은 방침). */
@@ -1190,26 +1197,41 @@ async function saveCarState(){
           await _backupBeforeSave(orgId, 'carState/'+cid, _prev.data().value, 'carState_'+cid);
         }
       }catch(e){ console.log('차량 기록 백업 건너뜀:', e && e.message); }
-      /* ★ v277: 통째 덮어쓰기 → **바뀐 칸만 트랜잭션으로** */
-      var pd = carStatePatch(_csBase[cid], mine, false);
       if(carStatePatchEmpty(pd)) return true;            /* 바뀐 것이 없으면 안 쓴다 */
       return await writeCarStatePatch(orgId, cid, pd);
     }
-    /* 관리자 — 차량별로 쪼개고, **바뀐 차량만** 합쳐 쓴다. 직원 근태는 따로. */
+    /* 관리자 — 차량별로 쪼개고, **바뀐 차량만** 합쳐 쓴다. 직원 근태는 따로.
+       ★★ v283(54): **차이표를 전부 첫 기다림 앞에서 한꺼번에 만든다.**
+         전에는 차량 차이표를 `for` 안에서 차량마다 만들고 바로 `await` 로 기다렸다 —
+         그래서 **둘째 차량부터는 앞 차량을 쓰는 동안 기다린 뒤에** 차이표를 만들었고,
+         직원 근태 차이표는 **차량 쓰기가 다 끝난 뒤에** 만들었다.
+         그 사이 리스너가 기준본(`_csBase`·`_saBase`)만 새것으로 바꾸면, 떠 놓은 옛 로컬(`sp`)과
+         견줘 **방금 서버가 찍은 칸을 「지움」으로 계산**했다 — 스텁 실측으로 셋 다 재현:
+         ① 다른 차량 기사의 출근(서버 `punch`)이 지워졌다(급여에서 빠진다)
+         ② 도우미 출근(서버 `punchStaff`)이 지워졌다
+         ③ (기사 갈래) 관리자가 방금 끈 토글이 되살아났다
+         → 기준본과 견줄 값은 **같은 순간의 것**이어야 한다. 쓰기·백업 순서는 그대로다. */
     var sp = splitCarState();
     var ids = Object.keys(sp.byCar);
-    var allOk = true, wrote = 0;
+    var todo = [];                       /* [{cid, patch}] — 쓸 것만 담는다 */
     for(var i=0;i<ids.length;i++){
       /* 관리자는 수기 근태 토글(toggleDriverAtt)이 있으므로 `att` 도 **칸 단위로** 보낸다 */
       var pa = carStatePatch(_csBase[ids[i]], sp.byCar[ids[i]], true);
       if(carStatePatchEmpty(pa)) continue;
-      wrote++;
-      if(!(await writeCarStatePatch(orgId, ids[i], pa))) allOk = false;
+      todo.push({ cid: ids[i], patch: pa });
     }
     /* ★ 43-C: 직원 근태도 **바뀐 칸만** 트랜잭션으로 — 통째로 쓰면 서버가 찍은
-       도우미 출퇴근을 지운다(위 writeStaffAttPatch 쪽지 참고 · 스텁으로 실측). */
+       도우미 출퇴근을 지운다(위 writeStaffAttPatch 쪽지 참고 · 스텁으로 실측).
+       ★ v283: 이 차이표도 **여기서**(기다리기 전에) 만든다. */
     var pst = staffAttPatch(sp.staffAtt);
-    if(!staffAttPatchEmpty(pst)){
+    var stNeed = !staffAttPatchEmpty(pst);
+    /* ── 여기까지 기다림 없음. 아래부터 쓴다 ── */
+    var allOk = true, wrote = 0;
+    for(var j=0;j<todo.length;j++){
+      wrote++;
+      if(!(await writeCarStatePatch(orgId, todo[j].cid, todo[j].patch))) allOk = false;
+    }
+    if(stNeed){
       if(!(await writeStaffAttPatch(orgId, pst))) allOk = false;
     }
     /* 「옛 자료 옮기기」가 이 값을 본다 — 쓸 것이 없었으면 그것도 성공이다(v275 보정1) */

@@ -196,7 +196,13 @@ console.log('\n════ 5. 버전·파일 ════');
     + ' (이 회차는 253 이었다)');
   ck('둘이 같은가', JSON.parse(_pinRead('version.json')).version
      === Number(/const APP_VERSION = (\d+);/.exec(NEW)[1]), true);
-  const stat = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat ' + BASE).toString().trim().split('\n');
+  /* ★ 코스로드54: 범위를 **두 커밋 사이**로 고정했다(CLAUDE.md 검사 묶음 규칙).
+     전에는 `git diff --numstat BASE` **한쪽만** 적어 **작업트리까지** 재고 있었다.
+     그래서 코스로드53 이 `tests/rulestest/package.json`·`tests/pw262/package.json` 을
+     올린 순간 「package.json 은 안 건드렸나」가 **거짓으로 깨졌다**(바뀐 파일 151개).
+     아래 s.html 검사는 처음부터 `BASE 05a0f30` 두 커밋이었다 — 그 짝을 맞춘다. */
+  const stat = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat ' + BASE + ' 05a0f30')
+    .toString().trim().split('\n');
   console.log('      바뀐 파일:');
   stat.forEach(l => { const p = l.split('\t'); console.log('        ' + p[2].padEnd(22) + '+' + p[0] + ' / −' + p[1]); });
   console.log('      바뀐 파일 수: ' + stat.length + ' (이 회차는 5었다 — v255 가 더 바꿨다)');

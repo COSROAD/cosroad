@@ -288,7 +288,11 @@ console.log('\n════ 8. 버전·바뀐 파일 ════');
   console.log('      지금 버전: ' + JSON.parse(now('version.json')).version + ' (이 회차는 256 이었다)');
   ck('version.json 이 256 이상', JSON.parse(now('version.json')).version >= 256, true);
   ck('APP_VERSION 도 256 이상', Number((E.SRC_NEW.match(/const APP_VERSION = (\d+);/) || [])[1]) >= 256, true);
-  const stat = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat ' + BASE).toString().trim().split('\n');
+  /* ★ 코스로드54: 범위를 **두 커밋 사이**로 고정했다(CLAUDE.md 검사 묶음 규칙).
+     이 줄은 **찍어 보기용**이고 아래 검사는 `own`(두 커밋)으로 하지만, 한쪽만 적으면
+     코스로드53 이 올린 `tests/` 126줄이 끼어들어 읽을 수 없게 된다. */
+  const stat = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat ' + BASE + ' 9506d7f')
+    .toString().trim().split('\n');
   stat.forEach(l => { const p = l.split('\t'); console.log('      ' + p[2].padEnd(14) + '+' + p[0] + ' / −' + p[1]); });
   /* 이 회차(9506d7f) **자신이** 바꾼 파일로 본다 — v257 이 뒤에 얹혔다 */
   const own = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat 8596363 9506d7f').toString().trim().split('\n');

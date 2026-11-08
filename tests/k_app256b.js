@@ -276,7 +276,10 @@ console.log('\n════ 8. 도우미 문답·버전·바뀐 파일 ═══
     + ' (이 회차는 256 이었다 — v257 이 올렸다)');
   ck('version.json 이 256 이상', JSON.parse(_pinRead('version.json')).version >= 256, true);
   ck('APP_VERSION 도 256 이상', Number((NEW.match(/const APP_VERSION = (\d+);/) || [])[1]) >= 256, true);
-  const stat = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat ' + BASE).toString().trim().split('\n');
+  /* ★ 코스로드54: 범위를 **두 커밋 사이**로 고정했다(CLAUDE.md 검사 묶음 규칙).
+     한쪽만 적으면 **작업트리까지** 재서, 코스로드53 이 올린 `tests/` 126줄이 끼어든다. */
+  const stat = cp.execSync('git -C ' + COS_ROOT + ' diff --numstat ' + BASE + ' ' + NEW_REF)
+    .toString().trim().split('\n');
   stat.forEach(l => { const p = l.split('\t'); console.log('      ' + p[2].padEnd(16) + '+' + p[0] + ' / −' + p[1]); });
   /* 보정2 회차는 두 파일만 바꿨다. 보정3 이 뒤에 얹혀 목록이 늘었다 */
   ck('보정2 의 두 파일이 모두 들어 있다',
