@@ -294,9 +294,13 @@ const pick = (p, r) => p.R.ev('(function(){ var loc=document.getElementById("org
     ck('★ 저장 때 칸을 읽는다', /addrSido:ga\('org-addr','data-sido'\)/.test(NEW_SRC), true);
     ck('  손으로 고치면 비우는 자리', /function orgAddrTouched\(\)/.test(NEW_SRC), true);
     ck('  설정에 안내 한 줄', /검색으로 고르면 지역이 정확히 잡혀요/.test(NEW_SRC), true);
-    ck('  버전 299', /const APP_VERSION = 299;/.test(NEW_SRC), true);
-    ck('  version.json 299',
-      String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), '299');
+    /* ★ 버전은 **이 회차 커밋**으로 본다(작업트리는 다음 회차에 올라간다 — 그러면 거짓으로 깨진다 ·
+       CLAUDE.md 「기대값이 뒷 회차에 앞으로 고쳐진 묶음은 그 기대값이 가리키는 회차에 맞춘다」). */
+    const NEW_REF = process.env.COS_SRC_NEW_REF || '713cf9c';
+    const at = (p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + NEW_REF + ':' + p,
+      { maxBuffer: 1 << 28 }).toString();
+    ck('  버전 299 (' + NEW_REF + ')', /const APP_VERSION = 299;/.test(at('index.html')), true);
+    ck('  version.json 299', String(JSON.parse(at('version.json')).version), '299');
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'
