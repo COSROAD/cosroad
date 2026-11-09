@@ -60,6 +60,16 @@ console.log('════ 0. 비교 전 — 샘플 자료가 실제로 읽히나
   ck('rideState 덮어쓰기 (2번 on=false)', B.ev('loadMembers()[1].on'), false);
 }
 
+/* ★ v299(코스로드55 보정1): 설정 화면의 **사업장 주소 칸**이 일부러 달라졌다 —
+   주소 검색이 준 공식 시도·시군구를 들고 다니는 `data-sido`·`data-sigungu`·`oninput` 과
+   그 아래 안내 한 줄이 더해졌다. **그 둘만** 지우고 견준다(v256 보정3 의 회색 예외와 같은 방식).
+   지우고도 나머지가 바이트 동일해야 한다 — 그래서 이 예외가 다른 변화를 덮지 않는다. */
+function norm299(s) {
+  return String(s)
+    .replace(/ data-sido="[^"]*" data-sigungu="[^"]*" oninput="orgAddrTouched\(\)"/g, '')
+    .replace(/\n\s*<div style="font-size:11\.5px;color:#667085;line-height:1\.6;margin-bottom:8px;">📍 <b>검색으로 고르면[^<]*<\/b>[^<]*<\/div>/g, '');
+}
+
 console.log('\n════ 1. 화면 HTML 바이트 비교 (업종 4 × 화면 9) ════');
 {
   let same = 0, diff = 0;
@@ -71,7 +81,7 @@ console.log('\n════ 1. 화면 HTML 바이트 비교 (업종 4 × 화면 
         if (typeof R.sandbox[fn] !== 'function') return 'NOFN';
         try { return String(R.sandbox[fn]()); } catch (e) { return 'ERR:' + e.message; }
       };
-      const a = call(A), b = call(B);
+      const a = call(A), b = norm299(call(B));
       /* v256 보정3: 설정 화면의 회색 글자 한 곳(--gray-300 → --gray-400)만 달라진다 — 그 색은 빼고 견준다 */
       if (a === b || a.split('var(--gray-300)').join('var(--gray-400)') === b) same++;
       else {

@@ -688,7 +688,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 298;
+const APP_VERSION = 299;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5766,7 +5766,7 @@ var HELP_QA=[
   {role:'all', keys:['교체','소모품','엔진오일','타이어'], t:'소모품 교체주기',
    a:'1. 차계부 하단 「🔩 소모품 교체 주기」에서 항목·다음 교체 km 등록\n2. 계기판 기록이 다가가면 🔔 임박 / 넘으면 ⚠ 필요 배지가 차량·버튼에 표시돼요'},
   {role:'admin', keys:['지원사업','지원금','보조금','정부지원'], t:'정부 지원사업 알림',
-   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요 (업종 공고에 더해 소상공인·중소기업·경영지원 공고와 업종 관련 부처(학원=교육부·교육청 / 공공=보건복지부 / 물류·택배=국토교통부) 공고도 함께)\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n3-1. 팝업 아래 「7일 동안 알림 팝업 보지 않기」에 체크하고 닫으면 일주일 동안 팝업이 쉬어요 (그 사이에도 대시보드 「💰 정부 지원사업」 카드로 들어가면 목록은 볼 수 있어요)\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 자동으로 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n5-1. 주소에 시도(인천광역시·경기도 …)가 없으면 자동으로 못 찾아요 — 목록 위 「📍」 줄에 <b>「지역을 못 찾았어요 — ⚙ 에서 골라 주세요」</b>가 뜨고, 그동안은 전 지역이 보여요. ⚙ 에서 시도를 고르거나 설정 탭에서 사업장 주소를 시도부터 적어 주세요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 지역 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
+   a:'1. 관리자 → 대시보드 → 「💰 정부 지원사업」 카드 → 기업마당·보조금24 공고를 업종에 맞게 모아서 보여줘요 (업종 공고에 더해 소상공인·중소기업·경영지원 공고와 업종 관련 부처(학원=교육부·교육청 / 공공=보건복지부 / 물류·택배=국토교통부) 공고도 함께)\n2. 처음 보는 공고엔 「NEW」, 신청 마감이 가까우면 「⏰ 마감임박」 배지가 붙어요\n3. 새 공고가 있으면 관리자 화면에 들어올 때 팝업으로 알려줘요 — 「📋 목록 보기」를 누르면 전체 목록이 열리고, 「닫기」를 누르면 다음 주기까지 다시 안 떠요\n3-1. 팝업 아래 「7일 동안 알림 팝업 보지 않기」에 체크하고 닫으면 일주일 동안 팝업이 쉬어요 (그 사이에도 대시보드 「💰 정부 지원사업」 카드로 들어가면 목록은 볼 수 있어요)\n4. 알림 설정은 목록 화면 위쪽 「⚙ 알림·지역 설정」을 눌러 펼쳐요 (설정 탭이 아니라 여기예요) — 확인 주기(매일/3일마다/매주/2주마다/끄기)와 마감 임박 기준(D-3/7/14)을 바꿔요. 팝업이 부담스러우면 「끄기」로 두세요\n5. 목록은 우리 지역 공고만 보여줘요 — 지역은 사업장 주소에서 찾고, 같은 ⚙ 안의 「우리 지역만 보기」에서 시도·시군구를 직접 바꾸거나 「끔」으로 전 지역을 볼 수 있어요. 바꾸면 목록이 바로 다시 불러와져요\n5-1. <b>지역을 정확히 잡는 가장 쉬운 길</b> (v299) — 설정 탭 「사업장 주소」 칸의 <b>「📍 검색」</b>으로 주소를 찾아 목록에서 고르세요. 그러면 표준 주소 검색이 알려 준 <b>시도·시군구가 그대로</b> 저장돼서 짐작하지 않아요 (설정 화면에 「지금: 인천광역시 미추홀구」처럼 보여요)\n5-2. 주소를 <b>손으로 고치면</b> 그 값이 비워져요 — 글자와 지역이 어긋나지 않게 하려는 거예요. 다시 「📍 검색」으로 고르면 채워져요\n5-3. 주소에 시도(인천광역시·경기도 …)가 없고 검색으로 고르지도 않았으면 못 찾아요 — 목록 위 「📍」 줄에 <b>「지역을 못 찾았어요 — ⚙ 에서 골라 주세요」</b>가 뜨고, 그동안은 전 지역이 보여요. ⚙ 에서 시도를 고르거나 설정 탭에서 「📍 검색」을 한 번 해 주세요\n6. 지역 표기가 없는 전국·정부 공고(교육부·중소벤처기업부 등)는 지역 설정과 상관없이 항상 보여요. 지금 적용된 지역은 목록 위 「📍」 줄에서 확인하세요\n7. 자격·신청 방법은 앱이 판단하지 않아요 — 반드시 「원문 보기」로 공고를 확인하세요'},
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판사진'], t:'운행기록부 내보내기',
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['직원','직원근태','기사외','알바','휴게','휴게시간','직원출퇴근','직원급여'], t:'기사 말고 직원 출퇴근은?',
@@ -8360,10 +8360,11 @@ function renderSettings(){
         </div>
         <label class="form-label">사업장 주소 (거래명세서 공급자란에 인쇄됩니다)</label>
         <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input class="form-input" id="org-addr" value="${orgSettings.address||''}" placeholder="예) 서울시 강남구 테헤란로 123" style="margin-bottom:0;flex:1;"/>
+          <input class="form-input" id="org-addr" value="${orgSettings.address||''}" data-sido="${orgSettings.addrSido||''}" data-sigungu="${orgSettings.addrSigungu||''}" oninput="orgAddrTouched()" placeholder="예) 서울시 강남구 테헤란로 123" style="margin-bottom:0;flex:1;"/>
           <button onclick="searchOrgAddr()" style="padding:8px 12px;background:#1A6BFF;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📍 검색</button>
         </div>
         <div id="org-addr-result" style="margin-bottom:6px;"></div>
+        <div style="font-size:11.5px;color:#667085;line-height:1.6;margin-bottom:8px;">📍 <b>검색으로 고르면 지역이 정확히 잡혀요</b> — 지원사업 목록을 우리 지역으로 걸러 줘요${(orgSettings.addrSido ? ' (지금: <b>'+escapeMasterHtml(supportSidoOfficial(orgSettings.addrSido)||orgSettings.addrSido)+(orgSettings.addrSigungu?' '+escapeMasterHtml(orgSettings.addrSigungu):'')+'</b>)' : '')}</div>
         ${orgSettings.address ? '' : '<div style="background:#FFF7E6;border:1px solid #FFE0A3;border-radius:8px;padding:9px 11px;margin-bottom:8px;font-size:11.5px;color:#8A5A00;line-height:1.6;">⚠️ <b>사업장 주소를 입력해 주세요.</b><br>비어 있으면 거래명세서에 <b>도착지 주소</b>가 대신 인쇄됩니다.<br>사업자등록증의 주소를 넣으시면 됩니다.</div>'}
         <label class="form-label">전화번호</label>
         <input class="form-input" id="org-tel" value="${orgSettings.tel||''}" placeholder="02-000-0000" style="margin-bottom:0;"/>
@@ -8492,7 +8493,12 @@ function saveOrgInfo(){
   var _prevIns = (orgSettings&&orgSettings.insRates)||null;
   /* 지원사업 알림 설정은 이 화면에 입력칸이 없으므로 저장 때 유실되지 않게 그대로 보존 */
   var _prevSup = (orgSettings&&orgSettings.supportAlert)||null;
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp,insRates:_prevIns,supportAlert:_prevSup};
+  /* ★ v299(55 보정1): 주소 검색이 준 **공식 시도·시군구**를 함께 저장한다.
+     칸(`#org-addr`)이 그 값을 들고 있다 — 그려질 때 저장값으로 채우고(`data-sido`),
+     「📍 검색」으로 고르면 새 값이 들어가고, **손으로 고치면 비워진다**(`orgAddrTouched`).
+     그래서 여기서는 **칸을 그대로 읽으면** 세 경우가 모두 맞는다(옛 업체는 빈 값 그대로). */
+  function ga(id, k){ var e=document.getElementById(id); return e?String(e.getAttribute(k)||'').trim():''; }
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),addrSido:ga('org-addr','data-sido'),addrSigungu:ga('org-addr','data-sigungu'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp,insRates:_prevIns,supportAlert:_prevSup};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
   applyOrgNameFit();
@@ -16376,17 +16382,32 @@ function supportSidoOfficial(key){
    ★ 시도가 아예 없는 주소(「수원시 …」)는 **못 찾음으로 둔다** — 시군구→시도 표는
      넣지 않았다(51 결론: 226개 · 동명 시군구 오탐). 화면이 「못 찾았어요」를 알려 준다. */
 function supportRegionAuto(){
+  /* ★★ v299(코스로드55 보정1): **주소 검색이 준 공식 칸을 먼저 쓴다.**
+     사장님(11-09): 「주소 찾기를 표준 주소 검색에서 찾으면 전국 공통일 텐데요」 — 맞다.
+     글자를 쪼개 짐작하는 길은 **없을 때만** 쓰는 뒷길로 내렸다. */
+  if(orgSettings && orgSettings.addrSido){
+    return { sido:String(orgSettings.addrSido), sigungu:String(orgSettings.addrSigungu||'') };
+  }
   var addr=String((orgSettings&&orgSettings.address)||'').trim();
   if(!addr) return {sido:'', sigungu:''};
   var parts=addr.split(/\s+/);
   var L=supportSidoList();
   var sido='', at=-1;
+  /* ★ 짐작 길(옛 업체·손으로 적은 주소) — **낱말로만** 본다.
+     전에는 `w.indexOf(별칭)===0`(낱말 **앞머리**)이라 시도가 없는 주소에서
+     도로·동 이름이 걸렸다(실측: 「중구 세종대로 110」→세종 · 「수원시 영통구 광주길 5」→광주
+     ·「성남시 분당구 서울로 100」→서울 ·「천안시 동남구 대전동 3」→대전).
+     이제 **별칭과 똑같거나**, 뒤에 붙은 것이 「시·특별시·광역시·특별자치시·도·특별자치도」일
+     때만 시도로 본다 — 「세종대로」·「광주길」·「서울로」·「대전동」은 걸리지 않는다.
+     못 찾으면 종전처럼 「📍 지역을 못 찾았어요 — ⚙ 에서 골라 주세요」가 뜬다(v282). */
+  var SIDO_TAIL=/^(시|특별시|광역시|특별자치시|도|특별자치도)$/;
   for(var p=0;p<parts.length && !sido;p++){
     var w=parts[p]||'';
     for(var i=0;i<L.length && !sido;i++){
       /* alias는 긴 것부터 담겨 있어 '서울시'가 '서울'보다 먼저 걸린다 */
       for(var j=0;j<L[i].alias.length;j++){
-        if(w.indexOf(L[i].alias[j])===0){ sido=L[i].key; at=p; break; }
+        var a=L[i].alias[j];
+        if(w===a || (w.indexOf(a)===0 && SIDO_TAIL.test(w.slice(a.length)))){ sido=L[i].key; at=p; break; }
       }
     }
   }
@@ -19428,28 +19449,83 @@ function showDestResults(results){
   });
 }
 
+/* ── 주소 검색이 준 **공식 시도·시군구**를 그대로 받는다 (v299 · 코스로드55 보정1) ──
+   사장님(11-09): 「주소 찾기를 표준 주소 검색에서 찾으면 전국 공통일 텐데요」 — 맞다.
+   글자를 쪼개 지역을 **짐작**하지 말고 검색 결과의 **지역 칸**을 쓴다.
+   ★ 공식 문서 대조(카카오 Local): **주소 검색**(`/v2/local/search/address.json`) 응답의
+     `address`·`road_address` 객체에 `region_1depth_name`(시도)·`region_2depth_name`(시군구)가
+     **있다**. **키워드 장소 검색**(`keyword.json`)에는 **없다**(주소 문자열만 온다).
+     `api/kakao-search.js` 는 `type=address` 응답을 **그대로 통과**시키므로(버리는 칸 0)
+     **서버를 고칠 필요가 없다 · 새 키도 필요 없다.**
+   ★ 도로명 주소를 먼저 보고(`road_address`), 없으면 지번(`address`)을 본다. */
+function addrRegionOf(p){
+  var r = (p && (p.road_address || p.address)) || null;
+  if(!r) return { sido:'', sigungu:'' };
+  return { sido: sidoKeyFromName(r.region_1depth_name),
+           sigungu: String(r.region_2depth_name||'').trim() };
+}
+/* 공식 시도 이름 → 앱의 시도 키. `supportSidoList()` 의 official·alias 와 **정확히** 맞춘다
+   (「서울특별시」·「서울시」·「서울」 / 「강원특별자치도」·「강원도」·「강원」 /
+    「전북특별자치도」·「전라북도」·「전북」 / 「세종특별자치시」 / 「제주특별자치도」 …).
+   모르는 이름이면 빈 값 — 그때는 아래 짐작 길로 떨어진다(없는 값을 만들지 않는다). */
+function sidoKeyFromName(name){
+  var s = String(name||'').trim();
+  if(!s) return '';
+  var L = supportSidoList();
+  for(var i=0;i<L.length;i++){
+    if(s===L[i].official || s===L[i].key) return L[i].key;
+    for(var j=0;j<L[i].alias.length;j++){ if(s===L[i].alias[j]) return L[i].key; }
+  }
+  return '';
+}
 function searchAddrInto(inputId, resultId, emptyMsg, addrOnly){
   var addr = document.getElementById(inputId).value.trim();
   if(!addr){ showToast(emptyMsg); return; }
-  fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+geoBiasParam())
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
-    if(docs.length === 0){
-      fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address')
-      .then(function(r){ return r.json(); })
-      .then(function(data2){
-        var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
-        if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
-        showAddrResults(docs2.map(function(p){ return {name:p.address_name, address:p.address_name, x:p.x, y:p.y}; }), inputId, resultId, addrOnly);
-      });
-      return;
-    }
-    showAddrResults(docs.map(function(p){
-      return { name: addrOnly ? (p.road_address_name || p.address_name) : p.place_name,
-               address: p.address_name, x:p.x, y:p.y };
-    }), inputId, resultId, addrOnly);
-  }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+  /* 주소 검색 결과를 화면 목록 꼴로 — **공식 지역 칸을 같이 들고 온다** */
+  function mapAddrDocs(ds){
+    return ds.map(function(p){
+      var g = addrRegionOf(p);
+      return { name:p.address_name, address:p.address_name, x:p.x, y:p.y,
+               sido:g.sido, sigungu:g.sigungu };
+    });
+  }
+  var addrUrl = 'https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+'&type=address';
+  /* ★ 사업장 주소(`addrOnly`)는 **표준 주소 검색을 먼저** 본다 — 그 칸에 들어갈 것은
+       상호가 아니라 도로명 주소이고(아래 `searchOrgAddr` 쪽지), 그 창구만 **공식 지역 칸**을 준다.
+       못 찾으면 종전 장소 검색으로 떨어진다(상호를 적어도 찾아지던 길을 그대로 둔다). */
+  if(addrOnly){
+    fetch(addrUrl).then(function(r){ return r.json(); }).then(function(da){
+      var ds = (da.documents && da.documents.length > 0) ? da.documents : [];
+      if(ds.length > 0){ showAddrResults(mapAddrDocs(ds), inputId, resultId, addrOnly); return; }
+      searchAddrByKeyword();
+    }).catch(function(){ searchAddrByKeyword(); });
+    return;
+  }
+  searchAddrByKeyword();
+
+  function searchAddrByKeyword(){
+    fetch('https://cosroad.vercel.app/api/kakao-search?query='+encodeURIComponent(addr)+geoBiasParam())
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var docs = (data.documents && data.documents.length > 0) ? data.documents : [];
+      if(docs.length === 0){
+        fetch(addrUrl)
+        .then(function(r){ return r.json(); })
+        .then(function(data2){
+          var docs2 = (data2.documents && data2.documents.length > 0) ? data2.documents : [];
+          if(docs2.length === 0){ showToast('⚠ 주소를 찾을 수 없어요.'); return; }
+          showAddrResults(mapAddrDocs(docs2), inputId, resultId, addrOnly);
+        });
+        return;
+      }
+      /* 장소 검색에는 지역 칸이 없다(공식 문서) — 그래서 `sido`·`sigungu` 를 안 담는다.
+         사업장 주소를 이 길로 고르면 두 칸은 **비어 있고** 짐작 길로 떨어진다. */
+      showAddrResults(docs.map(function(p){
+        return { name: addrOnly ? (p.road_address_name || p.address_name) : p.place_name,
+                 address: p.address_name, x:p.x, y:p.y };
+      }), inputId, resultId, addrOnly);
+    }).catch(function(e){ showToast('⚠ 검색 실패: '+e.message); });
+  }
 }
 /* 표시용 전체 주소: 기본 주소 + 상세 주소. 좌표·검색에는 쓰지 않는다 */
 function fullLoc(m){ return (m.location||'') + (m.addrDetail ? ' ' + m.addrDetail : ''); }
@@ -19457,6 +19533,16 @@ function fullLoc(m){ return (m.location||'') + (m.addrDetail ? ' ' + m.addrDetai
 function searchMemberAddr(){ searchAddrInto('m-location','member-addr-result','⚠ 픽업 장소를 입력해주세요'); }
 /* 사업자 주소 — 거래명세서·세금계산서 인쇄용이라 상호가 아니라 '도로명 주소'가 들어가야 합니다 */
 function searchOrgAddr(){ searchAddrInto('org-addr','org-addr-result','⚠ 주소를 입력해주세요', true); }
+/* 주소를 **손으로 고치면** 검색이 준 공식 지역 칸을 비운다 (v299) —
+   글자와 지역이 어긋난 채 저장되지 않게. 다시 「📍 검색」으로 고르면 채워진다.
+   ★ «회원» 주소 칸(`m-location`)이 좌표를 비우는 것과 **같은 태도**다(아래 쪽지). */
+function orgAddrTouched(){
+  var el=document.getElementById('org-addr');
+  if(!el) return;
+  el.removeAttribute('data-sido'); el.removeAttribute('data-sigungu');
+  var r=document.getElementById('org-addr-result');
+  if(r){ r.innerHTML=''; }
+}
 function searchMemberDropAddr(){ searchAddrInto('m-droplocation','member-drop-result','⚠ 하차 장소를 입력해주세요'); }
 
 /* 주소 글자를 직접 고치면 이전 좌표·검색 결과는 무효 — 글자와 좌표가 어긋난 채 저장되는 것 방지 */
@@ -19492,7 +19578,15 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
     var r = results[idx];
     if(!r) return;
     var loc = document.getElementById(targetInput);
-    if(loc){ loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x); }
+    if(loc){
+      loc.value = r.name; loc.setAttribute('data-lat', r.y); loc.setAttribute('data-lon', r.x);
+      /* ★ v299: 주소 검색이 준 **공식 시도·시군구**를 칸에 같이 적어 둔다 —
+         저장(`saveOrgInfo`)이 그것을 읽어 `orgSettings.addrSido`·`addrSigungu` 로 넣는다.
+         장소 검색으로 고른 것은 지역 칸이 없으므로(공식 문서) **비운다** —
+         글자와 지역이 어긋난 채로 남지 않게 한다. */
+      if(r.sido){ loc.setAttribute('data-sido', r.sido); } else { loc.removeAttribute('data-sido'); }
+      if(r.sigungu){ loc.setAttribute('data-sigungu', r.sigungu); } else { loc.removeAttribute('data-sigungu'); }
+    }
     el.innerHTML = '<span style="color:#12B76A;font-size:12px;">✅ '+escapeMasterHtml(r.name)+' ('+escapeMasterHtml(r.address)+')</span>';
     showToast('✅ 위치 확인 완료!');
   });
