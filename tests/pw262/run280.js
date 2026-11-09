@@ -246,7 +246,10 @@ const carsScreen = (p) => p.evaluate(() => {
     const r = await p.evaluate(async () => {
       window.padDriverPinApi = async function(){ return { ok:true, kind:'staff', staffId:'st2' }; };
       switchTab('admin'); currentAdminTab = 'attendance'; renderAdminTab('attendance');
-      openPinCheckin();
+      /* ★ v293(60-B1): 판이 **둘로 갈렸다** — 직원 출퇴근은 **근태 판**('work')에서 찍는다.
+         인자를 안 주면 출결 판이라 「🚚 기사·직원 PIN 이에요」 안내만 뜨고 **기록되지 않는다**
+         (그렇게 바꾼 것이 60-B1 의 목적이다). */
+      openPinCheckin('work');
       await new Promise((x) => setTimeout(x, 150));
       pinInput = '8888';
       await checkPin();

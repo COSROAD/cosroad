@@ -707,6 +707,17 @@ export default async function handler(req, res) {
       }
       /* 기사도 직원도 아니면 **앱이 «회원» PIN 으로 이어서 본다** — 404 로 알려 준다 */
       if (!carId && !staffId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');
+      /* ★★ v293(60-B1): `probe:true` — **대조만** 하고 **아무 것도 쓰지 않는다.**
+         왜 — 판이 갈리면서(출결 판 = «회원» PIN 만) 출결 판에서 기사·직원 PIN 을 누른 사람에게
+         「직원 PIN 이에요 — 근태 판에서 찍어 주세요」라고 **알려 주되 기록은 하지 않아야** 한다.
+         종전 `pinCheckin` 은 대조와 **기록**이 한 몸이라 그 말을 할 방법이 없었다.
+         ★ 돌려주는 것은 **`kind` 하나**다 — 이름·차량·직원 id·PIN·해시·시각을 넣지 않는다
+           (누구인지까지 알려 줄 이유가 없다 · 출결 판은 「어느 판에서 찍어라」만 알면 된다).
+         ★ `writeLogin`(기록)보다 **앞**에 둔다 — probe 는 `driverLogins` 에도 남기지 않는다.
+         ★ 자리를 404 `notdriver` **뒤**에 둔 까닭은 종전과 같다(틀린 PIN 은 같은 404). */
+      if (b.probe === true) {
+        return res.status(200).json({ ok: true, kind: carId ? 'driver' : 'staff', probe: true });
+      }
       if (!carId) {
         /* 직원 — 기간을 본 뒤(기사와 같은 자리) 「누구인지」만 돌려준다 */
         if (!(await ownerAlive((await resolveOwnerUid(org))))) {

@@ -672,7 +672,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 292;
+const APP_VERSION = 293;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2428,7 +2428,13 @@ function buildDriverAttHtml(){
   h += '<span style="font-size:15px;font-weight:800;color:#344054;">🚚 기사·직원 근태관리</span>';
   h += '</div>';
   /* PIN 판 — 물류·택배 관리자 화면에는 PIN 판이 없어서 여기에 둔다(v241) */
-  h += '<button onclick="openPinCheckin()" style="width:100%;padding:12px;background:#EA580C;color:white;border:none;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:12px;">🔢 PIN 출퇴근 체크</button>';
+  h += '<button onclick="openPinCheckin(\'work\')" style="width:100%;padding:12px;background:#EA580C;color:white;border:none;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:8px;">🔢 PIN 출퇴근 체크</button>';
+  /* ★ v293(60-B1): 판이 갈렸으니 **겹친 PIN 을 찾아 보는 자리**를 같이 둔다.
+     판 하나였을 때는 겹쳐도 「먼저 맞는 쪽」이 찍혀 모르고 지나갔다 — 이제는
+     한쪽 판에서 「다른 판 PIN 이에요」가 떠서 **왜 안 되는지**를 알 수 있어야 한다.
+     ★ 찾아서 **보여만** 준다 — 누구 PIN 을 바꿀지는 사람이 정한다(자동 변경 0). */
+  h += '<button onclick="pinDupScanRun()" style="width:100%;padding:10px;background:white;color:#B54708;border:1.5px solid #FEC84B;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:12px;">🔍 PIN 겹침 찾기</button>';
+  h += '<div id="pin-dup-result" style="margin-bottom:12px;"></div>';
   // ── 근태 달력 (상단) — 수납·수입지출 달력과 같은 모양, 접힘 상태는 기기별 ──
   h += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">';
   h += navArrowBtn('attCalMoveMonth(-1)','◀');
@@ -5492,7 +5498,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 다른 기능이에요 — 같은 PIN 판이라도 차량관리에서 정한 「기사 PIN」이나 근태관리에 넣은 「직원 PIN」을 누르면 출퇴근으로 처리돼요 (기사 PIN 은 서버가 맞춰 봐요). «회원»·기사·직원 PIN은 서로 다른 번호로 정하세요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -5506,7 +5512,7 @@ var HELP_QA=[
   {role:'admin', keys:['운행기록부','세무','증빙','방문지','계기판사진'], t:'운행기록부 내보내기',
    a:'1. 기사 출근·퇴근 체크 때 계기판 km 입력이 쌓여야 해요 (관리자는 차계부 📏 계기판으로 보완)\n1-1. 「주행 전」은 그날 출근 때 넣은 값이 우선이고, 출근 입력이 없으면 직전 기록일의 값을 자동으로 써요 — 그래서 첫 사용일도 출근 값만 넣으면 빈칸 없이 채워져요\n2. 차량 관리 → 차계부 → 「📄 운행기록부 내보내기」 → 월 선택\n3. 차종·출퇴근 거리는 차량 정보에 입력해 두면 자동 반영\n4. 엑셀 없이 보고 싶으면 「📋 운행기록부 보기」 — 완성된 양식이 화면에 그대로 떠요. 과세기간 칸(▾)을 눌러 월을 바꿔요\n5. 회색 칸(부서·방문지)만 눌러 직접 입력하면 바로 저장되고, 맨 아래 칸에 월말 계기판 사진도 넣을 수 있어요 (엑셀·인쇄에 함께 나감)\n6. 내보낸 엑셀의 회색 칸은 잠겨 있어요 — 흰 칸에만 입력, 잠금 해제는 엑셀 검토 → 시트 보호 해제\n7. 인쇄물은 2쪽이에요 — 1쪽 운행기록, 2쪽 주유·정비 내역 + 계기판 사진(크게)'},
   {role:'admin', keys:['직원','직원근태','기사외','알바','휴게','휴게시간','직원출퇴근','직원급여'], t:'기사 말고 직원 출퇴근은?',
-   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 직원 출퇴근은 <b>관리자 기기에서</b> 찍어요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」 판에서 직원이 자기 PIN 4자리를 눌러도 돼요\n4. 기사와는 방식이 달라요 — 기사는 자기 폰 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로 찍어요 (기사 화면에는 PIN 판이 없어요)\n4-1. <b>동승 도우미</b>로 들어오는 직원은 <b>자기 폰에서</b> 「🌅 출근」·「🌆 퇴근」을 눌러요 — 같은 직원 근태로 들어와 달력·급여에 함께 나와요 (관리자가 PIN 판으로 찍어 주는 것도 그대로 돼요)\n5. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n6. 기사는 휴게를 빼지 않아요 (종전 그대로)\n7. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n8. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n9. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n9-1. <b>PIN 은 서버에만 안전하게 보관돼요</b> — 한 번 정하면 화면에 다시 보이지 않고, 「PIN 설정됨」으로만 나와요. 잊으셨으면 새 번호로 다시 정하시면 돼요\n9-2. 근태 화면 위에 <b>「🔢 옛 직원 PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료 안에 그대로 있던 PIN 을 서버로 옮깁니다 (PIN 판 출퇴근은 그대로 돼요)\n10. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
+   a:'1. 직원은 차량과 별개예요 — 근태 화면의 「👤 직원 근태」에서 「＋ 직원 추가」로 등록해요\n2. 넣는 값: 이름(필수)·연락처·PIN 4자리·시급·식대·공제방식(3.3%/4대보험)·「휴게시간 자동 차감」\n3. 직원 출퇴근은 <b>관리자 기기에서</b> 찍어요 — 직원 카드의 「출근/퇴근」 단추를 관리자가 눌러도 되고, 「🔢 PIN 출퇴근 체크」 판에서 직원이 자기 PIN 4자리를 눌러도 돼요. 이 판은 <b>기사·직원 PIN 만</b> 받아요 (v293) — «회원» 출석 PIN 을 누르면 안내만 뜨고 기록되지 않아요\n   · PIN 이 겹치면 그 아래 「🔍 PIN 겹침 찾기」로 찾아 한쪽을 바꿔 주세요 (여기서 자동으로 바꾸지는 않아요)\n4. 기사와는 방식이 달라요 — 기사는 자기 폰 운행 화면의 「🌅 출근」·「🌆 퇴근」 단추로 찍어요 (기사 화면에는 PIN 판이 없어요)\n4-1. <b>동승 도우미</b>로 들어오는 직원은 <b>자기 폰에서</b> 「🌅 출근」·「🌆 퇴근」을 눌러요 — 같은 직원 근태로 들어와 달력·급여에 함께 나와요 (관리자가 PIN 판으로 찍어 주는 것도 그대로 돼요)\n5. 휴게시간 자동 차감(기본 켬): 출퇴근 차이가 8시간 이상이면 1시간, 4시간 이상이면 30분을 빼요. 4시간 미만은 안 빼요 — 직원마다 끌 수 있어요\n6. 기사는 휴게를 빼지 않아요 (종전 그대로)\n7. 근무시간 옆에 「(휴게 1시간 제외)」처럼 작게 적어 줘요\n8. 급여상세(화면·엑셀)에 기사 다음 순서로 직원도 함께 나와요 — 기본/잔업/특근 분류·시급·공제 계산은 기사와 같아요\n9. PIN은 기사·«회원»과 겹치면 안 돼요 — 겹치면 저장할 때 알려 줘요\n9-1. <b>PIN 은 서버에만 안전하게 보관돼요</b> — 한 번 정하면 화면에 다시 보이지 않고, 「PIN 설정됨」으로만 나와요. 잊으셨으면 새 번호로 다시 정하시면 돼요\n9-2. 근태 화면 위에 <b>「🔢 옛 직원 PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료 안에 그대로 있던 PIN 을 서버로 옮깁니다 (PIN 판 출퇴근은 그대로 돼요)\n10. 직원을 지워도 출퇴근 기록은 남아요. 화면·급여상세에서만 빠져요'},
   {role:'admin', keys:['근태','출퇴근','달력'], t:'근태 달력으로 출근 현황 보기',
    a:'1. 관리자 → 근태 화면 맨 위에 월 달력이 있어요 (◀ ▶ 로 월 이동, 「📅 달력」 버튼으로 접기/펼치기)\n2. 날짜 칸의 「3명」은 그날 출근한 기사·직원 수 — ⚠ 가 붙으면 퇴근 체크를 안 한 사람이 있다는 뜻이에요\n3. 날짜를 누르면 아래에 그날 상세(기사별 출근·퇴근 시각, 근무시간, 계기판 km)가 열려요. 같은 날짜를 다시 누르면 닫혀요\n4. 퇴근이 「미체크」로 빨갛게 뜨면 그 기사는 근무시간이 계산되지 않아요 — 아래 목록에서 퇴근을 체크해 주세요'},
   {role:'admin', keys:['급여','급여상세','시급','공제','임시공휴일','잔업','4대보험','요율','국민연금','건강보험'], t:'급여상세 내보내기',
@@ -8938,7 +8944,7 @@ function renderAttendance(){
 
   // PIN 체크인 버튼 + 날짜 선택 (함께 고정)
   h+='<div style="position:sticky;top:0;z-index:98;background:var(--gray-100);padding:12px 16px 8px;">';
-  h+='<button onclick="openPinCheckin();" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">🔢 PIN 체크인 모드 열기</button>';
+  h+='<button onclick="openPinCheckin(\'member\');" style="width:100%;padding:13px;background:#EA580C;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">🔢 PIN 체크인 모드 열기</button>';
   h+='<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:12px;">';
   h+='<div style="font-size:12px;font-weight:700;color:#475467;margin-bottom:6px;">📅 날짜 선택</div>';
   h+='<input type="date" value="'+attViewDate+'" onchange="attViewDate=this.value;renderAttendance();"';
@@ -9034,8 +9040,17 @@ function renderAttendance(){
 // ══════════════════════
 var pinInput='';
 var pinCheckinOpen=false;
+/* ★★ v293(60-B1): **판의 종류** — 'member'(«회원» 출결) · 'work'(기사·직원 근태).
+   전에는 판이 하나뿐이라 `checkPin()` 이 **기사→직원→회원을 다 받았다** — 그래서
+   출결 판에서 직원 PIN 을 누르면 **근태가 찍히고**, 근태 판에서 «회원» PIN 을 누르면
+   **출석이 찍혔다**(스텁으로 실측). 이제 **자기 판 PIN 만** 받고, 남의 판 PIN 이면
+   **기록하지 않고** 어느 판에서 찍어야 하는지 알려 준다(사장님 결정 11-08 ①).
+   ★ 기본값은 **출결 판**이다 — 인자 없이 열리는 길이 생겨도 **근태를 잘못 찍지 않는 쪽**으로 둔다.
+   ★ 함수 이름(`openPinCheckin`)은 **그대로 둔다** — 둘러보기 투어가 그 이름을 선택자로 찾는다
+     (`button[onclick^="openPinCheckin"]` — 접두사라 인자를 더해도 맞는다). */
+var pinPadKind='member';
 
-function openPinCheckin(){
+function openPinCheckin(kind){
   /* v256 보정2: 실서비스 기사 화면에는 PIN 판이 **없다**(단추를 뺐다).
      단추 말고 다른 길(도우미·단축·옛 화면)로도 열리지 않게 여기서 한 번 더 막는다.
      v257: 둘러보기(_demo) 기사 화면도 출근·퇴근 단추로 바꿨으므로 **같이 막는다**.
@@ -9044,6 +9059,7 @@ function openPinCheckin(){
     try{ showToast('회원 출석 PIN 은 관리자 화면에서 써요'); }catch(e){}
     return;
   }
+  pinPadKind = (kind==='work') ? 'work' : 'member';
   pinInput='';
   pinCheckinOpen=true;
   document.getElementById('pin-checkin-modal').classList.add('show');
@@ -9052,6 +9068,7 @@ function openPinCheckin(){
 function closePinCheckin(){
   pinCheckinOpen=false;
   pinInput='';
+  pinPadKind='member';          /* 닫을 때 **출결 판**으로 되돌린다(위 기본값과 같은 까닭) */
   document.getElementById('pin-checkin-modal').classList.remove('show');
 }
 function pinPress(val){
@@ -9197,7 +9214,10 @@ function driverAttLocalSet(carId, dateStr, kind, time){
 /* 관리자 공용 PIN 판 — 이 PIN 이 기사 PIN 인지 **서버에** 물어본다.
    돌려주는 값: {ok,kind,time,carId,date} / {why:'notdriver'} (기사 PIN 아님 → 직원·회원으로 이어 봄)
                / {why:...,message} (권한·통신 오류) */
-async function padDriverPinApi(pin){
+/* ★ v293(60-B1): `probe` 를 주면 서버가 **대조만** 하고 아무 것도 쓰지 않는다
+   (돌려주는 것은 `kind` 하나 — 이름·차량·직원 id·PIN 은 없다).
+   출결 판에서 「직원 PIN 이에요」를 말하려고 쓴다 — 창구를 새로 만들지 않았다. */
+async function padDriverPinApi(pin, probe){
   var u = window._auth && window._auth.currentUser;
   if(!u || u.isAnonymous) return { why:'noauth', message:'계정으로 로그인한 뒤에 쓸 수 있어요.' };
   var tok;
@@ -9206,7 +9226,9 @@ async function padDriverPinApi(pin){
     var r = await fetch('https://cosroad.vercel.app/api/driver-auth', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
-      body: JSON.stringify({ action:'pinCheckin', org:getFbOrgId(), pin:pin })
+      body: JSON.stringify(probe===true
+        ? { action:'pinCheckin', org:getFbOrgId(), pin:pin, probe:true }
+        : { action:'pinCheckin', org:getFbOrgId(), pin:pin })
     });
     var j = await r.json();
     if(j && j.ok) return j;
@@ -9366,7 +9388,10 @@ async function checkPin(){
     readOnlyBlocked('출퇴근·출석');
     return;
   }
-  var _skipDrvStaff = (currentMode==='driver' && !_demoPad);
+  /* ★★ v293(60-B1): **판이 갈렸다.** 근태 판('work')만 기사·직원을 대조한다 —
+     출결 판('member')에서는 기사·직원 대조를 **아예 건너뛴다**(그래서 기록될 길이 없다). */
+  var _padWork = (pinPadKind === 'work');
+  var _skipDrvStaff = (currentMode==='driver' && !_demoPad) || !_padWork;
   if(!_skipDrvStaff){
     // 1) 먼저 기사 PIN인지 확인
     if(_demoPad){
@@ -9425,17 +9450,43 @@ async function checkPin(){
   }
 
   var member=null;
-  for(var i=0;i<members.length;i++){
-    if(members[i].pin&&members[i].pin===pv){member=members[i];break;}
+  /* ★ v293: «회원» 대조는 **출결 판에서만** — 근태 판에서는 출석이 찍힐 길이 없다 */
+  if(!_padWork){
+    for(var i=0;i<members.length;i++){
+      if(members[i].pin&&members[i].pin===pv){member=members[i];break;}
+    }
   }
   if(!member){
-    document.getElementById('pin-result').innerHTML='<div style="color:#F04438;font-size:14px;font-weight:700;text-align:center;padding:10px;">❌ PIN 번호가 올바르지 않습니다.</div>';
+    /* ★★ v293(60-B1): **남의 판 PIN 이면 기록하지 않고 어디서 찍는지 알려 준다.**
+       · 근태 판 — «회원» PIN 인지 **로컬에서 보기만** 한다(평문 대조 · 기록 0).
+       · 출결 판 — 기사·직원인지 **서버에 물어만** 본다(`probe:true` · 서버 쓰기 0 · `kind` 만).
+       · 둘러보기 — 서버를 안 부르니 샘플 평문으로 가린다(종전과 같은 태도).
+       ★ 안내는 **`#pin-result` 자리 한 곳**에 띄운다 — 새 창을 만들지 않으므로
+         `BACK_PANEL_IDS` 에 더할 것이 없다(v278 와 같은 방법). */
+    var _other='';
+    if(_padWork){
+      for(var _mi=0;_mi<members.length;_mi++){
+        if(members[_mi].pin && members[_mi].pin===pv){ _other='member'; break; }
+      }
+    } else if(_demoPad){
+      if(cars.some(function(c){ return c.driverPin && c.driverPin===pv; })) _other='work';
+      else if(activeStaff().some(function(s){ return s.pin && s.pin===pv; })) _other='work';
+    } else {
+      var _pr = await padDriverPinApi(pv, true);
+      if(_pr && _pr.ok && (_pr.kind==='driver' || _pr.kind==='staff')) _other='work';
+    }
+    var _msg = (_other==='work')
+      ? '🚚 기사·직원 PIN 이에요<br><span style="font-size:12px;font-weight:600;color:#667085;">근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요</span>'
+      : (_other==='member')
+      ? '🎒 '+T('회원')+' 출석 PIN 이에요<br><span style="font-size:12px;font-weight:600;color:#667085;">«출결»관리의 「🔢 PIN 체크인 모드 열기」에서 찍어 주세요</span>'
+      : '❌ PIN 번호가 올바르지 않습니다.';
+    document.getElementById('pin-result').innerHTML='<div style="color:'+(_other?'#F79009':'#F04438')+';font-size:14px;font-weight:700;text-align:center;padding:10px;line-height:1.6;">'+_msg+'</div>';
     pinInput='';
     setTimeout(function(){
       var r=document.getElementById('pin-result');
       if(r)r.innerHTML='';
       renderPinDisplay();
-    },1500);
+    }, _other?2500:1500);
     return;
   }
 
@@ -16416,6 +16467,82 @@ async function pinDupWho(pin, exceptStaffId){
 }
 /* 여러 PIN 을 한꺼번에 — 엑셀 가져오기에서 쓴다. { '1234':true } 를 돌려준다.
    줄마다 묻지 않고 **들어온 PIN 종류만** 모아 병행으로 묻는다. */
+/* ★★ v293(60-B1): **겹친 PIN 찾기** — 판이 갈린 뒤 「왜 안 되는지」를 알 수 있게.
+   겹침은 저장 때 막지만(회원 저장·직원 저장·엑셀·기사 PIN) **예전부터 겹쳐 있던 자료**와
+   동시 저장은 막지 못했다. 그래서 **찾아서 보여 주는 자리**를 둔다.
+   · «회원»끼리는 **로컬 평문**으로 본다(아직 평문이다 — 해시 옮기기는 60-B4).
+   · 기사·직원과 겹치는지는 **서버 `checkPinDup`** 하나로 묻는다(PIN·해시는 돌려받지 않는다).
+     같은 4자리는 **한 번만** 묻는다(`drvPinTakenSet` 과 같은 태도).
+   ★ **아무 것도 바꾸지 않는다** — 돌려주는 것은 표에 그릴 목록뿐이다.
+   반환: [{ pin, members:[이름…], other:'기사(1호차)'|'직원(최직원)'|'' }] */
+async function pinDupScan(){
+  var byPin={};
+  (members||[]).forEach(function(m){
+    var p=String((m&&m.pin)||'').replace(/[^0-9]/g,'');
+    if(!/^\d{4}$/.test(p)) return;
+    (byPin[p]=byPin[p]||[]).push(String(m.name||''));
+  });
+  var pins=Object.keys(byPin);
+  if(!pins.length) return [];
+  var other={};
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    pins.forEach(function(p){
+      var c=(cars||[]).find(function(x){ return x.driverPin===p; });
+      if(c){ other[p]='기사('+(c.driver||c.name||'')+')'; return; }
+      var s=activeStaff().find(function(x){ return x.pin===p; });
+      if(s) other[p]='직원('+(s.name||'')+')';
+    });
+  } else {
+    var org=getFbOrgId();
+    await Promise.all(pins.map(function(p){
+      return driverAcctApi({ action:'checkPinDup', org:org, pin:p })
+        .then(function(r){
+          if(!r || !r.ok || !r.dup) return;
+          if(r.kind==='staff'){
+            var st=activeStaff().find(function(x){ return String(x.id)===String(r.staffId); });
+            other[p]='직원('+((st&&st.name)||'')+')';
+          } else {
+            var c=(cars||[]).find(function(x){ return String(x.id)===String(r.carId); });
+            other[p]='기사('+((c&&(c.driver||c.name))||'')+')';
+          }
+        })
+        .catch(function(){});
+    }));
+  }
+  var out=[];
+  pins.forEach(function(p){
+    if(byPin[p].length>1 || other[p]) out.push({ pin:p, members:byPin[p], other:other[p]||'' });
+  });
+  out.sort(function(a,b){ return a.pin<b.pin?-1:1; });
+  return out;
+}
+/* 단추에서 부르는 쪽 — 결과를 근태 블록 아래 `#pin-dup-result` 에 그린다(새 창 0). */
+async function pinDupScanRun(){
+  var box=document.getElementById('pin-dup-result');
+  if(box) box.innerHTML='<div style="font-size:12px;color:#667085;padding:8px;">찾는 중…</div>';
+  var list=[];
+  try{ list=await pinDupScan(); }catch(e){
+    if(box) box.innerHTML='<div style="font-size:12px;color:#F04438;padding:8px;">확인하지 못했어요. 잠시 뒤 다시 해 주세요.</div>';
+    return;
+  }
+  if(!box) return;
+  if(!list.length){
+    box.innerHTML='<div style="background:#ECFDF3;border:1px solid #A6F4C5;border-radius:10px;padding:10px;font-size:12px;font-weight:700;color:#027A48;">✅ 겹친 PIN 이 없어요</div>';
+    return;
+  }
+  var h='<div style="background:#FFFAEB;border:1px solid #FEC84B;border-radius:10px;padding:10px;">';
+  h+='<div style="font-size:12px;font-weight:800;color:#B54708;margin-bottom:6px;">⚠ 겹친 PIN '+list.length+'건 — 한쪽을 바꿔 주세요</div>';
+  list.forEach(function(r){
+    var who=[];
+    if(r.members.length>1) who.push(T('회원')+' '+r.members.map(escapeMasterHtml).join('·'));
+    else if(r.members.length===1 && r.other) who.push(T('회원')+' '+escapeMasterHtml(r.members[0]));
+    if(r.other) who.push(escapeMasterHtml(r.other));
+    h+='<div style="font-size:12px;color:#344054;padding:3px 0;">· <b>'+escapeMasterHtml(r.pin)+'</b> — '+who.join(' / ')+'</div>';
+  });
+  h+='<div style="font-size:11px;color:#98A2B3;margin-top:6px;">'+T('회원')+' PIN 은 «회원» 수정 창에서, 기사·직원 PIN 은 차량관리·근태관리에서 바꿔요 (여기서 자동으로 바꾸지 않아요)</div>';
+  h+='</div>';
+  box.innerHTML=h;
+}
 async function drvPinTakenSet(pins){
   var out={}, uniq={};
   (pins||[]).forEach(function(p){ p=String(p||'').replace(/[^0-9]/g,''); if(/^\d{4}$/.test(p)) uniq[p]=1; });
@@ -18897,8 +19024,14 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
 </script>
 
 <!-- PIN 체크인 모달 -->
-<div class="modal-bg" id="pin-checkin-modal" style="align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:24px;padding:28px 24px;width:92%;max-width:360px;position:relative;">
+<!-- ★★ v262 화면 규칙: 덮개에 세로 가운데(`align-items:center`)를 쓰지 않는다 —
+     안쪽 상자가 길면 **위로 넘친 부분을 스크롤로도 못 올라간다**(엇갈린 축).
+     60-A 실측: 출석 성공 화면이 붙어 상자가 800px 가 되면 390x667 에서 상자 top -66px,
+     닫기 ✕ 가 **화면 밖**이었다(위로 스크롤 안 됨 · 뒤로가기로만 닫혔다).
+     → 덮개 `flex-start` + `overflow-y:auto` · 안쪽 상자 `margin:auto`
+       (짧으면 지금처럼 가운데, 길면 위에서 시작해 끝까지 스크롤된다). -->
+<div class="modal-bg" id="pin-checkin-modal" style="align-items:flex-start;justify-content:center;overflow-y:auto;">
+  <div style="background:white;border-radius:24px;padding:28px 24px;width:92%;max-width:360px;position:relative;margin:auto;">
     <button onclick="closePinCheckin()" style="position:absolute;top:16px;right:16px;font-size:20px;border:none;background:none;cursor:pointer;color:#98A2B3;">✕</button>
     <div style="text-align:center;margin-bottom:20px;">
       <div style="font-size:32px;margin-bottom:6px;">🔢</div>

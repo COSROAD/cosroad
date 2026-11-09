@@ -178,8 +178,10 @@ console.log('\n════ 1. 대조 먼저 — 관리자 출발점은 쓰기�
 console.log('\n════ 2. 기사 모드 가드가 소스에 정말 있나 ════');
 ck('switchTab — 기사는 관리 화면에 못 들어간다',
   /if\(currentMode==='driver'\)\{ currentTab='drive'; switchTab\('drive'\); return; \}/.test(SRC), true);
+/* ★ v293(60-B1)에서 **인자가 생겼다** — `openPinCheckin(kind)`(판의 종류).
+   가드는 그대로이므로 **인자를 받아 주는 꼴**로 고친다(여기서 막지 않으면 거짓으로 깨진다). */
 ck('openPinCheckin — 기사는 PIN 판을 못 연다',
-  /function openPinCheckin\(\)\{[\s\S]{0,800}?currentMode==='driver'[\s\S]{0,260}?return;/.test(SRC), true);
+  /function openPinCheckin\([a-zA-Z]*\)\{[\s\S]{0,900}?currentMode==='driver'[\s\S]{0,260}?return;/.test(SRC), true);
 /* 정적 간선이 정말 있는지 — 모달 HTML 과 pinPress 본문으로 증명 */
 ck('   PIN 모달 단추가 pinPress 다 (정적 HTML)', /onclick="pinPress\(/.test(PIN_MODAL), true);
 ck('   pinPress 는 4자리에서 checkPin 을 부른다', /checkPin\(\);/.test(FNS['pinPress'] || ''), true);
