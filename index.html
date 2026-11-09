@@ -557,9 +557,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     </div>
     <div class="form-row" id="wrap-fees">
       <div><label class="form-label">등록비 (원)</label>
-      <input class="form-input" type="number" id="m-regfee" placeholder="예) 50000"/></div>
+      <input class="form-input" type="text" inputmode="numeric" id="m-regfee" placeholder="예) 50,000" oninput="fmtAmountInput(this)"/></div>
       <div><label class="form-label">월정액 (원)</label>
-      <input class="form-input" type="number" id="m-monthly" placeholder="예) 100000"/></div>
+      <input class="form-input" type="text" inputmode="numeric" id="m-monthly" placeholder="예) 100,000" oninput="fmtAmountInput(this)"/></div>
     </div>
     <div id="wrap-pin">
     <label class="form-label">출석 PIN 번호 (4자리) *</label>
@@ -688,7 +688,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 300;
+const APP_VERSION = 301;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2077,7 +2077,7 @@ function exportPayrollDetail(ym){
   var holRow=aoa.length;
   aoa.push(['임시공휴일', D.holidays.length ? D.holidays.join(', ') : '(지정 없음)']);
   var wb=XLSX.utils.book_new();
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(aoa));
   /* ── 수식 입히기 — 열: 시급 B(1)·식대 C(2)·날짜 5..5+lastDay-1·
      근무시간 HT·급여 PAY·합계 TOT·공제 DED·공제후 AFT·실급여 NET ── */
   var HT=5+lastDay, PAY=HT+1, TOT=PAY+1, DED=TOT+1, AFT=DED+1, NET=AFT+1;
@@ -2197,7 +2197,7 @@ function pvFormHtml(D, mode, opts){
   /* 인쇄 날짜 칸은 폭이 좀아(≈19.5px) 글자를 줄이고 넘치는 부분은 잘라낸다 */
   var CTd=scr?CT:(CT+'font-size:9px;overflow:hidden;');
   var mon=D.mon;
-  function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
+  function won(v){ return (v===''||v==null||v===0) ? '' : fmtNum(v); }   /* v301: 셈은 fmtNum 한 벌 */
   function hr(v){ return (v===''||v==null||v===0) ? '' : String(v); }
 
   var h='<div style="'+(scr?'min-width:1200px;':'width:1070px;max-width:100%;')+'font-family:\'Malgun Gothic\',\'맑은 고딕\',sans-serif;">';
@@ -2419,7 +2419,7 @@ function pvPrintHtml(D, cars, footer){
   var SUM=C+'text-align:right;background:#FFF9E6;font-weight:800;';
   var HALF=15;                                   /* 표1에 넣는 마지막 일자 */
   var back=D.lastDay-HALF;                       /* 표2의 날짜 칸 수 */
-  function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
+  function won(v){ return (v===''||v==null||v===0) ? '' : fmtNum(v); }   /* v301: 셈은 fmtNum 한 벌 */
   function hr(v){ return (v===''||v==null||v===0) ? '' : String(v); }
   /* 날짜 머리 — "1(수)" 일자+요일. 주말 색(토 파랑·일 빨강)·임시공휴일 표시는 화면과 동일.
      띄어쓴 "1 (수)"는 표2 날짜 칸(내용폭 27.6px)에서 29.1px 라 넘쳐서 붙여쓴다. */
@@ -2775,8 +2775,8 @@ function openStaffEdit(id){
               + '<div style="font-size:11px;color:#98A2B3;margin-top:5px;line-height:1.6;">동승 도우미로 들어오는 직원이 폰을 바꿨으면 「📱 기기 풀기」를 눌러 주세요</div>'
             : '<div style="font-size:11px;color:#98A2B3;margin-top:6px;">PIN 이 있어야 PIN 판에서 출퇴근할 수 있어요</div>'))
     + '<div style="display:flex;gap:8px;">'
-      + '<div style="flex:1;">'+fld('시급 (원)', '<input id="st-wage" type="number" value="'+(st.hourlyWage||'')+'" placeholder="10030" style="'+IN+'"/>')+'</div>'
-      + '<div style="flex:1;">'+fld('식대 (월, 원)', '<input id="st-meal" type="number" value="'+(st.mealAllow||'')+'" placeholder="200000" style="'+IN+'"/>')+'</div>'
+      + '<div style="flex:1;">'+fld('시급 (원)', '<input id="st-wage" type="text" inputmode="numeric" value="'+(st.hourlyWage?fmtNum(st.hourlyWage):'')+'" placeholder="10,030" oninput="fmtAmountInput(this)" style="'+IN+'"/>')+'</div>'
+      + '<div style="flex:1;">'+fld('식대 (월, 원)', '<input id="st-meal" type="text" inputmode="numeric" value="'+(st.mealAllow?fmtNum(st.mealAllow):'')+'" placeholder="200,000" oninput="fmtAmountInput(this)" style="'+IN+'"/>')+'</div>'
     + '</div>'
     + fld('공제 방식', '<select id="st-tax" style="'+IN+'">'
         + '<option value="free33"'+((st.taxMode||'free33')==='free33'?' selected':'')+'>원천징수 3.3%</option>'
@@ -2815,8 +2815,9 @@ async function saveStaffEdit(id){
     /* ★ 평문 PIN 은 **저장하지 않는다**. 있는지 없는지만 `hasPin` 으로 들고 있는다
        (화면이 「PIN 설정됨 / 새로 정하기」를 보여 주려면 그 한 칸이면 된다). */
     hasPin: pin ? true : (_prev.hasPin===true && !_pinCleared),
-    hourlyWage: Number(g('st-wage'))||0,
-    mealAllow: Number(g('st-meal'))||0,
+    /* ★ v301: 쉼표가 든 칸 → `numOf` */
+    hourlyWage: Math.trunc(numOf(g('st-wage'))),
+    mealAllow: Math.trunc(numOf(g('st-meal'))),
     taxMode: (g('st-tax')==='insure4')?'insure4':'free33',
     breakAuto: ck ? !!ck.checked : true
   };
@@ -2960,7 +2961,7 @@ function renderAttCalendar(y, mo){
     c+='<div onclick="attCalSelectDate(\''+ds+'\')" style="min-height:52px;display:flex;flex-direction:column;border:'+bw+' solid '+bc+';border-radius:7px;padding:3px;cursor:pointer;background:'+bg+';overflow:hidden;">';
     c+='<div style="font-size:13px;font-weight:700;color:'+fg+';flex-shrink:0;">'+d+(isToday&&!isSel?' <span style="font-size:9px;color:#12B76A;">오늘</span>':'')+'</div>';
     if(st){
-      c+='<div style="font-size:11px;font-weight:800;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.3;">'+st.count+'명</div>';
+      c+='<div style="font-size:11px;font-weight:800;color:'+(isSel?'#D1FADF':'#12B76A')+';line-height:1.3;">'+fmtNum(st.count)+'명</div>';
       if(st.warn) c+='<div style="font-size:10px;font-weight:800;color:'+(isSel?'#FEDF89':'#F79009')+';line-height:1.2;">⚠</div>';
     }
     c+='</div>';
@@ -5410,7 +5411,7 @@ async function masterBillingLog(uid, orgName){
     rows.forEach(function(r){
       h+='<div style="border-top:1px solid #EAECF0;padding:8px 0;font-size:12px;color:#344054;line-height:1.7;">'
         +'<b>'+(label[r.type]||r.type||'')+'</b> · '+escapeMasterHtml(periodDayStr(r.at))
-        +(r.months?(' · '+r.months+'개월'):'')
+        +(r.months?(' · '+fmtNum(r.months)+'개월'):'')
         +(r.amount?(' · '+Number(r.amount).toLocaleString()+'원'):'')
         +(r.paidUntil?('<br>이용 끝 '+escapeMasterHtml(periodDayStr(r.paidUntil))):'')
         +(r.memo?('<br><span style="color:#98A2B3;">'+escapeMasterHtml(r.memo)+'</span>'):'')
@@ -5751,7 +5752,9 @@ var HELP_QA=[
    a:'1. 안 보여요. 계정마다 자기 업체 자료만 열려요\n2. 주소(링크)를 알아도 자기 업체가 아니면 열리지 않아요\n3. 둘러보기(데모)는 누구나 볼 수 있지만 저장은 안 돼요'},
   /* keys에 맨 '등록'·'추가'를 두면 「도장 등록」·「아이콘 추가」 같은 질문까지 끌어와서 뺐다 */
   {role:'admin', keys:['회원','거래처','회원등록','거래처등록'], t:'회원/거래처 등록',
-   a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요'},
+   a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요\n4. <b>금액·수량 칸은 천단위 쉼표가 저절로 붙어요</b> (v301) — 「1234567」을 치면 <b>1,234,567</b> 로 보이고, 저장되는 값은 숫자예요. 쉼표를 지우지 않아도 됩니다\n5. <b>번호 칸에는 쉼표가 안 붙어요</b> — 출석 PIN·전화번호·사업자번호·계좌번호·송장번호는 적은 그대로예요'},
+  {role:'all', keys:['천단위','쉼표','콤마','숫자','금액표시'], t:'숫자에 쉼표(천단위)',
+   a:'1. <b>금액·수량·km·인원·건수</b>처럼 「양」을 나타내는 숫자는 <b>어디서나 천단위 쉼표</b>로 보여요 (v301) — 화면·카드·표·인쇄·PDF·엑셀 모두요\n2. <b>입력할 때도</b> 쉼표가 저절로 붙어요 — 「1234567」을 치면 <b>1,234,567</b>. 저장되는 값은 숫자라 계산·합계가 그대로 돼요\n3. <b>번호에는 안 붙어요</b> — 출석 PIN·전화번호·사업자번호·계좌번호·차량번호·업체 번호·출석기기 코드·송장번호·연도·날짜는 적은 그대로예요 (쉼표가 들어가면 뜻이 달라지니까요)\n4. 소수가 있는 칸(주유 <b>리터</b>·보험 <b>요율</b>·출퇴근 <b>거리</b>)은 입력할 때 쉼표를 붙이지 않아요 — 소수점이 깨지지 않게요. 보여 줄 때는 쉼표가 붙어요 (예: 1,234.5L)\n5. <b>엑셀</b>로 내보낸 숫자도 쉼표로 보이지만 <b>숫자 칸</b>이라 엑셀에서 합계·평균이 그대로 돼요'},
   {role:'admin', keys:['엑셀','업로드','일괄','양식','다운','내려받기'], t:'엑셀 일괄 업로드·데이터 다운',
    a:'1. 관리 → «회원» 탭 → 「📊 엑셀 업로드」\n2. 「📥 샘플 양식 다운로드」로 양식을 받아 작성\n3. 업로드하면 주소가 자동으로 좌표로 바뀌어요\n4. 주소를 못 찾은 이름이 경고로 나오면 → 수정에서 「주소 검색」으로 다시 등록\n5. 「⬇ 데이터 다운」은 지금 «회원» 목록을 샘플 양식과 같은 칸으로 내려받아요 — 고쳐서 그대로 다시 업로드할 수 있어요\n6. 학원·공공 양식에 <b>「하원 차량」</b> 칸이 생겼어요 — 비우면 「등원과 같음」이에요. <b>옛 엑셀(그 칸이 없는 파일)도 그대로 올라가요</b>'},
   {role:'admin', keys:['주소','검색','좌표','위치'], t:'주소 검색 요령',
@@ -7631,9 +7634,9 @@ async function doSendNoticeMessage(n, phones, smsBody){
     saveNotices();
   }
   if(!failMsg){
-    showToast('알림장 문자 발송 완료 ('+okCnt+'건)');
+    showToast('알림장 문자 발송 완료 ('+fmtNum(okCnt)+'건)');
   } else if(okCnt > 0){
-    showToast('일부만 보냈어요 ('+okCnt+'건)');
+    showToast('일부만 보냈어요 ('+fmtNum(okCnt)+'건)');
   } else if(blockedMsg){
     showToast('🔒 '+failMsg);          /* 기간이 끝난 것 — 그대로 짧게 */
   } else {
@@ -7992,9 +7995,9 @@ function downloadSampleExcel(){
     ];
     fname='회원명단_샘플양식.xlsx';
   }
-  const ws=XLSX.utils.aoa_to_sheet(data);
+  const ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(data));
   XLSX.utils.book_append_sheet(wb,ws,'명단');
-  const ws2=XLSX.utils.aoa_to_sheet(note);
+  const ws2=xlsxNumFmt(XLSX.utils.aoa_to_sheet(note));
   ws2['!cols']=[{wch:16},{wch:40},{wch:30}];
   XLSX.utils.book_append_sheet(wb,ws2,'작성안내');
   XLSX.writeFile(wb,fname);
@@ -8146,7 +8149,7 @@ function handleExcelFile(file){
               saveMembers();
             }).catch(function(){});
         }
-        var msg='✅ 업로드 완료! '+added+'명 등록, '+skipped+'명 건너뜀 (중복 또는 필수값 누락)';
+        var msg='✅ 업로드 완료! '+fmtNum(added)+'명 등록, '+fmtNum(skipped)+'명 건너뜀 (중복 또는 필수값 누락)';
         if(좌표실패.length) msg+='\n⚠️ 주소를 못 찾아 기관 좌표로 임시 등록: '+좌표실패.join(', ')+' — 수정에서 「주소 검색」으로 다시 등록해 주세요.';
         if(지역단위.length) msg+='\n⚠️ 주소가 동/지역 단위라 위치가 부정확: '+지역단위.join(', ')+' — 건물 주소로 다시 등록을 권장해요.';
         upRes.style.whiteSpace='pre-line';
@@ -8633,7 +8636,7 @@ function openDateCheck(){
   wrap.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(16,24,40,.45);display:flex;align-items:flex-end;justify-content:center;overflow:auto;';
   var body='';
   if(A.length){
-    body+='<div style="font-size:12px;font-weight:800;color:#344054;margin:12px 0 6px;">📋 '+T('출결')+' 의심 ('+A.length+'건)</div>';
+    body+='<div style="font-size:12px;font-weight:800;color:#344054;margin:12px 0 6px;">📋 '+T('출결')+' 의심 ('+fmtNum(A.length)+'건)</div>';
     A.forEach(function(x){
       body+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:9px;padding:9px 10px;margin-bottom:6px;">'
         +'<div style="font-size:12px;color:#1D2939;font-weight:700;margin-bottom:5px;">'+escapeMasterHtml(x.name)
@@ -8645,7 +8648,7 @@ function openDateCheck(){
     });
   }
   if(I.length){
-    body+='<div style="font-size:12px;font-weight:800;color:#344054;margin:12px 0 6px;">🧾 거래명세서 의심 ('+I.length+'건)</div>';
+    body+='<div style="font-size:12px;font-weight:800;color:#344054;margin:12px 0 6px;">🧾 거래명세서 의심 ('+fmtNum(I.length)+'건)</div>';
     I.forEach(function(x){
       body+='<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:9px;padding:9px 10px;margin-bottom:6px;">'
         +'<div style="font-size:12px;color:#1D2939;font-weight:700;">'+escapeMasterHtml(x.name)+' · '+x.kind+' · 날짜 '+dcMd(x.date)+'</div>'
@@ -9044,8 +9047,8 @@ function openEditModal(id){
       : '';
     _mpn.style.display = memberHasPin(m) ? '' : 'none';
   }
-  if(document.getElementById('m-regfee'))document.getElementById('m-regfee').value=m.regfee||'';
-  if(document.getElementById('m-monthly'))document.getElementById('m-monthly').value=m.monthly||'';
+  if(document.getElementById('m-regfee'))document.getElementById('m-regfee').value=m.regfee?fmtNum(m.regfee):'';
+  if(document.getElementById('m-monthly'))document.getElementById('m-monthly').value=m.monthly?fmtNum(m.monthly):'';
   DAYS.forEach(d=>document.getElementById('d-'+dayIdMap[d]).checked=m.days.includes(d));
   // 삭제 버튼 제거됨
   var m3=document.getElementById('member-modal');m3.style.display='';m3.classList.add('show');
@@ -9100,8 +9103,9 @@ async function saveMember(){
     var dupWho = await pinDupWho(pin, '', editId ? String(editId) : '');
     if(dupWho){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupWho+'이(가) 사용 중이에요'); return; }
   }
-  const regfee=regEl?parseInt(regEl.value)||0:0;
-  const monthly=monEl?parseInt(monEl.value)||0:0;
+  /* ★ v301: 쉼표가 든 칸이라 **`numOf` 로 읽는다** — `parseInt('50,000')` 은 50 이다 */
+  const regfee=regEl?Math.trunc(numOf(regEl)):0;
+  const monthly=monEl?Math.trunc(numOf(monEl)):0;
   var classEl=document.getElementById('m-class');
   var courseIdVal=(classEl && classEl.style.display!=='none' && document.getElementById('wrap-class').style.display!=='none')?classEl.value:(courses[0]?courses[0].id:'');
   // 물류: 배정차량의 기사번호를 기록용으로 저장
@@ -9482,7 +9486,7 @@ function renderDriverPunchResult(car, kind, time, att){
   var r=document.getElementById('pin-result');
   if(r) r.innerHTML='<div style="color:'+color+';font-size:15px;font-weight:700;text-align:center;padding:14px;">'+msg+'</div>'
     +(odoAsk?'<div style="display:flex;gap:6px;justify-content:center;padding:0 14px 10px;">'
-      +'<input id="pin-odo" type="number" inputmode="numeric" placeholder="'+(odoAsk==='start'?'출근':'퇴근')+' 계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
+      +'<input id="pin-odo" type="text" inputmode="numeric" oninput="fmtAmountInput(this)" placeholder="'+(odoAsk==='start'?'출근':'퇴근')+' 계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
       +'<button onclick="savePinOdo(\''+car.id+'\',\''+odoAsk+'\')" style="padding:9px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button></div>':'');
   pinInput='';
   setTimeout(function(){
@@ -9580,7 +9584,7 @@ function handleStaffPinCheckin(st, srv){
    when: 'start' 출근(주행 전) · 그 외/생략은 기존과 같은 퇴근(주행 후) */
 function savePinOdo(carId, when){
   var el=document.getElementById('pin-odo');
-  var v=el?Number(el.value):0;
+  var v=el?Math.trunc(numOf(el)):0;        /* ★ v301: 쉼표가 든 칸 → `numOf` */
   var r=document.getElementById('pin-result');
   if(!(v>0)){ if(r) r.innerHTML=''; renderPinDisplay(); return; }
   var isStart = when==='start';
@@ -9781,7 +9785,7 @@ async function driverPunch(which){
       if(ob){
         ob.style.color='#475467';
         ob.innerHTML='<div style="display:flex;gap:6px;justify-content:center;padding:2px 0 0;">'
-          +'<input id="drv-odo" type="number" inputmode="numeric" placeholder="'+(j.kind==='in'?'출근':'퇴근')+' 계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
+          +'<input id="drv-odo" type="text" inputmode="numeric" oninput="fmtAmountInput(this)" placeholder="'+(j.kind==='in'?'출근':'퇴근')+' 계기판 km (선택)" style="flex:1;max-width:190px;padding:9px;border:1.5px solid #EAECF0;border-radius:8px;font-size:14px;"/>'
           +'<button onclick="saveDriverOdo('+jsArg(cid)+',\''+(j.kind==='in'?'start':'end')+'\')" style="padding:9px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">저장</button></div>';
       }
     }
@@ -9792,7 +9796,7 @@ async function driverPunch(which){
 /* 기사 화면 출퇴근 뒤 계기판 km (선택) — savePinOdo 와 같은 자리에 적는다 */
 function saveDriverOdo(carId, when){
   var el=document.getElementById('drv-odo');
-  var v=el?Number(el.value):0;
+  var v=el?Math.trunc(numOf(el)):0;        /* ★ v301: 쉼표가 든 칸 → `numOf` */
   var ob=document.getElementById('drv-punch-msg');
   if(!(v>0)){ if(ob){ ob.innerHTML=''; } return; }
   if(when==='start') carlogSetDailyOdoStart(carId, todayStr(), v, 'driver');
@@ -10163,15 +10167,83 @@ var logiPayKind = 'sale'; // sale=매출(미수금), purchase=매입(미지급�
 function logiToggleCal(){ logiCalOpen = !logiCalOpen; renderPayment(); }
 function logiPaySetKind(k){ logiPayKind = k; logiPaySelDate = null; renderPayment(); }
 
-// 금액 입력칸 천단위 콤마 자동 표시 (입력 중 콤마 찍기)
-function fmtAmountInput(el){
-  var raw = (el.value||'').replace(/[^0-9]/g,'');
-  el.value = raw ? Number(raw).toLocaleString() : '';
+/* ══════════ 숫자 천단위 — 한 벌 (v301 · 코스로드61-1) ══════════
+   사장님 기본 원칙(11-09): 「숫자가 들어가는 부분은 **말을 안 해도 천단위**」.
+   ★ **「양」에만** 넣는다 — 금액·수량·km·인원·건수처럼 **크기를 재는 값**.
+     **「번호」에는 안 넣는다** — PIN·전화·사업자번호·계좌·차량번호·업체 번호·출석기기 코드
+     ·송장번호·연도·날짜·시각·id·품목 code (쉼표가 들어가면 **뜻이 달라진다**).
+   ★★ **소수가 있는 양**(보험요율 0.009 · 주유 리터 32.5 · 출퇴근 거리 12.5km)은
+     **입력 칸을 바꾸지 않는다.** 아래 `fmtAmountInput` 이 숫자 아닌 글자를 **다 떼기** 때문에
+     「0.009」가 **9** 가 되어 버린다(실측). 그 칸들은 `type="number"` 그대로 두고,
+     **보여 줄 때만** `fmtNum(v, 소수자리)` 로 쉼표를 넣는다. */
+/* 보여 주는 쪽 — 한 함수. `dec` 를 주면 그 자리수까지 쉼표와 함께 보여 준다. */
+function fmtNum(n, dec){
+  var v = Number(n);
+  if(!isFinite(v)) return '';
+  if(dec===undefined || dec===null){
+    /* 소수가 들어 있으면 그 자리수를 그대로 지킨다(버리지 않는다) */
+    return v.toLocaleString(undefined, { maximumFractionDigits: 20 });
+  }
+  return v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
-// 콤마 섞인 입력칸에서 숫자만 추출
+/* 읽는 쪽 — 한 함수. 칸(엘리먼트)이든 글자든 받아 **숫자**를 돌려준다.
+   ★★ 이 회차의 가장 큰 위험이 여기다 — 쉼표가 든 칸을 `parseInt` 로 읽으면
+     `parseInt('50,000')` 이 **50** 이다. 그래서 천단위를 넣은 칸의 **읽는 곳 전수**를
+     이 함수로 바꿨다(보고문에 표). 저장되는 값은 **지금처럼 숫자**다. */
+function numOf(x){
+  var s = (x && typeof x === 'object') ? (x.value || '') : x;
+  s = String(s===undefined || s===null ? '' : s).replace(/,/g, '').trim();
+  if(!s) return 0;
+  var v = parseFloat(s);
+  return isFinite(v) ? v : 0;
+}
+// 금액 입력칸 천단위 콤마 자동 표시 (입력 중 콤마 찍기)
+/* ★ v301: 커서 자리를 지킨다 — 전에는 값만 바꿔 **커서가 늘 맨 뒤로** 갔다
+   (가운데를 고치면 글자가 튀었다). 쉼표가 몇 개 늘었는지로 커서를 밀어 준다. */
+function fmtAmountInput(el){
+  if(!el) return;
+  var before = String(el.value||'');
+  var caret = (typeof el.selectionStart==='number') ? el.selectionStart : null;
+  var raw = before.replace(/[^0-9]/g,'');
+  var next = raw ? Number(raw).toLocaleString() : '';
+  if(next === before) return;
+  el.value = next;
+  if(caret !== null){
+    /* 커서 앞의 **숫자 개수**를 세어 같은 자리로 되돌린다 */
+    var digitsBefore = before.slice(0, caret).replace(/[^0-9]/g,'').length;
+    var pos = 0, seen = 0;
+    while(pos < next.length && seen < digitsBefore){
+      if(/[0-9]/.test(next.charAt(pos))) seen++;
+      pos++;
+    }
+    try{ el.setSelectionRange(pos, pos); }catch(e){}
+  }
+}
+// 콤마 섞인 입력칸에서 숫자만 추출 — 셈은 `numOf` 한 벌이 한다
 function parseAmountInput(el){
   if(!el) return 0;
-  return parseInt((el.value||'').replace(/[^0-9]/g,''))||0;
+  return Math.trunc(numOf(el)) || 0;
+}
+/* 엑셀 내보내기도 천단위로 보이게 — **값은 숫자 그대로** 두고 표시 형식만 붙인다 (v301).
+   ★★ 글자로 바꾸면 안 된다 — 엑셀에서 **합계가 안 된다**. 그래서 `z`(표시 형식)만 준다.
+   공식 문서 대조(SheetJS CE «Number Formats»): 「표시 형식 글자는 셀의 `z` 에 담기고
+   XLSX 로 쓸 때 Number Format Code 로 저장된다」 · 문서 예제도 `ws["B3"].z = '#,##0';` 다.
+   ★ 값을 바꾼 뒤에는 `w`(이미 만들어 둔 표시 글자)를 지우라고 문서가 적어 두었다 —
+     우리는 **갓 만든 시트**에만 쓰므로 `w` 가 아직 없다(그래도 있으면 지운다).
+   ★ 소수가 든 칸은 `#,##0.##` — 자리수를 버리지 않는다. 날짜·시각 칸은 글자라 안 건드린다. */
+function xlsxNumFmt(ws){
+  try{
+    if(!ws) return ws;
+    Object.keys(ws).forEach(function(k){
+      if(k.charAt(0)==='!') return;                 /* !ref·!cols 같은 메타 */
+      var c = ws[k];
+      if(!c || c.t !== 'n' || typeof c.v !== 'number') return;
+      if(!isFinite(c.v)) return;
+      c.z = (Math.floor(c.v) === c.v) ? '#,##0' : '#,##0.##';
+      if(c.w) delete c.w;
+    });
+  }catch(e){}
+  return ws;
 }
 function invCollected(inv){  if(!inv.payments) return 0;
   return inv.payments.reduce(function(s,p){ return s+(Number(p.amount)||0); }, 0);
@@ -10633,9 +10705,9 @@ function renderPayment(){
   h += '<div style="padding:0 16px 6px;">';
   // 통계 카드
   h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:6px 0 8px;">';
-  h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+cntTotal+'명</div><div style="font-size:10px;color:#7C3AED;">전체</div></div>';
-  h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+cntPaid+'명</div><div style="font-size:10px;color:#12B76A;">'+W_paid+'</div></div>';
-  h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+cntUnpaid+'명</div><div style="font-size:10px;color:#F04438;">'+W_unpaid+'</div></div>';
+  h += '<div style="background:#F3EEFF;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#7C3AED;">'+fmtNum(cntTotal)+'명</div><div style="font-size:10px;color:#7C3AED;">전체</div></div>';
+  h += '<div style="background:#ECFDF3;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#12B76A;">'+fmtNum(cntPaid)+'명</div><div style="font-size:10px;color:#12B76A;">'+W_paid+'</div></div>';
+  h += '<div style="background:#FEF3F2;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:16px;font-weight:800;color:#F04438;">'+fmtNum(cntUnpaid)+'명</div><div style="font-size:10px;color:#F04438;">'+W_unpaid+'</div></div>';
   h += '</div>';
   // 정산·내보내기·문자 — 접기 카드 (기본 접힘, 열림 상태는 기기에 기억)
   h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;margin-bottom:6px;overflow:hidden;">';
@@ -10850,7 +10922,7 @@ function exportPayReport(ym){
   var t=d.totals;
   s1.push(['합계','', t.charge, t.paid, '수납률 '+(t.rate!=null?t.rate+'%':'—'), t.unpaid]);
   var wb=XLSX.utils.book_new();
-  var ws=XLSX.utils.aoa_to_sheet(s1);
+  var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(s1));
   /* ── 수식: 미납 = MAX(0,청구-납부) · 합계 = SUM · 수납률 = 수납합÷청구합 ──
      헤더 3, 행 4..4+n-1, 합계 4+n (0-기준). 열: 청구 C(2)·납부 D(3)·미납 F(5) */
   var n=d.rows.length, R0=4, RS=R0+n;
@@ -10946,7 +11018,7 @@ function sendUnpaidAll(){
   var feeWord = T('수강료');
   var msg = '['+orgName+'] '+payViewYear+'년 '+payViewMonth+'월 '+feeWord+' 미납 안내\n'
     + 조사(feeWord,'이','가')+' 아직 납부되지 않았습니다.\n빠른 납부 부탁드립니다. 감사합니다.';
-  if(!confirm('미납 '+unpaid.length+'명에게 문자를 보낼까요?')) return;
+  if(!confirm('미납 '+fmtNum(unpaid.length)+'명에게 문자를 보낼까요?')) return;
   window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
 }
 
@@ -10962,7 +11034,7 @@ function exportPaymentExcel(){
     rows.push([m.name, course?course.name:'', m.monthly||0, m.regfee||0, pd.paid?'납부':'미납', pd.method||'', pd.date||'']);
   });
   var wb = XLSX.utils.book_new();
-  var ws = XLSX.utils.aoa_to_sheet(rows);
+  var ws = xlsxNumFmt(XLSX.utils.aoa_to_sheet(rows));
   ws['!cols'] = [{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:12}];
   XLSX.utils.book_append_sheet(wb, ws, payViewYear+'년'+payViewMonth+'월 수납');
   XLSX.writeFile(wb, payViewYear+'년_'+payViewMonth+'월_수납내역.xlsx');
@@ -11069,8 +11141,8 @@ function syncInvoicesToTax(){
   });
 
   var msgs = [];
-  if(added>0) msgs.push('누락된 거래 '+added+'건 반영');
-  if(fixed>0) msgs.push('거래처 색 정보 '+fixed+'건 보정');
+  if(added>0) msgs.push('누락된 거래 '+fmtNum(added)+'건 반영');
+  if(fixed>0) msgs.push('거래처 색 정보 '+fmtNum(fixed)+'건 보정');
   if(msgs.length>0){
     alert('✅ '+msgs.join(', ')+'했어요.');
     if(typeof renderTax==='function') renderTax();
@@ -11536,7 +11608,7 @@ function exportTaxExcel(){
   md.income.forEach(function(r){rows.push(['수입',r.name,r.category,r.taxType||'',r.method||'',r.amount,r.date]);});
   md.expense.forEach(function(r){rows.push(['지출',r.name,r.category,'','',r.amount,r.date]);});
   var wb=XLSX.utils.book_new();
-  var ws=XLSX.utils.aoa_to_sheet(rows);
+  var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(rows));
   ws['!cols']=[{wch:8},{wch:14},{wch:10},{wch:8},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb,ws,taxViewYear2+'년'+taxViewMonth2+'월');
   XLSX.writeFile(wb,taxViewYear2+'년_'+taxViewMonth2+'월_세무내역.xlsx');
@@ -11556,7 +11628,7 @@ function exportTaxSummary(){
     rows.push([mo+'월',inc,exp,inc-exp,vat]);
   }
   var wb=XLSX.utils.book_new();
-  var ws=XLSX.utils.aoa_to_sheet(rows);
+  var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(rows));
   XLSX.utils.book_append_sheet(wb,ws,taxViewYear2+'년 세무요약');
   XLSX.writeFile(wb,taxViewYear2+'년_세무요약.xlsx');
 }
@@ -12273,7 +12345,7 @@ function renderInvoice(){
     h += '<button onclick="removeInvoiceItem('+idx+')" style="width:24px;height:24px;border:none;background:#FEF3F2;color:#F04438;border-radius:6px;cursor:pointer;font-size:14px;flex-shrink:0;">×</button>';
     h += '</div>';
     h += '<div style="display:flex;gap:5px;align-items:center;">';
-    h += '<input type="number" placeholder="수량" value="'+(it.qty||'')+'" onfocus="invFocusScroll(this)" oninput="invoiceItems['+idx+'].qty=Number(this.value)||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
+    h += '<input type="text" inputmode="numeric" placeholder="수량" value="'+(it.qty?fmtNum(it.qty):'')+'" onfocus="invFocusScroll(this)" oninput="fmtAmountInput(this);invoiceItems['+idx+'].qty=Math.trunc(numOf(this))||0;refreshInvoiceCalc()" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<input type="text" inputmode="numeric" placeholder="단가" value="'+(it.price?Number(it.price).toLocaleString():'')+'" onfocus="invFocusScroll(this)" oninput="fmtAmountInput(this);invoiceItems['+idx+'].price=parseInt(this.value.replace(/[^0-9]/g,\'\'))||0;refreshInvoiceCalc()" style="flex:1.4;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:12px;min-width:0;"/>';
     h += '<select onchange="invoiceItems['+idx+'].taxType=this.value;renderInvoice()" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:7px;font-size:11px;min-width:0;">';
     h += '<option value="add"'+((it.taxType||'add')==='add'?' selected':'')+'>과세(별도)</option>';
@@ -12396,7 +12468,7 @@ function renderInvoice(){
       h += '<div style="background:white;border-radius:12px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
       h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
       h += '<div><div style="font-size:13px;font-weight:700;color:#1D2939;"><span style="font-size:10px;color:'+((inv.kind||"sale")==="purchase"?"#F04438":"#1570EF")+';background:'+((inv.kind||"sale")==="purchase"?"#FEF3F2":"#EFF8FF")+';padding:2px 6px;border-radius:5px;margin-right:5px;">'+((inv.kind||"sale")==="purchase"?"매입":"매출")+'</span>'+escapeMasterHtml(inv.memberName)+'</div>';
-      h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+inv.date+' · 품목 '+inv.items.length+'건</div></div>';
+      h += '<div style="font-size:11px;color:#98A2B3;margin-top:2px;">'+inv.date+' · 품목 '+fmtNum(inv.items.length)+'건</div></div>';
       h += '<div style="text-align:right;"><div style="font-size:15px;font-weight:800;color:#7C3AED;">'+(inv.total||0).toLocaleString()+'원</div></div>';
       h += '</div>';
       // 단추가 여럿이라 360px 폭에서는 한 줄에 다 안 들어간다 → wrap 으로 접어 내린다
@@ -12749,7 +12821,7 @@ function downloadProductTemplate(){
     ['SM-000','서울우유 버터 12kg 국산 원유100%','12kg','BOX','포함','',150000,170000],
     ['SM-001','서울우유 버터240','240g*20','EA','포함','',500,600]
   ];
-  var ws=XLSX.utils.aoa_to_sheet(data);
+  var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(data));
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '품목');
   XLSX.writeFile(wb, '품목_업로드양식.xlsx');
@@ -12780,7 +12852,7 @@ function uploadProductExcel(ev){
         added++;
       });
       saveProducts(list);
-      alert('✅ 품목 '+added+'개를 추가했어요.');
+      alert('✅ 품목 '+fmtNum(added)+'개를 추가했어요.');
       openProductManager();
     }catch(err){ alert('엑셀 읽기 실패: '+err.message); }
   };
@@ -13271,8 +13343,8 @@ function exportSettlement(ym){
   var s2=[['명세서 목록 — '+ym],
     ['일자','거래처','구분','공급가액','세액','합계','수금액','잔액']].concat(d.invList);
   var wb=XLSX.utils.book_new();
-  var ws1=XLSX.utils.aoa_to_sheet(s1);
-  var ws2=XLSX.utils.aoa_to_sheet(s2);
+  var ws1=xlsxNumFmt(XLSX.utils.aoa_to_sheet(s1));
+  var ws2=xlsxNumFmt(XLSX.utils.aoa_to_sheet(s2));
   /* ── 수식: 당월 미수 = 매출-입금 · 합계 행 = SUM · 시트2 잔액 = 합계-수금액 ──
      s1: 헤더 3, 행 4..4+n-1, 합계 4+n (0-기준) */
   var n=d.rows.length, R0=4, RS=R0+n;
@@ -13592,7 +13664,7 @@ function buildClientRangeDoc(){
   var summarySheet = '<div class="inv-sheet range-summary">'
     +'<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
     +'<div class="inv-sub">'+esc(sel.name||'')+' · '+esc(startYm)+' ~ '+esc(endYm)+'</div></div>'
-    +'<div class="inv-date">공급자 : '+esc(org.name||'')+'　|　거래처 : '+esc(sel.name||'')+'　|　건수 : '+list.length+'건</div>'
+    +'<div class="inv-date">공급자 : '+esc(org.name||'')+'　|　거래처 : '+esc(sel.name||'')+'　|　건수 : '+fmtNum(list.length)+'건</div>'
     +'<table class="range-tbl"><colgroup><col class="rc-date"><col class="rc-kind"><col class="rc-item"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"></colgroup><thead><tr>'
     +'<th>거래일자</th><th>구분</th><th>품목</th><th>공급가액</th><th>세액</th><th>합계</th><th>수금/결제</th><th>미수/미결</th>'
     +'</tr></thead>'+sumRows
@@ -13682,7 +13754,7 @@ function printClientRange(){
   var w = window.open('', '_blank');
   if(!w){ alert('팝업이 차단되었습니다. 팝업을 허용해주세요.'); return; }
   var topbar = '<div class="no-print" id="cos-topbar" style="position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:8px 12px;">'
-    + '<span style="margin-right:auto;font-size:12px;color:#667085;">'+esc(D.name)+' · '+esc(D.start)+'~'+esc(D.end)+' · '+D.count+'건　|　PDF로 저장: 버튼 → 대상을 \'PDF로 저장\' 선택</span>'
+    + '<span style="margin-right:auto;font-size:12px;color:#667085;">'+esc(D.name)+' · '+esc(D.start)+'~'+esc(D.end)+' · '+fmtNum(D.count)+'건　|　PDF로 저장: 버튼 → 대상을 \'PDF로 저장\' 선택</span>'
     + '<button onclick="window.print()" style="padding:8px 18px;font-size:13px;font-weight:700;background:#475467;color:white;border:none;border-radius:7px;cursor:pointer;">📄 PDF / 🖨 인쇄</button>'
     + '<button onclick="window.close()" style="padding:8px 18px;font-size:13px;font-weight:700;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:7px;cursor:pointer;">✕ 닫기</button>'
     + '</div>';
@@ -13793,7 +13865,7 @@ function openInvoiceDocView(id){
   if(!D){ alert('명세서를 찾을 수 없어요.'); return; }
   docViewOpen({
     kind:'invoice', id:String(id),
-    summary: (D.name||'') + ' · ' + (D.date||'') + ' · 품목 ' + D.items + '건',
+    summary: (D.name||'') + ' · ' + (D.date||'') + ' · 품목 ' + fmtNum(D.items) + '건',
     html: '<html><head><meta charset="utf-8"><title>거래명세서</title>'
           + D.css + D.hideStyle + '</head><body>' + D.body + D.fitScript + '</body></html>'
   });
@@ -13805,7 +13877,7 @@ function openRangeDocView(){
   if(!D) return;
   docViewOpen({
     kind:'range',
-    summary: (D.name||'') + ' · ' + D.start + ' ~ ' + D.end + ' · ' + D.count + '건',
+    summary: (D.name||'') + ' · ' + D.start + ' ~ ' + D.end + ' · ' + fmtNum(D.count) + '건',
     html: '<html><head><meta charset="utf-8"><title>' + D.fileTitle + '</title>'
           + D.css + '</head><body>' + D.body + D.fitScript + '</body></html>'
   });
@@ -14552,7 +14624,7 @@ function invShareKakaoPayload(r){
     var rsel = members.find(function(m){ return String(m.id)===String(t.mid); }) || {};
     title = '거래내역 명세 · ' + String(rsel.name||'');
     desc  = D.period.start + '~' + D.period.end
-          + ' · ' + D.rows.length + '건'
+          + ' · ' + fmtNum(D.rows.length) + '건'
           + ' · 합계 ' + (Number(D.totals.grand)||0).toLocaleString() + '원'
           + ' · ' + String(org.name||'');
   } else {
@@ -14784,7 +14856,7 @@ function loadCertificates(){ return JSON.parse(localStorage.getItem('tkd_certifi
 function saveCertificates(arr){ localStorage.setItem('tkd_certificates', JSON.stringify(arr)); saveToFirebase('certificates', arr); }
 
 function _certEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function _certComma(n){ return (Number(n)||0).toLocaleString('ko-KR'); }
+function _certComma(n){ return fmtNum(Number(n)||0); }   /* v301: 셈은 fmtNum 한 벌 */
 
 function _certField(label, id, val, ph){
   return '<label style="display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 4px;">'+label+'</label>'
@@ -14974,7 +15046,7 @@ function renderCertHistory(){
   certs.forEach(function(c){
     h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:8px 10px;border:1px solid #EAECF0;border-radius:8px;margin-bottom:6px;">';
     h += '<div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:#1D2939;">'+_certEsc(c.memberName)+' · '+c.year+'년</div>'
-      + '<div style="font-size:11px;color:#98A2B3;">합계 '+_certComma(c.total)+'원 · '+c.count+'건 · 발급 '+_certEsc(c.issuedAt)+'</div></div>';
+      + '<div style="font-size:11px;color:#98A2B3;">합계 '+_certComma(c.total)+'원 · '+fmtNum(c.count)+'건 · 발급 '+_certEsc(c.issuedAt)+'</div></div>';
     h += '<div style="display:flex;gap:5px;flex-shrink:0;">';
     h += '<button onclick="reissueCertificate(\''+_certEsc(c.id)+'\')" style="font-size:11px;color:#7C3AED;background:#F4EBFF;border:1px solid #D9C7FB;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700;">재발급</button>';
     h += '<button onclick="deleteCertificate(\''+_certEsc(c.id)+'\')" style="font-size:11px;color:#F04438;background:#FEF3F2;border:1px solid #FECDCA;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700;">삭제</button>';
@@ -15179,7 +15251,7 @@ function exportInvoiceExcel(id){
   var vat = inv.vat!=null?inv.vat:Math.round(supply*0.1);
   rows.push(['','','','','','합계', supply, vat]);
   rows.push(['','','','','','총액(VAT포함)', inv.total||(supply+vat), '']);
-  var ws=XLSX.utils.aoa_to_sheet(rows);
+  var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(rows));
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '거래명세서');
   XLSX.writeFile(wb, '거래명세서_'+(inv.memberName||'')+'_'+inv.date+'.xlsx');
@@ -15448,7 +15520,7 @@ function renderCarlogModal(){
   if(carlogType!=='etc'){
     /* 계기판 유형일 때는 고른 시점(출근/퇴근)의 값을 채워 넣는다 */
     var _odoVal = (carlogType==='odo' && carlogOdoWhen==='start') ? (editRec&&editRec.odoStart?editRec.odoStart:'') : (editRec&&editRec.odo?editRec.odo:'');
-    h+='<input id="cl-odo" type="number" placeholder="'+(carlogType==='odo'?((carlogOdoWhen==='start'?'출근':'퇴근')+' 계기판 km'):'계기판km(선택)')+'" value="'+_odoVal+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+    h+='<input id="cl-odo" type="text" inputmode="numeric" oninput="fmtAmountInput(this)" placeholder="'+(carlogType==='odo'?((carlogOdoWhen==='start'?'출근':'퇴근')+' 계기판 km'):'계기판km(선택)')+'" value="'+_odoVal+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
   h+='<button onclick="saveCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">'+(editRec?'수정':'저장')+'</button>';
   h+='</div></div>';
@@ -15488,8 +15560,8 @@ function renderCarlogModal(){
     var eff=carlogFuelEff(r, recs);
     h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
       +'<div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:700;color:#1D2939;">'+ico+' '+escapeMasterHtml(r.item||'')
-      +(r.type==='fuel'&&r.liters?' '+r.liters+'L':'')
-      +(eff!==null?' <span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:1px 6px;border-radius:6px;font-weight:800;">'+eff+'km/L</span>':'')
+      +(r.type==='fuel'&&r.liters?' '+fmtNum(r.liters)+'L':'')
+      +(eff!==null?' <span style="font-size:10px;background:#ECFDF3;color:#027A48;padding:1px 6px;border-radius:6px;font-weight:800;">'+fmtNum(eff)+'km/L</span>':'')
       +(r.by==='driver'?' <span style="font-size:9px;color:#98A2B3;">기사</span>':'')+'</div>'
       +'<div style="font-size:10px;color:#98A2B3;">'+r.date+(r.odo?' · '+Number(r.odo).toLocaleString()+'km':'')+'</div></div>'
       +'<div style="text-align:right;flex-shrink:0;margin-left:6px;"><div style="font-size:13px;font-weight:800;color:#0E7090;">'+(Number(r.amount)||0).toLocaleString()+'원</div>'
@@ -15522,7 +15594,7 @@ function saveCarlogEntry(){
   var date=((document.getElementById('cl-date')||{}).value)||todayStr();
   /* 📏 계기판: 금액 없는 일일 odo 기록 — 같은 날은 덮어쓰기 (기사 보완용) */
   if(carlogType==='odo'){
-    var ov=Number((document.getElementById('cl-odo')||{}).value)||0;
+    var ov=Math.trunc(numOf(document.getElementById('cl-odo')));   /* ★ v301 */
     if(!(ov>0)){ alert('계기판 km를 입력해주세요.'); return; }
     /* 수정은 기존 기록을 지우고 다시 넣는 방식이라, 손대지 않은 반대쪽 값(출근↔퇴근)을 챙겨 뒀다 복원한다 */
     /* ★★ v284(58): 지우기·넣기를 **한 번의 저장**으로 묶는다(위 `_carlogHold` 쪽지 참고).
@@ -15558,13 +15630,13 @@ function saveCarlogEntry(){
   var rec={carId:carlogSelCar, type:carlogType, date:date, amount:amount, by:'admin'};
   if(carlogType==='fuel'){
     rec.liters=Number((document.getElementById('cl-liters')||{}).value)||0;
-    rec.odo=Number((document.getElementById('cl-odo')||{}).value)||0;
+    rec.odo=Math.trunc(numOf(document.getElementById('cl-odo')));   /* ★ v301 */
     rec.item='주유';
     if(!(rec.liters>0)){ alert('리터를 입력해주세요.'); return; }
   } else if(carlogType==='repair'){
     var sel=(document.getElementById('cl-item')||{}).value||'';
     rec.item = sel==='기타' ? (((document.getElementById('cl-item-etc')||{}).value)||'').trim() : sel;
-    rec.odo=Number((document.getElementById('cl-odo')||{}).value)||0;
+    rec.odo=Math.trunc(numOf(document.getElementById('cl-odo')));   /* ★ v301 */
     if(!rec.item){ alert('정비 항목을 입력해주세요.'); return; }
   } else {
     rec.item=(((document.getElementById('cl-item-text')||{}).value)||'').trim();
@@ -15933,8 +16005,8 @@ function exportDriveLogbook(carId, ym){
   s2.push(['통계 — 차량연비(km/L)', eff, '주유평균(원/L)', avg]);
 
   var wb=XLSX.utils.book_new();
-  var ws1=XLSX.utils.aoa_to_sheet(s1);
-  var ws2=XLSX.utils.aoa_to_sheet(s2);
+  var ws1=xlsxNumFmt(XLSX.utils.aoa_to_sheet(s1));
+  var ws2=xlsxNumFmt(XLSX.utils.aoa_to_sheet(s2));
 
   /* ── 수식 입히기 (0-기준 행) ── */
   var B0=9, BE=9+lastDay-1, BOT=BE+2;
@@ -16089,7 +16161,7 @@ function dlvFormHtml(D, mode, photoSrc, part){
   var NB='border:none;padding:0;height:'+(scr?'10px':'6px')+';';
   var ym=D.ym, car=D.car, org=D.org;
   var period=ym+'-01 ~ '+ym+'-'+String(D.lastDay).padStart(2,'0');
-  function num(v){ return (v===''||v==null) ? '' : (typeof v==='number' ? Number(v).toLocaleString() : esc(v)); }
+  function num(v){ return (v===''||v==null) ? '' : (typeof v==='number' ? fmtNum(v) : esc(v)); }   /* v301 */
   /* 수기 칸 — 값 없으면 연회색 + 안내(인쇄물에는 빈칸) */
   function man(kind, day, val){
     if(!scr) return '<td style="'+C+'">'+esc(val||'')+'</td>';
@@ -16199,7 +16271,7 @@ function dlvExpenseTableHtml(D, scr, FS, HS){
   var H=C+'background:#F2F2F2;font-weight:700;text-align:center;font-size:'+HS+'px;color:#344054;';
   var R=C+'text-align:right;';
   var CT=C+'text-align:center;';
-  function won(v){ return (v===''||v==null||v===0) ? '' : Number(v).toLocaleString(); }
+  function won(v){ return (v===''||v==null||v===0) ? '' : fmtNum(v); }   /* v301: 셈은 fmtNum 한 벌 */
   var h='<div style="margin-top:16px;">';
   h+='<div style="font-size:'+(scr?14:11)+'px;font-weight:800;color:#344054;margin-bottom:6px;">⛽ 주유·정비 내역 — '+esc(D.ym)+'</div>';
   if(!D.expenseRows.length){
@@ -16560,7 +16632,7 @@ function supportOpenUrl(url){
 }
 function supportBadgeHtml(){
   if(!supportNewCount) return '';
-  return '<span style="font-size:10px;background:#F04438;color:white;padding:2px 7px;border-radius:10px;font-weight:800;margin-left:4px;">'+supportNewCount+'건</span>';
+  return '<span style="font-size:10px;background:#F04438;color:white;padding:2px 7px;border-radius:10px;font-weight:800;margin-left:4px;">'+fmtNum(supportNewCount)+'건</span>';
 }
 
 /* 두 소스를 함께 호출해 합친다. 한쪽이 실패해도 다른 쪽은 보여준다. */
@@ -16745,7 +16817,7 @@ function showSupportAlertModal(freshItems){
   var h='<div id="sup-alert-modal" onclick="if(event.target===this)closeSupportAlert(true);" '
     +'style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch;">'
     +'<div style="margin:auto;background:white;border-radius:16px;padding:18px;max-width:360px;width:100%;box-sizing:border-box;max-height:80vh;display:flex;flex-direction:column;">'
-    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;margin-bottom:2px;">💰 새 정부 지원사업 '+list.length+'건</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#1A1A2E;margin-bottom:2px;">💰 새 정부 지원사업 '+fmtNum(list.length)+'건</div>'
     +'<div style="font-size:11px;color:#98A2B3;margin-bottom:10px;">아직 보지 않은 공고예요.</div>'
     +'<div style="flex:1;overflow-y:auto;min-height:0;">';
   top.forEach(function(it){
@@ -16755,7 +16827,7 @@ function showSupportAlertModal(freshItems){
       +(left!=null?('<div style="font-size:10px;color:#B54708;font-weight:800;margin-top:3px;">⏰ 마감 '+(left===0?'오늘':'D-'+left)+'</div>'):'')
       +'</div>';
   });
-  if(rest>0) h+='<div style="font-size:11px;color:#667085;text-align:center;padding:2px 0 4px;">외 '+rest+'건</div>';
+  if(rest>0) h+='<div style="font-size:11px;color:#667085;text-align:center;padding:2px 0 4px;">외 '+fmtNum(rest)+'건</div>';
   h+='</div>';
   /* 「7일 동안 보지 않기」 + 설정 위치 안내 — 버튼 줄 바로 위 */
   h+='<div style="flex-shrink:0;margin-top:10px;">'
@@ -16808,7 +16880,7 @@ function renderDriverCarlog(){
   if(driverCarlogType==='fuel'){
     h+='<input id="dcl-liters" type="number" step="0.01" placeholder="리터(L)" style="flex:1;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
-  h+='<input id="dcl-odo" type="number" placeholder="계기판km(선택)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
+  h+='<input id="dcl-odo" type="text" inputmode="numeric" oninput="fmtAmountInput(this)" placeholder="계기판km(선택)" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   h+='<button onclick="saveDriverCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">저장</button>';
   h+='</div></div>';
   }
@@ -16828,7 +16900,7 @@ function renderDriverCarlog(){
     }
     var ico=r.type==='fuel'?'⛽':r.type==='repair'?'🔧':'💳';
     h+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #EAECF0;border-radius:8px;padding:8px 10px;margin-bottom:5px;">'
-      +'<div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:700;color:#1D2939;">'+ico+' '+escapeMasterHtml(r.item||'')+(r.type==='fuel'&&r.liters?' '+r.liters+'L':'')+'</div>'
+      +'<div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:700;color:#1D2939;">'+ico+' '+escapeMasterHtml(r.item||'')+(r.type==='fuel'&&r.liters?' '+fmtNum(r.liters)+'L':'')+'</div>'
       +'<div style="font-size:10px;color:#98A2B3;">'+r.date+(r.odo?' · '+Number(r.odo).toLocaleString()+'km':'')+'</div></div>'
       +'<div style="font-size:13px;font-weight:800;color:#0E7090;flex-shrink:0;margin-left:6px;">'+(Number(r.amount)||0).toLocaleString()+'원</div></div>';
   });
@@ -16859,7 +16931,7 @@ function saveDriverCarlogEntry(){
   var amount=Number((((document.getElementById('dcl-amount')||{}).value)||'').replace(/[^0-9]/g,''))||0;
   if(!amount){ alert('금액을 입력해주세요.'); return; }
   var rec={carId:car.id, type:driverCarlogType, date:todayStr(), amount:amount, by:'driver'};
-  rec.odo=Number((document.getElementById('dcl-odo')||{}).value)||0;
+  rec.odo=Math.trunc(numOf(document.getElementById('dcl-odo')));   /* ★ v301 */
   if(driverCarlogType==='fuel'){
     rec.liters=Number((document.getElementById('dcl-liters')||{}).value)||0;
     rec.item='주유';
@@ -17079,7 +17151,7 @@ async function pinDupScanRun(){
     return;
   }
   var h='<div style="background:#FFFAEB;border:1px solid #FEC84B;border-radius:10px;padding:10px;">';
-  h+='<div style="font-size:12px;font-weight:800;color:#B54708;margin-bottom:6px;">⚠ 겹친 PIN '+list.length+'건 — 한쪽을 바꿔 주세요</div>';
+  h+='<div style="font-size:12px;font-weight:800;color:#B54708;margin-bottom:6px;">⚠ 겹친 PIN '+fmtNum(list.length)+'건 — 한쪽을 바꿔 주세요</div>';
   list.forEach(function(r){
     var who=[];
     if(r.members.length>1) who.push(T('회원')+' '+r.members.map(escapeMasterHtml).join('·'));
@@ -17476,7 +17548,7 @@ function memberMigrateCardHtml(){
   h+='<div style="font-size:12px;color:#B54708;line-height:1.8;">'+T('회원')+' 출석 PIN 이 업체 자료 안에 <b>그대로(평문) 들어 있어요.</b>'
    + '<br>아래 단추를 한 번 누르면 기사·직원 PIN 처럼 <b>서버에만 안전하게</b> 보관하고 업체 자료에서 지웁니다. '
    + 'PIN 판 출석은 그대로 됩니다.</div>';
-  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: '+T('회원')+' PIN '+lg.length+'건</div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: '+T('회원')+' PIN '+fmtNum(lg.length)+'건</div>';
   h+='<button id="mem-mig-btn" onclick="memberMigrateRun()" style="width:100%;padding:11px;background:#DC6803;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">🔢 옮기기</button>';
   h+='<div id="mem-mig-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
   return h+'</div>';
@@ -17519,7 +17591,7 @@ function staffMigrateCardHtml(){
   h+='<div style="font-size:12px;color:#B54708;line-height:1.8;">직원 PIN 이 업체 자료 안에 <b>그대로(평문) 들어 있어요.</b>'
    + '<br>아래 단추를 한 번 누르면 기사 PIN 처럼 <b>서버에만 안전하게</b> 보관하고 업체 자료에서 지웁니다. '
    + 'PIN 판 출퇴근은 그대로 됩니다.</div>';
-  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: 직원 PIN '+lg.length+'건</div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: 직원 PIN '+fmtNum(lg.length)+'건</div>';
   h+='<button id="stf-mig-btn" onclick="staffMigrateRun()" style="width:100%;padding:11px;background:#DC6803;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">🔢 옮기기</button>';
   h+='<div id="stf-mig-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
   return h+'</div>';
@@ -17563,7 +17635,7 @@ function drvMigrateCardHtml(){
   h+='<div class="status-card-title">📦 옛 기사 자료 옮기기 (한 번만)</div>';
   h+='<div style="font-size:12px;color:#B54708;line-height:1.8;">예전에는 기사 PIN 과 급여(시급·식대·공제·출퇴근거리)가 차량 자료 안에 있어서 '
    + '<b>기사 폰이 다른 기사의 PIN·급여까지 내려받았어요.</b><br>아래 단추를 한 번 누르면 PIN 은 서버로, 급여는 따로 보관하는 자리로 옮기고 차량 자료에서 지웁니다.</div>';
-  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: PIN '+nPin+'건 · 급여가 들어 있는 차량 '+lg.length+'대</div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: PIN '+fmtNum(nPin)+'건 · 급여가 들어 있는 차량 '+fmtNum(lg.length)+'대</div>';
   h+='<button id="drv-mig-btn" onclick="drvMigrateRun()" style="width:100%;padding:11px;background:#DC6803;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">📦 옮기기</button>';
   h+='<div id="drv-mig-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
   return h+'</div>';
@@ -17612,9 +17684,9 @@ async function drvMigrateRun(){
   saveCars(cars);
   await driverInfoLoad();
   try{ renderAdminTab(currentAdminTab); }catch(e){}
-  var msg='✅ 옮겼어요 — PIN '+(r.moved||0)+'건 · 급여 '+lg.length+'대';
-  if(r.dup) msg+=' · 겹친 PIN '+r.dup+'건은 건너뜀(직접 정해 주세요)';
-  if(r.bad) msg+=' · 못 옮김 '+r.bad+'건';
+  var msg='✅ 옮겼어요 — PIN '+fmtNum(r.moved||0)+'건 · 급여 '+fmtNum(lg.length)+'대';
+  if(r.dup) msg+=' · 겹친 PIN '+fmtNum(r.dup)+'건은 건너뜀(직접 정해 주세요)';
+  if(r.bad) msg+=' · 못 옮김 '+fmtNum(r.bad)+'건';
   try{ showToast(msg); }catch(e){}
   say(msg, (r.bad||r.dup)?'#B54708':'#027A48');
 }
@@ -17861,7 +17933,7 @@ function exportAttendanceExcel(){
     row.push(present,absent,scheduled?(Math.round(present/scheduled*100)+'%'):'–');
     rows.push(row);
   });
-  var wb=XLSX.utils.book_new(); var ws=XLSX.utils.aoa_to_sheet(rows);
+  var wb=XLSX.utils.book_new(); var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(rows));
   XLSX.utils.book_append_sheet(wb,ws,month+'월 '+T('출결'));
   XLSX.writeFile(wb,year+'년_'+month+'월_'+T('출결')+'현황.xlsx');
 }
@@ -17906,7 +17978,7 @@ function downloadMembersExcel(){
     cols=[{wch:12},{wch:12},{wch:8},{wch:10},{wch:20},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:8},{wch:20}];
     sheetName=T('회원')+'명단'; fileWord=T('회원')+'명단';
   }
-  var wb=XLSX.utils.book_new(); var ws=XLSX.utils.aoa_to_sheet(rows);
+  var wb=XLSX.utils.book_new(); var ws=xlsxNumFmt(XLSX.utils.aoa_to_sheet(rows));
   ws['!cols']=cols;
   XLSX.utils.book_append_sheet(wb,ws,sheetName);
   var today=new Date();
@@ -19404,7 +19476,7 @@ function syncTaxPaymentMethods(){
 
   if(updated > 0){
     saveTaxData(taxData);
-    showToast('✅ '+updated+'건 결제수단 업데이트됐어요!');
+    showToast('✅ '+fmtNum(updated)+'건 결제수단 업데이트됐어요!');
     renderTax();
   } else {
     showToast('이미 모두 업데이트됐어요!');
