@@ -172,9 +172,16 @@ const shareBody = (SRV) => {
       four.filter((f) => headHas(OLD_SRC, f) === true).length, 0);
     /* 문지기 자리 전수 — v288 셋(`saveToFirebase`·`saveCarState`·`rebuildCarData`) + 공유 넷 = **일곱** */
     const gates = (src) => (src.match(/!okToWriteNow\(\)/g) || []).length;
-    /* ★ v295(60-B3)에서 하나 늘었다 — 출석 저장(`saveAttendanceKey`)도 같은 문지기를 본다. */
-    ck('★ 문지기 자리 수', gates(NEW_SRC), 8);
+    /* ★★ **그 회차 수는 그 회차 커밋에서** 읽는다 — 작업트리에서 세면 뒷 회차가 문지기를
+       더 붙일 때마다 **거짓으로** 깨진다(v295 가 하나, v304/63 이 여섯을 더했다).
+       지금 소스는 「**줄지 않았나**」로만 본다 — 문지기를 떼면 그때 잡힌다. */
+    const THIS_REF = process.env.COS_API_NEW_REF || '38087ae';   /* v291 — 이 회차 커밋 */
+    const THIS_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':index.html',
+      { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
+    ck('★ 문지기 자리 수(이 회차 커밋)', gates(THIS_SRC), 7);
     ck('  (대조) 옛 판은 셋', gates(OLD_SRC), 3);
+    ck('★ 지금 소스는 **줄지 않았다**', gates(NEW_SRC) >= 7 ? 'OK(' + gates(NEW_SRC) + ')' : gates(NEW_SRC),
+      'OK(' + gates(NEW_SRC) + ')');
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

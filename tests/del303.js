@@ -19,9 +19,17 @@ const D = require('./drvenv.js');
 const crypto = require('crypto');
 
 const OLD_REF = process.env.COS_SRC_OLD_REF || 'c2220ad';   /* v302 — 고치기 전 */
-const NEW_SRC = fs.readFileSync(COS_ROOT + '/index.html', 'utf8').replace(/\r\n/g, '\n');
-const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
+/* ★★ **새 쪽도 커밋에 고정한다** (CLAUDE.md 검사 묶음 규칙 · v304/코스로드63 에 고쳤다).
+   전에는 새 쪽을 **작업트리**(`index.html`)에서 읽었다. 이 묶음은 **v303 회차 기록**이라,
+   뒷 회차가 같은 자리를 더 고치면 **거짓으로** 깨진다 — 실제로 v304(63)가 차량 삭제에
+   「연결된 것은 먼저 해제하세요」 막음을 넣자 **12칸이 한꺼번에** 깨졌다(코드는 멀쩡한데).
+   v303 이 한 일(서버 먼저 · 실패면 멈춤)은 그대로 못 박아 두고, **지금 소스**를 지키는 일은
+   그 회차 묶음(`tests/del63.js`)이 이어 받는다. */
+const NEW_REF = process.env.COS_SRC_NEW_REF || '1609c0b';   /* v303 — 이 회차 커밋 */
+const show = (ref, path) => cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':' + path,
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
+const NEW_SRC = show(NEW_REF, 'index.html');
+const OLD_SRC = show(OLD_REF, 'index.html');
 
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {
@@ -366,13 +374,16 @@ const srvMem = (p) => Object.keys(p.SRV.memberPins).join(',');
       && bulk.indexOf('_memberPinWipe') < bulk.indexOf('members=members.filter'), true);
     ck('  (대조) 옛 판은 서버를 아예 안 불렀다',
       /removeMemberPin|_memberPinWipe/.test(bodyOf(OLD_SRC, 'deleteMemberById')), false);
+    /* ★ **두 커밋 사이**로 잰다 — `git diff <앞커밋>` 하나만 쓰면 **작업트리까지** 재서
+       다음 회차(서버를 바꾸는 회차)에 거짓으로 깨진다(CLAUDE.md 검사 묶음 규칙). */
     ck('★ `api/`·`lib/`·규칙은 **한 줄도** 안 바뀌었다',
-      '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' -- api lib firestore.rules',
-        { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
+      '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' ' + NEW_REF
+        + ' -- api lib firestore.rules', { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
     ck('  버전 303 이상', appV >= 303, true);
+    /* ★ `version.json` 도 **같은 커밋**에서 읽는다(작업트리는 다음 회차에 올라간다) */
     ck('  `version.json` 과 같다',
-      String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
+      String(JSON.parse(show(NEW_REF, 'version.json')).version), String(appV));
     /* 61 기본 원칙이 그대로인가 */
     ck('  (61-1) `fmtNum`·`numOf` 한 벌 그대로',
       (NEW_SRC.match(/^function fmtNum\(/mg) || []).length + '/' + (NEW_SRC.match(/^function numOf\(/mg) || []).length,

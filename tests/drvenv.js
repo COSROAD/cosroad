@@ -16,9 +16,16 @@ const cp = require('child_process');
    그 회차에 고정해야 한다 — 안 하면 v275 가 자리를 옮긴 것이 거짓 실패로 들어온다.
    값을 안 주면 **지금 작업트리**(이번 회차를 보는 묶음은 그대로 쓴다). */
 const apiRef = process.env.COS_API_NEW_REF || '';
-const _api = (p) => apiRef
+/* ★★ v304(63): **LF 로 맞춰 읽는다** (CLAUDE.md 검사 묶음 규칙).
+   이 저장소는 `core.autocrlf=true` 라 **작업트리는 CRLF**, 커밋 blob·배포본은 **LF** 다.
+   맞추지 않으면 Edit 직후에는 통과하고 `git reset`·`cherry-pick` 뒤에는 실패해
+   **「통과」가 그때그때 달라진다** — v303 을 새로 체크아웃하니 소스 글을 글자로 찾는
+   `f_api254` ①·`helperatt52b` ⑤ 가 그렇게 깨져 있었다(고친 코드와 무관한 거짓 실패).
+   `git show` 쪽은 이미 LF 라, 이 한 줄로 **두 길이 같아진다**. */
+const _lf = (s) => String(s).replace(/\r\n/g, '\n');
+const _api = (p) => _lf(apiRef
   ? cp.execSync('git -C ' + COS_ROOT + ' show ' + apiRef + ':' + p, { maxBuffer: 1 << 26 }).toString()
-  : fs.readFileSync('' + COS_ROOT + '/' + p, 'utf8');
+  : fs.readFileSync('' + COS_ROOT + '/' + p, 'utf8'));
 const SRC = {
   drv:   _api('api/driver-auth.js'),
   admin: _api('api/admin-account.js')

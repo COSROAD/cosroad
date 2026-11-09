@@ -16,6 +16,8 @@ const fs = require('fs');
 const E = require('./env246.js');
 
 const OLD_REF = process.env.COS_SRC_OLD_REF || 'd54de80';   /* v300 — 고치기 전 */
+/* ★ 이 묶음은 **회차 기록**이다 — 「이 회차는 `api/` 를 안 바꿨다」는 **두 커밋 사이**로 재야 한다. */
+const THIS_REF = process.env.COS_API_NEW_REF || '5b36ea1';   /* 이 회차 커밋 */
 const NEW_SRC = fs.readFileSync(COS_ROOT + '/index.html', 'utf8').replace(/\r\n/g, '\n');
 const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
@@ -329,7 +331,7 @@ const set = (p, id, v) => { const e = p.R.byId[id]; if (e) e.value = String(v); 
     ck('  `version.json` 과 같다',
       String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
     ck('★ `api/`·`lib/`·규칙은 **한 줄도** 안 바뀌었다',
-      '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' -- api lib firestore.rules',
+      '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' ' + THIS_REF + ' -- api lib firestore.rules',
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
   }
 

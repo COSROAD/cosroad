@@ -14,7 +14,16 @@ const fs = require('fs');
 const E = require('./env246.js');
 
 const OLD_REF = process.env.COS_SRC_OLD_REF || '713cf9c';   /* v299 — 고치기 전 */
-const NEW_SRC = fs.readFileSync(COS_ROOT + '/index.html', 'utf8').replace(/\r\n/g, '\n');
+/* ★ 이 묶음은 **회차 기록**이다 — 「이 회차는 `api/` 를 안 바꿨다」는 **두 커밋 사이**로 재야 한다. */
+const THIS_REF = process.env.COS_API_NEW_REF || 'd54de80';   /* 이 회차 커밋 */
+/* ★★ **새 쪽도 커밋에 고정한다** (CLAUDE.md 검사 묶음 규칙 · v304/코스로드63 에 고쳤다).
+   전에는 새 쪽을 **작업트리**에서 읽어, 뒷 회차가 같은 자리를 더 고치면 **거짓으로** 깨졌다 —
+   v304(63)가 직원 삭제에 「동승 배정이 있으면 먼저 해제하세요」 막음을 넣자 **13칸**이
+   한꺼번에 깨졌다(이 묶음 씨앗 직원이 1호차 도우미여서다 · 코드는 멀쩡했다).
+   v300 이 한 일(서버 먼저 · 실패면 멈춤)은 여기 못 박아 두고, **지금 소스**를 지키는 일은
+   그 회차 묶음(`tests/del63.js`)이 이어 받는다. */
+const NEW_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':index.html',
+  { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 
@@ -224,11 +233,13 @@ const srvLeft = (p) => Object.keys(p.SRV.staffPins).join(',') + '|'
        「=== 300」으로 못 박으면 **다음 회차에 거짓으로 깨진다**(addr299 가 그렇게 깨졌다).
        이 꼴은 CLAUDE.md 규칙 4(둘을 같이 올린다)를 **언제나** 지키는 검사다. */
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    const jsonV = Number(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version);
+    /* ★ `version.json` 도 **같은 커밋**에서 읽는다(작업트리는 다음 회차에 올라간다) */
+    const jsonV = Number(JSON.parse(cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF
+      + ':version.json', { maxBuffer: 1 << 20 }).toString()).version);
     ck('  버전 300 이상', appV >= 300, true);
     ck('  `version.json` 과 `APP_VERSION` 이 같다', jsonV + '/' + appV, appV + '/' + appV);
     ck('★ `api/`·`lib/`·규칙은 **한 줄도** 안 바뀌었다',
-      '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' -- api lib firestore.rules',
+      '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' ' + THIS_REF + ' -- api lib firestore.rules',
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
   }
 

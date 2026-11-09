@@ -278,7 +278,9 @@ const newDrv = (S) => {
     const has = (s) => SRC_NEW.indexOf(s) >= 0;
     /* 아래 몇 줄은 **지금 코드**(살아 있는 파일)를 본다 — v255 이후에 생긴 모습이라
        못 박은 v254 판에는 없다. v260 이 세 동작을 지운 뒤에도 세 갈래 권한이 그대로인지 본다. */
-    const LIVE = fs.readFileSync('' + COS_ROOT + '/api/admin-account.js', 'utf8');
+    /* ★ v304(63): **LF 로 맞춰 읽는다**(CLAUDE.md) — 작업트리는 CRLF 라, 안 맞추면
+       `git reset` 뒤에 「`canManage` 세 갈래」가 거짓으로 깨진다(실제로 깨져 있었다). */
+    const LIVE = fs.readFileSync('' + COS_ROOT + '/api/admin-account.js', 'utf8').replace(/\r\n/g, '\n');
     const hasLive = (s) => LIVE.indexOf(s) >= 0;
     ck('isTestAccessFor 가 org 이름을 먼저 본다',
       has("if (!org || !/_test$/.test(org)) return false;"), true);
