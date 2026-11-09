@@ -82,7 +82,10 @@ const helperDoc = (S, id) => S.docs['orgs/' + ORG + '/drivers/hlp_' + ORG + '_' 
     const r5 = await adm(SRC.admin, S, { action: 'removeStaffPin', org: ORG, staffId: 'st1' });
     ck('removeStaffPin 200', r5.code, 200);
     ck('   staffPins 문서가 사라졌다', staffDoc(S, 'st1') === undefined, true);
-    ck('   동승 배정도 비워졌다', JSON.stringify((helperDoc(S, 'st1') || {}).carId), '""');
+    /* ★★ v294(60-B2)에서 바뀌었다 — **배정 문서를 지운다**(전에는 `carId` 만 비웠다).
+       까닭: v294 부터 그 문서가 **PIN 있는 직원 모두**에게 생기므로, 남겨 두면
+       그만둔 직원의 토큰이 살아 있는 동안 `data/orgDriver` 를 읽을 수 있다. */
+    ck('   동승 배정 문서가 **지워졌다**(v294)', String(helperDoc(S, 'st1')), 'undefined');
   }
 
   console.log('\n③ PIN 패드 — 서버가 **직원을 가려 준다**');
@@ -92,8 +95,13 @@ const helperDoc = (S, id) => S.docs['orgs/' + ORG + '/drivers/hlp_' + ORG + '_' 
     const p = await pad(SRC.drv, S, '2222');
     ck('직원 PIN → kind=staff', (p.body || {}).kind, 'staff');
     ck('   누구인지 알려 준다', (p.body || {}).staffId, 'st1');
-    ck('   기록은 서버가 안 한다(앱이 staffAtt 로)',
-      Object.keys(S.docs).filter((k) => /carState|staffAtt/.test(k)).length, 0);
+    /* ★★ v294(60-B2 · 56)에서 바뀌었다 — **서버가 찍는다**(`punchStaff`).
+       전에는 앱이 `staffAtt` 에 적어 폰이 읽는 사본(`drivers/hlp_….att`)이 안 생겼다. */
+    ck('   기록을 **서버가 한다**(v294 · staffAtt 1건)',
+      Object.keys(S.docs).filter((k) => /staffAtt/.test(k)).length, 1);
+    ck('   폰이 읽는 **사본**도 적혔다(56 해결)',
+      String(((helperDoc(S, 'st1') || {}).att || {}).in || '').length > 0, true);
+    ck('   응답에 `punch` 가 온다', (p.body || {}).punch, 'in');
     const p2 = await pad(SRC.drv, S, '1111');
     ck('기사 PIN 은 그대로 출퇴근', (p2.body || {}).kind, 'in');
     const p3 = await pad(SRC.drv, S, '9999');

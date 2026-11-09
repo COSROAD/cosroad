@@ -508,10 +508,16 @@ export default async function handler(req, res) {
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 직원 PIN 을 지울 권한이 없어요.');
       if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
       try { await A.db.collection('staffPins').doc(org + '_' + staffId).delete(); } catch (e) {}
-      /* PIN 이 없으면 동승 로그인도 못 한다 → **배정 문서도 비운다**(지시문 2번) */
+      /* ★★ v294(60-B2): **배정 문서를 지운다**(v293 까지는 `carId` 만 비웠다).
+         왜 바꿨나 — v294 부터 그 문서가 **PIN 있는 직원 모두**에게 생긴다(로그인 때).
+         `carId` 만 비우면 **그만둔 직원 문서가 남아** 규칙 `isActiveDriver` 가 계속 참이고,
+         이미 받아 둔 토큰이 살아 있는 동안(최대 1시간) `data/orgDriver` 를 읽을 수 있다.
+         문서를 지우면 그 자리에서 **아무것도 못 읽는다**(`exists` 가 거짓).
+         ★ 잃는 것은 없다 — 배정(`carId`)은 어차피 비우던 값이고, 다시 PIN 을 주면
+           로그인 때 문서가 **새로 만들어진다**(배정은 관리자가 `setCarHelper` 로 다시 정한다).
+         ★ 「직원 삭제」(앱 `deleteStaff`)도 PIN 이 있으면 이 창구를 부르므로 같이 정리된다. */
       try {
-        await A.db.collection('orgs').doc(org).collection('drivers').doc(helperUidOf(org, staffId))
-          .set({ carId: '', updatedAt: Date.now() }, { merge: true });
+        await A.db.collection('orgs').doc(org).collection('drivers').doc(helperUidOf(org, staffId)).delete();
       } catch (e) {}
       try { await A.auth.revokeRefreshTokens(helperUidOf(org, staffId)); } catch (e) {}
       /* ★ 43-C: 묶인 기기도 푼다 — PIN 이 없으면 그 기기로 들어올 일도 없다(흔적을 남기지 않는다) */

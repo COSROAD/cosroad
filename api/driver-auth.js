@@ -551,19 +551,21 @@ export default async function handler(req, res) {
          앱도 그 문서를 리스너로 듣는다 — 관리자가 배정을 바꾸면 바로 따라간다. */
       if (!carId) {
         const huid = helperUidOf(org, staffId);
-        let hcar = '', howner = '';
+        let hcar = '', howner = '', hexists = false;
         try {
           const hs = await A.db.collection('orgs').doc(org).collection('drivers').doc(huid).get();
+          hexists = !!hs.exists;
           const hv = (hs.exists && hs.data()) || {};
           hcar = String(hv.carId || '');
           howner = String(hv.ownerUid || '');
         } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
-        if (!hcar) {
-          /* PIN 은 맞았지만 배정이 없다 — 「왜 안 되는지」를 알려 준다.
-             PIN 이 맞은 사람에게만 보이는 글이라 업체 정보가 새지 않는다. */
-          await writeLogin(org, '', false, 'nocar', deviceId, loc);
-          return fail(res, 403, '동승할 차량이 배정되지 않았어요. 관리자에게 말씀해 주세요.', 'nocar');
-        }
+        /* ★★ v294(60-B2): **배정이 없어도 들어온다.** 사장님 결정 11-08 ③ —
+           「PIN 있는 직원은 모두 자기 폰으로 출퇴근」. 근태는 차량과 무관하다
+           (`requirePuncher` 는 43-C 부터 이미 **배정 없는 도우미**를 받는다).
+           v293 까지는 여기서 403 `nocar` 로 막아, 직원이 관리자 기기 앞까지 가야 했다.
+           ★ 자료 범위는 그대로 좁다 — 배정이 없으면 `myCarId` 가 빈 값이라 규칙이
+             `carData/*`·`carState/*` 를 **거부한다**(규칙 한 줄도 안 바꿨다).
+           ★ 화면은 **출근·퇴근만** 보여 준다(앱 `driverNoCarHtml` + v282 의 출퇴근 줄). */
         /* 업체가 살아 있나 — 기사와 **같은 함수·같은 문구** */
         const ownerUid2 = await resolveOwnerUid(org);
         if (!(await ownerAlive(ownerUid2))) {
@@ -578,9 +580,16 @@ export default async function handler(req, res) {
           }
         } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
         try {
-          /* 배정 문서는 **관리자가 만든다**(setCarHelper) — 여기서는 소유자만 맞춰 둔다.
-             `carId` 는 건드리지 않는다(배정을 로그인이 바꾸면 안 된다). */
-          if (howner !== String(ownerUid2 || '')) {
+          /* ★★ v294(60-B2): 문서가 **없으면 여기서 만든다**(배정 없는 직원).
+             왜 서버가 만드나 — `drivers` 는 규칙이 `write: if false`(Admin SDK 전용)다.
+             그리고 그 문서가 **있어야** 규칙 `isActiveDriver` 가 참이 되어 자기 배정 문서와
+             `data/orgDriver`(업체 이름·업종 7칸)를 읽는다. `carId` 는 **빈 값**으로 둔다 —
+             배정은 관리자가 `setCarHelper` 로만 정한다(로그인이 배정을 만들면 안 된다).
+             ★ 이미 있으면 **`carId` 를 건드리지 않는다**(종전 그대로 소유자만 맞춘다). */
+          if (!hexists) {
+            await A.db.collection('orgs').doc(org).collection('drivers').doc(huid)
+              .set({ role: 'helper', staffId: staffId, carId: '', ownerUid: ownerUid2, updatedAt: Date.now() });
+          } else if (howner !== String(ownerUid2 || '')) {
             await A.db.collection('orgs').doc(org).collection('drivers').doc(huid)
               .set({ ownerUid: ownerUid2 }, { merge: true });
           }
@@ -719,12 +728,22 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, kind: carId ? 'driver' : 'staff', probe: true });
       }
       if (!carId) {
-        /* 직원 — 기간을 본 뒤(기사와 같은 자리) 「누구인지」만 돌려준다 */
+        /* 직원 — 기간을 본 뒤(기사와 같은 자리) **서버가 찍는다** */
         if (!(await ownerAlive((await resolveOwnerUid(org))))) {
           return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
         }
-        await writeLogin(org, '', true, 'pad:staff', '', null);
-        return res.status(200).json({ ok: true, kind: 'staff', staffId: staffId, date: kstDateStr() });
+        /* ★★ v294(60-B2 · 56 해결): v293 까지는 「누구인지」만 돌려주고 **앱이** `staffAtt` 에
+           적었다. 그러면 폰이 읽는 **사본**(`drivers/hlp_….att`)이 안 생겨, 판으로 찍은 출근이
+           그 사람 폰에 **안 보였다**(새로고침하면 사라져 「출근」을 또 누르게 됐다 — 56).
+           `punchStaff()` 는 원본(`data/staffAtt`)과 사본을 **같은 트랜잭션**에 넣는다.
+           ★ 응답에 `kind:'staff'` 를 **그대로 둔다** — 배포 직후 잠깐 남아 있는 **옛 앱**이
+             그 글자로 직원을 가리므로, 빼면 그 창이 기사 갈래로 잘못 들어간다.
+             새 앱은 **`punch`**(in|out|done)를 보고 서버 값을 그대로 그린다. */
+        const sr = await punchStaff(org, staffId);
+        if (sr.error) return fail(res, 500, sr.error);
+        await writeLogin(org, '', true, 'pad:staff:' + sr.kind, '', null);
+        return res.status(200).json({ ok: true, kind: 'staff', staffId: staffId,
+          punch: sr.kind, time: sr.time, date: kstDateStr() });
       }
 
       /* ★★ 코스로드46: 여기서도 **이용 기간**을 본다 (로그인·출퇴근과 같은 함수·같은 문구).

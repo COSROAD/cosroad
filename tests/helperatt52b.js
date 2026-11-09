@@ -61,12 +61,14 @@ const attOf = (S, uid) => JSON.stringify((S.docs['orgs/' + ORG + '/drivers/' + (
     ck('   배정이 비워졌다', (S3.docs['orgs/' + ORG + '/drivers/' + HUID] || {}).carId, '');
     ck('★ `.att` 그대로', attOf(S3), JSON.stringify(ATT));
 
-    /* ④ PIN 지우기(배정도 비운다) */
+    /* ④ PIN 지우기 — ★★ v294(60-B2)부터 **문서를 지운다**(전에는 `carId` 만 비웠다).
+       그래서 `.att` 사본도 **함께 사라진다** — 그만둔 사람의 흔적을 남기지 않는 쪽이다.
+       원본 근태(`data/staffAtt`)는 그대로 남아 급여·근태 화면은 바뀌지 않는다. */
     const S4 = st();
     const r4 = await adm(S4, { action: 'removeStaffPin', org: ORG, staffId: ST });
     ck('④ PIN 지우기 → 200', r4.code, 200);
-    ck('   배정이 비워졌다', (S4.docs['orgs/' + ORG + '/drivers/' + HUID] || {}).carId, '');
-    ck('★ `.att` 그대로', attOf(S4), JSON.stringify(ATT));
+    ck('   배정 문서가 **지워졌다**(v294)', String(S4.docs['orgs/' + ORG + '/drivers/' + HUID]), 'undefined');
+    ck('★ 그래서 `.att` 사본도 사라진다(v294)', attOf(S4), 'null');
 
     /* ⑤ 왜 안 지워지나 — 네 자리 모두 **merge** 로 쓴다(소스 대조) */
     const noCmt = ADM.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/mg, ' ');
