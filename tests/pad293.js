@@ -111,15 +111,28 @@ function phone(SRV, opt) {
     }
     if (body.action !== 'pinCheckin') return { json: async () => ({ ok: false }) };
     const isStaff = String(body.pin) === '2222';
+    /* ★★ v295(60-B3): 출결 판은 **`member:true`** 로 묻는다 — 서버는
+       ① 기사·직원이면 **찍지 않고** `wrongPad` ② «회원» 이면 **출석을 찍고** 이름·시각을 준다.
+       (v293 의 `probe:true` 도 그대로 둔다 — 배포 직후 남아 있는 앱이 그 길로 묻는다.) */
+    if (body.member === true) {
+      if (isStaff) return { json: async () => ({ ok: true, kind: 'staff', wrongPad: true }) };
+      const m = MEM.find((x) => x.pin === String(body.pin));
+      if (!m) return { json: async () => ({ ok: false, why: 'nomember', message: 'PIN 번호가 올바르지 않습니다.' }) };
+      SRV.serverAtt.push(String(m.id));             /* 서버가 출석을 찍었다 */
+      return { json: async () => ({ ok: true, kind: 'member', name: m.name, photo: '',
+                                    time: '09:05', date: TODAY }) };
+    }
     if (!isStaff) return { json: async () => ({ ok: false, why: 'notdriver', message: '기사 PIN 이 아니에요.' }) };
     if (body.probe === true) return { json: async () => ({ ok: true, kind: 'staff', probe: true }) };
     SRV.serverPunch.push(body.pin);                 /* 서버가 기록까지 했다 */
-    return { json: async () => ({ ok: true, kind: 'staff', staffId: 'st1' }) };
+    return { json: async () => ({ ok: true, kind: 'staff', staffId: 'st1', punch: 'in', time: '08:30' }) };
   };
   R.ev('members = loadMembers(); cars = loadCars(); courses = loadCourses();');
   return { R, SRV };
 }
-const makeServer = () => ({ writes: [], api: [], serverPunch: [],
+const TODAY = (function(){ const n=new Date();
+  return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); })();
+const makeServer = () => ({ writes: [], api: [], serverPunch: [], serverAtt: [],
   B: { 'carState/car1': { ride: {}, rideOff: {}, carlog: { records: [], plans: {} },
                           delivDone: {}, dropDone: {}, att: {} },
        'data/members': MEM, 'data/staff': STAFF, 'data/migration': { carState: true } } });
@@ -162,8 +175,11 @@ async function press(p, kind, pin) {
     ck('★ 서버가 **기록하지 않았다**', a.SRV.serverPunch.length, 0);
     ck('★ 안내가 뜬다', /근태/.test(r1.msg), true);
     console.log('      안내: ' + r1.msg);
-    ck('  서버에는 **probe 로** 물었다',
-      a.SRV.api.filter((x) => x.probe === true).length, 1);
+    /* ★ v295: 출결 판은 `member:true` 한 번으로 묻는다(서버가 `wrongPad` 로 답한다) —
+       v293 의 probe 는 **배포 직후 남아 있는 옛 앱**을 위해 서버에만 남아 있다. */
+    ck('  서버에는 **member 로** 물었다',
+      a.SRV.api.filter((x) => x.member === true).length, 1);
+    ck('  probe 로는 묻지 않는다', a.SRV.api.filter((x) => x.probe === true).length, 0);
 
     const b = phone(makeServer(), {});
     const r2 = await press(b, 'work', '1111');
@@ -177,7 +193,8 @@ async function press(p, kind, pin) {
   {
     const a = phone(makeServer(), {});
     const r1 = await press(a, 'member', '1111');
-    ck('★ 출결 판 + 회원 PIN → 출석 1건', r1.att, '1');
+    ck('★ 출결 판 + 회원 PIN → 출석 1건(폰)', r1.att, '1');
+    ck('  ★ 찍은 것은 **서버**다(v295)', a.SRV.serverAtt.join(','), '1');
     console.log('      결과: ' + JSON.stringify(r1.msg));
     ck('  이름이 보인다', /가하은/.test(r1.msg), true);
     const b = phone(makeServer(), {});

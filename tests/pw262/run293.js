@@ -59,9 +59,18 @@ function seed() {
       window.__api.push(body);
       var out = { ok:false };
       if(body.action === 'pinCheckin'){
-        if(String(body.pin) === '2222'){
+        /* ★★ v295(60-B3): 출결 판은 **member:true** 로 묻는다 — 기사·직원이면 **찍지 않고**
+           wrongPad, «회원» 이면 **서버가 출석을 찍고** 이름·시각을 준다.
+           (probe 는 배포 직후 남아 있는 v293·v294 앱을 위해 서버에 남아 있다.) */
+        if(body.member === true){
+          if(String(body.pin) === '2222'){ out = { ok:true, kind:'staff', wrongPad:true }; }
+          else if(String(body.pin) === '1111'){
+            window.__api.push({ _serverAtt: '1' });
+            out = { ok:true, kind:'member', name:'가하은', photo:'', time:'09:05', date: window.__today };
+          } else { out = { ok:false, why:'nomember', message:'PIN 번호가 올바르지 않습니다.' }; }
+        } else if(String(body.pin) === '2222'){
           out = (body.probe === true) ? { ok:true, kind:'staff', probe:true }
-                                      : { ok:true, kind:'staff', staffId:'st1', date:'2026-11-09' };
+                                      : { ok:true, kind:'staff', staffId:'st1', punch:'in', time:'08:30', date: window.__today };
           if(body.probe !== true) window.__api.push({ _serverPunch: body.pin });
         } else { out = { ok:false, why:'notdriver', message:'기사 PIN 이 아니에요.' }; }
       } else if(body.action === 'checkPinDup'){
@@ -106,6 +115,7 @@ async function page(b, vp) {
   await p.waitForFunction(() => typeof renderDrive === 'function', {}, { timeout: 20000 });
   await p.evaluate(seed());
   await p.evaluate(async () => {
+    window.__today = todayStr();
     currentMode = 'admin'; window._userOrgId = 'B'; window._userUid = 'uB';
     window._userBizType = 'academy'; window._userPaidUntil = Date.now() + 30 * 86400000;
     const ls = document.getElementById('login-screen'); if (ls) ls.classList.add('hide');
@@ -198,9 +208,9 @@ const press = (p, kind, pin) => p.evaluate(async (a) => {
     say(r1.staff === 0 && r1.att === 0, '★ 출결 판 + 직원 PIN — 기록 0'.padEnd(44)
       + '출석 ' + r1.att + ' · 근태 ' + r1.staff);
     say(r1.msgs.some((m) => /근태/.test(m)), '★ 안내가 뜬다'.padEnd(44) + (r1.msgs.join(' | ').slice(0, 30) || '없음'));
-    const probe = await p.evaluate(() => (window.__api || []).filter((x) => x.probe === true).length);
+    const mem = await p.evaluate(() => (window.__api || []).filter((x) => x.member === true).length);
     const punch = await p.evaluate(() => (window.__api || []).filter((x) => x._serverPunch).length);
-    say(probe === 1 && punch === 0, '★ 서버에 **probe 로만** 물었다'.padEnd(44) + 'probe ' + probe + ' · 기록 ' + punch);
+    say(mem === 1 && punch === 0, '★ 서버에 **member 로** 묻고 기록 0'.padEnd(44) + 'member ' + mem + ' · 기록 ' + punch);
 
     const r2 = await press(p, 'work', '1111');            /* 근태 판에 회원 PIN */
     say(r2.att === 0 && r2.staff === 0, '★ 근태 판 + 회원 PIN — 기록 0'.padEnd(44)

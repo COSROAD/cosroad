@@ -172,7 +172,8 @@ const shareBody = (SRV) => {
       four.filter((f) => headHas(OLD_SRC, f) === true).length, 0);
     /* 문지기 자리 전수 — v288 셋(`saveToFirebase`·`saveCarState`·`rebuildCarData`) + 공유 넷 = **일곱** */
     const gates = (src) => (src.match(/!okToWriteNow\(\)/g) || []).length;
-    ck('★ 문지기 자리 수', gates(NEW_SRC), 7);
+    /* ★ v295(60-B3)에서 하나 늘었다 — 출석 저장(`saveAttendanceKey`)도 같은 문지기를 본다. */
+    ck('★ 문지기 자리 수', gates(NEW_SRC), 8);
     ck('  (대조) 옛 판은 셋', gates(OLD_SRC), 3);
   }
 

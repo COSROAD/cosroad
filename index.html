@@ -672,7 +672,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 294;
+const APP_VERSION = 295;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1096,6 +1096,134 @@ async function writeCarStatePatch(orgId, cid, patch){
     console.log('차량 기록 합쳐 쓰기 실패:', e && e.message);
     return false;
   }
+}
+
+/* ── 출석·출석시각(`data/attendance`·`data/attendanceTime`)도 **바뀐 칸만** (60-B3 · v295) ──
+   ★★ 왜 — 60-B3 부터 **서버가** «회원» 출석을 그 문서에 찍는다(출결 판 → `pinCheckin` 의
+     «회원» 갈래 · 60-B4 의 출석 기기도 같은 자리). 그런데 앱은 그 문서를 **통째로**
+     (`saveToFirebase('attendance', 전체)`) 쓰고 있었다 → 관리자가 수기 토글을 한 번 누르면
+     **서버가 찍은 다른 칸이 지워졌다**(스텁 실측 · v277 `att` · v282 `staffAtt` 와 같은 함정).
+   ★ 자료 모양 (소스로 확인):
+       `tkd_attendance`      = { '날짜': { «회원»id: 'present'|'absent' } }
+       `tkd_attendance_time` = { '날짜': { «회원»id: 'HH:MM' | {t:'HH:MM',by:'admin'} } }
+     → **두 겹 지도**(날짜 → 사람)지만 칸 이름이 **«회원» id**(몇이든)이고 값이 글자 또는
+       작은 객체다. 그래서 `_csAttDiff`(칸 이름이 `in`·`out` **둘로 정해져 있다**)를 **못 쓴다**.
+       새로 둔 `_dayCellDiff` 하나를 **두 키가 같이** 쓴다(셈을 두 벌로 베끼지 않는다).
+     ★ 얹기(`_csAttApply`)는 **그대로 쓴다** — 「'날짜.칸' 지우기」 규칙이 같다.
+   ★ 기준본이 `null`(아직 한 번도 못 받음)이면 **지우기는 안 보낸다** — 안전한 쪽. */
+function _dayCellDiff(base, now){
+  base = base || {}; now = now || {};
+  var put = {}, drop = [];
+  var same = function(a, b){
+    if(a === b) return true;
+    if(a && b && typeof a==='object' && typeof b==='object'){
+      try{ return JSON.stringify(a) === JSON.stringify(b); }catch(e){ return false; }
+    }
+    return false;
+  };
+  Object.keys(now).forEach(function(d){
+    var b = base[d] || {}, n = now[d] || {};
+    Object.keys(n).forEach(function(k){ if(!same(n[k], b[k])) (put[d] = put[d] || {})[k] = n[k]; });
+    Object.keys(b).forEach(function(k){ if(!(k in n)) drop.push(d + '.' + k); });
+  });
+  Object.keys(base).forEach(function(d){ if(!(d in now)) drop.push(d); });
+  return { put: put, drop: drop };
+}
+/* ★★ 얹기도 **따로 둔다** — `_csAttApply` 는 쓸 수 없다(크롬·스텁이 함께 잡았다).
+   그 함수는 칸을 지운 뒤 **`in`·`out` 이 없으면 그 날짜를 지운다** — 출퇴근(`{날짜:{in,out}}`)
+   전용 규칙이다. 출석은 칸 이름이 **«회원» id** 라 그 규칙이 걸리면 **한 칸만 지워도
+   그날 전체가 사라진다**(실측: 서버가 찍은 칸까지 날아갔다).
+   여기서는 「**칸이 하나도 안 남을 때만** 그 날짜를 지운다」로 둔다. */
+function _dayCellApply(srv, p){
+  srv = (srv && typeof srv==='object' && !Array.isArray(srv)) ? srv : {};
+  Object.keys(p.put||{}).forEach(function(d){
+    if(!srv[d] || typeof srv[d]!=='object') srv[d] = {};
+    Object.keys(p.put[d]).forEach(function(f){ srv[d][f] = p.put[d][f]; });
+  });
+  (p.drop||[]).forEach(function(x){
+    var i = String(x).indexOf('.');
+    if(i < 0){ delete srv[x]; return; }
+    var d = x.slice(0,i), f = x.slice(i+1);
+    if(srv[d]){ delete srv[d][f]; if(Object.keys(srv[d]).length === 0) delete srv[d]; }
+  });
+  return srv;
+}
+var _atBase = { attendance: null, attendanceTime: null };   /* 두 키의 기준본 */
+var _atSaving = { attendance: false, attendanceTime: false };
+var _atAgain  = { attendance: false, attendanceTime: false };
+function _atSetBase(key, obj){
+  try{ _atBase[key] = JSON.parse(JSON.stringify(obj || {})); }catch(e){ _atBase[key] = {}; }
+}
+function _atLocal(key){
+  return (key === 'attendanceTime') ? loadAttendanceTime() : loadAttendance();
+}
+function attendancePatch(key, now){
+  var p = _dayCellDiff(_atBase[key] || {}, now || {});
+  if(_atBase[key] === null) p.drop = [];      /* 기준본을 모르면 남의 칸을 지우지 않는다 */
+  return p;
+}
+function attendancePatchEmpty(p){
+  if(!p) return true;
+  return (Object.keys(p.put||{}).length + (p.drop||[]).length) === 0;
+}
+/* 받을 때는 덮지 말고 **얹는다** — 아직 안 올린 내 변경을 서버값 위에 올린다(v284 와 같은 방법).
+   ★ 읽기 전용·둘러보기는 **서버가 이긴다**(v285 와 같은 까닭 — 막힌 변경이 화면에 남으면 안 된다). */
+function atRebase(key, R, L, baseOverride){
+  try{
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
+    if(typeof isDemoMode==='function' && isDemoMode()) return R;
+    var B = (baseOverride === undefined) ? _atBase[key] : baseOverride;
+    if(B === null || B === undefined) return R;
+    var p = _dayCellDiff(B || {}, L || {});
+    if(attendancePatchEmpty(p)) return R;
+    return _dayCellApply(JSON.parse(JSON.stringify(R || {})), p);
+  }catch(e){ return R; }
+}
+/* 그 문서의 **바뀐 칸만** 트랜잭션으로 얹는다 — `writeStaffAttPatch` 와 **같은 꼴**이다. */
+async function writeAttendancePatch(orgId, key, patch){
+  try{
+    var { doc, runTransaction, getDoc } = window._firestore;
+    if(!runTransaction){ console.log('runTransaction 없음 — 출석 합치기 건너뜀'); return false; }
+    var ref = doc(window._db,'orgs',orgId,'data',key);
+    try{
+      var _prev = await getDoc(ref);
+      if(_prev.exists()) await _backupBeforeSave(orgId, key, (_prev.data()||{}).value);
+    }catch(e){ console.log('출석 백업 건너뜀:', e && e.message); }
+    var written = await runTransaction(window._db, async function(tx){
+      var snap = await tx.get(ref);
+      var srv = {};
+      if(snap.exists()){
+        try{ srv = JSON.parse((snap.data()||{}).value || '{}'); }catch(e){ srv = {}; }
+      }
+      if(!srv || typeof srv!=='object' || Array.isArray(srv)) srv = {};
+      var next = _dayCellApply(srv, patch);
+      tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
+      return next;
+    });
+    _atSetBase(key, written);                 /* 쓴 값이 새 기준본 */
+    return true;
+  }catch(e){
+    console.log('출석 합쳐 쓰기 실패:', e && e.message);
+    return false;
+  }
+}
+/* 저장 한 자리 — **차이표를 먼저 다 만들고**(첫 기다림 앞 · v283 교훈) 줄을 세워 쓴다.
+   막는 것은 종전 `saveToFirebase` 와 **같은 셋**(둘러보기·읽기 전용·첫 동기화)이다. */
+async function saveAttendanceKey(key){
+  if(typeof isDemoMode==='function' && isDemoMode()){ try{ demoBlockNotice(); }catch(e){} return false; }
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ try{ readOnlyBlocked('바꾼 내용'); }catch(e){} return false; }
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){ try{ firstSyncBlocked('바꾼 내용'); }catch(e){} return false; }
+  if(currentMode==='driver') return false;          /* 기사·도우미는 출결을 쓰지 않는다(규칙도 막는다) */
+  if(!window._db || !window._firestore) return false;
+  if(_atSaving[key]){ _atAgain[key] = true; return false; }   /* 줄 세우기 — 끝난 뒤 한 번 더 */
+  var patch = attendancePatch(key, _atLocal(key));
+  if(attendancePatchEmpty(patch)) return true;
+  _atSaving[key] = true;
+  var ok = false;
+  try{ ok = await writeAttendancePatch(getFbOrgId(), key, patch); }
+  finally{ _atSaving[key] = false; }
+  if(_atAgain[key]){ _atAgain[key] = false; try{ await saveAttendanceKey(key); }catch(e){} }
+  return ok;
 }
 
 /* ── 직원 근태(`data/staffAtt`)도 **바뀐 칸만** (43-C · v282) ──────────────
@@ -5498,7 +5626,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -8450,7 +8578,10 @@ function restoreData(ev){
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
       var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
       var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
-      var att = localStorage.getItem('tkd_attendance'); if(att){ try{ saveToFirebase('attendance', JSON.parse(att)); }catch(e7){} }
+      /* ★ v295(60-B3): 복원은 **일부러 통째로 덮는 것**이다(사람이 확인창을 지났다) —
+         그래서 여기만 `saveToFirebase` 를 그대로 쓰고, **기준본을 그 값으로 맞춘다**.
+         안 맞추면 다음 「바뀐 칸만」 저장이 옛 기준본과 견줘 엉뚱한 지우기를 보낼 수 있다. */
+      var att = localStorage.getItem('tkd_attendance'); if(att){ try{ var _attR=JSON.parse(att); saveToFirebase('attendance', _attR); _atSetBase('attendance', _attR); }catch(e7){} }
       /* v275: 차계부·탑승 토글·출퇴근은 **차량별 문서**로 간다 — 아래 saveCarState() 한 번이 셋을 다 올린다.
          옛 `data/*` 키에는 **다시 쓰지 않는다**(원본이 둘이 되지 않게). */
       var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
@@ -8461,7 +8592,7 @@ function restoreData(ev){
 
       var ivc = localStorage.getItem('tkd_invoices'); if(ivc){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
       var prd = localStorage.getItem('tkd_products'); if(prd){ try{ saveToFirebase('products', JSON.parse(prd)); }catch(e14){} }
-      var atm = localStorage.getItem('tkd_attendance_time'); if(atm){ try{ saveToFirebase('attendanceTime', JSON.parse(atm)); }catch(e15){} }
+      var atm = localStorage.getItem('tkd_attendance_time'); if(atm){ try{ var _atmR=JSON.parse(atm); saveToFirebase('attendanceTime', _atmR); _atSetBase('attendanceTime', _atmR); }catch(e15){} }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
     }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
@@ -8841,7 +8972,8 @@ function loadAttendanceTime(){
 }
 function saveAttendanceTime(d){
   localStorage.setItem('tkd_attendance_time', JSON.stringify(d));
-  saveToFirebase('attendanceTime', d);
+  /* ★ v295(60-B3): **바뀐 칸만** 트랜잭션으로 (서버도 이 문서를 쓴다 — 통째로 쓰면 지운다) */
+  try{ saveAttendanceKey('attendanceTime'); }catch(e){}
 }
 /* 값은 두 가지 (v244) —
    PIN   : 'HH:MM' 문자열 (v243 에서 저장하던 형식 그대로. 하위 호환)
@@ -8867,9 +8999,12 @@ function markAttendanceTime(dateStr, memberId, timeStr, by){
 }
 function saveAttendanceData(data){
   // 출결 데이터는 전체 영구 보존 (과거 기록 자동삭제 안 함)
-  // Firebase·localStorage 모두 전체 저장하여 잘린 데이터가 서버를 덮어쓰는 사고 방지
-  saveToFirebase('attendance',data);
+  /* ★★ v295(60-B3): **문서 통째로 쓰던 것을 「바뀐 칸만」으로** 바꿨다.
+     60-B3 부터 **서버가** «회원» 출석을 같은 문서에 찍는다(출결 판 · 60-B4 출석 기기) —
+     통째로 쓰면 **서버가 찍은 다른 칸이 지워진다**(스텁 실측 · v277·v282 와 같은 함정).
+     ★ 로컬을 **먼저** 적고(화면은 바로 바뀐다) 차이표는 그 값으로 만든다. */
   localStorage.setItem('tkd_attendance',JSON.stringify(data));
+  try{ saveAttendanceKey('attendance'); }catch(e){}
 }
 function getAttendanceToday(memberId){
   var today=todayStr();
@@ -9262,6 +9397,44 @@ function driverAttLocalSet(carId, dateStr, kind, time){
 /* ★ v293(60-B1): `probe` 를 주면 서버가 **대조만** 하고 아무 것도 쓰지 않는다
    (돌려주는 것은 `kind` 하나 — 이름·차량·직원 id·PIN 은 없다).
    출결 판에서 「직원 PIN 이에요」를 말하려고 쓴다 — 창구를 새로 만들지 않았다. */
+/* ★ v295(60-B3): 판 안내 문구 **한 자리** — v293 에서 `checkPin()` 안에 있던 것을 꺼냈다.
+   이제 서버가 「다른 판이에요」(`wrongPad`)를 바로 알려 주므로 **두 곳**에서 같은 글을 띄운다
+   (한 곳에 두지 않으면 문구가 갈라진다 · `#pin-result` 자리만 쓰므로 새 창 0). */
+function _padOtherNotice(other){
+  var msg = (other==='work')
+    ? '🚚 기사·직원 PIN 이에요<br><span style="font-size:12px;font-weight:600;color:#667085;">근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요</span>'
+    : (other==='member')
+    ? '🎒 '+T('회원')+' 출석 PIN 이에요<br><span style="font-size:12px;font-weight:600;color:#667085;">«출결»관리의 「🔢 PIN 체크인 모드 열기」에서 찍어 주세요</span>'
+    : '❌ PIN 번호가 올바르지 않습니다.';
+  var el=document.getElementById('pin-result');
+  if(el) el.innerHTML='<div style="color:'+(other?'#F79009':'#F04438')+';font-size:14px;font-weight:700;text-align:center;padding:10px;line-height:1.6;">'+msg+'</div>';
+  pinInput='';
+  setTimeout(function(){
+    var r=document.getElementById('pin-result');
+    if(r)r.innerHTML='';
+    renderPinDisplay();
+  }, other?2500:1500);
+}
+/* ★★ v295(60-B3): **출결 판 전용** — `member:true` 로 한 번 묻는다.
+   돌아오는 것 셋: `kind:'member'`(**서버가 출석을 찍었다** · 이름·시각) ·
+   `wrongPad`(기사·직원 PIN — **찍지 않았다**) · 404 `nomember`(틀린 PIN).
+   ★ 창구를 새로 만들지 않았다 — 같은 `pinCheckin` 에 깃발 하나다(까닭은 서버 쪽지). */
+async function padMemberPinApi(pin){
+  var u = window._auth && window._auth.currentUser;
+  if(!u || u.isAnonymous) return { why:'noauth', message:'계정으로 로그인한 뒤에 쓸 수 있어요.' };
+  var tok;
+  try{ tok = await u.getIdToken(); }catch(e){ return { why:'noauth', message:'로그인 확인에 실패했어요.' }; }
+  try{
+    var r = await fetch('https://cosroad.vercel.app/api/driver-auth', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
+      body: JSON.stringify({ action:'pinCheckin', org:getFbOrgId(), pin:pin, member:true })
+    });
+    var j = await r.json();
+    if(j && j.ok) return j;
+    return { why:(j&&j.why)||'err', message:(j&&j.message)||'확인하지 못했어요.' };
+  }catch(e){ return { why:'net', message:'서버에 연결하지 못했어요. 인터넷을 확인해 주세요.' }; }
+}
 async function padDriverPinApi(pin, probe){
   var u = window._auth && window._auth.currentUser;
   if(!u || u.isAnonymous) return { why:'noauth', message:'계정으로 로그인한 뒤에 쓸 수 있어요.' };
@@ -9496,10 +9669,35 @@ async function checkPin(){
   }
 
   var member=null;
+  var _srvAtt=null;              /* ★ v295: 서버가 찍어 준 결과({name,photo,time,date}) */
   /* ★ v293: «회원» 대조는 **출결 판에서만** — 근태 판에서는 출석이 찍힐 길이 없다 */
   if(!_padWork){
-    for(var i=0;i<members.length;i++){
-      if(members[i].pin&&members[i].pin===pv){member=members[i];break;}
+    /* ★★ v295(60-B3): 실서비스에서는 **서버가 맞추고 찍는다**(`member:true` 한 번).
+       왜 — 60-B4 의 출석 기기는 명단을 받지 않으므로 그 일이 서버에 있어야 하고,
+       같은 문서를 둘이 쓰는 문제를 **입구보다 먼저** 풀어 둔다(60-A 설계 9).
+       ★ 둘러보기·서버 없음·기사 모드는 **종전 로컬 길**로 떨어진다(체험·오프라인이 끊기지 않게). */
+    if(!_demoPad && currentMode!=='driver' && window._db && window._firestore){
+      var _mr = await padMemberPinApi(pv);
+      if(_mr && _mr.ok && _mr.kind==='member'){
+        _srvAtt = _mr;
+        member = members.find(function(m){ return String(m.pin||'')===pv; })
+              || { id:'', name:_mr.name, photo:_mr.photo||'' };
+      } else if(_mr && _mr.ok && _mr.wrongPad){
+        _padOtherNotice('work');           /* 기사·직원 PIN — 찍지 않았다 */
+        return;
+      } else if(_mr && (_mr.why==='expired' || _mr.why==='noauth' || _mr.why==='net' || _mr.why==='err')){
+        var _er=document.getElementById('pin-result');
+        if(_er) _er.innerHTML='<div style="color:#F04438;font-size:14px;font-weight:700;text-align:center;padding:10px;">'
+          +escapeMasterHtml(_mr.message||'확인하지 못했어요.')+'</div>';
+        pinInput='';
+        setTimeout(function(){ var r=document.getElementById('pin-result'); if(r)r.innerHTML=''; renderPinDisplay(); },2000);
+        return;
+      }
+      /* `nomember` 면 아래 「틀린 PIN」 안내로 간다 */
+    } else {
+      for(var i=0;i<members.length;i++){
+        if(members[i].pin&&members[i].pin===pv){member=members[i];break;}
+      }
     }
   }
   if(!member){
@@ -9521,33 +9719,37 @@ async function checkPin(){
       var _pr = await padDriverPinApi(pv, true);
       if(_pr && _pr.ok && (_pr.kind==='driver' || _pr.kind==='staff')) _other='work';
     }
-    var _msg = (_other==='work')
-      ? '🚚 기사·직원 PIN 이에요<br><span style="font-size:12px;font-weight:600;color:#667085;">근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요</span>'
-      : (_other==='member')
-      ? '🎒 '+T('회원')+' 출석 PIN 이에요<br><span style="font-size:12px;font-weight:600;color:#667085;">«출결»관리의 「🔢 PIN 체크인 모드 열기」에서 찍어 주세요</span>'
-      : '❌ PIN 번호가 올바르지 않습니다.';
-    document.getElementById('pin-result').innerHTML='<div style="color:'+(_other?'#F79009':'#F04438')+';font-size:14px;font-weight:700;text-align:center;padding:10px;line-height:1.6;">'+_msg+'</div>';
-    pinInput='';
-    setTimeout(function(){
-      var r=document.getElementById('pin-result');
-      if(r)r.innerHTML='';
-      renderPinDisplay();
-    }, _other?2500:1500);
+    _padOtherNotice(_other);
     return;
   }
 
   // 출석 처리
-  var today=todayStr();
-  var data=loadAttendance();
-  if(!data[today])data[today]={};
-  data[today][member.id]='present';
-  saveAttendanceData(data);
-
-  // 시간 기록
-  var now=new Date();
-  var timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  /* 출석 시각을 별도 키에 남긴다 (v243) — 같은 날 다시 찍어도 처음 시각 유지 */
-  try{ markAttendanceTime(today, member.id, timeStr); }catch(e){}
+  /* ★★ v295(60-B3): 서버가 찍었으면(`_srvAtt`) **폰에만** 적는다 — 서버로 또 쓰지 않는다
+     (원본은 서버가 썼다 · 두 번 쓰면 「바뀐 칸만」 쓰기가 같은 값을 또 올린다).
+     날짜·시각도 **서버 KST** 값을 쓴다(기기 시계를 바꿔도 기록이 안 흔들린다). */
+  var today = _srvAtt ? (_srvAtt.date||todayStr()) : todayStr();
+  var timeStr;
+  if(_srvAtt){
+    timeStr = _srvAtt.time || nowTimeStr();
+    var _d2=loadAttendance();
+    if(!_d2[today])_d2[today]={};
+    _d2[today][member.id]='present';
+    try{ localStorage.setItem('tkd_attendance', JSON.stringify(_d2)); }catch(e){}
+    var _t2=loadAttendanceTime();
+    if(!_t2[today])_t2[today]={};
+    if(!_t2[today][member.id]) _t2[today][member.id]=timeStr;
+    try{ localStorage.setItem('tkd_attendance_time', JSON.stringify(_t2)); }catch(e){}
+  } else {
+    /* 둘러보기·오프라인 — 종전 길(앱이 적고 「바뀐 칸만」으로 올린다) */
+    var data=loadAttendance();
+    if(!data[today])data[today]={};
+    data[today][member.id]='present';
+    saveAttendanceData(data);
+    var now=new Date();
+    timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    /* 출석 시각을 별도 키에 남긴다 (v243) — 같은 날 다시 찍어도 처음 시각 유지 */
+    try{ markAttendanceTime(today, member.id, timeStr); }catch(e){}
+  }
 
   // 성공 화면
   var photo=member.photo
@@ -18177,6 +18379,9 @@ async function _syncFromFirebaseOnce(){
        맞춘 뒤에 한 번 돌린다. 그리고 **옛 기준본을 떠 두어** 아직 안 올린 내 변경을 얹는다. */
   var _preBase = {}; try{ _preBase = JSON.parse(JSON.stringify(_csBase||{})); }catch(e){}
   var _preSaBase = _saBase;
+  /* ★ v295(60-B3): 출석·출석시각도 **옛 기준본을 떠 둔다** — 아래에서 받은 값에
+     「아직 안 올린 내 변경」을 얹을 때 쓴다(`_preBase`·`_preSaBase` 와 같은 까닭). */
+  var _preAtBase = { attendance: _atBase.attendance, attendanceTime: _atBase.attendanceTime };
   _csSyncing = true;
   var _cs = _drvMode0 ? null : await loadAllCarState();
   var _csMine = _drvMode0 ? await loadMyCarState() : null;
@@ -18217,7 +18422,13 @@ async function _syncFromFirebaseOnce(){
   if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
   if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
-  if(fbAtt){ localStorage.setItem('tkd_attendance', JSON.stringify(fbAtt)); }
+  /* ★★ v295(60-B3): 덮지 말고 **얹는다** — 서버도 이 문서를 쓰므로(출결 판·출석 기기)
+     받은 값 위에 「아직 안 올린 내 변경」을 올리고, **받은 값을 기준본**으로 둔다. */
+  if(fbAtt){
+    _atSetBase('attendance', fbAtt);
+    var _atUse = atRebase('attendance', fbAtt, loadAttendance(), _preAtBase.attendance);
+    localStorage.setItem('tkd_attendance', JSON.stringify(_atUse));
+  }
   if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
   /* 알리고 키는 서버(Vercel)에만 있습니다. 클라우드에서 내려받지 않습니다. */
   try{ localStorage.removeItem('tkd_aligo'); }catch(e){}
@@ -18239,7 +18450,11 @@ async function _syncFromFirebaseOnce(){
   var fbStaff = await loadFromFirebase('staff');
   if(fbStaff){ localStorage.setItem('tkd_staff', JSON.stringify(fbStaff)); }
   var fbAttTime = await loadFromFirebase('attendanceTime');
-  if(fbAttTime){ localStorage.setItem('tkd_attendance_time', JSON.stringify(fbAttTime)); }
+  if(fbAttTime){
+    _atSetBase('attendanceTime', fbAttTime);
+    var _atTUse = atRebase('attendanceTime', fbAttTime, loadAttendanceTime(), _preAtBase.attendanceTime);
+    localStorage.setItem('tkd_attendance_time', JSON.stringify(_atTUse));
+  }
   var fbDelivDone = _merged ? _merged.deliveryDone : null;
   if(fbDelivDone){ localStorage.setItem(deliveryDoneKey(), JSON.stringify(fbDelivDone)); }
   /* v275: 하차 완료도 차량별 문서에서 함께 받는다(전에는 동기화에 없어 폰에만 있었다) */
@@ -18551,7 +18766,17 @@ function startFirebaseListeners(){
       }
       else if(key==='payments'){ localStorage.setItem('tkd_payments',JSON.stringify(data)); }
       else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
-      else if(key==='attendance'){ localStorage.setItem('tkd_attendance',JSON.stringify(data)); }
+      /* ★★ v295(60-B3): 덮지 말고 **얹는다** — 서버도 이 문서를 쓴다(출결 판·출석 기기).
+         받은 값을 **기준본**으로 두고, 아직 안 올린 내 변경만 그 위에 올린다. */
+      else if(key==='attendance'){
+        /* ★★ 순서가 중요하다 (v284 교훈 · 크롬으로 실측) — **얹기는 「그 전 기준본」으로** 세고,
+           기준본은 그 다음에 **받은 서버값**으로 바꾼다. 거꾸로 하면(기준본을 먼저 바꾸면)
+           「서버값 → 로컬」 차이를 내는 셈이 되어 **서버가 방금 찍은 칸을 지운다**. */
+        var _atL = loadAttendance();
+        var _atUse2 = atRebase('attendance', data, _atL, _atBase['attendance']);
+        _atSetBase('attendance', data);
+        localStorage.setItem('tkd_attendance', JSON.stringify(_atUse2));
+      }
       else if(key==='notices'){ notices=data; localStorage.setItem('tkd_notices',JSON.stringify(data)); }
       /* v275: 직원 근태만 따로 온다 — 기사 몫은 carState 리스너가 가져온다.
          화면이 보는 `tkd_driver_att` 는 **합친 것**이라 여기서 통째로 덮지 않고 직원 몫만 바꾼다. */
@@ -18574,7 +18799,12 @@ function startFirebaseListeners(){
       else if(key==='drivelogManual'){ localStorage.setItem('tkd_drivelog_manual',JSON.stringify(data)); }
       else if(key==='payrollManual'){ localStorage.setItem('tkd_payroll_manual',JSON.stringify(data)); }
       else if(key==='staff'){ localStorage.setItem('tkd_staff',JSON.stringify(data)); }
-      else if(key==='attendanceTime'){ localStorage.setItem('tkd_attendance_time',JSON.stringify(data)); }
+      else if(key==='attendanceTime'){
+        var _atTL = loadAttendanceTime();
+        var _atTUse2 = atRebase('attendanceTime', data, _atTL, _atBase['attendanceTime']);
+        _atSetBase('attendanceTime', data);
+        localStorage.setItem('tkd_attendance_time', JSON.stringify(_atTUse2));
+      }
       /* ★ v290(59-B5): 자격증 — 올리기만 하던 키를 받기 쪽에도 넣었다 */
       else if(key==='certificates'){ localStorage.setItem('tkd_certificates',JSON.stringify(data)); }
       renderByTab();

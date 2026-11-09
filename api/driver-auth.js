@@ -398,6 +398,73 @@ export default async function handler(req, res) {
     }
   }
 
+  /* ── «회원» 출석 (60-B3 · v295) ────────────────────────────────────────────
+     ★★ 왜 서버가 찍나 — 60-B4 의 **출석 전용 기기**는 업체 명단을 받지 않고(결정 2),
+       규칙상 아무 컬렉션도 못 읽는다. 그래서 「PIN 을 맞추고 출석을 적는 일」이
+       서버에 있어야 한다. 그 자리를 **먼저**(B3) 만들어 두고, 앱의 출결 판도 이 창구만
+       쓰게 바꾼다 — **같은 문서를 둘이 쓰는 문제를 입구보다 먼저** 푸는 순서다(60-A 설계 9).
+     ★ PIN 대조는 지금 **평문**이다(`data/members` 의 `pin`) — 해시로 옮기는 것은 60-B4.
+       그래서 이 함수는 **그때 해시 대조로만 바꾸면** 되도록 「찾기」와 「적기」를 갈라 두었다.
+     ★ 적는 것은 **그 칸만**: `attendance[날짜][회원id]='present'` ·
+       `attendanceTime[날짜][회원id]='HH:MM'`(**이미 있으면 그대로** — 앱 규칙과 같다).
+     ★ 시각·날짜는 **서버 KST**(`kstDateStr`·`kstTimeStr`) — 기기 시계를 바꿔도 안 바뀐다.
+     ★ 백업은 다른 쓰기와 **같은 자리·같은 꼴**(`<키>__<시각>` · `key` 필드).
+     반환: { ok, name, photo, time, date } | { error } */
+  async function punchMember(org, pin) {
+    const mRef = A.db.collection('orgs').doc(org).collection('data').doc('members');
+    let list = null;
+    try {
+      const snap = await mRef.get();
+      if (!snap.exists) return { notfound: true };
+      list = JSON.parse(String((snap.data() || {}).value || '[]'));
+    } catch (e) { return { error: '명단을 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.' }; }
+    if (!Array.isArray(list)) return { notfound: true };
+    /* 「찾기」 — 60-B4 에서 **해시 대조**로 바꿀 자리는 이 한 줄이다 */
+    const me = list.find(m => m && String(m.pin || '') === pin);
+    if (!me) return { notfound: true };
+    const now = Date.now();
+    const dateStr = kstDateStr(now);
+    const timeStr = kstTimeStr(now);
+    const put = async (key, apply) => {
+      const ref = A.db.collection('orgs').doc(org).collection('data').doc(key);
+      return await A.db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        let cur = {}, prevStr = null;
+        if (snap.exists) {
+          prevStr = (snap.data() || {}).value || null;
+          try { cur = prevStr ? JSON.parse(prevStr) : {}; } catch (e) { cur = {}; }
+          if (!cur || typeof cur !== 'object' || Array.isArray(cur)) cur = {};
+        }
+        if (!cur[dateStr] || typeof cur[dateStr] !== 'object') cur[dateStr] = {};
+        const changed = apply(cur[dateStr]);
+        if (changed) {
+          tx.set(ref, { value: JSON.stringify(cur), updatedAt: now });
+          if (prevStr) {
+            tx.set(A.db.collection('orgs').doc(org).collection('backups').doc(key + '__' + now),
+                   { key: key, value: prevStr, backupAt: now });
+          }
+        }
+        return changed;
+      });
+    };
+    try {
+      await put('attendance', (day) => { day[String(me.id)] = 'present'; return true; });
+      /* 시각은 **처음 것만** 남긴다(앱 `markAttendanceTime` 과 같은 규칙) */
+      await put('attendanceTime', (day) => {
+        if (day[String(me.id)]) return false;
+        day[String(me.id)] = timeStr;
+        return true;
+      });
+    } catch (e) {
+      console.log('[driver-auth] 출석 기록 실패');
+      return { error: '기록하지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
+    }
+    /* 돌려주는 것은 **그 사람 것만** — 사진은 **주소일 때만**(데이터 URL 은 너무 커서 안 보낸다) */
+    const photo = String(me.photo || '');
+    return { ok: true, name: String(me.name || ''), photo: /^https?:\/\//.test(photo) ? photo : '',
+             time: timeStr, date: dateStr };
+  }
+
   /* 호출자 확인 — 출퇴근을 찍을 수 있는 토큰인가 (checkin·checkout)
      ★ 43-C: **기사(차량) 또는 동승 도우미(직원)** 둘이다. 그 전에는 기사만이었다.
        앱은 같은 동작 이름(`checkin`·`checkout`)을 그대로 부르고, **누구인지는 토큰이 정한다**
@@ -713,6 +780,27 @@ export default async function handler(req, res) {
             if (!staffId && sameHash(v.pinHash, want)) staffId = String(v.staffId || '');
           });
         } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      }
+      /* ★★ v295(60-B3): **출결 판**은 `member:true` 로 부른다 — 그 판은 «회원» 만 받는다(60-B1).
+         · 기사·직원 PIN 이면 **찍지 않고** 「다른 판이에요」만 알려 준다(`wrongPad`) —
+           이 갈래가 **기록보다 앞**에 있어야 한다(뒤에 두면 출결 판에서 누른 기사 PIN 이 찍힌다).
+         · «회원» 이면 **서버가 출석을 찍는다**(`punchMember` · 그 칸만 · 서버 KST).
+         ★ 깃발이 **없는** 요청(배포 직후 잠깐 남아 있는 v293·v294 앱)은 **종전 그대로** —
+           기사·직원은 찍고, 아니면 404 `notdriver` 로 답해 그 앱이 로컬 평문으로 «회원» 을 찾는다.
+         ★ `probe:true`(v293)도 그대로 둔다 — 그 앱들이 아직 그 길로 묻는다. */
+      if (b.member === true && !(b.probe === true)) {
+        if (carId || staffId) {
+          return res.status(200).json({ ok: true, kind: carId ? 'driver' : 'staff', wrongPad: true });
+        }
+        if (!(await ownerAlive((await resolveOwnerUid(org))))) {
+          return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
+        }
+        const mr = await punchMember(org, pin);
+        if (mr.error) return fail(res, 500, mr.error);
+        if (mr.notfound) return fail(res, 404, 'PIN 번호가 올바르지 않습니다.', 'nomember');
+        await writeLogin(org, '', true, 'pad:member', '', null);
+        return res.status(200).json({ ok: true, kind: 'member', name: mr.name, photo: mr.photo,
+                                      time: mr.time, date: mr.date });
       }
       /* 기사도 직원도 아니면 **앱이 «회원» PIN 으로 이어서 본다** — 404 로 알려 준다 */
       if (!carId && !staffId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');

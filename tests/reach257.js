@@ -268,12 +268,18 @@ console.log('\n════ 6. 실제로 돌려 보기 — 모인 saveToFirebase
   console.log('      모인 키: ' + (R.saved.join(', ') || '없음'));
   ck('attendance·attendanceTime 이 모인 키에 없다',
     R.saved.filter(k => k === 'attendance' || k === 'attendanceTime').join(',') || '없음', '없음');
-  ck('   (대조) 관리자 출석 단추를 누르면 attendance 가 모인다', (() => {
+  /* ★ v295(60-B3): 출석은 이제 `saveToFirebase`(통째)가 아니라 **「바뀐 칸만」 트랜잭션**
+     (`writeAttendancePatch`)으로 나간다 — 그래서 `saved` 에 키가 안 모인다.
+     대조의 뜻은 그대로다: **관리자 출석 단추는 서버로 나간다**(기사 화면과 다르다). */
+  ck('   (대조) 관리자 출석 단추는 **서버로 나간다**(패치 쓰기)', (() => {
     const A = boot({});
     A.ev("currentMode='admin'; currentAdminTab='attendance'; attViewDate=todayStr();");
+    A.ev("window._db={}; _firstSyncOk=true; var _atHit=0;"
+       + " writeAttendancePatch=function(){ _atHit++; return Promise.resolve(true); };");
     try { A.sandbox.setAttendance(1, 'present'); } catch (e) { return 'ERR:' + e.message.slice(0, 30); }
-    return A.saved.indexOf('attendance') >= 0 ? '모인다' : '안 모인다 (' + A.saved.join(',') + ')';
-  })(), '모인다');
+    /* 오늘 「출석」을 새로 켜면 **두 키**가 나간다 — `attendance` + `attendanceTime`(시각) */
+    return Number(A.ev('String(_atHit)')) >= 1 ? '나간다' : '안 나간다(' + A.ev('String(_atHit)') + ')';
+  })(), '나간다');
   ck('   기사 PIN 판은 열리지 않았다 (토스트만)',
     (R.toasts || []).some(t => /관리자 화면에서/.test(t)), true);
   /* 기사 회원 화면에 관리자 단추가 실제로 안 나오나 — 대조로 관리자 화면에는 나와야 한다 */
