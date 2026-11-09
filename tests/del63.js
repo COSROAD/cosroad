@@ -455,7 +455,18 @@ const DUMP = (over) => {
       ck('  (대조) 옛 판에는 없다', bodyOf(OLD_SRC, f).indexOf('okToWriteNow()') >= 0, false);
     });
     /* 문지기 자리 전수 — v295 까지 여덟 + 이번 여섯 = **열넷** */
-    ck('★ 문지기 자리 수', (NEW_SRC.match(/!okToWriteNow\(\)/g) || []).length, 14);
+    /* ★★ **그 회차 수는 그 회차 커밋에서** 읽는다 — 작업트리에서 세면 뒷 회차가 문지기를
+       더 붙일 때마다 **거짓으로** 깨진다(v305/64 가 코스 삭제에 하나를 더해 겪었다 ·
+       `share291` 과 같은 손질). 지금 소스는 「**줄지 않았나**」로만 본다. */
+    const THIS_SRC = THIS_REF
+      ? cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':index.html',
+        { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n')
+      : NEW_SRC;
+    const gates = (s) => (s.match(/!okToWriteNow\(\)/g) || []).length;
+    ck('★ 문지기 자리 수(이 회차 커밋)', gates(THIS_SRC), 14);
+    ck('  지금 소스는 **줄지 않았다**',
+      gates(NEW_SRC) >= 14 ? 'OK(' + gates(NEW_SRC) + ')' : gates(NEW_SRC),
+      'OK(' + gates(NEW_SRC) + ')');
     ck('  (대조) 옛 판은 여덟', (OLD_SRC.match(/!okToWriteNow\(\)/g) || []).length, 8);
     /* 백업이 참·거짓을 돌려주고, 「전체 삭제」가 그 값을 본다 */
     const bk = bodyOf(NEW_SRC, 'backupData');
@@ -496,9 +507,11 @@ const DUMP = (over) => {
     const panels = (src) => (src.match(/BACK_PANEL_IDS\s*=\s*\[[\s\S]*?\]/) || [''])[0];
     ck('★ 새 창(덮개) 0 — `BACK_PANEL_IDS` 그대로',
       panels(NEW_SRC) === panels(OLD_SRC) ? '그대로' : '바뀜', '그대로');
-    ck('  막는 안내는 `alert` 한 줄',
-      /if\(_lk\)\{ alert\(_lk\); return; \}/.test(NEW_SRC)
-        && (NEW_SRC.match(/if\(_lk\)\{ alert\(_lk\); return; \}/g) || []).length, 2);
+    const blocks = (s) => (s.match(/if\(_lk\)\{ alert\(_lk\); return; \}/g) || []).length;
+    ck('  막는 안내는 `alert` 한 줄(이 회차 커밋)', blocks(THIS_SRC), 2);
+    ck('  지금 소스는 **줄지 않았다**',
+      blocks(NEW_SRC) >= 2 ? 'OK(' + blocks(NEW_SRC) + ')' : blocks(NEW_SRC),
+      'OK(' + blocks(NEW_SRC) + ')');
     /* 로그아웃 짝 — 이번에 더한 전역·타이머·리스너·기기 저장 칸이 **0개**임을 못 박는다 */
     const added = NEW_SRC.length - OLD_SRC.length;
     ck('  (로그아웃 짝) 새 `setInterval`·`onSnapshot` 0',
@@ -515,7 +528,8 @@ const DUMP = (over) => {
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    ck('  버전 304', appV, 304);
+    /* ★ 이 회차는 304 였다 — 뒷 회차가 올리므로 **그 이상**으로 본다 */
+    ck('  버전 304 이상', appV >= 304 ? 'OK(' + appV + ')' : appV, 'OK(' + appV + ')');
     ck('  `version.json` 과 같다',
       String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
     /* HELP_QA — **문답표 안에서** 찾는다(소스 쪽지에 같은 글자가 있어 전체 검색은 흐려진다) */
