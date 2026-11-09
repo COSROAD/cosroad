@@ -485,12 +485,28 @@ export default async function handler(req, res) {
         return changed;
       });
     };
+    /* ★★ v298(60-B4 보정1): **그날 처음인지**(`first`)를 가린다 — 사장님 결정 11-09.
+       v297 까지는 누를 때마다 출석을 **다시 쓰고** 백업을 하나 더 남기고 **알림톡을 또 보냈다**
+       (스텁 실측: 둘째 누름에 쓰기 1·백업 1·알림톡 1). 등원 알림은 **하루 한 번**이면 된다.
+       ★ 기준은 **출석 시각 칸이 이미 있는가** 하나다 — 앱 `markAttendanceTime` 과 같은 규칙이고,
+         관리자가 손으로 적은 `{t,by:'admin'}` 꼴(v244)도 「이미 있다」로 센다.
+       ★ **먼저 시각 칸**을 보고 그 뒤에 출석 칸을 고친다(순서가 뒤집히면 `first` 를 알 수 없다).
+       ★ 처음이 아니면 `apply` 가 거짓을 돌려주므로 **쓰기도 백업도 아예 없다**.
+       ★ 다만 **결석으로 둔 사람이 실제로 왔으면** 출석 칸은 고친다(시각은 처음 것을 지킨다). */
+    let isFirst = false, firstTime = '';
     try {
-      await put('attendance', (day) => { day[String(me.id)] = 'present'; return true; });
-      /* 시각은 **처음 것만** 남긴다(앱 `markAttendanceTime` 과 같은 규칙) */
-      await put('attendanceTime', (day) => {
-        if (day[String(me.id)]) return false;
-        day[String(me.id)] = timeStr;
+      isFirst = await put('attendanceTime', (day) => {
+        const prev = day[String(me.id)];
+        if (prev) {                      /* 'HH:MM' 또는 {t,by:'admin'}(앱 v244) 둘 다 받는다 */
+          firstTime = (typeof prev === 'object') ? String(prev.t || '') : String(prev);
+          return false;
+        }
+        day[String(me.id)] = timeStr; firstTime = timeStr;
+        return true;
+      });
+      await put('attendance', (day) => {
+        if (String(day[String(me.id)] || '') === 'present') return false;
+        day[String(me.id)] = 'present';
         return true;
       });
     } catch (e) {
@@ -504,8 +520,9 @@ export default async function handler(req, res) {
     const phones = [];
     if (me.phone) phones.push(String(me.phone));
     if (me.phone2) phones.push(String(me.phone2));
+    /* ★ `time` 은 **처음 시각**이다(둘째 누름에는 화면이 「이미 출석했어요 (08:10)」로 쓴다) */
     return { ok: true, name: String(me.name || ''), photo: /^https?:\/\//.test(photo) ? photo : '',
-             time: timeStr, date: dateStr,
+             time: firstTime || timeStr, date: dateStr, first: isFirst,
              _phones: phones, _invoice: String(me.invoice || ''), _courier: String(me.courier || '') };
   }
 
@@ -521,6 +538,9 @@ export default async function handler(req, res) {
        한 번의 출석에 창구는 하나뿐이므로 두 길이 겹치지 않는다(보고문 표).
      반환: 보낸 건수(0 이면 못 보냈다 — 출석은 이미 찍혔으므로 응답을 막지 않는다) */
   async function kioskNotify(org, mr) {
+    /* ★★ v298(60-B4 보정1): **그날 처음 찍은 것만** 보낸다 — 문지기를 **이 한 자리**에 둔다
+       (부르는 쪽에 두면 창구가 늘 때 빠뜨린다). 관리자 판은 앱이 같은 기준으로 가른다. */
+    if (!mr.first) return 0;
     const phones = Array.isArray(mr._phones) ? mr._phones : [];
     if (!phones.length) return 0;
     let biz = 'academy', orgName = '';
@@ -929,7 +949,7 @@ export default async function handler(req, res) {
       let sent = 0;
       try { sent = await kioskNotify(org, mr); } catch (e) { sent = 0; }
       return res.status(200).json({ ok: true, name: mr.name, photo: mr.photo,
-                                    time: mr.time, date: mr.date, sent: sent });
+                                    time: mr.time, date: mr.date, first: mr.first, sent: sent });
     }
 
     /* ── c) 관리자 공용 기기의 PIN 출퇴근 패드 ── */
@@ -983,8 +1003,9 @@ export default async function handler(req, res) {
         if (mr.error) return fail(res, 500, mr.error);
         if (mr.notfound) return fail(res, 404, 'PIN 번호가 올바르지 않습니다.', 'nomember');
         await writeLogin(org, '', true, 'pad:member', '', null);
+        /* ★ v298: `first` 를 함께 준다 — **알림톡은 앱이** 보내므로 앱이 같은 기준으로 가른다 */
         return res.status(200).json({ ok: true, kind: 'member', name: mr.name, photo: mr.photo,
-                                      time: mr.time, date: mr.date });
+                                      time: mr.time, date: mr.date, first: mr.first });
       }
       /* 기사도 직원도 아니면 **앱이 «회원» PIN 으로 이어서 본다** — 404 로 알려 준다 */
       if (!carId && !staffId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');

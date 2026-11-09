@@ -102,7 +102,9 @@ const attOf = (S) => {
     asKiosk(S);
     const r = await kAtt(S, '1111');
     ck('200', r.code, 200);
-    ck('★ 이름·시각만 온다', Object.keys(r.body || {}).sort().join(','), 'date,name,ok,photo,sent,time');
+    /* ★ v298(60-B4 보정1): `first`(그날 처음인가) 한 칸이 늘었다 — 알림톡을 하루 한 번만
+       보내려고 **서버가** 가린다. 사람 정보는 늘지 않았다(그 점은 아래 줄이 지킨다). */
+    ck('★ 이름·시각만 온다', Object.keys(r.body || {}).sort().join(','), 'date,first,name,ok,photo,sent,time');
     ck('  이름', (r.body || {}).name, '가하은');
     ck('★ 응답에 **번호가 없다**', /010-/.test(JSON.stringify(r.body)), false);
     ck('★ 출석이 그 칸에 찍혔다', JSON.stringify(attOf(S)), '{"1":"present"}');
@@ -128,9 +130,11 @@ const attOf = (S) => {
     ck('  알림톡 주소로 갔다', /alimtalk\/send/.test((sent[0] || {}).url || ''), true);
     ck('★ 응답의 `sent` 가 1', (r.body || {}).sent, 1);
     ck('  (실제 호출은 가짜다 — 바깥 통신 0건)', /aligo\.in/.test((sent[0] || {}).url || ''), true);
-    /* 같은 사람을 또 찍어도 **출석은 그대로**이고 알림톡은 그때마다 한 번이다 */
+    /* ★ v298(60-B4 보정1): 같은 사람을 같은 날 또 찍으면 **더 안 보낸다**(쓰기·백업도 0) —
+       v297 까지는 누를 때마다 한 건씩 나갔다(`tests/twice298.js` 가 그 자리를 자세히 잰다). */
     const r2 = await kAtt(S, '1111');
-    ck('다시 찍으면 알림톡 1건 더(모두 1건씩)', (S.sent || []).length, 2);
+    ck('★ 다시 찍으면 알림톡 **0건 더**', (S.sent || []).length, 1);
+    ck('  둘째 응답은 `first:false`', String((r2.body || {}).first), 'false');
     ck('  출석 칸은 그대로', JSON.stringify(attOf(S)), '{"1":"present"}');
     /* 번호가 명부에 없으면 안 보낸다 */
     const S2 = st({ memberPin: '1111' });
