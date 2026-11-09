@@ -694,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 302;
+const APP_VERSION = 303;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5758,7 +5758,7 @@ var HELP_QA=[
    a:'1. 안 보여요. 계정마다 자기 업체 자료만 열려요\n2. 주소(링크)를 알아도 자기 업체가 아니면 열리지 않아요\n3. 둘러보기(데모)는 누구나 볼 수 있지만 저장은 안 돼요'},
   /* keys에 맨 '등록'·'추가'를 두면 「도장 등록」·「아이콘 추가」 같은 질문까지 끌어와서 뺐다 */
   {role:'admin', keys:['회원','거래처','회원등록','거래처등록'], t:'회원/거래처 등록',
-   a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요\n4. <b>금액·수량 칸은 천단위 쉼표가 저절로 붙어요</b> (v301) — 「1234567」을 치면 <b>1,234,567</b> 로 보이고, 저장되는 값은 숫자예요. 쉼표를 지우지 않아도 됩니다\n5. <b>번호 칸에는 쉼표가 안 붙어요</b> — 출석 PIN·전화번호·사업자번호·계좌번호·송장번호는 적은 그대로예요'},
+   a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요\n4. <b>금액·수량 칸은 천단위 쉼표가 저절로 붙어요</b> (v301) — 「1234567」을 치면 <b>1,234,567</b> 로 보이고, 저장되는 값은 숫자예요. 쉼표를 지우지 않아도 됩니다\n5. <b>번호 칸에는 쉼표가 안 붙어요</b> — 출석 PIN·전화번호·사업자번호·계좌번호·송장번호는 적은 그대로예요\n6. <b>지울 때</b>는 출석 PIN 이 있는 사람이면 서버에서 그 PIN 을 먼저 지워요 (v303) — 못 지우면 <b>삭제를 멈추고</b> 알려 드려요\n6-1. 여러 명을 골라 지울 때는 <b>된 사람만</b> 지워지고, 안 된 사람은 <b>남겨 두고</b> 「N명은 서버 PIN 을 못 지워 남겨 두었어요」라고 알려 드려요 (고른 표시도 그 사람만 남아 다시 누르면 그 사람만 시도해요)'},
   {role:'all', keys:['천단위','쉼표','콤마','숫자','금액표시'], t:'숫자에 쉼표(천단위)',
    a:'1. <b>금액·수량·km·인원·건수</b>처럼 「양」을 나타내는 숫자는 <b>어디서나 천단위 쉼표</b>로 보여요 (v301) — 화면·카드·표·인쇄·PDF·엑셀 모두요\n2. <b>입력할 때도</b> 쉼표가 저절로 붙어요 — 「1234567」을 치면 <b>1,234,567</b>. 저장되는 값은 숫자라 계산·합계가 그대로 돼요\n3. <b>번호에는 안 붙어요</b> — 출석 PIN·전화번호·사업자번호·계좌번호·차량번호·업체 번호·출석기기 코드·송장번호·연도·날짜는 적은 그대로예요 (쉼표가 들어가면 뜻이 달라지니까요)\n4. 소수가 있는 칸(주유 <b>리터</b>·보험 <b>요율</b>·출퇴근 <b>거리</b>)은 입력할 때 쉼표를 붙이지 않아요 — 소수점이 깨지지 않게요. 보여 줄 때는 쉼표가 붙어요 (예: 1,234.5L)\n5. <b>엑셀</b>로 내보낸 숫자도 쉼표로 보이지만 <b>숫자 칸</b>이라 엑셀에서 합계·평균이 그대로 돼요'},
   {role:'admin', keys:['엑셀','업로드','일괄','양식','다운','내려받기'], t:'엑셀 일괄 업로드·데이터 다운',
@@ -5840,7 +5840,7 @@ var HELP_QA=[
   {role:'admin', keys:['현황','대시보드','통계'], t:'현황(대시보드) 보는 법',
    a:'1. 관리자 → 「📊 현황」 탭\n2. 위 카드: 전체 «회원» · 오늘 «출석» · 차량별 오늘 인원 — 카드를 누르면 명단이 아래에 펼쳐져요\n3. 「오늘 «출석률»」 막대와 차량별 진행 막대로 한눈에 확인해요\n4. 「💰 정부 지원사업」 카드를 누르면 공고 목록이 열려요\n5. 「📑 서류·인증 도움」에는 자주 쓰는 정부 사이트 바로가기가 있어요'},
   {role:'admin', keys:['차량','호차','기사','배정','차량번호','차종'], t:'차량 등록·기사 배정',
-   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n9-1. <b>동승 도우미</b>(학원·공공) — 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 그 차에 함께 타는 <b>직원</b>을 고를 수 있어요. 한 차량에 한 명이고, PIN 이 있는 직원만 고를 수 있어요\n9-2. 고른 도우미는 <b>자기 직원 PIN</b> 으로 「🚐 기사 로그인」에 들어와 그 차량 운행 화면을 봐요 — 배정을 바꾸면 도우미 화면도 <b>바로</b> 따라가고, 떼면 그 자리에서 자료가 막혀요\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요'},
+   a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n9-1. <b>동승 도우미</b>(학원·공공) — 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 그 차에 함께 타는 <b>직원</b>을 고를 수 있어요. 한 차량에 한 명이고, PIN 이 있는 직원만 고를 수 있어요\n9-2. 고른 도우미는 <b>자기 직원 PIN</b> 으로 「🚐 기사 로그인」에 들어와 그 차량 운행 화면을 봐요 — 배정을 바꾸면 도우미 화면도 <b>바로</b> 따라가고, 떼면 그 자리에서 자료가 막혀요\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요\n12. <b>차량을 지울 때는 서버에서 먼저 정리해요</b> (v303) — 그 차량의 <b>기사 PIN·묶인 기기·동승 도우미 배정</b>을 서버에서 지운 뒤에 차량이 사라져요. 그래야 지운 차량의 기사가 그 PIN 으로 더는 로그인할 수 없어요\n12-1. 인터넷이 끊겼거나 서버가 응답하지 않으면 <b>삭제를 멈추고</b> 알려 드려요 — 차량은 그대로 남아 있으니 <b>잠시 뒤 다시</b> 지우시면 돼요 (이용 기간이 끝난 업체도 막혀요)'},
   /* v273 — 두 차량 칸. 학원·공공만 쓰는 기능이라 그 점을 먼저 적는다. */
   {role:'admin', keys:['하원차량','하원','등원','두차량','따로배정'], t:'등원·하원 차량을 따로 (하원 차량)',
    a:'한 «회원»이 <b>등원은 1호차, 하원은 2호차</b>로 다닐 수 있어요 (학원·공공만 — 물류·택배는 하원이 없어 칸이 안 보여요)\n1. «회원»관리 → 수정 → 「차량」 아래 <b>「하원 차량」</b> 에서 고르세요. 기본은 <b>「등원과 같음」</b> 이에요\n2. 「등원과 같음」이면 지금까지처럼 <b>한 대</b>로 등·하원을 다 돌아요 — 쓰던 «회원»은 손댈 것이 없어요\n3. 차량관리에서도 바꿀 수 있어요 — 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요\n4. <b>운행 화면</b>은 방향에 따라 갈려요 — 등원 탭에는 등원 차량의 «회원», 하원 탭에는 하원 차량의 «회원»이 나와요\n5. 기사 「«회원»」 탭에는 <b>등원·하원 어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n6. 하원 차량 기사도 그 «회원»에게 <b>하차 알림 문자</b>를 보낼 수 있어요\n7. <b>수강료·«출결»은 등원 차량 하나 기준</b>이에요 — 한 «회원»이 두 번 세어지지 않아요\n8. 기사 급여는 <b>출퇴근 시간</b>으로 계산해서 이것과 상관없어요\n9. 차량을 지우면 그 차량을 하원으로 쓰던 «회원»도 「등원과 같음」으로 돌아가요'},
@@ -15525,7 +15525,10 @@ function renderCarlogModal(){
   }
   if(carlogType!=='etc'){
     /* 계기판 유형일 때는 고른 시점(출근/퇴근)의 값을 채워 넣는다 */
-    var _odoVal = (carlogType==='odo' && carlogOdoWhen==='start') ? (editRec&&editRec.odoStart?editRec.odoStart:'') : (editRec&&editRec.odo?editRec.odo:'');
+    /* ★ v303(57 보정1 덧붙임): **고치기로 다시 열 때도 쉼표**를 보여 준다(61-1 기본 원칙).
+       읽기는 `numOf` 라 값은 전부터 맞았다 — **보이는 것만** 바뀐다(빈 값은 빈 칸 그대로). */
+    var _odoRaw = (carlogType==='odo' && carlogOdoWhen==='start') ? (editRec&&editRec.odoStart?editRec.odoStart:'') : (editRec&&editRec.odo?editRec.odo:'');
+    var _odoVal = _odoRaw===''? '' : fmtNum(_odoRaw);
     h+='<input id="cl-odo" type="text" inputmode="numeric" oninput="fmtAmountInput(this)" placeholder="'+(carlogType==='odo'?((carlogOdoWhen==='start'?'출근':'퇴근')+' 계기판 km'):'계기판km(선택)')+'" value="'+_odoVal+'" style="flex:1.2;padding:8px;border:1px solid #EAECF0;border-radius:8px;font-size:13px;min-width:0;"/>';
   }
   h+='<button onclick="saveCarlogEntry()" style="padding:8px 14px;background:#0E7090;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">'+(editRec?'수정':'저장')+'</button>';
@@ -18064,7 +18067,39 @@ function addCar(){
 function deleteCurrentCar(){
   var car = cars[currentCarTab];
   if(!car) return;
-  showConfirmModal(function(){
+  showConfirmModal(async function(){
+  /* ★★ v303(코스로드57 보정1): **서버를 먼저 지운다 · 실패하면 아무것도 안 지운다.**
+     v302 까지는 `setCarHelper(…,'')` 를 **기다리지 않고** 빈 try/catch 로 부른 뒤 바로
+     차량을 지웠고, 그 차량의 **기사 PIN(`driverPins`)·묶인 기기(`driverDevices`)는
+     아예 안 지웠다**. 그래서 지운 차량의 기사가 **그 PIN 으로 계속 로그인**할 수 있었다
+     (스텁 실측: 차량은 사라지고 서버에 셋이 그대로 남았다).
+     → `removeDriverPin` → `unbindDevice` → `setCarHelper('')` 를 **차례로 기다리고**,
+       하나라도 실패(`!r || !r.ok`)하면 **아무것도 안 지우고** 안내한다
+       (직원 삭제 v300 과 **같은 꼴** · 기간 끝이면 서버 안내 그대로).
+     ★ 셋 다 **멱등**이다 — 없는 문서를 지우는 것은 그냥 지나간다(서버 코드 확인).
+       `removeDriverPin` 이 기기까지 지우지만, **기기 문서만 남은 경우**를 위해
+       `unbindDevice` 를 한 번 더 부른다(두 번 불러도 해롭지 않다).
+     ★ 둘러보기(`_demo`)는 서버를 **안 부른다**(종전 그대로). */
+  if(!(typeof isDemoMode==='function' && isDemoMode())){
+    var _org = getFbOrgId();
+    var _steps = [
+      { action:'removeDriverPin', org:_org, carId:car.id },
+      { action:'unbindDevice',    org:_org, carId:car.id }
+    ];
+    if(car.helperStaffId) _steps.push({ action:'setCarHelper', org:_org, carId:car.id, staffId:'' });
+    for(var _si=0; _si<_steps.length; _si++){
+      var _r=null;
+      try{ _r=await driverAcctApi(_steps[_si]); }catch(e){ _r=null; }
+      if(!_r || !_r.ok){
+        if(_r && _r.why==='expired' && _r.message){ alert(_r.message); }
+        else {
+          alert('서버에서 이 차량의 기사 PIN·기기·동승 배정을 지우지 못해 삭제를 멈췄어요. '
+            + '잠시 뒤 다시 시도해 주세요.' + ((_r && _r.message) ? '\n\n('+_r.message+')' : ''));
+        }
+        return;                                 /* ★ 아무것도 안 지운다 */
+      }
+    }
+  }
   /* v273: 등원(carId)뿐 아니라 **하원(carIdDrop)도** 이 차량이면 비운다.
      안 비우면 지운 차량 id 가 남아 dropCarOf 가 없는 차량을 가리킨다. */
   var assigned = members.filter(function(m){return m.carId===car.id || String(m.carIdDrop||'')===car.id;});
@@ -18074,11 +18109,6 @@ function deleteCurrentCar(){
       if(String(m.carIdDrop||'')===car.id) m.carIdDrop='';
     });
     saveMembers();
-  }
-  /* ★ v280(43-A): 이 차량의 **동승 도우미 배정**도 서버에서 비운다
-     (안 비우면 `drivers/hlp_…` 가 없는 차량을 가리켜, 43-B 로그인 때 엉뚱한 차량이 열린다). */
-  if(car.helperStaffId && !(typeof isDemoMode==='function' && isDemoMode())){
-    try{ driverAcctApi({ action:'setCarHelper', org:getFbOrgId(), carId:car.id, staffId:'' }); }catch(e){}
   }
   cars.splice(currentCarTab, 1);
   saveCars(cars);
@@ -19344,8 +19374,30 @@ function confirmOk(){
 }
 
 
+/* ★★ v303(코스로드57 보정1): PIN 있는 «회원» 은 **서버 해시(`memberPins`)를 먼저 지운다.**
+   v302 까지는 로컬만 지워 `memberPins/{org}_{회원id}`(v296)가 **남았다**.
+   ★ 남은 해시로 **출석이 찍히지는 않는다**(서버 `punchMember` 는 해시로 찾은 id 를 **명단에서
+     다시 찾고**, 없으면 404 `nomember` 다 — 서버 스텁으로 실측). 그래서 위험은 「하」다.
+     남는 피해는 「그 번호를 **다른 «회원» 에게 줄 때** `checkPinDup` 에 걸린다」 하나다.
+   ★ 그래도 **찌꺼기를 남기지 않는다** — 직원(v300)·차량(v303)과 같은 태도로 맞춘다. */
+async function _memberPinWipe(m){
+  if(!m || !memberHasPin(m)) return { ok:true, skipped:true };
+  if(typeof isDemoMode==='function' && isDemoMode()) return { ok:true, skipped:true };
+  var r=null;
+  try{ r=await driverAcctApi({ action:'removeMemberPin', org:getFbOrgId(), memberId:String(m.id) }); }
+  catch(e){ r=null; }
+  return (r && r.ok) ? { ok:true } : { ok:false, why:(r&&r.why)||'', message:(r&&r.message)||'' };
+}
+function _memberWipeAlert(r, n){
+  if(r && r.why==='expired' && r.message){ alert(r.message); return; }
+  alert('서버에서 이 '+T('회원')+' PIN 을 지우지 못해 삭제를 멈췄어요. 잠시 뒤 다시 시도해 주세요.'
+    + ((r && r.message) ? '\n\n('+r.message+')' : ''));
+}
 function deleteMemberById(id){
-  showConfirmModal(function(){
+  showConfirmModal(async function(){
+    var _m = members.find(function(x){ return x.id === parseInt(id); });
+    var _w = await _memberPinWipe(_m);
+    if(!_w.ok){ _memberWipeAlert(_w); return; }       /* ★ 아무것도 안 지운다 */
     members = members.filter(function(m){ return m.id !== parseInt(id); });
     saveMembers();
     if(currentTab==='member') renderMembers();
@@ -19385,12 +19437,33 @@ function bulkDeleteMembers(){
   if(ids.length===0) return;
   var biz=getBizType();
   var unit=(biz==='logistics'||biz==='delivery')?'곳':'명';
-  showConfirmModal(function(){
-    members=members.filter(function(m){ return ids.indexOf(m.id)===-1; });
+  showConfirmModal(async function(){
+    /* ★★ v303: **성공한 사람만 지운다** — 서버 PIN 을 못 지운 사람은 **남겨 두고** 알린다
+       (한 명이 막혀 전부 못 지우는 것도, 찌꺼기를 남기고 다 지우는 것도 아니다). */
+    var okIds=[], failIds=[], firstErr=null;
+    for(var i=0;i<ids.length;i++){
+      var m = members.find(function(x){ return x.id===ids[i]; });
+      var w = await _memberPinWipe(m);
+      if(w.ok) okIds.push(ids[i]);
+      else { failIds.push(ids[i]); if(!firstErr) firstErr=w; }
+    }
+    if(okIds.length){
+      members=members.filter(function(m){ return okIds.indexOf(m.id)===-1; });
+      saveMembers();
+    }
+    /* 고른 것에서 **실패한 사람만** 남긴다 — 다시 누르면 그 사람만 시도한다 */
     _memberSel={};
-    saveMembers();
+    failIds.forEach(function(x){ _memberSel[x]=true; });
     renderAdminTab('members');
-  }, T('회원')+' '+ids.length+unit+'을 삭제합니다. 되돌릴 수 없어요.');
+    if(failIds.length){
+      if(firstErr && firstErr.why==='expired' && firstErr.message){ alert(firstErr.message); }
+      else {
+        showToast('⚠ '+fmtNum(failIds.length)+unit+'은 서버 PIN 을 못 지워 남겨 두었어요 — 잠시 뒤 다시');
+      }
+    } else {
+      showToast('🗑 '+fmtNum(okIds.length)+unit+'을 삭제했어요');
+    }
+  }, T('회원')+' '+fmtNum(ids.length)+unit+'을 삭제합니다. 되돌릴 수 없어요.');
 }
 
 
