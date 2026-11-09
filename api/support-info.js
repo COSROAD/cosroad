@@ -163,6 +163,24 @@ const WORD_NAMES = ['서울', '서울시', '부산', '부산시', '대구', '대
 const ORG_GLUE_NAMES = ['전남', '전북', '경남', '경북', '충남', '충북', '강원'];
 
 const isHangul = (ch) => !!ch && /[가-힣]/.test(ch);
+/* 낱말 단위로 **정확히 같은** 이름이 있나 — 한글이 붙어 있으면 낱말이 아니다.
+   ★ 코스로드55: `wordKeys`·`orgGlueKeys` 가 **각자 적어 두었던** 셈을 한 함수로 모았다.
+     **시군구도 이 함수를 쓴다** — 전에는 시군구만 `indexOf` 였고, 그래서 「서울특별시 강서구」가
+     인천 **서구** 업체에 통과했다(「강서구」 안의 「서구」 · 실측). 세 자리가 따로 적혀 있으면
+     한쪽만 고쳐져 또 어긋난다.
+   frontOnly = **앞 경계만** 본다 — 기관명 약칭(「전남정보문화산업진흥원」)과
+     시군구(「중구청」·「중구의」)는 뒤에 말이 붙는 것이 정상이다.
+     짧은 시도 이름은 **뒤도** 봐야 한다(「대전환」·「세종대왕」을 안 잡으려고 · 코스로드51). */
+function hasWord(str, name, frontOnly) {
+  const s = String(str || ''), n = String(name || '');
+  if (!n) return false;
+  let at = s.indexOf(n);
+  while (at >= 0) {
+    if (!isHangul(s.charAt(at - 1)) && (frontOnly || !isHangul(s.charAt(at + n.length)))) return true;
+    at = s.indexOf(n, at + 1);
+  }
+  return false;
+}
 /* 같은 키를 한 번만 담는다 */
 function pushKeys(out, name) {
   const ks = SHORT_TO_KEYS[name];
@@ -196,13 +214,7 @@ function wordKeys(s) {
   const out = [];
   for (let i = 0; i < WORD_NAMES.length; i++) {
     const n = WORD_NAMES[i];
-    let at = str.indexOf(n);
-    while (at >= 0) {
-      if (!isHangul(str.charAt(at - 1)) && !isHangul(str.charAt(at + n.length))) {
-        pushKeys(out, n); break;
-      }
-      at = str.indexOf(n, at + 1);
-    }
+    if (hasWord(str, n)) pushKeys(out, n);          /* 코스로드55: 셈은 `hasWord` 한 벌 */
   }
   return out;
 }
@@ -212,11 +224,7 @@ function orgGlueKeys(org) {
   const out = [];
   for (let i = 0; i < ORG_GLUE_NAMES.length; i++) {
     const n = ORG_GLUE_NAMES[i];
-    let at = str.indexOf(n);
-    while (at >= 0) {
-      if (!isHangul(str.charAt(at - 1))) { pushKeys(out, n); break; }
-      at = str.indexOf(n, at + 1);
-    }
+    if (hasWord(str, n, true)) pushKeys(out, n);     /* 코스로드55: 앞 경계만 — 같은 함수 */
   }
   return out;
 }
@@ -237,17 +245,25 @@ function findSido(v) {
 }
 
 /* 지역 판정 — 우리 지역 + 지역 표기 없는 전국·정부 공고만 통과.
-   ── 판정 순서 (강한 신호 우선 · v281-1 코스로드51에서 다시 적었다) ─────────
-     1) 우리 시군구가 있으면            → 통과 (사용자가 직접 지정한 값)
-     2) 우리 시도 **정식 명칭**이 있으면  → 통과 (타 시도와 공동 공고여도 우리 것)
-     3) 다른 시도 **정식 명칭**이 있으면  → 제외 (확실한 타 지역)
-     4) **지역 해시태그**(기업마당 지역 칸)가 있으면 → 우리 것이 있으면 통과, 없으면 제외
-     5) 제목 **머리말 꺾쇠·괄호** 안에 시도 이름이 있으면 → 우리 것이 있으면 통과, 없으면 제외
-     6) 우리 시도 짧은 별칭이 아무 데나 있으면 → 통과
-     7) **낱말 단위**로 짧은 이름이 있으면 → 우리 것이 있으면 통과, 없으면 제외
-     8) **기관 이름에 붙은** 도 약칭이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+   ── 판정 순서 (강한 신호 우선 · 코스로드55에서 **시군구를 맨 뒤로** 옮겼다) ──
+     1) 우리 시도 **정식 명칭**이 있으면  → 통과 (타 시도와 공동 공고여도 우리 것)
+     2) 다른 시도 **정식 명칭**이 있으면  → 제외 (확실한 타 지역)
+     3) **지역 해시태그**(기업마당 지역 칸)가 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     4) 제목 **머리말 꺾쇠·괄호** 안에 시도 이름이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     5) 우리 시도 짧은 별칭이 아무 데나 있으면 → 통과
+     6) **낱말 단위**로 짧은 이름이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     7) **기관 이름에 붙은** 도 약칭이 있으면 → 우리 것이 있으면 통과, 없으면 제외
+     8) 우리 **시군구**가 낱말로 있으면   → 통과 (사용자가 직접 지정한 값)
      9) 아무 것도 없으면                → 통과 (전국·정부 공고로 간주)
-   ★ 정식 명칭(2·3)을 해시태그(4)보다 **앞에** 둔 이유 — 기업마당 지역 태그 `전남광주` 는
+   ★★ **시군구는 시도 신호가 아니다**(코스로드55) — 전에는 1)이 아니라 **맨 앞**에 있었고 글자만
+     보아서, 인천 **중구** 업체에 「[부산] 부산광역시 **중구** …」가, 인천 **서구** 업체에
+     「서울특별시 강**서구** …」가 통과했다(겹치는 구 이름 전수 **73칸** 실측).
+     구·군 이름은 여러 시도에 **같은 이름으로 있다**(중구·동구·서구·남구·북구·강서구·고성군…)
+     → 다른 시도 신호가 하나라도 있으면 **우리 시군구 글자가 있어도 제외**하고,
+       우리 시도 신호가 **함께** 있으면(공동 공고) 통과한다(1·3·4·5·6이 그 자리다).
+     ★ 8)까지 내려오면 시도 신호가 하나도 없으므로 9)로도 통과한다 — 그래도 줄을 남겨 둔
+       까닭은 **정책을 코드에 그대로 적어 두기** 위해서다(이 쪽지의 번호와 코드가 같다).
+   ★ 정식 명칭(1·2)을 해시태그(3)보다 **앞에** 둔 이유 — 기업마당 지역 태그 `전남광주` 는
      전남과 광주를 **묶어** 둔 이름이라, 「광주광역시 …」 공고가 전남 업체에도 통과해 버린다.
      제목·기관의 정식 명칭이 더 정확하므로 그쪽을 먼저 본다(실측으로 확인).
    ★ **확실할 때만 뺀다** — 전국·정부 공고(중소벤처기업부·교육부…)가 빠지면 안 된다.
@@ -256,32 +272,34 @@ function findSido(v) {
 function regionPass(hay, sidoEntry, sigungu, tags, org) {
   if (!sidoEntry && !sigungu) return true;          /* 필터 미설정 — 기존과 동일 */
   const s = String(hay || '');
-  if (sigungu && s.indexOf(sigungu) >= 0) return true;
   const mine = sidoEntry ? sidoEntry.key : '';
-  /* 2·3) 정식 명칭 — 가장 강한 신호 */
+  /* 1·2) 정식 명칭 — 가장 강한 신호 */
   if (sidoEntry && s.indexOf(sidoEntry.official) >= 0) return true;
   for (let i = 0; i < SIDO_LIST.length; i++) {
     const e = SIDO_LIST[i];
     if (mine && e.key === mine) continue;
     if (s.indexOf(e.official) >= 0) return false;    /* 다른 시도 정식 명칭 → 타 지역 */
   }
-  /* 4) 지역 해시태그 (기업마당의 구조화된 지역 칸) */
+  /* 3) 지역 해시태그 (기업마당의 구조화된 지역 칸) */
   const tk = tagKeys(tags);
   if (tk.length) return mine ? tk.indexOf(mine) >= 0 : false;
   if (!sidoEntry) return true;                      /* 시군구만 지정 — 여기까지면 통과 */
-  /* 5) 제목 머리말 */
+  /* 4) 제목 머리말 */
   const hk = headKeys(s);
   if (hk.length) return hk.indexOf(mine) >= 0;
-  /* 6) 우리 짧은 별칭이 아무 데나 */
+  /* 5) 우리 짧은 별칭이 아무 데나 */
   for (let i = 0; i < sidoEntry.alias.length; i++) {
     if (s.indexOf(sidoEntry.alias[i]) >= 0) return true;
   }
-  /* 7) 낱말 단위 짧은 이름 */
+  /* 6) 낱말 단위 짧은 이름 */
   const wk = wordKeys(s);
   if (wk.length) return wk.indexOf(mine) >= 0;
-  /* 8) 기관 이름에 붙은 도 약칭 */
+  /* 7) 기관 이름에 붙은 도 약칭 */
   const ok = orgGlueKeys(org);
   if (ok.length) return ok.indexOf(mine) >= 0;
+  /* 8) 우리 시군구 — **낱말 단위**(앞 경계)로만 본다. 자리는 **맨 뒤**다(위 쪽지 ★★) */
+  if (sigungu && hasWord(s, sigungu, true)) return true;
+  /* 9) 아무 시도 신호도 없다 → 전국·정부 공고로 간주 */
   return true;
 }
 
