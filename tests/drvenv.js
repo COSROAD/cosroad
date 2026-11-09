@@ -220,7 +220,42 @@ function makeHandler(src, S) {
     ? (require('fs').readFileSync('' + COS_ROOT + '/lib/price.js', 'utf8')
          .replace(/^export /mg, '') + String.fromCharCode(10))
     : '';
-  const code = perPre + prcPre + src
+  /* ★★ v297(60-B4b): `api/driver-auth.js` 가 **이름공간으로** 두 벌을 더 쓴다 —
+     `import * as SG from '../lib/send-guard.js'` · `import * as AT from '../lib/alimtalk-core.js'`.
+     모듈을 못 쓰는 틀이라 그 파일을 앞에 붙이고 **이름공간 객체**를 손으로 엮어 준다.
+     ★ 그 파일 안의 `import` 줄(firebase-admin·crypto·다른 lib)도 같은 방법으로 바꿔 둔다. */
+  const nsOf = (file, name) => {
+    const raw = require('fs').readFileSync('' + COS_ROOT + '/' + file, 'utf8');
+    const names = [];
+    raw.replace(/^export (?:async )?function ([A-Za-z0-9_]+)/mg, (m, n) => { names.push(n); return m; });
+    raw.replace(/^export const ([A-Za-z0-9_]+)/mg, (m, n) => { names.push(n); return m; });
+    const body = raw
+      /* ★ firebase-admin 줄은 **지운다** — 본문(`src`)에서 이미 같은 이름으로 받는다.
+         여기서 또 `const` 로 받으면 **같은 이름을 두 번 선언**해 틀이 안 돈다(처음에 그랬다). */
+      .replace(/^import \{[^}]*\} from 'firebase-admin\/[a-z]+';$/mg, '/* 본문에서 받는다 */')
+      /* `crypto` 도 같다 — 본문이 이미 `createHash` 등을 받아 두었다 */
+      .replace(/^import \{[^}]*\} from 'crypto';$/mg, '/* 본문에서 받는다 */')
+      /* ★ 그 파일들끼리도 서로 가져다 쓴다(`lib/send-guard.js` → `./period.js`) —
+         **상대 경로 import 전부**를 지운다(`./` 도 `../` 도 · 처음에 `./period.js` 를 놓쳤다).
+         내용은 `perPre` 가 이미 앞에 붙여 두었다(순서: period → 이름공간 → 본문). */
+      .replace(/^import .*from '\.[^']*';$/mg, '/* 위에 붙였다 */')
+      .replace(/^export /mg, '');
+    /* ★★ **괄호 안에 가둔다**(IIFE) — 그 파일의 안쪽 이름(`ALLOWED`·`sha256`…)이
+       본문(`api/*.js`)의 같은 이름과 **부딪히기** 때문이다(처음에 셋을 잇달아 만났다).
+       바깥(`__fb`·`require`·`process`·`fetch`·앞에 붙인 `isAliveUser`)은 그대로 보인다. */
+    return 'const ' + name + ' = (function(){' + String.fromCharCode(10)
+      + body + String.fromCharCode(10)
+      + 'return { ' + [...new Set(names)].map((n) => n + ': ' + n).join(', ') + ' };'
+      + String.fromCharCode(10) + '})();' + String.fromCharCode(10);
+  };
+  const SG_IMP = /^import \* as SG from '\.\.\/lib\/send-guard\.js';$/m;
+  const AT_IMP = /^import \* as AT from '\.\.\/lib\/alimtalk-core\.js';$/m;
+  let nsPre = '';
+  if (SG_IMP.test(src)) nsPre += nsOf('lib/send-guard.js', 'SG');
+  if (AT_IMP.test(src)) nsPre += nsOf('lib/alimtalk-core.js', 'AT');
+  const code = perPre + prcPre + nsPre + src
+    .replace(SG_IMP, '/* lib/send-guard.js 는 위에 붙였다 */')
+    .replace(AT_IMP, '/* lib/alimtalk-core.js 는 위에 붙였다 */')
     .replace(PER_IMP, '/* lib/period.js 는 위에 붙였다 */')
     .replace(PRC_IMP, '/* lib/price.js 는 위에 붙였다 */')
     .replace(/^import \{[^}]*\} from 'firebase-admin\/app';$/m, "const { initializeApp, getApps, cert } = __fb.app;")
@@ -230,6 +265,7 @@ function makeHandler(src, S) {
     .replace(/^export default async function handler/m, "module.exports = async function handler");
 
   const fn = new Function('__fb', 'module', 'exports', 'process', 'console', 'require', 'Date',
+                          'fetch', 'URLSearchParams',
                           code + '\nreturn module.exports;');
   const mod = { exports: {} };
   return fn(
@@ -239,7 +275,15 @@ function makeHandler(src, S) {
     mod, mod.exports,
     { env: S.env },
     { log: (...a) => S.logs.push(a.map(x => String(x)).join(' ')) },
-    fakeRequire, FakeDate);
+    fakeRequire, FakeDate,
+    /* ★ v297(60-B4b): 가짜 `fetch` — **실제 알리고 호출 0건**.
+       보낸 것은 `S.sent` 에 쌓는다(주소와 **길이만** — 번호·본문 원문은 남기지 않는다). */
+    (S.fetch || (async (url, init) => {
+      S.sent = S.sent || [];
+      S.sent.push({ url: String(url), len: String((init && init.body) || '').length });
+      return { json: async () => ({ code: 0, message: 'success' }) };
+    })),
+    URLSearchParams);
 }
 
 const req = (body, tok, ip) => ({

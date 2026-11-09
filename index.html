@@ -371,6 +371,12 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
       <button type="button" id="login-tab-driver" onclick="loginPick('driver')" style="flex:1;padding:12px 8px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;border:1.5px solid var(--primary);background:var(--primary);color:#fff;">🚐 기사 로그인</button>
       <button type="button" id="login-tab-admin" onclick="loginPick('admin')" style="flex:1;padding:12px 8px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;border:1.5px solid #EAECF0;background:#fff;color:#475467;">👨‍💼 관리자 로그인</button>
     </div>
+    <!-- ★★ v297(60-B4b): **출석 전용 기기** 입구(셋째) — 관리자 모드를 열어 둔 기기에
+         «회원» PIN 판을 띄우면 안 된다(사장님 결정 2). 이 기기는 **PIN 판만** 보이고
+         관리자 권한이 **0** 이며, 규칙상 **아무 자료도 못 읽는다**(토큰에 사람 정보가 없다). -->
+    <div id="login-pick2" style="display:flex;margin-bottom:12px;">
+      <button type="button" id="login-tab-kiosk" onclick="loginPick('kiosk')" style="flex:1;padding:10px 8px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;border:1.5px solid #EAECF0;background:#fff;color:#475467;">🎫 출석 기기</button>
+    </div>
 
     <!-- 기사 입구 -->
     <div id="login-box-driver">
@@ -386,6 +392,15 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
            입구를 따로 만들지 않는 까닭: 단추·칸이 늘면 기사 화면 원칙(간결)이 깨지고,
            입구가 둘이면 「어느 쪽에 넣어야 하나」를 또 알려 줘야 한다. -->
       <div style="text-align:center;margin-top:8px;font-size:11px;color:#98A2B3;line-height:1.6;">업체 번호를 모르시면 관리자에게 물어보세요<br/>처음 로그인한 기기에만 들어갈 수 있어요<br/>동승 도우미도 여기에서 자기 PIN 으로 들어와요</div>
+    </div>
+
+    <!-- 출석 전용 기기 입구 -->
+    <div id="login-box-kiosk" style="display:none;">
+      <div style="font-size:11px;color:#98A2B3;text-align:center;margin:-2px 0 8px;line-height:1.6;">관리자에게 받은 <b>업체 번호 6자리</b>와 <b>출석기기 코드 6자리</b>를 넣어 주세요</div>
+      <input class="login-input" type="tel" id="ksk-orgcode" inputmode="numeric" maxlength="6" placeholder="업체 번호 6자리" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onkeydown="if(event.key==='Enter')document.getElementById('ksk-code').focus()"/>
+      <input class="login-input" type="password" id="ksk-code" inputmode="numeric" maxlength="6" placeholder="출석기기 코드 6자리" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onkeydown="if(event.key==='Enter')loginKiosk()"/>
+      <button class="login-btn btn-driver" id="ksk-login-btn" onclick="loginKiosk()">🎫 출석 기기로 시작</button>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:#98A2B3;line-height:1.6;">이 기기는 <b>출석 PIN 판만</b> 보여요 (관리 화면은 열리지 않아요)<br/>업체에 <b>기기 한 대</b>만 묶여요 — 바꾸려면 관리자가 「📱 기기 풀기」를 눌러요</div>
     </div>
 
     <!-- 관리자 입구 -->
@@ -673,7 +688,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 296;
+const APP_VERSION = 297;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -3126,26 +3141,35 @@ function loginDriver(){
 var LOGIN_PICK_KEY='cosroad_login_pick';
 function loginPick(which, remember){
   var d=document.getElementById('login-box-driver'), a=document.getElementById('login-box-admin');
+  var k=document.getElementById('login-box-kiosk');
   var td=document.getElementById('login-tab-driver'), ta=document.getElementById('login-tab-admin');
+  var tk=document.getElementById('login-tab-kiosk');
   var on=function(b,c){ if(b){ b.style.background=c; b.style.color='#fff'; b.style.borderColor=c; } };
   var off=function(b){ if(b){ b.style.background='#fff'; b.style.color='#475467'; b.style.borderColor='#EAECF0'; } };
+  /* ★ v297(60-B4b): 입구가 **셋**이다(기사 · 관리자 · 출석 기기) — 한 자리에서 갈라 둔다 */
   if(which==='admin'){
-    if(d) d.style.display='none'; if(a) a.style.display='';
+    if(d) d.style.display='none'; if(a) a.style.display=''; if(k) k.style.display='none';
     /* v256: --driver 는 :root 에 **없는 변수**였다 → 기사 탭이 배경 없이 흰 글자로 안 보였다.
        「🚐 기사로 시작」 단추와 같은 파랑(--primary)으로 맞춘다. */
-    on(ta,'var(--admin)'); off(td);
+    on(ta,'var(--admin)'); off(td); off(tk);
+  } else if(which==='kiosk'){
+    if(d) d.style.display='none'; if(a) a.style.display='none'; if(k) k.style.display='';
+    on(tk,'var(--primary)'); off(td); off(ta);
   } else {
-    if(d) d.style.display=''; if(a) a.style.display='none';
-    on(td,'var(--primary)'); off(ta);
+    if(d) d.style.display=''; if(a) a.style.display='none'; if(k) k.style.display='none';
+    on(td,'var(--primary)'); off(ta); off(tk);
   }
-  if(remember!==false){ try{ localStorage.setItem(LOGIN_PICK_KEY, (which==='admin')?'admin':'driver'); }catch(e){} }
+  if(remember!==false){
+    try{ localStorage.setItem(LOGIN_PICK_KEY,
+      (which==='admin')?'admin':(which==='kiosk')?'kiosk':'driver'); }catch(e){}
+  }
   var el=document.getElementById('login-err'); if(el) el.style.display='none';
 }
 /* 첫 화면을 그릴 때 — 지난번에 고른 탭으로 연다. 없거나 못 읽으면 기사 탭(기본). */
 function loginPickRestore(){
   var v='';
   try{ v=localStorage.getItem(LOGIN_PICK_KEY)||''; }catch(e){ v=''; }
-  loginPick(v==='admin'?'admin':'driver', false);
+  loginPick(v==='admin'?'admin':(v==='kiosk'?'kiosk':'driver'), false);
 }
 
 /* 기기 id — 이 브라우저에만 남는 무작위 값. 서버가 「첫 로그인 기기」로 기억한다.
@@ -3234,6 +3258,79 @@ async function loginDriverPin(){
   }
 }
 
+/* ── 출석 전용 기기 로그인 (60-B4b · v297) ────────────────────────────────────
+   업체 번호 6자리 + **출석기기 코드 6자리** → 서버가 custom token 을 준다.
+   ★ 기사 로그인과 **같은 모양**이다(같은 창구 파일 · 같은 상한·잠금·기기 묶기).
+   ★ 들어가면 **PIN 판만** 나온다 — 관리 화면·명단·운행이 없다(화면도, 규칙도). */
+async function loginKiosk(){
+  var code=String((document.getElementById('ksk-orgcode')||{}).value||'').replace(/[^0-9]/g,'');
+  var kcode=String((document.getElementById('ksk-code')||{}).value||'').replace(/[^0-9]/g,'');
+  if(!/^\d{6}$/.test(code)){ driverLoginErr('업체 번호 6자리를 넣어 주세요.'); return; }
+  if(!/^\d{6}$/.test(kcode)){ driverLoginErr('출석기기 코드 6자리를 넣어 주세요.'); return; }
+  if(!window._auth || !window._authFns || !window._authFns.signInWithCustomToken){
+    driverLoginErr('로그인 시스템 준비 중입니다. 잠시 후 다시 시도해주세요.'); return;
+  }
+  var btn=document.getElementById('ksk-login-btn');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.5'; btn.textContent='확인하는 중…'; }
+  var reset=function(){ if(btn){ btn.disabled=false; btn.style.opacity='1'; btn.textContent='🎫 출석 기기로 시작'; } };
+  try{
+    var loc=await driverGetLoc();          /* 거부해도 그냥 간다 */
+    var r=await fetch('https://cosroad.vercel.app/api/driver-auth',{
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ action:'kioskLogin', orgCode:code, kioskCode:kcode,
+                             deviceId:driverDeviceId(), loc:loc })
+    });
+    var j=await r.json();
+    if(!j || !j.ok){ reset(); driverLoginErr((j&&j.message)||'로그인하지 못했어요.'); return; }
+    await window._authFns.signInWithCustomToken(window._auth, j.token);
+    /* ★ 전역은 **셋만** — 업체·이름·업종. 사람·차량 정보가 없다. */
+    window._kioskOrg = j.org || '';
+    window._kioskOrgName = j.orgName || '';
+    window._userBizType = j.bizType || 'academy';
+    window._isDriverAcct=false; window._isHelperAcct=false; window._userOrgId=null;
+    /* 「로그인 유지」는 **늘 켠다** — 계속 켜 두는 기기다(관리자가 기기를 풀면 끊긴다) */
+    try{ localStorage.setItem(keepLoginKey(),'kiosk'); }catch(e){}
+    reset();
+    onKioskLoggedIn();
+  }catch(e){
+    reset();
+    driverLoginErr('서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+  }
+}
+function isKioskMode(){ return !!window._kioskOrg; }
+/* 출석 기기 화면 — **PIN 판 하나**다(새 창을 만들지 않고 전체 화면 한 장을 쓴다) */
+function onKioskLoggedIn(){
+  currentMode='kiosk';
+  var ls=document.getElementById('login-screen'); if(ls) ls.classList.add('hide');
+  var ap=document.getElementById('main-app'); if(ap) ap.style.display='none';
+  var old=document.getElementById('kiosk-screen'); if(old) old.remove();
+  var el=document.createElement('div');
+  el.id='kiosk-screen';
+  el.style.cssText='position:fixed;inset:0;z-index:300;background:linear-gradient(160deg,#1A6BFF,#0E7090);'
+    +'display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:18px 14px;box-sizing:border-box;';
+  el.innerHTML=
+    '<div style="color:#fff;font-size:15px;font-weight:800;margin:6px 0 2px;">'+escapeMasterHtml(window._kioskOrgName||'')+'</div>'
+    +'<div style="color:rgba(255,255,255,0.85);font-size:12px;margin-bottom:12px;">🎫 출석 기기 — 자기 PIN 4자리를 눌러 주세요</div>'
+    +'<div style="background:#fff;border-radius:22px;padding:22px 18px;width:100%;max-width:360px;box-sizing:border-box;margin:auto;">'
+    +'<div id="pin-display" style="text-align:center;font-size:30px;letter-spacing:10px;font-weight:800;color:#1D2939;min-height:40px;"></div>'
+    +'<div id="pin-result" style="min-height:40px;"></div>'
+    +'<div id="kiosk-pad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px;"></div>'
+    +'</div>'
+    +'<div style="color:rgba(255,255,255,0.75);font-size:11px;margin-top:12px;text-align:center;line-height:1.6;">이 기기에는 명단이 들어오지 않아요 — 누른 사람만 보여요<br/>관리자 화면은 열리지 않아요</div>';
+  document.body.appendChild(el);
+  var pad=el.querySelector('#kiosk-pad');
+  ['1','2','3','4','5','6','7','8','9','del','0','clear'].forEach(function(k){
+    var b=document.createElement('button');
+    b.textContent=(k==='del'?'←':k==='clear'?'C':k);
+    b.setAttribute('onclick', "pinPress('"+k+"')");
+    b.style.cssText='padding:16px 0;font-size:20px;font-weight:800;border:1.5px solid #EAECF0;'
+      +'border-radius:12px;background:#F9FAFB;color:#1D2939;cursor:pointer;';
+    pad.appendChild(b);
+  });
+  pinPadKind='member';
+  pinInput='';
+  renderPinDisplay();
+}
 /* 기사 계정 로그인 성공 — 기사 모드로 앱을 연다 (v250).
    기관 자료가 안 열리면(업체 만료·계정 끊김) 아래 showDriverBlocked 가 뜬다. */
 function onDriverLoggedIn(){
@@ -4447,8 +4544,12 @@ function _logoutReload(){
    탈퇴 → 승인 → 만료 게이트를 거친다. 세션이 없으면 표시를 지우고 로그인 화면에 남는다.
    반환값: true = 로그인 화면을 건너뛰고 기다리는 중 / false = 로그인 화면을 그대로 보여라 */
 function tryAutoLogin(){
-  var want = false;
-  try{ var v=localStorage.getItem(keepLoginKey()); want = (v==='admin' || v==='driver'); }catch(e){}
+  var want = false, kioskWant = false;
+  try{
+    var v=localStorage.getItem(keepLoginKey());
+    want = (v==='admin' || v==='driver' || v==='kiosk');
+    kioskWant = (v==='kiosk');            /* ★ v297: 출석 기기는 **늘 유지**(계속 켜 두는 기기) */
+  }catch(e){}
   if(!want) return false;
   if(!window._auth || !window._authFns || !window._authFns.onAuthStateChanged){
     /* Firebase 가 아직 없다 — 자동 로그인하지 않는다(표시는 지우지 않는다. 다음 로드에서 다시 본다) */
@@ -4463,6 +4564,27 @@ function tryAutoLogin(){
       /* 세션이 없거나 익명 — 유지 표시를 지우고 로그인 화면으로 */
       try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
       autoLoginFailed();
+      return;
+    }
+    /* ★★ v297(60-B4b): **출석 전용 기기**는 `users` 문서가 **없다**(그래야 규칙이 전부 거부한다) —
+       그래서 `loadUserProfile` 을 **부르지 않는다**(부르면 「계정 정보 없음」으로 떨어진다).
+       토큰의 claim 으로 업체를 알아내고 PIN 판만 띄운다. */
+    if(kioskWant){
+      user.getIdTokenResult().then(function(t){
+        var c=(t && t.claims) || {};
+        if(c.kiosk === true && c.org){
+          window._kioskOrg = String(c.org);
+          window._kioskOrgName = '';          /* 이름은 다음 로그인에서 다시 받는다(없어도 된다) */
+          window._userBizType = 'academy';
+          onKioskLoggedIn();
+          return;
+        }
+        try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+        autoLoginFailed();
+      }).catch(function(){
+        try{ localStorage.removeItem(keepLoginKey()); }catch(e){}
+        autoLoginFailed();
+      });
       return;
     }
     loadUserProfile(user.uid).then(function(){
@@ -5634,7 +5756,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n1-2. <b>출석 전용 기기</b>를 둘 수 있어요 (v297) — 차량관리 탭의 「🎫 출석 전용 기기」에서 코드를 만들고, 태블릿·폰에서 로그인 화면의 <b>「🎫 출석 기기」</b>에 업체 번호 + 그 코드를 넣으세요. 그 기기는 <b>PIN 판만</b> 보이고 관리 화면이 열리지 않아요 (명단도 내려가지 않아요 · 알림톡은 서버가 보내요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -9460,6 +9582,25 @@ function driverAttLocalSet(carId, dateStr, kind, time){
 /* ★ v293(60-B1): `probe` 를 주면 서버가 **대조만** 하고 아무 것도 쓰지 않는다
    (돌려주는 것은 `kind` 하나 — 이름·차량·직원 id·PIN 은 없다).
    출결 판에서 「직원 PIN 이에요」를 말하려고 쓴다 — 창구를 새로 만들지 않았다. */
+/* ★★ v297(60-B4b): **출석 전용 기기** 창구 — 토큰은 `{kiosk,org}` 하나다.
+   돌려받는 것은 **그 사람 것만**(이름·사진·시각) — 명단은 오지 않는다.
+   알림톡은 **서버가** 보낸다(기기는 번호를 모른다) → 앱에서 보내지 않는다(두 번 안 나간다). */
+async function kioskCheckinApi(pin){
+  var u = window._auth && window._auth.currentUser;
+  if(!u) return { why:'noauth', message:'로그인이 풀렸어요. 다시 로그인해 주세요.' };
+  var tok;
+  try{ tok = await u.getIdToken(); }catch(e){ return { why:'noauth', message:'로그인 확인에 실패했어요.' }; }
+  try{
+    var r = await fetch('https://cosroad.vercel.app/api/driver-auth', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok },
+      body: JSON.stringify({ action:'kioskCheckin', pin:pin })
+    });
+    var j = await r.json();
+    if(j && j.ok) return j;
+    return { why:(j&&j.why)||'err', message:(j&&j.message)||'확인하지 못했어요.' };
+  }catch(e){ return { why:'net', message:'서버에 연결하지 못했어요. 인터넷을 확인해 주세요.' }; }
+}
 /* ★ v295(60-B3): 판 안내 문구 **한 자리** — v293 에서 `checkPin()` 안에 있던 것을 꺼냈다.
    이제 서버가 「다른 판이에요」(`wrongPad`)를 바로 알려 주므로 **두 곳**에서 같은 글을 띄운다
    (한 곳에 두지 않으면 문구가 갈라진다 · `#pin-result` 자리만 쓰므로 새 창 0). */
@@ -9667,6 +9808,34 @@ async function checkPin(){
       renderPinDisplay();
     }, 2500);
     readOnlyBlocked('출퇴근·출석');
+    return;
+  }
+  /* ★★ v297(60-B4b): **출석 전용 기기**는 창구가 다르다(`kioskCheckin`) —
+     그 기기에는 명단도 업체 자료도 없고, 규칙이 모든 컬렉션을 거부한다.
+     그래서 여기서 **먼저** 갈라 나간다(아래 판 분리·로컬 대조는 지나지 않는다). */
+  if(typeof isKioskMode==='function' && isKioskMode()){
+    var _kr = await kioskCheckinApi(pv);
+    if(_kr && _kr.ok){
+      var _kphoto = _kr.photo
+        ? ('<img src="'+escapeMasterHtml(_kr.photo)+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0 auto 10px;display:block;"/>')
+        : ('<div style="width:72px;height:72px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:#1A6BFF;margin:0 auto 10px;">'+escapeMasterHtml(String(_kr.name||' ').slice(0,1))+'</div>');
+      var _ke=document.getElementById('pin-result');
+      if(_ke) _ke.innerHTML='<div style="text-align:center;padding:14px;">'+_kphoto
+        +'<div style="font-size:40px;margin-bottom:4px;">✅</div>'
+        +'<div style="font-size:20px;font-weight:800;color:#12B76A;margin-bottom:4px;">출석 완료!</div>'
+        +'<div style="font-size:17px;font-weight:700;color:#344054;">'+escapeMasterHtml(_kr.name||'')+'</div>'
+        +'<div style="font-size:12px;color:#98A2B3;margin-top:3px;">'+escapeMasterHtml(_kr.time||'')+' 도착</div></div>';
+    } else {
+      var _kmsg = (_kr && _kr.message) || 'PIN 번호가 올바르지 않습니다.';
+      var _ke2=document.getElementById('pin-result');
+      if(_ke2) _ke2.innerHTML='<div style="color:#F04438;font-size:14px;font-weight:700;text-align:center;padding:12px;">❌ '+escapeMasterHtml(_kmsg)+'</div>';
+    }
+    pinInput='';
+    setTimeout(function(){
+      var r=document.getElementById('pin-result');
+      if(r)r.innerHTML='';
+      renderPinDisplay();
+    }, 3000);
     return;
   }
   /* ★★ v293(60-B1): **판이 갈렸다.** 근태 판('work')만 기사·직원을 대조한다 —
@@ -16939,6 +17108,80 @@ function orgCodeCardHtml(){
   h += '<div style="font-size:11px;color:#98A2B3;margin-top:6px;line-height:1.7;">기사에게 이 번호와 각자의 PIN 4자리를 알려 주세요.<br>기사는 로그인 화면의 「🚐 기사 로그인」에 둘을 넣어 들어옵니다.</div>';
   return h + '</div>';
 }
+/* ── 출석 전용 기기 (60-B4b · v297) — 「기사 로그인 관리」 옆 ────────────────────
+   ★ 코드는 **해시로만** 둔다 → 되돌려 보여 주지 않고, 만들 때 **그 자리에서 한 번** 보여 준다
+     (잊으면 새로 만든다 — 기사 PIN·직원 PIN 과 같은 태도).
+   ★ 기기는 업체에 **한 대**다 — 바꾸려면 「📱 기기 풀기」. */
+var _kioskInfo = { hasCode:false, bound:false, updatedAt:0 };
+var _kioskLoaded = false, _kioskErr = false;
+async function kioskInfoLoad(){
+  if(typeof isDemoMode==='function' && isDemoMode()){ _kioskLoaded=true; return; }
+  try{
+    var r=await driverAcctApi({ action:'kioskInfo', org:getFbOrgId() });
+    if(r && r.ok){ _kioskInfo={ hasCode:!!r.hasCode, bound:!!r.bound, updatedAt:r.updatedAt||0 }; _kioskErr=false; }
+    else _kioskErr=true;
+  }catch(e){ _kioskErr=true; }
+  _kioskLoaded=true;
+  try{ if(currentAdminTab==='cars') renderAdminTab('cars'); }catch(e){}
+}
+function kioskCardHtml(){
+  var h='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">🎫 출석 전용 기기</div>';
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    return h+'<div style="font-size:12px;color:#98A2B3;padding:6px 0;">둘러보기에서는 쓰지 않아요.</div></div>';
+  }
+  if(!_kioskLoaded){ kioskInfoLoad(); return h+'<div style="font-size:12px;color:#98A2B3;padding:6px 0;">불러오는 중…</div></div>'; }
+  if(_kioskErr){
+    return h+'<div style="font-size:12px;color:#B42318;padding:6px 0;line-height:1.7;">불러오지 못했어요 · '
+      +'<span onclick="kioskInfoLoad()" style="color:#1A6BFF;cursor:pointer;font-weight:700;">다시 시도</span></div></div>';
+  }
+  h+='<div style="font-size:12px;color:#475467;line-height:1.8;">태블릿·폰 한 대를 <b>출석 체크 전용</b>으로 둘 수 있어요 — 그 기기는 '
+   + T('회원')+' 출석 PIN 판만 보이고 <b>관리 화면이 열리지 않아요.</b></div>';
+  h+='<div style="font-size:12px;font-weight:700;margin:8px 0 6px;color:'+(_kioskInfo.hasCode?'#067647':'#98A2B3')+';">'
+   + (_kioskInfo.hasCode?'✓ 코드 설정됨':'코드 없음')
+   + (_kioskInfo.bound?' · 📱 기기 묶임':'')+'</div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+  h+='<button onclick="kioskCodeIssue()" style="flex:1;min-width:120px;padding:10px;background:#0E7090;color:white;border:none;border-radius:9px;font-size:12px;font-weight:800;cursor:pointer;">'
+   + (_kioskInfo.hasCode?'🔄 코드 새로 만들기':'🎫 코드 만들기')+'</button>';
+  if(_kioskInfo.bound){
+    h+='<button onclick="kioskUnbindAsk()" style="flex:1;min-width:110px;padding:10px;background:white;color:#0E7090;border:1.5px solid #B9E6FE;border-radius:9px;font-size:12px;font-weight:800;cursor:pointer;">📱 기기 풀기</button>';
+  }
+  if(_kioskInfo.hasCode){
+    h+='<button onclick="kioskCodeRemoveAsk()" style="flex:1;min-width:100px;padding:10px;background:#FEF3F2;color:#B42318;border:1px solid #FECDCA;border-radius:9px;font-size:12px;font-weight:800;cursor:pointer;">🗑 코드 지우기</button>';
+  }
+  h+='</div>';
+  h+='<div id="ksk-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin-top:6px;line-height:1.7;">코드는 <b>만들 때 한 번만</b> 보여요 (서버에만 안전하게 보관돼요) — 잊으면 새로 만드세요.<br>기기에서는 로그인 화면의 「🎫 출석 기기」에 <b>업체 번호 + 이 코드</b>를 넣어요.</div>';
+  return h+'</div>';
+}
+async function kioskCodeIssue(){
+  var say=function(t,c){ var el=document.getElementById('ksk-msg'); if(el){ el.textContent=t; el.style.color=c||'#067647'; } };
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ say('이용 기간이 끝나 만들 수 없어요.','#B42318'); return; }
+  say('만드는 중…','#667085');
+  var r=await driverAcctApi({ action:'issueKioskCode', org:getFbOrgId() });
+  if(!r || !r.ok || !r.code){ say((r && r.message)||'만들지 못했어요. 잠시 뒤 다시 해 주세요.','#B42318'); return; }
+  _kioskInfo.hasCode=true; _kioskInfo.bound=false;
+  say('새 코드: '+r.code+' — 지금 적어 두세요(다시 보이지 않아요)','#067647');
+  try{ prompt('출석 기기에 넣을 코드 (지금 적어 두세요)', r.code); }catch(e){}
+  try{ if(currentAdminTab==='cars') renderAdminTab('cars'); }catch(e){}
+}
+function kioskUnbindAsk(){
+  showConfirmModal(async function(){
+    var r=await driverAcctApi({ action:'unbindDevice', org:getFbOrgId(), kiosk:true });
+    if(!r || !r.ok){ showToast('⚠ '+((r && r.message)||'기기를 풀지 못했어요')); return; }
+    _kioskInfo.bound=false;
+    showToast('📱 출석 기기를 풀었어요 — 새 기기에서 다시 로그인하세요');
+    try{ if(currentAdminTab==='cars') renderAdminTab('cars'); }catch(e){}
+  }, '출석 기기를 풀까요?\n지금 쓰던 기기는 로그아웃되고, 다음에 로그인한 기기에 묶입니다.', '풀기');
+}
+function kioskCodeRemoveAsk(){
+  showConfirmModal(async function(){
+    var r=await driverAcctApi({ action:'removeKioskCode', org:getFbOrgId() });
+    if(!r || !r.ok){ showToast('⚠ '+((r && r.message)||'지우지 못했어요')); return; }
+    _kioskInfo.hasCode=false; _kioskInfo.bound=false;
+    showToast('🗑 출석 기기 코드를 지웠어요');
+    try{ if(currentAdminTab==='cars') renderAdminTab('cars'); }catch(e){}
+  }, '출석 기기 코드를 지울까요?\n그 기기는 바로 로그아웃되고 출석을 찍을 수 없어요.', '지우기');
+}
 
 /* 로그인 기록 한 줄의 사유 → 사람 말 */
 function drvWhyText(w, ok){
@@ -17347,6 +17590,7 @@ function renderCars(){
   html+='<div style="padding:12px 16px 0;">';
   /* v255: 기사 로그인용 업체 번호 + 옛 자료 옮기기 안내 (차량 카드보다 위) */
   html+=orgCodeCardHtml();
+  html+=kioskCardHtml();        /* ★ v297(60-B4b): 출석 전용 기기 — 「기사 로그인 관리」 옆 */
   html+=drvMigrateCardHtml();
   html+=staffMigrateCardHtml();   /* v280: 옛 직원 PIN 옮기기 — 같은 자리 */
   html+='<div class="status-card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="status-card-title">🚐 '+escapeMasterHtml(car.name)+' 정보'+carlogBadgeHtml(car.id)+'</div>'
@@ -17756,6 +18000,11 @@ function getFbOrgId(){
      주소의 ?org= 가 달라도 기사는 딸린 업체의 자료만 본다 —
      그래야 기사에게 주소를 알려 주지 않아도 되고, 남의 업체 주소를 넣어도 넘어가지 않는다. */
   if(window._driverOrg) return window._driverOrg;
+  /* ★★ v297(60-B4b): **출석 전용 기기**도 자기 업체를 쓴다 — 60-A 설계에서 짚어 둔 자리다.
+     이 함수가 **기기 저장 칸의 꼬리**(v292)와 **서버 자료 자리**를 둘 다 정하므로,
+     여기에 더하지 않으면 출석 기기에서 업체가 `cosroad_default` 로 떨어진다.
+     (출석 기기는 업체 자료를 로컬에 두지 않지만, 한 칸이라도 두게 되면 섞인다.) */
+  if(window._kioskOrg) return window._kioskOrg;
   return orgIdFromUrlOrDefault();
 }
 
@@ -19285,7 +19534,11 @@ function showAddrResults(results, targetInput, targetResult, addrOnly){
     'pending-screen':  '승인 대기 — 닫는 단추 없음(로그아웃으로만 빠져나감)',
     'trial-expired':   '이용 기간 끝 — 닫는 단추 없음',
     'driver-blocked':  '기사 막음 — 닫는 단추 없음',
-    'testorg-blocked': '테스트 공간 막음 — 닫는 단추 없음'
+    'testorg-blocked': '테스트 공간 막음 — 닫는 단추 없음',
+    /* ★ v297(60-B4b): 출석 전용 기기 화면 — **그 기기의 전부**다(닫는 단추가 없고,
+       뒤로가기로 닫히면 빈 화면이 된다). 빠져나가는 길은 관리자가 「📱 기기 풀기」를
+       누르는 것뿐이다(그러면 서버가 토큰을 끊는다). */
+    'kiosk-screen':    '출석 전용 기기 — 그 기기의 전부(닫는 단추 없음)'
   };
   /* 사람이 닫는 창이 아니라 **대상이 아닌 것**: 안내 쪽지(showToast) · 저장 쪽지 ·
      읽기 전용 띠(readonly-bar) · 체험 띠(trial-banner) · 도우미 단추(helper-fab*) */

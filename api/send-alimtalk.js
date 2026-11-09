@@ -15,6 +15,11 @@ import {
   admin, openGate, fail, whoIsCalling, canSendFor, callerCarScope, orgPhones, rateHit,
   orgLimits, phoneDigits, sha256, TPL_ALLOWED
 } from '../lib/send-guard.js';
+/* ★★ v297(60-B4b): 본문·버튼·알리고 호출을 `lib/alimtalk-core.js` **한 벌**로 모았다 —
+   출석 전용 기기(서버가 보낸다)와 **같은 글·같은 코드**를 쓰기 위한 것이다.
+   ★ 앱이 보낸 `message` 가 있으면 **그것을 그대로** 쓴다(글자는 같다 · 배포 직후 옛 앱 호환) —
+     없을 때만 여기서 만든다. */
+import { buildAlimtalkMessage, alimtalkForm, postAlimtalk } from '../lib/alimtalk-core.js';
 
 export default async function handler(req, res) {
   if (openGate(req, res)) return;
@@ -72,56 +77,12 @@ export default async function handler(req, res) {
       return fail(res, 500, '알림톡 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
     }
 
-    const formData = new URLSearchParams();
-    formData.append('apikey', apikey);
-    formData.append('userid', userid);
-    formData.append('senderkey', senderkey);
-    formData.append('tpl_code', String(tpl_code));
-    formData.append('sender', sender);
-    formData.append('receiver_1', rcv);
-    formData.append('recvname_1', String(name || ''));
-    formData.append('subject_1', '알림');
-    formData.append('message_1', String(message || ''));
-
-    // 업종별 버튼 처리 (v265 까지와 같다)
-    if (biz === 'academy' || !biz) {
-      // 학원: 패밀리링크 웹링크 버튼
-      const button = {
-        button: [
-          {
-            name: '패밀리 링크 열기',
-            linkType: 'WL',
-            linkTypeName: '웹링크',
-            linkMo: 'https://families.google.com',
-            linkPc: 'https://families.google.com'
-          }
-        ]
-      };
-      formData.append('button_1', JSON.stringify(button));
-    } else if (biz === 'delivery') {
-      // 택배: 배송조회 버튼(택배사+송장번호 자동) + CJ대한통운 웹링크 버튼
-      const buttons = [];
-      const dsBtn = { name: '배송조회', linkType: 'DS', linkTypeName: '배송조회' };
-      if (courier) dsBtn.prtcl = String(courier);
-      if (invoice) dsBtn.invoice = String(invoice);
-      buttons.push(dsBtn);
-      buttons.push({
-        name: 'CJ대한통운 배송조회',
-        linkType: 'WL',
-        linkTypeName: '웹링크',
-        linkMo: 'https://www.cjlogistics.com/ko/tool/parcel/tracking',
-        linkPc: 'https://www.cjlogistics.com/ko/tool/parcel/tracking'
-      });
-      formData.append('button_1', JSON.stringify({ button: buttons }));
-    }
-    // 물류(logistics), 공공(public)은 버튼 없음
-
-    const response = await fetch('https://kakaoapi.aligo.in/akv10/alimtalk/send/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString()
-    });
-    const data = await response.json();
+    /* 본문 — 앱이 보냈으면 그대로, 없으면 **같은 한 벌**로 만든다(v297) */
+    const msg = String(message || '') || buildAlimtalkMessage(biz, b.orgName, name, b.time, invoice, courier);
+    const formData = alimtalkForm({ tplCode: tpl_code, receiver: rcv, name: name,
+                                    message: msg, biz: biz, courier: courier, invoice: invoice });
+    if (!formData) return fail(res, 500, '알림톡 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
+    const data = await postAlimtalk(formData);
     return res.status(200).json(data);
   } catch (error) {
     console.log('[send-alimtalk] 실패');

@@ -244,6 +244,58 @@ export default async function handler(req, res) {
     const secretOf = () => process.env.OTP_SECRET || '';
 
     /* ── e) 업체 번호 발급 — 없으면 만들고, 있으면 그대로 돌려준다 ── */
+    /* ── 출석 전용 기기 코드 (60-B4b · v297) ──────────────────────────────────
+       ★ 업체 번호(6자리)는 **기사와 같은 번호**를 쓰고, 여기서는 **출석기기 코드**만 만든다.
+       ★ 코드는 **해시로만** 둔다(`kioskCodes/{org}.codeHash`) — 되돌려 보여 주지 않는다.
+         그래서 만들 때 **그 자리에서 한 번** 보여 주고(관리자가 적어 둔다), 잊으면 **새로 만든다**
+         (기사 PIN·직원 PIN 과 같은 태도 · 규칙은 「맞는 규칙 없음 = 거부」 그대로).
+       ★ 해시 재료도 같다(`sha256(코드|org|OTP_SECRET)`) — 새 환경변수 없음. */
+    if (action === 'issueKioskCode') {
+      const org = String(b.org || '').trim();
+      if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '이 업체의 출석기기 코드를 만들 권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      const secret = secretOf();
+      if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
+      const code = String(randomInt(100000, 1000000));
+      try {
+        await A.db.collection('kioskCodes').doc(org)
+          .set({ org: org, codeHash: pinHashOf(code, org, secret), updatedAt: Date.now() });
+      } catch (e) { return fail(res, 500, '코드를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      /* 코드를 바꿨으니 **묶인 기기와 토큰을 끊는다**(기사 PIN 을 새로 정할 때와 같은 태도) */
+      try { await A.db.collection('driverDevices').doc(org + '_kiosk').delete(); } catch (e) {}
+      try { await A.auth.revokeRefreshTokens('ksk_' + org); } catch (e) {}
+      /* ★ 코드 원문은 **이 응답에만** 들어간다(화면이 그 자리에서 보여 준다 · 로그에는 안 남긴다) */
+      return res.status(200).json({ ok: true, code: code });
+    }
+
+    if (action === 'removeKioskCode') {
+      const org = String(b.org || '').trim();
+      if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      try { await A.db.collection('kioskCodes').doc(org).delete(); } catch (e) {}
+      try { await A.db.collection('driverDevices').doc(org + '_kiosk').delete(); } catch (e) {}
+      try { await A.auth.revokeRefreshTokens('ksk_' + org); } catch (e) {}
+      return res.status(200).json({ ok: true });
+    }
+
+    /* 출석기기가 **지금 쓸 수 있나**(코드가 있나 · 기기가 묶였나) — 원문은 주지 않는다 */
+    if (action === 'kioskInfo') {
+      const org = String(b.org || '').trim();
+      if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '권한이 없어요.');
+      let has = false, bound = false, at = 0;
+      try {
+        const s = await A.db.collection('kioskCodes').doc(org).get();
+        has = !!(s.exists && (s.data() || {}).codeHash);
+        at = Number((s.exists && (s.data() || {}).updatedAt) || 0);
+        const d = await A.db.collection('driverDevices').doc(org + '_kiosk').get();
+        bound = !!(d.exists && (d.data() || {}).deviceId);
+      } catch (e) { return fail(res, 500, '확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      return res.status(200).json({ ok: true, hasCode: has, bound: bound, updatedAt: at });
+    }
+
     if (action === 'issueOrgCode') {
       const org = String(b.org || '').trim();
       if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
@@ -382,11 +434,14 @@ export default async function handler(req, res) {
       const org = String(b.org || '').trim();
       const carId = String(b.carId || '').trim();
       const staffId = String(b.staffId || '').trim();
-      if (!org || (!carId && !staffId)) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
+      /* ★ v297(60-B4b): **출석 기기** 갈래를 더했다(`kiosk:true`) — 기기 하나(`<org>_kiosk`) */
+      const kiosk = (b.kiosk === true);
+      if (!org || (!carId && !staffId && !kiosk)) return fail(res, 400, '기관·차량 정보가 빠졌어요.');
       if (!(await canManage(org))) return fail(res, 403, '이 업체의 기기를 풀 권한이 없어요.');
       /* 코스로드47: 쓰기 동작이라 **이용 기간**도 본다 */
       if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
-      const devId = staffId ? (org + '_hlp_' + staffId) : (org + '_' + carId);
+      const devId = kiosk ? (org + '_kiosk')
+                  : staffId ? (org + '_hlp_' + staffId) : (org + '_' + carId);
       try { await A.db.collection('driverDevices').doc(devId).delete(); } catch (e) {
         return fail(res, 500, '기기를 풀지 못했어요. 잠시 뒤 다시 시도해 주세요.');
       }

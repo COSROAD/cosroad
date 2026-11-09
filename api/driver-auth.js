@@ -24,6 +24,11 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { createHash, timingSafeEqual } from 'crypto';
 /* 이용 기간 판정 한 벌 (코스로드45) — 규칙·lib/send-guard.js 와 **같은 한 줄** */
 import { isAliveUser } from '../lib/period.js';
+/* ★ v297(60-B4b): 출석 알림톡을 **서버가** 보낸다 —
+   문지기 셈(`orgPhones`·`rateHit`·`orgLimits`)은 `lib/send-guard.js` 를 **그대로** 쓰고,
+   본문·템플릿·알리고 호출은 `lib/alimtalk-core.js` **한 벌**을 쓴다(두 벌로 적지 않는다). */
+import * as SG from '../lib/send-guard.js';
+import * as AT from '../lib/alimtalk-core.js';
 
 /* v266: 안 쓰는 주소 셋(roadjob.co.kr·www.roadjob.co.kr·roadcrew.kr)을 뺐다.
    0단계 조사에서 배포된 roadjob.co.kr 을 받아 확인한 결과, 로드잡은 자기 서버
@@ -262,6 +267,25 @@ export default async function handler(req, res) {
 
   /* 이 기관의 소유자 uid — api/admin-account resolveOwnerUid 와 **같은 규칙**(v251·v254).
      _test 는 마스터를 소유자로 둔다(그 계정 체험이 끝나도 기사가 잠기지 않게). */
+  /* 기기 묶기 — 첫 로그인 기기를 기억하고, 다른 기기는 거절.
+     ★ 기사는 **차량 기준**(`<org>_<carId>`) · 도우미는 **사람 기준**(`<org>_hlp_<staffId>`) ·
+       **출석 기기**는 업체에 **하나**(`<org>_kiosk`, v297).
+     ★ 세 갈래가 **같은 코드**를 쓴다 — 복사해 두면 한쪽만 고쳐져 셈이 어긋난다
+       (lib/otp-core.js 를 공용으로 둔 것과 같은 이유).
+     ★ v297: 로그인 갈래 안에 있던 것을 **핸들러 범위로 올렸다**(출석 기기도 같이 쓰려고) —
+       그래서 `org`·`deviceId` 를 **인자로** 받는다.
+     반환: null 통과 / 'device' 다른 기기 */
+  async function bindDevice(docId, org, deviceId, fields) {
+    const devRef = A.db.collection('driverDevices').doc(docId);
+    const ds = await devRef.get();
+    if (ds.exists && (ds.data() || {}).deviceId) {
+      return String((ds.data() || {}).deviceId) === deviceId ? null : 'device';
+    }
+    await devRef.set(Object.assign({ org: org, deviceId: deviceId, boundAt: Date.now() }, fields));
+    /* v260: 새 기기가 **제대로** 묶였다 — 업체 단위 실패 수를 비운다. */
+    await clearOrgFail(org);
+    return null;
+  }
   async function resolveOwnerUid(org) {
     let owners = [];
     try {
@@ -475,8 +499,57 @@ export default async function handler(req, res) {
     }
     /* 돌려주는 것은 **그 사람 것만** — 사진은 **주소일 때만**(데이터 URL 은 너무 커서 안 보낸다) */
     const photo = String(me.photo || '');
+    /* ★ v297: 알림톡을 **서버가** 보내야 하므로 번호·업종 재료도 함께 돌려준다 —
+       **응답에는 넣지 않는다**(아래 창구들이 돌려줄 칸을 하나씩 적는다). */
+    const phones = [];
+    if (me.phone) phones.push(String(me.phone));
+    if (me.phone2) phones.push(String(me.phone2));
     return { ok: true, name: String(me.name || ''), photo: /^https?:\/\//.test(photo) ? photo : '',
-             time: timeStr, date: dateStr };
+             time: timeStr, date: dateStr,
+             _phones: phones, _invoice: String(me.invoice || ''), _courier: String(me.courier || '') };
+  }
+
+  /* ── 출석 알림톡을 **서버가** 보낸다 (60-B4b · v297) ────────────────────────
+     ★★ 왜 서버가 — 출석 전용 기기는 **명단을 받지 않는다**(사장님 결정 2). 번호를 모르니
+       기기가 보낼 수 없다. 그래서 「찍기」와 같은 자리에서 서버가 보낸다.
+     ★ 조건은 **앱과 같다** — `lib/send-guard.js` 의 `orgPhones`(그 업체 명부 번호만) ·
+       `rateHit`+`orgLimits`(업체별 1분·하루 상한)를 **그대로 부른다**(셈을 또 적지 않는다).
+     ★ 본문·템플릿·버튼·알리고 호출은 `lib/alimtalk-core.js` **한 벌**이다
+       (`api/send-alimtalk.js` 와 같은 글·같은 코드).
+     ★★ **두 번 나가지 않는다** — 이 길은 **출석 기기 창구에서만** 부른다.
+       관리자 판(`pinCheckin`)은 **앱이** 보내고(종전 그대로), 기기는 **서버만** 보낸다.
+       한 번의 출석에 창구는 하나뿐이므로 두 길이 겹치지 않는다(보고문 표).
+     반환: 보낸 건수(0 이면 못 보냈다 — 출석은 이미 찍혔으므로 응답을 막지 않는다) */
+  async function kioskNotify(org, mr) {
+    const phones = Array.isArray(mr._phones) ? mr._phones : [];
+    if (!phones.length) return 0;
+    let biz = 'academy', orgName = '';
+    try {
+      const os = await A.db.collection('orgs').doc(org).collection('data').doc('orgDriver').get();
+      const ov = (os.exists && os.data()) || null;
+      if (ov && ov.value) {
+        const o = JSON.parse(ov.value);
+        biz = String(o.bizType || 'academy'); orgName = String(o.name || '');
+      }
+    } catch (e) {}
+    let allow = null;
+    try { allow = await SG.orgPhones(A, org, ''); } catch (e) { allow = null; }
+    if (allow === null) return 0;
+    const msg = AT.buildAlimtalkMessage(biz, orgName, mr.name, mr.time, mr._invoice, mr._courier);
+    const tpl = AT.tplCodeFor(biz);
+    let sent = 0;
+    for (const raw of phones) {
+      const rcv = SG.phoneDigits(raw);
+      if (!/^0\d{8,10}$/.test(rcv)) continue;
+      if (!allow.has(rcv)) continue;                 /* 명부에 없는 번호로는 안 보낸다 */
+      const over = await SG.rateHit(A, 'org.' + SG.sha256(org), SG.orgLimits(), 1);
+      if (over) break;                               /* 상한에 걸리면 멈춘다(앱과 같다) */
+      const form = AT.alimtalkForm({ tplCode: tpl, receiver: rcv, name: mr.name, message: msg,
+                                     biz: biz, courier: mr._courier, invoice: mr._invoice });
+      if (!form) break;                              /* 알리고 설정이 없다 */
+      try { await AT.postAlimtalk(form); sent++; } catch (e) { /* 실패는 삼킨다 — 출석은 찍혔다 */ }
+    }
+    return sent;
   }
 
   /* 호출자 확인 — 출퇴근을 찍을 수 있는 토큰인가 (checkin·checkout)
@@ -607,25 +680,6 @@ export default async function handler(req, res) {
         return fail(res, 401, SAME);     // 틀린 PIN 도 **같은 문구**
       }
 
-      /* 기기 묶기 — 첫 로그인 기기를 기억하고, 다른 기기는 거절.
-         ★ 기사는 **차량 기준**(`<org>_<carId>`) · 도우미는 **사람 기준**(`<org>_hlp_<staffId>`) —
-           도우미는 배정이 수시로 바뀌므로 차량 기준으로 묶으면 차량이 바뀔 때마다 기기가 풀린다.
-         ★ 두 갈래가 **같은 코드**를 쓴다 — 복사해 두면 한쪽만 고쳐져 셈이 어긋난다
-           (lib/otp-core.js 를 공용으로 둔 것과 같은 이유).
-         반환: null 통과 / 'device' 다른 기기 */
-      const bindDevice = async (docId, fields) => {
-        const devRef = A.db.collection('driverDevices').doc(docId);
-        const ds = await devRef.get();
-        if (ds.exists && (ds.data() || {}).deviceId) {
-          return String((ds.data() || {}).deviceId) === deviceId ? null : 'device';
-        }
-        await devRef.set(Object.assign({ org: org, deviceId: deviceId, boundAt: Date.now() }, fields));
-        /* v260: 새 기기가 **제대로** 묶였다 — 업체 단위 실패 수를 비운다.
-           (기사 여럿이 첫 로그인에서 잘못 눌러 20회가 차도 한 명이 들어오면 풀린다) */
-        await clearOrgFail(org);
-        return null;
-      };
-
       /* ── 동승 도우미 (43-B) ──────────────────────────────────────────────
          차량은 **토큰에 넣지 않는다** — 배정이 수시로 바뀌므로, 보는 자리를
          `orgs/{org}/drivers/{uid}.carId` **하나**로 둔다(규칙 `myCarId` 가 보는 그 문서다).
@@ -654,7 +708,7 @@ export default async function handler(req, res) {
           return fail(res, 403, '업체 이용 기간이 끝났거나 계정이 멈췄어요. 관리자에게 문의해 주세요.', 'expired');
         }
         try {
-          const why = await bindDevice(org + '_hlp_' + staffId, { helper: true, staffId: staffId });
+          const why = await bindDevice(org + '_hlp_' + staffId, org, deviceId, { helper: true, staffId: staffId });
           if (why) {
             await writeLogin(org, hcar, false, 'device', deviceId, loc);
             return fail(res, 403, '등록된 기기가 아니에요. 관리자에게 기기 풀기를 요청하세요.', 'device');
@@ -701,7 +755,7 @@ export default async function handler(req, res) {
       }
 
       try {
-        const why = await bindDevice(org + '_' + carId, { carId: carId });
+        const why = await bindDevice(org + '_' + carId, org, deviceId, { carId: carId });
         if (why) {
           await writeLogin(org, carId, false, 'device', deviceId, loc);
           return fail(res, 403, '등록된 기기가 아니에요. 관리자에게 기기 풀기를 요청하세요.', 'device');
@@ -760,6 +814,122 @@ export default async function handler(req, res) {
       /* 앱이 **같은 키**(`st…_날짜`)로 폰에도 적을 수 있게 알려 준다 */
       if (who.helper) out.staffId = who.staffId;
       return res.status(200).json(out);
+    }
+
+    /* ── b-2) **출석 전용 기기**(키오스크) 로그인 (60-B4b · v297) ────────────────
+       업체 번호 6자리 + **출석기기 코드 6자리** → `ksk_<org>` custom token.
+       ★ 상한·잠금·기기 묶기는 **기사 로그인과 같은 수준**(같은 함수를 그대로 쓴다).
+       ★ 토큰 claim 은 `{kiosk:true, org}` — **차량·직원·사람 정보가 없다.**
+       ★★ **규칙은 한 줄도 안 바꿨다** — `users/ksk_…`·`drivers/ksk_…` 문서를 **만들지 않으므로**
+         규칙의 모든 갈래가 거짓이 되어 **아무 컬렉션도 못 읽고 못 쓴다**
+         (에뮬레이터 `t296.mjs` 에서 `memberPins` 까지 포함해 실측). 출석은 아래 창구만 쓴다. */
+    if (action === 'kioskLogin') {
+      const code = String(b.orgCode || '').replace(/[^0-9]/g, '');
+      const kcode = String(b.kioskCode || '').replace(/[^0-9]/g, '');
+      const deviceId = String(b.deviceId || '').slice(0, 64);
+      const loc = b.loc && typeof b.loc === 'object' ? b.loc : null;
+      if (!/^\d{6}$/.test(code) || !/^\d{6}$/.test(kcode)) {
+        return fail(res, 400, '업체 번호 6자리와 출석기기 코드 6자리를 넣어 주세요.');
+      }
+      if (!deviceId) return fail(res, 400, '기기를 확인하지 못했어요. 브라우저를 새로 고쳐 주세요.');
+      const blocked = await rateLimited(code, deviceId);
+      if (blocked) {
+        await writeLogin('', '', false, 'locked', deviceId, loc);
+        return fail(res, 429, blocked, 'locked');
+      }
+      let org = null;
+      try {
+        const s = await A.db.collection('orgCodes').doc(code).get();
+        if (s.exists) org = String((s.data() || {}).orgId || '') || null;
+      } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      if (!org) {
+        await bumpFail(code, deviceId);
+        await writeLogin('', '', false, 'nocode', deviceId, loc);
+        return fail(res, 401, SAME);                 /* 없는 번호도 **같은 문구** */
+      }
+      const bound = await deviceBoundToOrg(org, deviceId);
+      if (!bound && await orgOverLimit(org)) {
+        await writeLogin(org, '', false, 'orglock', deviceId, loc);
+        return fail(res, 429, '잠시 뒤 다시 시도해 주세요.', 'locked');
+      }
+      /* 출석기기 코드 대조 — 해시로(기사 PIN 과 **같은 재료**) */
+      let okCode = false;
+      try {
+        const ks = await A.db.collection('kioskCodes').doc(org).get();
+        const kv = (ks.exists && ks.data()) || null;
+        okCode = !!(kv && kv.codeHash && sameHash(kv.codeHash, sha256(kcode + '|' + org + '|' + secret)));
+      } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      if (!okCode) {
+        await bumpFail(code, deviceId);
+        if (!bound) await bumpOrgFail(org);
+        await writeLogin(org, '', false, 'badpin', deviceId, loc);
+        return fail(res, 401, SAME);                 /* 틀린 코드도 **같은 문구** */
+      }
+      /* 업체가 살아 있나 — 기사·도우미와 **같은 함수·같은 문구** */
+      const ownerK = await resolveOwnerUid(org);
+      if (!(await ownerAlive(ownerK))) {
+        await writeLogin(org, '', false, 'expired', deviceId, loc);
+        return fail(res, 403, '업체 이용 기간이 끝났거나 계정이 멈췄어요. 관리자에게 문의해 주세요.', 'expired');
+      }
+      /* 기기 묶기 — **기기 하나**(`<org>_kiosk`) · 기사·도우미와 같은 함수 */
+      try {
+        const why = await bindDevice(org + '_kiosk', org, deviceId, { kiosk: true });
+        if (why) {
+          await writeLogin(org, '', false, 'device', deviceId, loc);
+          return fail(res, 403, '등록된 기기가 아니에요. 관리자에게 기기 풀기를 요청하세요.', 'device');
+        }
+      } catch (e) { return fail(res, 500, '잠시 뒤 다시 시도해 주세요.'); }
+      let ktoken;
+      try {
+        /* ★ `users`·`drivers` 문서를 **만들지 않는다** — 그래야 규칙이 전부 거부한다 */
+        ktoken = await A.auth.createCustomToken('ksk_' + org, { kiosk: true, org: org });
+      } catch (e) {
+        console.log('[driver-auth] createCustomToken 실패(출석기기)', (e && e.code) || '');
+        return fail(res, 500, '로그인 토큰을 만들지 못했어요. 관리자에게 알려 주세요.');
+      }
+      await clearFail(code, deviceId);
+      await writeLogin(org, '', true, 'kiosk', deviceId, loc);
+      /* 화면에 쓸 업체 이름·업종만 함께 준다(명단은 **보내지 않는다**) */
+      let orgName = '', bizType = 'academy';
+      try {
+        const os = await A.db.collection('orgs').doc(org).collection('data').doc('orgDriver').get();
+        const ov = (os.exists && os.data()) || null;
+        if (ov && ov.value) {
+          const o = JSON.parse(ov.value);
+          orgName = String(o.name || ''); bizType = String(o.bizType || 'academy');
+        }
+      } catch (e) {}
+      return res.status(200).json({ ok: true, token: ktoken, org: org, orgName: orgName, bizType: bizType });
+    }
+
+    /* ── b-3) 출석 전용 기기의 출석 찍기 (60-B4b · v297) ───────────────────────
+       ★ `punchMember`(v295)를 **그대로 다시 쓴다** — 출석을 적는 자리는 한 곳이다.
+       ★ 응답은 **그 사람 것만**(이름·사진·시각) — 명단은 보내지 않는다.
+       ★ 알림톡은 **서버가** 보낸다(기기가 번호를 모른다) — `lib/send-guard.js` 의
+         `orgPhones`·`rateHit`·`orgLimits` 를 **그대로** 쓰고 본문은 `lib/alimtalk-core.js`. */
+    if (action === 'kioskCheckin') {
+      const authz = String(req.headers.authorization || '');
+      const idToken = authz.startsWith('Bearer ') ? authz.slice(7).trim() : '';
+      if (!idToken) return fail(res, 401, '다시 로그인해 주세요.');
+      let t;
+      try { t = await A.auth.verifyIdToken(idToken); }
+      catch (e) { return fail(res, 401, '로그인이 만료됐어요. 다시 로그인해 주세요.'); }
+      if (t.kiosk !== true || !t.org) return fail(res, 403, '출석 기기로 로그인한 뒤에 쓸 수 있어요.');
+      const org = String(t.org);                     /* ★ 본문 값은 믿지 않는다 */
+      const pin = String(b.pin || '').replace(/[^0-9]/g, '');
+      if (!/^\d{4}$/.test(pin)) return fail(res, 400, 'PIN 4자리를 넣어 주세요.');
+      if (!(await ownerAlive((await resolveOwnerUid(org))))) {
+        return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
+      }
+      const mr = await punchMember(org, pin);
+      if (mr.error) return fail(res, 500, mr.error);
+      if (mr.notfound) return fail(res, 404, 'PIN 번호가 올바르지 않습니다.', 'nomember');
+      await writeLogin(org, '', true, 'kiosk:att', '', null);
+      /* 알림톡 — 실패해도 **출석은 이미 찍혔다**(응답을 막지 않는다) */
+      let sent = 0;
+      try { sent = await kioskNotify(org, mr); } catch (e) { sent = 0; }
+      return res.status(200).json({ ok: true, name: mr.name, photo: mr.photo,
+                                    time: mr.time, date: mr.date, sent: sent });
     }
 
     /* ── c) 관리자 공용 기기의 PIN 출퇴근 패드 ── */

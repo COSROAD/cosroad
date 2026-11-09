@@ -148,7 +148,14 @@ function makeHandler(src, S) {
       .replace(/^import \{([^}]*)\} from 'crypto';$/m, "const {$1} = require('crypto');")
       .replace(/^export /mg, '') + String.fromCharCode(10);
   }
+  /* ★ v297(60-B4b): `api/send-alimtalk.js` 가 `lib/alimtalk-core.js`(본문·버튼·알리고 호출 한 벌)도
+     쓴다 — 같은 방법으로 앞에 붙인다(옛 판에는 그 import 가 없어 아무것도 안 붙는다). */
+  const AT_IMP = /^import \{[^}]*\} from '\.\.\/lib\/alimtalk-core\.js';$/m;
+  if (AT_IMP.test(src)) {
+    pre += read('lib/alimtalk-core.js').replace(/^export /mg, '') + String.fromCharCode(10);
+  }
   const code = pre + src
+    .replace(AT_IMP, '/* lib/alimtalk-core.js 는 위에 붙였다 */')
     .replace(IMP, '/* lib/send-guard.js 는 위에 붙였다 */')
     .replace(/^import \{[^}]*\} from 'firebase-admin\/app';$/m, "const { initializeApp, getApps, cert } = __fb.app;")
     .replace(/^import \{[^}]*\} from 'firebase-admin\/auth';$/m, "const { getAuth } = __fb.auth;")
