@@ -42,6 +42,12 @@ img,svg,video,canvas{max-width:100%;}
   --gray-400:#98A2B3;--gray-600:#475467;
   --gray-700:#344054;--gray-900:#101828;
   --radius:12px;--radius-sm:8px;
+  /* 카카오톡 공유·보내기 표식 (v302 · 코스로드61-2 · 사장님 기본 원칙 11-09)
+     ★ 카카오 공식 디자인 지침 표 그대로: 컨테이너 #FEE500 · 심볼 #000000 · 레이블 #000000 85%.
+       (지시문의 `#191919` 는 **옛 카카오싱크 가이드** 값이다 — 지금 공식 문서는 85% 검정을 적는다)
+     ★ 이 두 변수만 쓴다 — 하드코딩 금지(CSS 변수 규칙 v255: :root 에 없는 이름을 var() 로 쓰면
+       색이 **조용히 빠져** 글자가 안 보인다). 문자(SMS)·알림톡 단추는 **그대로** 둔다. */
+  --kakao:#FEE500;--kakao-ink:rgba(0, 0, 0, .85);
 }
 /* v256: 한국어 줄바꿈을 **앱 전체에** 건다 (사장님 원칙 — 새 화면도 따로 끄지 않는다).
    word-break:keep-all  = 한국어를 낱글자로 쪼개지 않고 **단어(어절) 단위**로 넘긴다
@@ -235,7 +241,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 .share-link-box{background:var(--gray-100);border-radius:var(--radius-sm);padding:9px 12px;font-size:11px;color:var(--gray-600);word-break:break-all;margin-bottom:8px;}
 .share-btns{display:flex;gap:6px;}
 .share-btn{flex:1;padding:9px;border-radius:var(--radius-sm);border:none;font-size:12px;font-weight:600;cursor:pointer;}
-.share-btn-kakao{background:#FEE500;color:#3A1D1D;}
+.share-btn-kakao{background:var(--kakao);color:var(--kakao-ink);}
 .share-btn-copy{background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);}
 .share-btn-sms{background:var(--success);color:white;}
 
@@ -688,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 301;
+const APP_VERSION = 302;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2246,7 +2252,7 @@ function pvFormHtml(D, mode, opts){
         h+='<td rowspan="6" style="'+R+'">'+won(P.meal)+'</td>';
         /* 「💬 카톡」은 화면에서만 — 인쇄·PDF(scr=false)·엑셀에는 나오지 않는다 (v246) */
         h+='<td rowspan="6" style="'+CT+'">'+esc(P.car.driver||'')+'<br/><span style="font-size:'+(FS-2)+'px;color:#667085;">('+mon+'월·'+modeLabel+')</span>'
-          +(scr?'<br/><button onclick="openPayslipShare(&quot;'+esc(P.car.id)+'&quot;)" style="margin-top:4px;padding:3px 8px;background:#FEE500;color:#3C1E1E;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 카톡</button>':'')
+          +(scr?'<br/><button onclick="openPayslipShare(&quot;'+esc(P.car.id)+'&quot;)" style="margin-top:4px;padding:3px 8px;background:var(--kakao);color:var(--kakao-ink);border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 카톡</button>':'')
           +'</td>';
       }
       h+='<td style="'+CT+'font-weight:700;">'+esc(label)+'</td>';
@@ -7212,13 +7218,13 @@ function renderNotice(){
       var sentBadge = n.sent ? '<span style="font-size:10px;color:#12B76A;background:#ECFDF3;padding:2px 6px;border-radius:4px;">발송됨</span>' : '<span style="font-size:10px;color:#667085;background:#F2F4F7;padding:2px 6px;border-radius:4px;">기록</span>';
       /* 카톡은 공유창을 연 것까지만 앱이 알 수 있다(실제 전송 여부는 카카오가 알려주지 않는다)
          → 문자 「발송됨」과 **따로** 표시한다 (v246) */
-      var kakaoBadge = n.kakaoTs ? '<span style="font-size:10px;color:#B54708;background:#FFFAEB;padding:2px 6px;border-radius:4px;">💬 카톡 공유함</span>' : '';
+      var kakaoBadge = n.kakaoTs ? '<span style="font-size:10px;color:var(--kakao-ink);background:var(--kakao);padding:2px 6px;border-radius:4px;font-weight:700;">💬 카톡 공유함</span>' : '';
       h += '<div style="background:white;border-radius:10px;border:1px solid #EAECF0;padding:12px;margin-bottom:8px;">';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
       h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span style="font-size:12px;font-weight:700;color:#344054;">'+targetLabel+'</span>'+sentBadge+kakaoBadge+'</div>';
       h += '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">';
       h += '<button onclick="sendNoticeSms('+n.id+')" style="font-size:11px;color:#12B76A;background:#ECFDF3;border:1px solid #A6F4C5;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;">📩 '+(n.sent?'다시 보내기':'문자 보내기')+'</button>';
-      h += '<button onclick="openNoticeShare('+n.id+')" style="font-size:11px;color:#3C1E1E;background:#FEE500;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:800;">💬 카톡 공유</button>';
+      h += '<button onclick="openNoticeShare('+n.id+')" style="font-size:11px;color:var(--kakao-ink);background:var(--kakao);border:none;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:800;">💬 카톡 공유</button>';
       h += '<button onclick="startNoticeEdit('+n.id+')" style="font-size:11px;color:#475467;background:none;border:1px solid #EAECF0;border-radius:6px;padding:3px 8px;cursor:pointer;">수정</button>';
       h += '<button onclick="deleteNotice('+n.id+')" style="font-size:11px;color:#98A2B3;background:none;border:1px solid #EAECF0;border-radius:6px;padding:3px 8px;cursor:pointer;">삭제</button>';
       h += '</div>';
@@ -12427,7 +12433,7 @@ function renderInvoice(){
   h += '</div>';
   // v268: 두 단추(PDF 출력·카톡 공유)를 **하나**로 합쳤다 — 문서를 보면서 인쇄·카톡을 고른다
   h += '<div style="display:flex;">';
-  h += '<button onclick="openRangeDocView()" style="flex:1;padding:12px;background:#7C3AED;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;word-break:keep-all;overflow-wrap:anywhere;">📄 기간 거래내역 보기 · 인쇄 · 💬 카톡</button>';
+  h += '<button onclick="openRangeDocView()" style="flex:1;padding:12px;background:#7C3AED;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;word-break:keep-all;overflow-wrap:anywhere;">📄 기간 거래내역 보기 · 인쇄 · <span style="background:var(--kakao);color:var(--kakao-ink);padding:1px 6px;border-radius:5px;font-weight:800;">💬 카톡</span></button>';
   h += '</div>';
   h += '<div style="font-size:10px;color:#98A2B3;margin-top:6px;text-align:center;word-break:keep-all;">선택 거래처의 기간 내 거래를 일자별로 모아 보여 줍니다. 문서를 보면서 「🖨 인쇄·PDF」나 「💬 카톡 보내기」를 고르시면 돼요.</div>';
   // ── 전체 총 미수 (업체 지정 시) — 기간과 무관한 현재 누적. 계산은 netUnpaid() 재사용 ──
@@ -12478,7 +12484,7 @@ function renderInvoice(){
         /* ★ flex-basis 를 적어 준다 — `flex:1`(=basis 0) 로 두면 좁은 폭에서 **접히지 않고
            짜부라져** 「🧾 영수증」이 37px 폭에 네 줄로 쪼개졌다(360에서 실측).
            basis 를 주면 한 줄에 못 들어갈 때 wrap 으로 **접혀 내려간다.** */
-        h += '<button onclick="openInvoiceDocView(\''+inv.id+'\')" style="flex:1 1 150px;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;word-break:keep-all;">📄 보기 · 인쇄 · 💬 카톡</button>';
+        h += '<button onclick="openInvoiceDocView(\''+inv.id+'\')" style="flex:1 1 150px;font-size:11px;color:#1570EF;background:#EFF8FF;border:1px solid #B2DDFF;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;word-break:keep-all;">📄 보기 · 인쇄 · <span style="background:var(--kakao);color:var(--kakao-ink);padding:1px 6px;border-radius:5px;font-weight:800;">💬 카톡</span></button>';
         h += '<button onclick="receiptPrintInvoice(\''+inv.id+'\')" style="flex:1 1 78px;font-size:11px;color:#B54708;background:#FFFAEB;border:1px solid #FEDF89;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;white-space:nowrap;">🧾 영수증</button>';
       }
       h += '<button onclick="startEditInvoice(\''+inv.id+'\')" style="flex:1 1 68px;font-size:11px;color:#7C3AED;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:6px;padding:7px;cursor:pointer;font-weight:700;white-space:nowrap;">✏ 수정</button>';
@@ -13824,7 +13830,7 @@ function docViewOpen(opts){
     '<div id="docViewBar" style="flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:7px;background:#F2F4F7;border-bottom:1px solid #D0D5DD;padding:9px 12px;box-sizing:border-box;">'
     + '<span style="flex:1 1 100%;min-width:0;font-size:12px;font-weight:700;color:#475467;word-break:keep-all;overflow-wrap:anywhere;">'+escapeMasterHtml(opts.summary||'')+'</span>'
     + '<button id="docViewPrintBtn" onclick="docViewPrint()" style="'+btn+'background:#475467;color:white;border:none;">🖨 인쇄·PDF</button>'
-    + '<button id="docViewKakaoBtn" onclick="docViewKakao()" style="'+btn+'background:#FEE500;color:#3C1E1E;border:none;">💬 카톡 보내기</button>'
+    + '<button id="docViewKakaoBtn" onclick="docViewKakao()" style="'+btn+'background:var(--kakao);color:var(--kakao-ink);border:none;">💬 카톡 보내기</button>'
     + '<button id="docViewCloseBtn" onclick="closeDocView()" style="'+btn+'background:white;color:#475467;border:1px solid #D0D5DD;">✕ 닫기</button>'
     + '</div>'
     + '<div id="docViewBody" style="flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px;box-sizing:border-box;">'
@@ -14433,7 +14439,7 @@ function invShareOpenSheet(heading, rows, bigLabel, bigValue, tailRows, extraHtm
     + (extraHtml || '')
     + '<div style="font-size:11px;color:#98A2B3;line-height:1.6;margin-bottom:12px;">'+invShareNoteHtml()+'</div>'
     + '<div id="invShareLink"></div>'
-    + '<button id="invShareSendBtn" onclick="invShareSend()" disabled style="width:100%;padding:13px;background:#FEE500;color:#3C1E1E;border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:default;opacity:.55;">링크 준비 중…</button>'
+    + '<button id="invShareSendBtn" onclick="invShareSend()" disabled style="width:100%;padding:13px;background:var(--kakao);color:var(--kakao-ink);border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:default;opacity:.55;">링크 준비 중…</button>'
     + '<button onclick="invShareCopy()" style="width:100%;padding:11px;background:white;color:#475467;border:1px solid #D0D5DD;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">🔗 링크 복사</button>'
     + '<button onclick="closeInvoiceShare()" style="width:100%;padding:11px;background:#F2F4F7;color:#667085;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;">닫기</button>'
     + '</div>';
@@ -14672,7 +14678,7 @@ function invShareShowLink(url, again, msg){
   box.innerHTML =
     '<div style="display:flex;gap:6px;align-items:center;margin-bottom:'+(msg?'6px':'10px')+';">'
     + '<input id="invShareUrl" readonly value="'+escapeMasterHtml(url)+'" style="flex:1;min-width:0;padding:8px;border:1px solid #D0D5DD;border-radius:8px;font-size:11px;"/>'
-    + ((again && navigator.share) ? '<button onclick="invShareAgain()" style="padding:8px 11px;background:#FEE500;color:#3C1E1E;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 다시 공유</button>' : '')
+    + ((again && navigator.share) ? '<button onclick="invShareAgain()" style="padding:8px 11px;background:var(--kakao);color:var(--kakao-ink);border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">💬 다시 공유</button>' : '')
     + '</div>'
     + (msg ? '<div id="invShareMsg" style="font-size:12px;font-weight:700;color:#027A48;margin-bottom:10px;">'+escapeMasterHtml(msg)+'</div>' : '');
 }

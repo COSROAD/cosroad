@@ -64,8 +64,17 @@ console.log('════ 0. 비교 전 — 샘플 자료가 실제로 읽히나
    주소 검색이 준 공식 시도·시군구를 들고 다니는 `data-sido`·`data-sigungu`·`oninput` 과
    그 아래 안내 한 줄이 더해졌다. **그 둘만** 지우고 견준다(v256 보정3 의 회색 예외와 같은 방식).
    지우고도 나머지가 바이트 동일해야 한다 — 그래서 이 예외가 다른 변화를 덮지 않는다. */
-function norm299(s) {
+/* ★ v302(코스로드61-2): «알림장» 화면의 **카톡 공유 단추·표식**이 일부러 달라졌다 —
+   하드코딩 색이 `:root` 변수(`--kakao`·`--kakao-ink`)로 바뀌고 표식도 노란색이 됐다.
+   그 **두 모양만** 옛 색으로 되돌려 견준다(v256 보정3·v299 예외와 같은 방식). */
+function norm302(s) {
   return String(s)
+    .replace(/font-size:10px;color:var\(--kakao-ink\);background:var\(--kakao\);padding:2px 6px;border-radius:4px;font-weight:700;/g,
+             'font-size:10px;color:#B54708;background:#FFFAEB;padding:2px 6px;border-radius:4px;')
+    .replace(/color:var\(--kakao-ink\);background:var\(--kakao\);/g, 'color:#3C1E1E;background:#FEE500;');
+}
+function norm299(s) {
+  return norm302(String(s))
     .replace(/ data-sido="[^"]*" data-sigungu="[^"]*" oninput="orgAddrTouched\(\)"/g, '')
     .replace(/\n\s*<div style="font-size:11\.5px;color:#667085;line-height:1\.6;margin-bottom:8px;">📍 <b>검색으로 고르면[^<]*<\/b>[^<]*<\/div>/g, '');
 }
