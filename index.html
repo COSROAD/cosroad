@@ -549,6 +549,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
     <div id="wrap-pin">
     <label class="form-label">출석 PIN 번호 (4자리) *</label>
     <input class="form-input" type="number" id="m-pin" placeholder="예) 1234" maxlength="4"/>
+    <div id="m-pin-note" style="display:none;font-size:11px;color:#B54708;line-height:1.6;margin-top:4px;"></div>
     </div>
     <label class="form-label" id="lbl-note">특이사항</label>
     <input class="form-input" type="text" id="m-note" placeholder="예) 정문 우측 대기"/>
@@ -672,7 +673,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 295;
+const APP_VERSION = 296;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2701,6 +2702,13 @@ function buildDriverAttHtml(){
 function closeStaffEdit(){
   var el=document.getElementById('staffEditSheet');
   if(el) el.remove();
+}
+/* ★★ v296(60-B4a): «회원» PIN 이 있는가 — 직원과 **같은 꼴**(`hasPin` 한 칸).
+   옛 자료(아직 안 옮긴 업체)에는 평문 `pin` 이 남아 있으므로 그것도 함께 본다.
+   ★ 화면에는 **원문을 되돌려 보여 주지 않는다**(명단 카드·수정 창 모두). */
+function memberHasPin(m){
+  if(!m) return false;
+  return m.hasPin===true || /^\d{4}$/.test(String(m.pin||''));
 }
 /* ★ v280(43-A): 직원 PIN 이 있는가 — 서버 해시로 옮긴 뒤에는 `hasPin` 한 칸으로 본다.
    옛 자료(아직 안 옮긴 업체)에는 평문 `pin` 이 남아 있으므로 그것도 함께 본다. */
@@ -5626,7 +5634,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n4. 동시에 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -7605,7 +7613,9 @@ function renderAdminMembers(){
   var q='',el=document.getElementById('admin-search');
   if(el) q=el.value.toLowerCase();
   var filtered=members.filter(function(m){return !q||m.name.toLowerCase().indexOf(q)>=0;}).slice().sort(function(a,b){ return memberSortDesc ? b.name.localeCompare(a.name,'ko') : a.name.localeCompare(b.name,'ko'); });
-  var html='<div style="position:sticky;top:0;z-index:98;background:var(--gray-100);">';
+  /* ★ v296(60-B4a): 옛 «회원» PIN 옮기기 — 평문이 남아 있는 업체에만 보인다(직원 카드와 같은 꼴) */
+  var html=memberMigrateCardHtml();
+  html+='<div style="position:sticky;top:0;z-index:98;background:var(--gray-100);">';
   // 버튼 줄
   html+='<div style="display:flex;gap:6px;padding:10px 16px 6px;">';
   html+='<button onclick="openAddModal()" style="flex:1;padding:10px;background:#EA580C;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">＋ '+T('회원')+' 등록</button>';
@@ -7661,7 +7671,8 @@ function renderAdminMembers(){
     for(var d=0;d<DAYS.length;d++){
       dayDots+='<div class="day-dot '+(m.days.indexOf(DAYS[d])>=0?'on':'')+'">'+ DAYS[d]+'</div>';
     }
-    var pin=m.pin?'PIN: '+m.pin:'PIN 미설정';
+    /* ★ v296(60-B4a): PIN **원문을 보여 주지 않는다**(서버 해시로 옮겼다) */
+    var pin=memberHasPin(m)?'PIN 설정됨':'PIN 미설정';
     html+='<div class="member-card" style="margin:0 0 8px;">'
       +'<div class="member-header">'
       +'<input type="checkbox" class="member-sel-cb" data-mid="'+m.id+'" onchange="toggleMemberSel('+m.id+',this.checked)" '+(_memberSel[m.id]?'checked':'')+' style="width:18px;height:18px;flex-shrink:0;accent-color:#F04438;cursor:pointer;"/>'
@@ -7714,7 +7725,8 @@ function filterAdminMembers(q){
     for(var d=0;d<DAYS.length;d++){
       dayDots+='<div class="day-dot '+(m.days.indexOf(DAYS[d])>=0?'on':'')+'">'+ DAYS[d]+'</div>';
     }
-    var pin=m.pin?'PIN: '+m.pin:'PIN 미설정';
+    /* ★ v296(60-B4a): PIN **원문을 보여 주지 않는다**(서버 해시로 옮겼다) */
+    var pin=memberHasPin(m)?'PIN 설정됨':'PIN 미설정';
     html+='<div class="member-card" style="margin:0 0 8px;">'
       +'<div class="member-header">'
       +'<input type="checkbox" class="member-sel-cb" data-mid="'+m.id+'" onchange="toggleMemberSel('+m.id+',this.checked)" '+(_memberSel[m.id]?'checked':'')+' style="width:18px;height:18px;flex-shrink:0;accent-color:#F04438;cursor:pointer;"/>'
@@ -7970,6 +7982,27 @@ function handleExcelFile(file){
         pending.forEach(function(m){ members.push(m); added++; });
         saveCourses(courses);
         saveMembers();
+        /* ★★ v296(60-B4a): 엑셀로 들어온 PIN 도 **서버 해시로 옮긴다**(평문을 남기지 않는다).
+           한 줄씩 묻지 않고 **한 번에**(`migrateMemberPins`) 보낸다 — 옮기기 길을 그대로 쓴다.
+           ★ 옮겨진 것만 평문을 비운다(겹침·오류가 있으면 **그대로 둔다** — v275 보정1 교훈).
+           ★ 둘러보기는 서버를 부르지 않는다(샘플 자료 그대로). */
+        var _impPins = pending.filter(function(m){ return /^\d{4}$/.test(String(m.pin||'')); });
+        if(_impPins.length && !(typeof isDemoMode==='function' && isDemoMode())){
+          driverAcctApi({ action:'migrateMemberPins', org:getFbOrgId(),
+            members: _impPins.map(function(m){ return { memberId:String(m.id), pin:String(m.pin) }; }) })
+            .then(function(r){
+              if(!r || !r.ok) return;                     /* 실패하면 평문을 그대로 둔다 */
+              if(((r.dup||0) + (r.bad||0)) > 0) return;   /* 겹침이 있으면 손대지 않는다 */
+              var list=loadMembers();
+              list.forEach(function(m){
+                if(!/^\d{4}$/.test(String(m.pin||''))) return;
+                if(!_impPins.some(function(x){ return String(x.id)===String(m.id); })) return;
+                m.hasPin=true; delete m.pin;
+              });
+              members=applyRideState(list);
+              saveMembers();
+            }).catch(function(){});
+        }
         var msg='✅ 업로드 완료! '+added+'명 등록, '+skipped+'명 건너뜀 (중복 또는 필수값 누락)';
         if(좌표실패.length) msg+='\n⚠️ 주소를 못 찾아 기관 좌표로 임시 등록: '+좌표실패.join(', ')+' — 수정에서 「주소 검색」으로 다시 등록해 주세요.';
         if(지역단위.length) msg+='\n⚠️ 주소가 동/지역 단위라 위치가 부정확: '+지역단위.join(', ')+' — 건물 주소로 다시 등록을 권장해요.';
@@ -8848,7 +8881,20 @@ function openEditModal(id){
     var _dr=document.getElementById('member-drop-result'); if(_dr){ _dr.style.display='none'; _dr.innerHTML=''; }
   }
   document.getElementById('m-note').value=m.note;
-  if(document.getElementById('m-pin'))document.getElementById('m-pin').value=m.pin||'';
+  /* ★★ v296(60-B4a): PIN 원문을 **되돌려 보여 주지 않는다**(서버 해시로 옮겼다 · 직원과 같은 태도).
+     이미 있으면 빈 칸 + 「설정됨」 안내만 — 비워 두고 저장하면 **그대로 둔다**(바꾸려면 새로 적는다). */
+  var _mp=document.getElementById('m-pin');
+  if(_mp){
+    _mp.value='';
+    _mp.placeholder = memberHasPin(m) ? 'PIN 설정됨 — 바꿀 때만 새 번호 4자리' : '예) 1234';
+  }
+  var _mpn=document.getElementById('m-pin-note');
+  if(_mpn){
+    _mpn.textContent = memberHasPin(m)
+      ? '🔒 PIN 은 서버에만 보관돼요 — 화면에 다시 보이지 않아요. 바꿀 때만 새 번호를 적어 주세요.'
+      : '';
+    _mpn.style.display = memberHasPin(m) ? '' : 'none';
+  }
   if(document.getElementById('m-regfee'))document.getElementById('m-regfee').value=m.regfee||'';
   if(document.getElementById('m-monthly'))document.getElementById('m-monthly').value=m.monthly||'';
   DAYS.forEach(d=>document.getElementById('d-'+dayIdMap[d]).checked=m.days.includes(d));
@@ -8896,11 +8942,13 @@ async function saveMember(){
   const pin=pinEl?pinEl.value.trim():'';
   // PIN 중복 검사 (다른 회원 + 기사 PIN과 겹치면 안 됨)
   if(pin){
+    /* 아직 안 옮긴 업체에는 평문이 남아 있다 — 그것도 함께 본다(옮긴 뒤에는 서버가 답한다) */
     var dupMember = members.find(function(m){ return m.pin===pin && m.id!==parseInt(editId||0); });
     if(dupMember){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupMember.name+' 님이 사용 중이에요'); return; }
     /* v255: 기사 PIN 은 앱 자료에 없다(서버 해시) → 서버에 겹치는지 묻는다.
-       v280: **직원 PIN 도 해시**가 되어 같은 물음 하나로 둘 다 본다(pinDupWho). */
-    var dupWho = await pinDupWho(pin);
+       v280: **직원 PIN 도 해시**가 되어 같은 물음 하나로 둘 다 본다(pinDupWho).
+       ★ v296(60-B4a): **«회원» PIN 도 해시** — 같은 물음이 셋을 다 본다(자기 자신은 뺀다). */
+    var dupWho = await pinDupWho(pin, '', editId ? String(editId) : '');
     if(dupWho){ showToast('⚠ PIN '+pin+' 은(는) 이미 '+dupWho+'이(가) 사용 중이에요'); return; }
   }
   const regfee=regEl?parseInt(regEl.value)||0:0;
@@ -8926,7 +8974,22 @@ async function saveMember(){
     if(_dcVal === document.getElementById('m-car').value) _dcVal='';
     dropCarFields = { carIdDrop: _dcVal };
   }
-  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,addrDetail:(document.getElementById('m-addrdetail')?document.getElementById('m-addrdetail').value.trim():''),days,note:document.getElementById('m-note').value.trim(),pin:pin,regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields, dropCarFields);
+  const obj=Object.assign({name,courseId:courseIdVal,carId:document.getElementById('m-car').value,phone:document.getElementById('m-phone').value.trim(),phone2:document.getElementById('m-phone2').value.trim(),location,addrDetail:(document.getElementById('m-addrdetail')?document.getElementById('m-addrdetail').value.trim():''),days,note:document.getElementById('m-note').value.trim(),regfee:regfee,monthly:monthly,driverPhone:driverPhoneRec,lat:locLat,lon:locLon,dropLocation:dropLocation,dropLat:dropLat,dropLon:dropLon}, deliveryFields, bizInfoFields, dropCarFields);
+  /* ★★ v296(60-B4a): PIN 은 **앱 자료에 넣지 않는다** — 서버 해시(`memberPins`)에만 둔다.
+     · 새 번호를 적었으면 서버에 맡기고(`setMemberPin`) 앱에는 `hasPin` 한 칸만 남긴다.
+     · **비워 두고 저장하면 그대로 둔다**(원문을 되돌려 보여 주지 않으므로 「빈 칸 = 지우기」가 아니다).
+     · 둘러보기는 서버를 부르지 않는다 — 샘플 자료라 종전처럼 평문으로 둔다(체험이 끊기지 않게).
+     ★ 서버가 거절하면(겹침·기간) **저장을 멈춘다**(앱만 바뀌어 어긋나지 않게 — 직원과 같은 태도). */
+  var _memId = editId ? String(editId) : String(nextId);
+  var _demoM = (typeof isDemoMode==='function' && isDemoMode());
+  if(pin && !_demoM){
+    var _rp = await driverAcctApi({ action:'setMemberPin', org:getFbOrgId(), memberId:_memId, pin:pin });
+    if(!_rp || !_rp.ok){ showToast('⚠ '+((_rp && _rp.message) || 'PIN 을 저장하지 못했어요. 잠시 뒤 다시 해 주세요.')); return; }
+    obj.hasPin = true;
+    delete obj.pin;
+  } else if(pin && _demoM){
+    obj.pin = pin;                       /* 둘러보기 — 샘플 자료 그대로 */
+  }
   if(editId){const idx=members.findIndex(m=>m.id===parseInt(editId));members[idx]={...members[idx],...obj};}
   else members.push({id:nextId++,...obj,on:true});
   saveMembers();closeModal('member-modal');showToast('✅ 저장됐어요!');
@@ -9133,7 +9196,7 @@ function renderAttendance(){
       /* 출석일 때만, 시각이 있으면 붙인다 (v244) */
       var _ti=(st==='present')?attTimeInfo(_atMap, attViewDate, m.id):null;
       var _tiHtml=_ti?('<span style="color:#12B76A;font-weight:700;"> · 🕘 '+_ti.t+' '+(_ti.by==='admin'?'관리자':'PIN')+'</span>'):'';
-      h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?escapeMasterHtml(cr.name):'')+(m.phone?' · '+escapeMasterHtml(m.phone):'')+(m.pin?' · PIN:'+m.pin:'')+_tiHtml+'</div></div>';
+      h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?escapeMasterHtml(cr.name):'')+(m.phone?' · '+escapeMasterHtml(m.phone):'')+(memberHasPin(m)?' · PIN 설정됨':'')+_tiHtml+'</div></div>';
       h+='<div style="display:flex;gap:6px;">';
       h+='<button onclick="setAttendance('+m.id+',\'present\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='present'?'#12B76A':'#F2F4F7')+';color:'+(st==='present'?'white':'#475467')+';">✅ '+T('출석')+'</button>';
       h+='<button onclick="setAttendance('+m.id+',\'absent\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='absent'?'#F04438':'#F2F4F7')+';color:'+(st==='absent'?'white':'#475467')+';">❌ '+T('결석')+'</button>';
@@ -16694,21 +16757,29 @@ async function drvPinDupCar(pin){
    돌려주는 값은 「기사(박기사)」·「직원(최직원)」 같은 **보여 줄 글자**이고,
    PIN 값이나 해시는 서버도 돌려주지 않는다(예·아니오와 누구인지만).
    `exceptStaffId` — 그 직원 **자신**은 빼고 본다(자기 PIN 을 다시 저장할 때). */
-async function pinDupWho(pin, exceptStaffId){
+async function pinDupWho(pin, exceptStaffId, exceptMemberId){
   pin=String(pin||'').replace(/[^0-9]/g,'');
   if(!/^\d{4}$/.test(pin)) return '';
   if(typeof isDemoMode==='function' && isDemoMode()){     /* 둘러보기는 샘플 자료로 */
     var c0=cars.find(function(c){ return c.driverPin===pin; });
     if(c0) return '기사('+(c0.driver||c0.name||'')+')';
     var s0=activeStaff().find(function(s){ return s.pin===pin && String(s.id)!==String(exceptStaffId||''); });
-    return s0 ? '직원('+s0.name+')' : '';
+    if(s0) return '직원('+s0.name+')';
+    var m0=(members||[]).find(function(m){ return m.pin===pin && String(m.id)!==String(exceptMemberId||''); });
+    return m0 ? T('회원')+'('+m0.name+')' : '';
   }
+  /* ★ v296(60-B4a): «회원» PIN 도 해시가 되어 **셋을 한 번에** 묻는다 */
   var r=await driverAcctApi({ action:'checkPinDup', org:getFbOrgId(), pin:pin,
-                              exceptStaffId: exceptStaffId||'' });
+                              exceptStaffId: exceptStaffId||'',
+                              exceptMemberId: exceptMemberId||'' });
   if(!r || !r.ok || !r.dup) return '';
   if(r.kind==='staff'){
     var st=activeStaff().find(function(x){ return String(x.id)===String(r.staffId); });
     return '직원('+((st&&st.name)||'')+')';
+  }
+  if(r.kind==='member'){
+    var mm=(members||[]).find(function(x){ return String(x.id)===String(r.memberId); });
+    return T('회원')+'('+((mm&&mm.name)||'')+')';
   }
   var c=cars.find(function(x){ return String(x.id)===String(r.carId); });
   return '기사('+((c&&(c.driver||c.name))||'')+')';
@@ -17087,6 +17158,54 @@ function drvLegacyCars(){
    옮기기가 **정말 성공했을 때만** 평문을 비운다(v275 보정1 교훈: 거짓이면 그대로 둔다). */
 function staffLegacyPins(){
   return loadStaff().filter(function(s){ return s && /^\d{4}$/.test(String(s.pin||'')); });
+}
+/* ★★ v296(60-B4a): 옛 **«회원»** PIN(평문)도 같은 자리에서 옮긴다 — 직원·기사와 같은 방식·멱등.
+   옮기기가 **정말 성공했을 때만** 평문을 비운다(v275 보정1 교훈). */
+function memberLegacyPins(){
+  return (members||[]).filter(function(m){ return m && /^\d{4}$/.test(String(m.pin||'')); });
+}
+function memberMigrateCardHtml(){
+  if(typeof isDemoMode==='function' && isDemoMode()) return '';
+  var lg=memberLegacyPins();
+  if(!lg.length) return '';
+  var h='<div class="status-card" style="margin-bottom:12px;background:#FFFAEB;border:1px solid #FEDF89;">';
+  h+='<div class="status-card-title">🔢 옛 '+T('회원')+' PIN 옮기기 (한 번만)</div>';
+  h+='<div style="font-size:12px;color:#B54708;line-height:1.8;">'+T('회원')+' 출석 PIN 이 업체 자료 안에 <b>그대로(평문) 들어 있어요.</b>'
+   + '<br>아래 단추를 한 번 누르면 기사·직원 PIN 처럼 <b>서버에만 안전하게</b> 보관하고 업체 자료에서 지웁니다. '
+   + 'PIN 판 출석은 그대로 됩니다.</div>';
+  h+='<div style="font-size:11px;color:#98A2B3;margin:6px 0 8px;">옮길 것: '+T('회원')+' PIN '+lg.length+'건</div>';
+  h+='<button id="mem-mig-btn" onclick="memberMigrateRun()" style="width:100%;padding:11px;background:#DC6803;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">🔢 옮기기</button>';
+  h+='<div id="mem-mig-msg" style="font-size:12px;font-weight:700;margin-top:8px;"></div>';
+  return h+'</div>';
+}
+async function memberMigrateRun(){
+  var say=function(t,c){ var el=document.getElementById('mem-mig-msg');
+                         if(el){ el.textContent=t; el.style.color=c||'#B54708'; } };
+  if(typeof isDemoMode==='function' && isDemoMode()){ say('둘러보기에서는 옮길 수 없어요.','#B42318'); return; }
+  var lg=memberLegacyPins();
+  if(!lg.length) return;
+  var btn=document.getElementById('mem-mig-btn');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.6'; btn.textContent='옮기는 중…'; }
+  var r=await driverAcctApi({ action:'migrateMemberPins', org:getFbOrgId(),
+    members: lg.map(function(m){ return { memberId:String(m.id), pin:String(m.pin) }; }) });
+  if(!r || !r.ok){
+    if(btn){ btn.disabled=false; btn.style.opacity='1'; btn.textContent='🔢 옮기기'; }
+    say((r && r.message) || '옮기지 못했어요. 잠시 뒤 다시 해 주세요.','#B42318');
+    return;                                   /* ★ 실패하면 평문을 **안 비운다** */
+  }
+  var keepPlain = ((r.dup||0) + (r.bad||0)) > 0;
+  var list=loadMembers();
+  list.forEach(function(m){
+    if(!m || !/^\d{4}$/.test(String(m.pin||''))) return;
+    if(keepPlain) return;
+    m.hasPin=true; delete m.pin;
+  });
+  members=applyRideState(list);
+  saveMembers();
+  say(keepPlain
+      ? '옮김 '+(r.moved||0)+'건 · 겹침/오류 '+((r.dup||0)+(r.bad||0))+'건 — 겹친 PIN 은 그대로 두었어요. 번호를 바꿔 다시 정해 주세요.'
+      : '✅ '+T('회원')+' PIN '+(r.moved||0)+'건을 서버로 옮겼어요.', keepPlain?'#B54708':'#067647');
+  try{ renderAdminTab(currentAdminTab); }catch(e){}
 }
 function staffMigrateCardHtml(){
   if(typeof isDemoMode==='function' && isDemoMode()) return '';

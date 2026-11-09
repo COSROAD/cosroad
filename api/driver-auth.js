@@ -419,8 +419,22 @@ export default async function handler(req, res) {
       list = JSON.parse(String((snap.data() || {}).value || '[]'));
     } catch (e) { return { error: '명단을 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.' }; }
     if (!Array.isArray(list)) return { notfound: true };
-    /* 「찾기」 — 60-B4 에서 **해시 대조**로 바꿀 자리는 이 한 줄이다 */
-    const me = list.find(m => m && String(m.pin || '') === pin);
+    /* 「찾기」 — ★ v296(60-B4a): **서버 해시로 대조한다**(`memberPins`).
+       ★ 아직 옮기지 않은 업체는 명단에 평문 `pin` 이 남아 있다 → **그 뒤에** 한 번 더 본다
+         (직원 PIN v280 이 같은 태도였다 · 옮기기 단추를 누르면 평문이 사라진다).
+       ★ 옮긴 뒤에는 평문이 없으므로 **해시만** 맞는다. */
+    let me = null;
+    const secret2 = process.env.OTP_SECRET;
+    if (secret2) {
+      const want2 = sha256(pin + '|' + org + '|' + secret2);
+      let hitId = '';
+      try {
+        const ps = await A.db.collection('memberPins').where('org', '==', org).get();
+        ps.forEach(d => { const v = d.data() || {}; if (!hitId && v.pinHash === want2) hitId = String(v.memberId || ''); });
+      } catch (e) { return { error: 'PIN 을 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.' }; }
+      if (hitId) me = list.find(m => m && String(m.id) === hitId) || null;
+    }
+    if (!me) me = list.find(m => m && String(m.pin || '') === pin) || null;
     if (!me) return { notfound: true };
     const now = Date.now();
     const dateStr = kstDateStr(now);

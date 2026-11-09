@@ -9,8 +9,8 @@
 
 | 묶이 | 돌림판 | 묶음 수 |
 |---|---|---|
-| 스텁(Node · 가짜 Firestore·가짜 알리고) | `tests/runall275.sh` | **74** |
-| 규칙(Firestore 에뮬레이터) | `tests/rulestest/runall41.sh` | **23** |
+| 스텁(Node · 가짜 Firestore·가짜 알리고) | `tests/runall275.sh` | **75** |
+| 규칙(Firestore 에뮬레이터) | `tests/rulestest/runall41.sh` | **24** |
 | 화면(크롬 · Playwright) | `tests/pw262/runall41.sh` | **30** |
 
 세 돌림판 모두 **맨 끝에 「돈 묶음 N 개 · 통과 · 문제」를 찍는다.** 먼저 그 수를 보고,

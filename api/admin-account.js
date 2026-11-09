@@ -321,9 +321,12 @@ export default async function handler(req, res) {
       /* v280(43-A): **직원 PIN 도 해시**가 되었으므로 여기서 함께 본다.
          `exceptStaffId` 는 「그 직원 자신」을 빼고 보라는 뜻이다(자기 PIN 을 다시 저장할 때). */
       const exceptStaffId = String(b.exceptStaffId || '').trim();
+      /* ★ v296(60-B4a): «회원» PIN 도 서버 해시가 되었으므로 **셋을 함께** 본다.
+         `exceptMemberId` — 그 «회원» **자신**은 빼고 본다(자기 PIN 을 다시 저장할 때). */
+      const exceptMemberId = String(b.exceptMemberId || '').trim();
       try {
         const snap = await A.db.collection('driverPins').where('org', '==', org).get();
-        let dup = false, carId = '', staffId = '', kind = '';
+        let dup = false, carId = '', staffId = '', memberId = '', kind = '';
         snap.forEach(d => {
           const v = d.data() || {};
           if (!dup && v.pinHash === want) { dup = true; kind = 'driver'; carId = String(v.carId || ''); }
@@ -337,8 +340,18 @@ export default async function handler(req, res) {
             if (v.pinHash === want) { dup = true; kind = 'staff'; staffId = String(v.staffId || ''); }
           });
         }
-        /* 예·아니오와 **누구인지(차량·직원 id)** 만 — PIN 값이나 해시는 돌려주지 않는다 */
-        return res.status(200).json({ ok: true, dup: dup, kind: kind, carId: carId, staffId: staffId });
+        if (!dup) {
+          const ms = await A.db.collection('memberPins').where('org', '==', org).get();
+          ms.forEach(d => {
+            const v = d.data() || {};
+            if (dup) return;
+            if (exceptMemberId && String(v.memberId || '') === exceptMemberId) return;
+            if (v.pinHash === want) { dup = true; kind = 'member'; memberId = String(v.memberId || ''); }
+          });
+        }
+        /* 예·아니오와 **누구인지(차량·직원·«회원» id)** 만 — PIN 값이나 해시는 돌려주지 않는다 */
+        return res.status(200).json({ ok: true, dup: dup, kind: kind, carId: carId,
+                                      staffId: staffId, memberId: memberId });
       } catch (e) { return fail(res, 500, '확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
     }
 
@@ -463,6 +476,98 @@ export default async function handler(req, res) {
        · 해시는 기사와 **같은 재료** `sha256(pin|org|OTP_SECRET)` — **새 환경변수 없음**
        · PIN 원문·해시는 응답·로그에 **넣지 않는다**(기사와 같은 약속)
        · 권한·이용 기간 판정은 기사 PIN 동작과 **같은 길**(canManage + orgAlive, 코스로드47) */
+    /* ── «회원» 출석 PIN 도 서버 해시 (60-B4a · v296) ──────────────────────────
+       ★★ 왜 — v295 까지 «회원» PIN 은 **업체 자료 안에 평문**(`data/members[].pin`)이었다.
+         ① 기사 폰에는 내려가지 않지만(v274 사본에서 뺐다) **관리자 화면에 그대로 보였고**
+            («회원» 카드 「PIN: 1234」 세 자리) ② 60-B4b 의 **출석 전용 기기**는 명단을 받지
+            않으므로 평문 대조를 할 수 없다. → 직원 PIN(v280)과 **같은 길**로 옮긴다.
+       ★ 서버 전용 컬렉션 `memberPins/{org}_{회원id}` = `{org, memberId, pinHash, updatedAt}`.
+         해시 재료는 기사·직원과 **똑같다**(`sha256(pin|org|OTP_SECRET)`) — 새 환경변수 없음.
+       ★★ **규칙은 한 줄도 안 바꿨다** — Firestore 는 **맞는 규칙이 없으면 거부**이고
+         `staffPins` 도 같은 방식이다(규칙 파일에 적혀 있지 않다). 에뮬레이터로 전수 확인한다
+         (`rulestest/t296.mjs`: 소유자·기사·도우미·익명 모두 읽기·쓰기 **거부**).
+       ★ 업체 안에서 PIN 4자리는 **유일**하다 — 기사·직원·«회원» 셋을 모두 본다. */
+    if (action === 'setMemberPin') {
+      const org = String(b.org || '').trim();
+      const memberId = String(b.memberId || '').trim();
+      const pin = String(b.pin || '').replace(/[^0-9]/g, '');
+      if (!org || !memberId) return fail(res, 400, '기관·«회원» 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '이 업체의 PIN 을 정할 권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      if (!/^\d{4}$/.test(pin)) return fail(res, 400, 'PIN 은 숫자 4자리여야 해요.');
+      const secret = secretOf();
+      if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
+      const want = pinHashOf(pin, org, secret);
+      try {
+        const ds = await A.db.collection('driverPins').where('org', '==', org).get();
+        let dupCar = null;
+        ds.forEach(d => { const v = d.data() || {}; if (v.pinHash === want) dupCar = String(v.carId || ''); });
+        if (dupCar) return fail(res, 409, '그 PIN 은 이미 기사가 쓰고 있어요. 다른 번호로 정해 주세요.');
+        const ss = await A.db.collection('staffPins').where('org', '==', org).get();
+        let dupSt = null;
+        ss.forEach(d => { const v = d.data() || {}; if (v.pinHash === want) dupSt = String(v.staffId || ''); });
+        if (dupSt) return fail(res, 409, '그 PIN 은 이미 직원이 쓰고 있어요. 다른 번호로 정해 주세요.');
+        const ms = await A.db.collection('memberPins').where('org', '==', org).get();
+        let dupMem = null;
+        ms.forEach(d => {
+          const v = d.data() || {};
+          if (String(v.memberId || '') !== memberId && v.pinHash === want) dupMem = String(v.memberId || '');
+        });
+        if (dupMem) return fail(res, 409, '그 PIN 은 이미 다른 사람이 쓰고 있어요. 다른 번호로 정해 주세요.');
+      } catch (e) { return fail(res, 500, 'PIN 을 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      try {
+        await A.db.collection('memberPins').doc(org + '_' + memberId)
+          .set({ org: org, memberId: memberId, pinHash: want, updatedAt: Date.now() });
+      } catch (e) { return fail(res, 500, 'PIN 을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'removeMemberPin') {
+      const org = String(b.org || '').trim();
+      const memberId = String(b.memberId || '').trim();
+      if (!org || !memberId) return fail(res, 400, '기관·«회원» 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '이 업체의 PIN 을 지울 권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      try { await A.db.collection('memberPins').doc(org + '_' + memberId).delete(); } catch (e) {}
+      return res.status(200).json({ ok: true });
+    }
+
+    /* 옛 평문 PIN 옮기기 — 직원(v280)과 **같은 방식·멱등**.
+       ★ 기사·직원과 겹치는 것은 **옮기지 않는다**(겹친 채로 두면 판이 누구인지 못 가린다) ·
+         앱은 **moved 만** 평문을 비우고, 겹침·오류가 있으면 **그대로 둔다**(v275 보정1 교훈). */
+    if (action === 'migrateMemberPins') {
+      const org = String(b.org || '').trim();
+      const list = Array.isArray(b.members) ? b.members : [];
+      if (!org) return fail(res, 400, '기관 정보가 빠졌어요.');
+      if (!(await canManage(org))) return fail(res, 403, '권한이 없어요.');
+      if (!(await orgAlive(org))) return fail(res, 403, EXPIRED_MSG, 'expired');
+      const secret = secretOf();
+      if (!secret) return fail(res, 500, '서버 인증 설정이 아직 안 됐어요.');
+      let moved = 0, dup = 0, bad = 0;
+      const seen = {};
+      let taken = {};
+      try {
+        const ds = await A.db.collection('driverPins').where('org', '==', org).get();
+        ds.forEach(d => { const v = d.data() || {}; if (v.pinHash) taken[v.pinHash] = 1; });
+        const ss = await A.db.collection('staffPins').where('org', '==', org).get();
+        ss.forEach(d => { const v = d.data() || {}; if (v.pinHash) taken[v.pinHash] = 1; });
+      } catch (e) { return fail(res, 500, '확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+      for (const m of list) {
+        const memberId = String((m && m.memberId) || '').trim();
+        const pin = String((m && m.pin) || '').replace(/[^0-9]/g, '');
+        if (!memberId || !/^\d{4}$/.test(pin)) { bad++; continue; }
+        const want = pinHashOf(pin, org, secret);
+        if (taken[want] || seen[want]) { dup++; continue; }
+        seen[want] = memberId;
+        try {
+          await A.db.collection('memberPins').doc(org + '_' + memberId)
+            .set({ org: org, memberId: memberId, pinHash: want, updatedAt: Date.now() });
+          moved++;
+        } catch (e) { bad++; }
+      }
+      return res.status(200).json({ ok: true, moved: moved, dup: dup, bad: bad });
+    }
+
     if (action === 'setStaffPin') {
       const org = String(b.org || '').trim();
       const staffId = String(b.staffId || '').trim();
