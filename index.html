@@ -694,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 305;
+const APP_VERSION = 306;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2883,6 +2883,45 @@ function staffLinkBlock(st){
    **없는 코스를 가리키는 끊긴 참조**로 남았다(화면에 코스 이름이 빈칸으로 나온다 · 실측).
    ★ 화면 글자는 **「코스」**다(스케줄 탭의 「코스 추가/삭제」·「코스 운행 시각」) —
      안내도 같은 말을 써야 사람이 그 자리를 찾을 수 있다. */
+/* ══════════ 끊긴 코스 참조 — 빈칸 대신 「코스 없음」 (v306 · 코스로드65) ══════════
+   v305 부터는 코스를 지울 때 막으므로 **새로는 생기지 않는다.** 그런데 그 전에 지운 업체에는
+   **없는 코스를 가리키는 «회원»** 이 남아 있다. 전에는 명단·수정 창에 **빈칸(「–」)**으로 보여,
+   왜 비었는지 알 수 없었고 **수정 창을 열어 저장하면 코스가 조용히 지워졌다**
+   (고치기 전 실측: 선택 칸이 `selectedIndex=-1` 이 되어 저장 때 빈 값이 들어갔다).
+   → ① 「코스 없음」으로 **보여 주고** ② 수정 창에서 **고를 수 있게** 하고
+     ③ 코스 화면에 **몇 명인지** 적는다. **자동으로 다른 코스로 옮기지 않는다**(사장님 결정).
+   ★ 택배는 코스 개념이 없다(`loadCourses()` 가 빈 배열) → **아무 글자도 넣지 않는다**. */
+function courseExists(id){
+  if(!id) return false;
+  var cs=(typeof courses!=='undefined' && courses) ? courses : loadCourses();
+  for(var i=0;i<cs.length;i++){ if(String(cs[i].id)===String(id)) return true; }
+  return false;
+}
+/* 명단·수정 창에 보여 줄 코스 이름 — 없으면 「코스 없음」(택배는 빈 글자) */
+function courseNameOf(m){
+  if(!m) return '';
+  if(getBizType()==='delivery') return '';
+  if(courseExists(m.courseId)){
+    var cs=(typeof courses!=='undefined' && courses) ? courses : loadCourses();
+    for(var i=0;i<cs.length;i++){ if(String(cs[i].id)===String(m.courseId)) return cs[i].name||''; }
+  }
+  return '코스 없음';
+}
+/* 코스가 없는(또는 끊긴) «회원» 수 — 코스 화면 한 줄에 쓴다 */
+function noCourseCount(){
+  if(getBizType()==='delivery') return 0;
+  var mem=(typeof members!=='undefined' && members) ? members : loadMembers();
+  return mem.filter(function(m){ return !courseExists(m && m.courseId); }).length;
+}
+/* 코스 화면의 한 줄 — 없으면 **아무것도 안 그린다**(새 창 0 · 기존 `setting-row` 꼴) */
+function noCourseLineHtml(){
+  var n=noCourseCount();
+  if(!n) return '';
+  return '<div class="setting-row" style="background:#FFF7E6;border-radius:8px;'
+    + 'margin-top:6px;padding:9px 11px;font-size:11.5px;color:#8A5A00;line-height:1.6;">'
+    + '📋 코스 없는 '+T('회원')+' <b>'+fmtNum(n)+TUnit()+'</b> — '+T('회원')
+    + ' 수정 창에서 코스를 골라 주세요 (예전에 코스를 지우면서 생겼어요)</div>';
+}
 function courseLinkBlock(c){
   if(!c) return '';
   var mem=(typeof members!=='undefined' && members) ? members : loadMembers();
@@ -5879,7 +5918,7 @@ var HELP_QA=[
   {role:'all', keys:['안나가','안가요','못보내','발송실패','알림톡실패','문자오류','상한','명부에없'], t:'문자·알림톡이 안 나가요',
    a:'보내기 전에 서버가 세 가지를 봅니다. 그 가운데 하나에 걸린 거예요.\n1. <b>이용 기간</b> — 기간이 끝났거나 아직 승인 전이면 문자가 나가지 않아요. 「🔒 이용 기간이 끝나…」 안내가 뜹니다. 연장하시면 바로 다시 보내실 수 있어요\n2. <b>회원 명부에 없는 번호</b> — 받는 번호는 «회원»에 등록된 번호만 됩니다. 「회원 명부에 없는 번호가 N개…」가 뜨면 «회원»관리에서 번호를 확인해 주세요 (띄어쓰기·줄표는 상관없어요)\n3. <b>상한</b> — 한 업체가 <b>1분에 300명·하루 3,000명</b>까지 보낼 수 있어요(등하원 알림톡·출석·납품 알림도 함께 세어집니다). 넘으면 「오늘 보낼 수 있는 문자 수를 다 썼어요」가 뜹니다. 내일 다시 보내시거나 📧 cosroad@cosroad.com 으로 알려 주세요\n4. 기사님은 <b>자기 차량 회원</b>에게만 보낼 수 있어요\n5. 둘러보기(데모)에서는 진짜 문자가 나가지 않아요\n6. 「로그인이 필요해요」가 뜨면 로그아웃됐을 수 있어요 — 다시 로그인한 뒤 보내 주세요\n7. 알림장은 받는 분이 50명을 넘으면 <b>50명씩 나눠</b> 보냅니다 — 중간에 막히면 거기까지만 나가고 몇 건 나갔는지 알려 드려요'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
-   a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·코스·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각, <b>교육비 납입증명서 발급 이력</b>(v305)까지 — 업체 자료 <b>20가지 전부</b>가 들어가요\n3-1. 증명서 발급 이력은 v305 부터 담깁니다 — <b>그 전에 받아 둔 백업 파일</b>에는 없어서, 그 파일로 복원하면 지금 이력을 <b>그대로 둬요</b>(지우지 않아요)\n4. <b>복원하면 사라지는 분들의 서버 PIN 도 같이 정리해요</b> (v304) — 지금 명단에 있는데 백업 파일에는 없는 «회원»·직원·차량이면 그 <b>출석/기사 PIN·묶인 기기·동승 배정</b>을 서버에서 지워요. 그래야 지워진 분이 PIN 으로 더는 들어오지 못해요\n4-1. 몇 건을 지웠는지 복원이 끝날 때 알려 드려요. 못 지운 것이 있어도 <b>복원은 그대로 진행</b>되고 수만 알려 드려요 — 그때는 그 분·차량을 한 번 더 지우거나 PIN 을 지워 주세요\n5. <b>복원으로 돌아온 분들은 PIN 을 다시 정해 주세요</b> (v304) — 화면에는 「PIN 설정됨」으로 보이지만 그 사이에 지웠다면 서버에 PIN 이 없어요. 앱이 대신 만들지는 못해요(원래 번호를 아무도 모르니까요). 복원이 끝날 때 「🔑 PIN 을 다시 정해 주세요 (N명)」으로 알려 드려요\n6. 들어온 직후(자료를 불러오는 중)에는 복원이 막혀요 — 몇 초 뒤 다시 하시면 됩니다'},
+   a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·코스·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각, <b>교육비 납입증명서 발급 이력</b>(v305)까지 — 업체 자료 <b>20가지 전부</b>가 들어가요\n3-1. 증명서 발급 이력은 v305 부터 담깁니다 — <b>그 전에 받아 둔 백업 파일</b>에는 없어서, 그 파일로 복원하면 지금 이력을 <b>그대로 둬요</b>(지우지 않아요)\n4. <b>복원하면 사라지는 분들의 서버 PIN 도 같이 정리해요</b> (v304) — 지금 명단에 있는데 백업 파일에는 없는 «회원»·직원·차량이면 그 <b>출석/기사 PIN·묶인 기기·동승 배정</b>을 서버에서 지워요. 그래야 지워진 분이 PIN 으로 더는 들어오지 못해요\n4-1. 몇 건을 지웠는지 복원이 끝날 때 알려 드려요. 못 지운 것이 있어도 <b>복원은 그대로 진행</b>되고 수만 알려 드려요 — 그때는 그 분·차량을 한 번 더 지우거나 PIN 을 지워 주세요\n5. <b>복원으로 돌아온 분들은 PIN 을 다시 정해 주세요</b> (v304) — 화면에는 「PIN 설정됨」으로 보이지만 그 사이에 지웠다면 서버에 PIN 이 없어요. 앱이 대신 만들지는 못해요(원래 번호를 아무도 모르니까요). 복원이 끝날 때 「🔑 PIN 을 다시 정해 주세요 (N명)」으로 알려 드려요\n6. 들어온 직후(자료를 불러오는 중)에는 복원이 막혀요 — 몇 초 뒤 다시 하시면 됩니다\n7. <b>복원은 그 백업 파일에 들어 있는 자료만 되돌려요</b> (v306) — 옛 백업처럼 <b>빠진 칸</b>이 있으면 그 자료는 폰·서버 <b>모두 그대로 둬요</b>. 복원이 끝나면 「📦 이 백업에 없던 자료 N가지는 그대로 두었어요」로 무엇이 빠졌는지 알려 드려요\n7-1. v305 까지는 빠진 칸도 <b>복원 전 값이 서버로 다시 올라갔어요</b> — 그래서 다른 분이 서버에서 고쳐 둔 자료가 되돌아갈 수 있었어요 (지금은 그런 일이 없어요)'},
   {role:'admin', keys:['날짜점검','날짜','하루전','전날','어제날짜','점검'], t:'날짜 점검 (예전 기록이 하루 전 날짜예요)',
    a:'1. 2026년 10월 하순 이전에는 앱이 오늘 날짜를 세계표준시로 만들어서, 한국 아침 9시 전에 넣은 기록이 「전날 날짜」로 들어갔을 수 있어요\n2. 설정 탭 → 데이터 → 「🗓 날짜 점검」 → 「점검」을 누르면 의심 건만 모아 보여줘요\n3. «출결»은 이렇게 찾아요 — 그날이 그 «회원»의 수업 요일이 아니고, 바로 다음 날이 수업 요일이며, 다음 날엔 기록이 없는 경우\n4. 거래명세서는 이렇게 찾아요 (거래명세서가 있는 업종만) — 만든 시각이 0~8시인데 적힌 날짜가 만든 날의 하루 전인 경우\n5. 「하루 뒤로」를 누르면 한 번 더 물어본 뒤 다음 날짜로 옮겨요 (결석 같은 다른 표시도 그대로 옮겨져요)\n6. 거래명세서는 「열기」를 누르면 그 명세서가 수정 화면으로 열려요 — 날짜만 고쳐 저장하시면 수납·세무도 같이 맞춰져요\n7. 일부러 그 날짜로 넣으신 것이면 「그대로」를 누르세요 — 그 기기에서 다시 안 보여요\n8. 세무 입력은 시각 기록이 없어서 찾을 수 없어요 — 직접 확인해 주세요'},
   {role:'driver', keys:['출근','퇴근','출퇴근','계기판','근태','출근단추','퇴근단추','둘러보기출퇴근'], t:'출근·퇴근 기록하기',
@@ -5901,7 +5940,7 @@ var HELP_QA=[
   {role:'admin', keys:['하원차량','하원','등원','두차량','따로배정'], t:'등원·하원 차량을 따로 (하원 차량)',
    a:'한 «회원»이 <b>등원은 1호차, 하원은 2호차</b>로 다닐 수 있어요 (학원·공공만 — 물류·택배는 하원이 없어 칸이 안 보여요)\n1. «회원»관리 → 수정 → 「차량」 아래 <b>「하원 차량」</b> 에서 고르세요. 기본은 <b>「등원과 같음」</b> 이에요\n2. 「등원과 같음」이면 지금까지처럼 <b>한 대</b>로 등·하원을 다 돌아요 — 쓰던 «회원»은 손댈 것이 없어요\n3. 차량관리에서도 바꿀 수 있어요 — 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요\n4. <b>운행 화면</b>은 방향에 따라 갈려요 — 등원 탭에는 등원 차량의 «회원», 하원 탭에는 하원 차량의 «회원»이 나와요\n5. 기사 「«회원»」 탭에는 <b>등원·하원 어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n6. 하원 차량 기사도 그 «회원»에게 <b>하차 알림 문자</b>를 보낼 수 있어요\n7. <b>수강료·«출결»은 등원 차량 하나 기준</b>이에요 — 한 «회원»이 두 번 세어지지 않아요\n8. 기사 급여는 <b>출퇴근 시간</b>으로 계산해서 이것과 상관없어요\n9. 차량을 지우면 그 차량을 하원으로 쓰던 «회원»도 「등원과 같음」으로 돌아가요'},
   {role:'admin', keys:['노선','운행시각','출발시간','도착시간'], t:'코스(노선) 추가·운행 시각',
-   a:'1. 관리자 → 스케줄 탭 (물류·택배는 이 자리가 「배송현황」이라 화면이 달라요)\n2. 「코스 운행 시각」에서 코스마다 출발·도착 시각을 넣어요\n3. 「코스 추가/삭제」로 코스를 늘리거나 줄여요\n4. «회원» 등록 화면에서 각자 어느 코스인지 골라 주면 돼요\n5. <b>코스를 지울 때 그 코스를 쓰는 «회원»이 있으면 막아 드려요</b> (v305) — 「이 코스에 «회원» N명이 있어요. 먼저 코스를 바꿔 주세요」가 떠요. 그분들 코스를 다른 코스로 바꾸신 뒤에 지워 주세요 (전에는 그냥 지워져서 «회원» 카드의 코스 이름이 빈칸이 됐어요)\n6. 이 화면은 <b>고친 뒤 맨 아래 「저장」을 눌러야</b> 서버에 반영돼요 — 코스를 지우고 저장을 안 누르면 그대로예요'},
+   a:'1. 관리자 → 스케줄 탭 (물류·택배는 이 자리가 「배송현황」이라 화면이 달라요)\n2. 「코스 운행 시각」에서 코스마다 출발·도착 시각을 넣어요\n3. 「코스 추가/삭제」로 코스를 늘리거나 줄여요\n4. «회원» 등록 화면에서 각자 어느 코스인지 골라 주면 돼요\n5. <b>코스를 지울 때 그 코스를 쓰는 «회원»이 있으면 막아 드려요</b> (v305) — 「이 코스에 «회원» N명이 있어요. 먼저 코스를 바꿔 주세요」가 떠요. 그분들 코스를 다른 코스로 바꾸신 뒤에 지워 주세요 (전에는 그냥 지워져서 «회원» 카드의 코스 이름이 빈칸이 됐어요)\n6. 이 화면은 <b>고친 뒤 맨 아래 「저장」을 눌러야</b> 서버에 반영돼요 — 코스를 지우고 저장을 안 누르면 그대로예요\n7. <b>「코스 없는 «회원» N명」 줄이 보이면</b> (v306) 예전에 코스를 지우면서 코스가 끊긴 분들이에요 — «회원» 수정 창을 열면 코스 칸이 <b>「코스 없음」</b>으로 보이니 거기서 코스를 골라 주세요\n7-1. 앱이 <b>대신 다른 코스로 옮기지는 않아요</b> — 어느 코스인지는 직접 고르셔야 해요. 명단에서도 「코스 없음」으로 보여요 (v305 까지는 빈칸이라 왜 비었는지 알 수 없었어요)'},
   {role:'admin', keys:['배송현황','요일별','배송지목록'], t:'배송현황 (물류·택배)',
    a:'1. 물류·택배는 스케줄 탭이 「📦 요일별 배송 거래처(배송지)」예요\n2. ◀ ▶ 로 날짜를 옮기거나 날짜 칸을 눌러 바꿔요\n3. 그날 요일에 해당하는 «회원»만 모아서 보여줘요 — 요일은 «회원» 등록에서 정한 값이에요'},
   {role:'admin', keys:['미수금','미지급','매출매입','받을돈','줄돈'], t:'물류 수납 — 매출/매입 달력',
@@ -7887,7 +7926,7 @@ function renderAdminMembers(){
       +photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="member-name">'+escapeMasterHtml(m.name)+'</div>'+badge+'</div>'
-      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?escapeMasterHtml(car.name)+(car.driver?' · '+escapeMasterHtml(car.driver):''):'미배정차량'):((course?escapeMasterHtml(course.name):'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
+      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?escapeMasterHtml(car.name)+(car.driver?' · '+escapeMasterHtml(car.driver):''):'미배정차량'):((escapeMasterHtml(courseNameOf(m))||'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
       +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
@@ -7941,7 +7980,7 @@ function filterAdminMembers(q){
       +photo
       +'<div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="member-name">'+escapeMasterHtml(m.name)+'</div>'+badge+'</div>'
-      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?escapeMasterHtml(car.name)+(car.driver?' · '+escapeMasterHtml(car.driver):''):'미배정차량'):((course?escapeMasterHtml(course.name):'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
+      +'<div class="member-class">'+((getBizType()==='logistics'||getBizType()==='delivery')?(car?escapeMasterHtml(car.name)+(car.driver?' · '+escapeMasterHtml(car.driver):''):'미배정차량'):((escapeMasterHtml(courseNameOf(m))||'–')+' · <span style="color:var(--primary);font-size:11px;">'+pin+'</span>'))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
       +'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button>'
       +'<button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>'
@@ -8393,6 +8432,7 @@ function renderSchedule(){
         <span style="font-size:13px;">${c.name}</span>
         <button onclick="deleteCourse(${i})" style="padding:4px 10px;border:1px solid var(--danger);border-radius:6px;font-size:11px;color:var(--danger);background:white;cursor:pointer;">삭제</button>
       </div>`).join('')}
+      ${noCourseLineHtml()}
     </div>
     <button onclick="saveCourses(courses);alert('✅ 저장되었습니다.');" style="width:100%;padding:12px;background:var(--admin);color:white;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;">저장</button>
   </div>`;
@@ -8856,9 +8896,36 @@ function backupData(){
      그 업체 PIN 을 **모두** 지운다(62-B 가 적어 둔 「빈 명단을 믿지 않는다」와 같은 까닭).
      칸이 **있고 빈 배열**이면 사람이 일부러 그 상태를 백업한 것이므로 **전부 사라짐이 맞다**.
    ★ 실패해도 **복원은 멈추지 않는다** — 사람이 확인 창을 지나 통째로 고른 자리다(수만 알린다). */
+/* ══════════ 「백업 파일이 그 칸을 들고 왔나」 — 판단은 **한 자리** (v306 · 코스로드65) ══════════
+   v304 는 `_restoreGone`·`_restoreBack` 안에, v305 는 자격증 올리는 자리에 **따로** 적었다.
+   같은 판정을 여러 곳에 적으면 한쪽만 고쳐져 어긋난다 → **이 함수 하나**를 다 같이 부른다. */
+function _dumpHas(dump, k){
+  return !!(dump && dump.data && Object.prototype.hasOwnProperty.call(dump.data, k));
+}
+/* 업체 칸 20개의 **사람이 읽는 이름** — 복원 끝 안내에 쓴다(네 업종 글자는 `T()`).
+   ★ `ORG_KEYS`(601행) 와 **같은 20개**여야 한다 — 묶음이 전수로 맞댄다. */
+function restoreKeyNames(){
+  return {
+    'tkd_members': T('회원')+' 명단', 'tkd_cars': '차량', 'tkd_courses': '코스',
+    'tkd_org': '업체 설정', 'tkd_payments': '수납', 'tkd_tax': '세무',
+    'tkd_attendance': T('출결'), 'tkd_attendance_time': '출석 시각',
+    'tkd_notices': T('알림장'), 'tkd_carlog': '차계부',
+    'tkd_drivelog_manual': '운행기록부 수기값', 'tkd_payroll_manual': '급여 수기값',
+    'tkd_staff': '직원', 'tkd_driver_att': '기사·직원 출퇴근',
+    'tkd_invoices': '거래명세서', 'tkd_products': '품목',
+    'tkd_ridestate': '탑승 기록', 'tkd_driver_pay': '기사 급여 설정',
+    'tkd_support_seen': '본 공고 표시', 'tkd_certificates': '증명서 발급 이력'
+  };
+}
+/* 이 백업에 **없던** 칸들 — 폰·서버 모두 손대지 않은 것들이다 */
+function _restoreMissing(dump){
+  var nm=restoreKeyNames(), out=[];
+  Object.keys(nm).forEach(function(k){ if(!_dumpHas(dump, k)) out.push(nm[k]); });
+  return out;
+}
 function _restoreGone(dump){
   var pick=function(k){
-    if(!dump || !dump.data || !Object.prototype.hasOwnProperty.call(dump.data, k)) return null;
+    if(!_dumpHas(dump, k)) return null;
     try{ var a=JSON.parse(dump.data[k]); return Array.isArray(a) ? a : null; }catch(e){ return null; }
   };
   var has=function(arr,id){
@@ -8881,7 +8948,7 @@ function _restoreGone(dump){
    원문을 아무도 모른다). 서버에 묻지 않고 **두 명단만** 견주어 센다. */
 function _restoreBack(dump){
   var pick=function(k){
-    if(!dump || !dump.data || !Object.prototype.hasOwnProperty.call(dump.data, k)) return null;
+    if(!_dumpHas(dump, k)) return null;                     /* v306: 판정 한 벌 */
     try{ var a=JSON.parse(dump.data[k]); return Array.isArray(a) ? a : null; }catch(e){ return null; }
   };
   var has=function(arr,id){
@@ -8929,8 +8996,9 @@ async function _wipeGoneServer(gone){
   }
   return out;
 }
-/* 복원 끝 안내 한 벌 — 지운 수 · 못 지운 수 · 「PIN 을 다시 정해 주세요」 */
-function _restoreNotice(wiped, back, unknown){
+/* 복원 끝 안내 한 벌 — 지운 수 · 못 지운 수 · 「PIN 을 다시 정해 주세요」 ·
+   **이 백업에 없던 자료**(v306 · 폰도 서버도 손대지 않은 것들) */
+function _restoreNotice(wiped, back, unknown, missing){
   var lines=[];
   var n=(wiped.member+wiped.staff+wiped.car);
   if(n>0) lines.push('🧹 명단에서 사라진 '+fmtNum(n)+'건의 서버 PIN·기기·배정을 지웠어요.');
@@ -8940,6 +9008,13 @@ function _restoreNotice(wiped, back, unknown){
   if(b>0) lines.push('🔑 PIN 을 다시 정해 주세요 ('+fmtNum(b)+'명) — 복원으로 돌아온 분들은 '
     +'화면에 「PIN 설정됨」으로 보이지만 서버에 PIN 이 없을 수 있어요.');
   else if(unknown>0) lines.push('🔑 PIN 있던 분들은 한 번 확인해 주세요 — 백업 파일에 그 칸이 없어 견주지 못했어요.');
+  /* ★ v306(65): 옛 백업에는 없는 자료가 있다 — **그대로 두었다**는 것을 알린다
+     (이름은 앞 세 가지만 적고 나머지는 수로 — 안내가 길어지지 않게). */
+  var ms=missing||[];
+  if(ms.length){
+    lines.push('📦 이 백업에 없던 자료 '+fmtNum(ms.length)+'가지는 그대로 두었어요 — '
+      + ms.slice(0,3).join('·') + (ms.length>3 ? (' 외 '+fmtNum(ms.length-3)+'가지') : '') + '.');
+  }
   if(!lines.length) return '';
   return lines.join('\n\n');
 }
@@ -8981,46 +9056,62 @@ function restoreData(ev){
       Object.keys(dump.data).forEach(function(k){
         localStorage.setItem(k, dump.data[k]);
       });
+      /* ══════════ ★★ v306(코스로드65): **백업에 있는 칸만** 바꾸고 올린다 ══════════
+         v305 까지는 **자격증 하나만** 「칸이 있을 때만」이었고, 나머지 열다섯 키는
+         **폰 값을 그대로 올렸다.** 옛 백업(그 칸이 없는 파일)을 복원하면 위
+         `localStorage.setItem` 고리가 그 칸을 안 건드리는데도, 여기서 **복원 전 폰 값**이
+         서버로 다시 올라갔다 — 그 사이 **다른 관리자가 서버에서 고친 값을 덮어썼다**
+         (스텁 실측: 서버의 새 수납 자료가 폰의 옛 값으로 되돌아갔다).
+         → 올리는 자리마다 `H(칸)` 를 본다. **칸이 없으면 폰도 서버도 손대지 않는다.**
+         ★ **메모리 변수는 늘 다시 읽는다** — 칸이 없으면 localStorage 가 그대로이므로
+           같은 값이 다시 들어온다(화면이 어긋나지 않게). 가리는 것은 **서버 올리기**뿐이다.
+         ★ 판정은 `_dumpHas` **한 벌**이다(`_restoreGone`·`_restoreBack` 과 같은 함수). */
+      var H = function(k){ return _dumpHas(dump, k); };
       // 메모리 변수 갱신 + Firebase 반영
-      members = loadMembers(); saveToFirebase('members', members);
-      try { cars = JSON.parse(localStorage.getItem('tkd_cars')||'[]'); saveToFirebase('cars',cars); } catch(e2){}
-      try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); saveToFirebase('courses',courses); } catch(e3){}
-      orgSettings = loadOrgSettings(); saveToFirebase('org', orgSettings);
-      saveOrgDriver(orgSettings);          /* v272: 기사용 요약도 같이 되돌린다 */
-      rebuildCarData();                    /* v274: 차량별 사본도 되돌린 자료로 다시 만든다 */
-      saveCarState();                      /* v275: 차량별 운행 기록도 되돌린 자료로 */
-      notices = loadNotices(); saveToFirebase('notices', notices);
+      members = loadMembers(); if(H('tkd_members')) saveToFirebase('members', members);
+      try { cars = JSON.parse(localStorage.getItem('tkd_cars')||'[]'); if(H('tkd_cars')) saveToFirebase('cars',cars); } catch(e2){}
+      try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); if(H('tkd_courses')) saveToFirebase('courses',courses); } catch(e3){}
+      orgSettings = loadOrgSettings();
+      if(H('tkd_org')){
+        saveToFirebase('org', orgSettings);
+        saveOrgDriver(orgSettings);        /* v272: 기사용 요약도 같이 되돌린다 */
+      }
+      /* 차량별 사본(v274)·차량별 운행 기록(v275)은 **그 재료가 들어왔을 때만** 다시 만든다 —
+         재료가 그대로면 다시 만들어 올릴 것이 없고, 올리면 서버의 새 값을 덮는다. */
+      if(H('tkd_members') || H('tkd_cars') || H('tkd_courses')) rebuildCarData();
+      if(H('tkd_carlog') || H('tkd_ridestate') || H('tkd_driver_att')) saveCarState();
+      notices = loadNotices(); if(H('tkd_notices')) saveToFirebase('notices', notices);
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
-      var pay = localStorage.getItem('tkd_payments'); if(pay){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
-      var tax = localStorage.getItem('tkd_tax'); if(tax){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
+      var pay = localStorage.getItem('tkd_payments'); if(pay && H('tkd_payments')){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
+      var tax = localStorage.getItem('tkd_tax'); if(tax && H('tkd_tax')){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
       /* ★ v295(60-B3): 복원은 **일부러 통째로 덮는 것**이다(사람이 확인창을 지났다) —
          그래서 여기만 `saveToFirebase` 를 그대로 쓰고, **기준본을 그 값으로 맞춘다**.
          안 맞추면 다음 「바뀐 칸만」 저장이 옛 기준본과 견줘 엉뚱한 지우기를 보낼 수 있다. */
-      var att = localStorage.getItem('tkd_attendance'); if(att){ try{ var _attR=JSON.parse(att); saveToFirebase('attendance', _attR); _atSetBase('attendance', _attR); }catch(e7){} }
+      var att = localStorage.getItem('tkd_attendance'); if(att && H('tkd_attendance')){ try{ var _attR=JSON.parse(att); saveToFirebase('attendance', _attR); _atSetBase('attendance', _attR); }catch(e7){} }
       /* v275: 차계부·탑승 토글·출퇴근은 **차량별 문서**로 간다 — 아래 saveCarState() 한 번이 셋을 다 올린다.
          옛 `data/*` 키에는 **다시 쓰지 않는다**(원본이 둘이 되지 않게). */
-      var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
-      var pym = localStorage.getItem('tkd_payroll_manual'); if(pym){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
+      var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm && H('tkd_drivelog_manual')){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
+      var pym = localStorage.getItem('tkd_payroll_manual'); if(pym && H('tkd_payroll_manual')){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
 
-      var stf = localStorage.getItem('tkd_staff'); if(stf){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
-      var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 */
+      var stf = localStorage.getItem('tkd_staff'); if(stf && H('tkd_staff')){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
+      var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy && H('tkd_driver_pay')){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 */
 
-      var ivc = localStorage.getItem('tkd_invoices'); if(ivc){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
-      var prd = localStorage.getItem('tkd_products'); if(prd){ try{ saveToFirebase('products', JSON.parse(prd)); }catch(e14){} }
-      var atm = localStorage.getItem('tkd_attendance_time'); if(atm){ try{ var _atmR=JSON.parse(atm); saveToFirebase('attendanceTime', _atmR); _atSetBase('attendanceTime', _atmR); }catch(e15){} }
+      var ivc = localStorage.getItem('tkd_invoices'); if(ivc && H('tkd_invoices')){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
+      var prd = localStorage.getItem('tkd_products'); if(prd && H('tkd_products')){ try{ saveToFirebase('products', JSON.parse(prd)); }catch(e14){} }
+      var atm = localStorage.getItem('tkd_attendance_time'); if(atm && H('tkd_attendance_time')){ try{ var _atmR=JSON.parse(atm); saveToFirebase('attendanceTime', _atmR); _atSetBase('attendanceTime', _atmR); }catch(e15){} }
       /* ★★ v305(코스로드64): 자격증 이력도 서버에 올린다 — 다만 **백업 파일이 그 칸을 들고
          왔을 때만**이다. 옛 백업(그 칸이 없는 파일)을 복원하면 위 `localStorage.setItem` 고리가
          그 칸을 **안 건드리므로**, 여기서 지금 폰 값을 올리면 「복원했는데 옛 이력이 서버로
          다시 올라가는」 꼴이 된다 → **아예 손대지 않는다**(v304 「칸이 없으면 안 본다」와 같은 원칙).
          ★ 다른 키들은 폰 값을 그대로 올리는 종전 길이다(이 회차에서 바꾸지 않았다 — 보고문 참고). */
-      if(Object.prototype.hasOwnProperty.call(dump.data, 'tkd_certificates')){
+      if(H('tkd_certificates')){                 /* v306: 판정을 `_dumpHas` 한 벌로 모았다 */
         var crt = localStorage.getItem('tkd_certificates');
         if(crt){ try{ saveToFirebase('certificates', JSON.parse(crt)); }catch(e17){} }
       }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
       /* ★ v304(63): 지운 수·못 지운 수·「PIN 을 다시 정해 주세요」를 **한 번** 알린다 */
-      var _nt=_restoreNotice(_wiped, _back, _gone.unknown);
+      var _nt=_restoreNotice(_wiped, _back, _gone.unknown, _restoreMissing(dump));
       if(_nt) alert(_nt);
     }, '백업 파일로 복원할까요? 현재 데이터를 덮어씁니다.', '복원');
     ev.target.value = '';
@@ -9059,7 +9150,7 @@ function renderMembers(){
     return`<div class="member-card">
       <div class="member-header">
         <div class="member-avatar">${m.name.slice(0,1)}</div>
-        <div><div class="member-name">${m.name}</div><div class="member-class">${course?.name||'–'}</div></div>
+        <div><div class="member-name">${m.name}</div><div class="member-class">${courseNameOf(m)||'–'}</div></div>
         ${currentMode==='admin'?`<button class="member-edit-btn" onclick="openEditModal(${m.id})">수정</button>`:''}
       </div>
       <div class="member-info">
@@ -9075,9 +9166,17 @@ function renderMembers(){
 }
 
 // ── 원생 등록/수정 ──
-function populateSelects(){
+function populateSelects(selCourseId){
   const cs=document.getElementById('m-class');const cv=document.getElementById('m-car');
-  cs.innerHTML=courses.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
+  /* ★★ v306(65): 지금 «회원» 의 코스가 **없는 코스**면(또는 코스가 아예 없으면)
+     맨 위에 **「코스 없음」**(빈 값)을 넣는다. 안 넣으면 선택 칸이 `selectedIndex=-1` 이 되어
+     **빈칸으로 보이고**, 그대로 저장하면 코스가 조용히 지워진다(실측).
+     ★ 멀쩡한 코스를 고른 «회원» 을 고칠 때는 **안 넣는다** — 실수로 「코스 없음」을
+       고르게 하지 않는다(새로 코스 없는 «회원» 을 만들지 않는다). */
+  var _needNone = (courses.length===0)
+    || (arguments.length>0 && !courseExists(selCourseId));
+  cs.innerHTML=(_needNone?'<option value="">코스 없음</option>':'')
+    + courses.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
   cv.innerHTML=cars.map(c=>`<option value="${c.id}">${escapeMasterHtml(c.name)}</option>`).join('');
   /* v273: 하원 차량 — 맨 위가 「등원과 같음」(빈 값) */
   var dv=document.getElementById('m-dropcar');
@@ -9251,12 +9350,15 @@ function openAddModal(){
   applyBizModalLayout();
 }
 function openEditModal(id){
-  populateSelects();
   const m=members.find(m=>m.id===id);if(!m)return;
+  /* ★ v306(65): 그 «회원» 의 코스를 넘긴다 — 없는 코스면 「코스 없음」 칸이 생긴다 */
+  populateSelects(m.courseId);
   document.getElementById('modal-title').textContent=T('회원')+' 정보 수정';
   document.getElementById('edit-id').value=id;
   document.getElementById('m-name').value=m.name;
-  document.getElementById('m-class').value=m.courseId;
+  /* ★ v306(65): 없는 코스를 그대로 넣으면 선택 칸이 `selectedIndex=-1`(빈칸)이 된다 →
+     「코스 없음」(빈 값) 칸을 고르게 한다. 저장하면 빈 값이 그대로 남는다(자동 이동 없음). */
+  document.getElementById('m-class').value=courseExists(m.courseId)?m.courseId:'';
   document.getElementById('m-car').value=m.carId;
   var _dc=document.getElementById('m-dropcar'); if(_dc) _dc.value=String(m.carIdDrop||'');   /* v273 */
   document.getElementById('m-phone').value=m.phone;
@@ -12092,7 +12194,7 @@ function filterDriverMembers(q){
     }
     html+='<div class="member-card">'
       +'<div class="member-header">'+photoEl
-      +'<div><div class="member-name">'+escapeMasterHtml(m.name)+'</div><div class="member-class">'+(course?escapeMasterHtml(course.name):'–')+'</div></div>'
+      +'<div><div class="member-name">'+escapeMasterHtml(m.name)+'</div><div class="member-class">'+(escapeMasterHtml(courseNameOf(m))||'–')+'</div></div>'
       +(currentMode==='admin'?'<button class="member-edit-btn" onclick="openEditModal('+m.id+')">수정</button><button class="member-edit-btn" onclick="deleteMemberById('+m.id+')" style="color:#F04438;border-color:#F04438;">삭제</button>':'')
       +'</div>'
       +'<div class="member-info">'

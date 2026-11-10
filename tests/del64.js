@@ -374,7 +374,8 @@ const restore = async (p, dumpObj) => {
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    ck('  버전 305', appV, 305);
+    /* ★ 이 회차는 305 였다 — 뒷 회차가 올리므로 **그 이상**으로 본다(del63 과 같은 손질) */
+    ck('  버전 305 이상', appV >= 305 ? 'OK(' + appV + ')' : appV, 'OK(' + appV + ')');
     ck('  `version.json` 과 같다',
       String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
     /* HELP_QA — 문답표 **안에서** 찾는다 */

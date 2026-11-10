@@ -73,8 +73,15 @@ function norm302(s) {
              'font-size:10px;color:#B54708;background:#FFFAEB;padding:2px 6px;border-radius:4px;')
     .replace(/color:var\(--kakao-ink\);background:var\(--kakao\);/g, 'color:#3C1E1E;background:#FEE500;');
 }
+/* ★ v306(코스로드65): **코스 화면**이 일부러 달라졌다 — 끊긴 코스를 가리키는 «회원» 이 있으면
+   「📋 코스 없는 «회원» N명 …」 한 줄이 더 그려진다(`noCourseLineHtml`). 그 **한 줄만** 지우고
+   견준다(v256 보정3·v299·v302 예외와 같은 방식 — 지우고도 나머지는 바이트 동일해야 한다). */
+function norm306(s) {
+  return String(s)
+    .replace(/\n?\s*<div class="setting-row" style="background:#FFF7E6;[^>]*>📋 코스 없는[\s\S]*?<\/div>/g, '');
+}
 function norm299(s) {
-  return norm302(String(s))
+  return norm306(norm302(String(s)))
     .replace(/ data-sido="[^"]*" data-sigungu="[^"]*" oninput="orgAddrTouched\(\)"/g, '')
     .replace(/\n\s*<div style="font-size:11\.5px;color:#667085;line-height:1\.6;margin-bottom:8px;">📍 <b>검색으로 고르면[^<]*<\/b>[^<]*<\/div>/g, '');
 }

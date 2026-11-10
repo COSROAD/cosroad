@@ -477,9 +477,13 @@ const DUMP = (over) => {
     ck('★ 「전체 삭제」가 그 값을 본다(안 되면 멈춘다)',
       /backupData\(\)!==false[\s\S]{0,200}?if\(!bk\)\{/.test(bodyOf(NEW_SRC, 'resetData')), true);
     /* 복원 — 「칸이 없으면 안 본다」가 **두 함수 모두**에 있다 */
+    /* ★ v306(65)에서 그 판정을 **`_dumpHas` 한 벌**로 모았다 — 둘 중 어느 꼴이든
+       「칸이 없으면 `null`」이면 된다(동작은 ④가 실제로 잰다). */
     ['_restoreGone', '_restoreBack'].forEach((f) => {
+      const b = bodyOf(NEW_SRC, f);
       ck('★ ' + f + ' — 칸이 없으면 `null`(안 본다)',
-        /hasOwnProperty\.call\(dump\.data, k\)\) return null;/.test(bodyOf(NEW_SRC, f)), true);
+        /hasOwnProperty\.call\(dump\.data, k\)\) return null;/.test(b)
+          || /_dumpHas\(dump, k\)\) return null;/.test(b), true);
     });
     ck('★ 복원은 **덮기 전에** 지운다',
       (() => {
