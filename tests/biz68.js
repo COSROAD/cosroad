@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드68 — **보기 글·예시도 업종에 맞게** · **기본 원칙은 다섯 파일 전부** (v309).
    ① 보기 글(placeholder) — 네 업종에서 이름·주소·검색·코스·도착지 보기가 업종에 맞나 ·
       **한 벌**(`bizPlaceholders`·`noticeSearchPh`)이고 가지마다 적지 않나
@@ -20,14 +21,7 @@ const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
 const HOME = F('home.html'), HOME_OLD = OLD('home.html');
 const SHTML = F('s.html'), SHTML_OLD = OLD('s.html');
 /* ★ 이 회차 커밋 — 버전 글자로 찾는다(63~67 과 같은 방법) */
-const THIS_REF = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v309)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF = thisRef(309);   /* 그 회차 커밋 — 제목이 (v309) 인 것 */
 
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {

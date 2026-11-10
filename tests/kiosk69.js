@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드69 — **출석 전용 기기 카드를 「«출결»관리」로** · 옛 직원 PIN 카드를 근태 블록으로 (v313).
    ① 재현 — 옛 판은 네 업종 모두 **차량 탭**에 있었다
    ② ★ **그 기기가 무엇을 찍나** — 서버 코드로 전수(물류·택배는 찍을 것이 없다 → 멈춤 근거)
@@ -19,14 +20,7 @@ const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
 /* ★★ 이 회차(v313) 커밋 — **그 회차가 약속한 것은 그 커밋에서 잰다.**
    v314(코스로드70)가 물류·택배 자리와 서버 갈래를 **일부러 바꿨으므로**, 작업트리로 재면
    고친 코드와 무관하게 거짓으로 깨진다(CLAUDE.md 「회차 기록 묶음은 양쪽을 커밋에 고정」). */
-const THIS_REF = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v313)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF = thisRef(313);   /* 그 회차 커밋 — 제목이 (v313) 인 것 */
 const AT = (p) => (THIS_REF
   ? cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':' + p, { maxBuffer: 1 << 28 })
       .toString().replace(/\r\n/g, '\n')

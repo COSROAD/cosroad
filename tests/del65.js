@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드65 — **복원은 백업에 있는 칸만** · **끊긴 코스는 「코스 없음」** (v306).
    63·64 의 원칙·함수를 재사용한다(새 꼴 0).
    ① 복원 — 백업에 **칸이 없는** 키는 폰도 서버도 **손대지 않는다**(v305 는 자격증 하나만 그랬다) ·
@@ -19,14 +20,7 @@ const NEW_SRC = fs.readFileSync(COS_ROOT + '/index.html', 'utf8').replace(/\r\n/
 const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 /* ★ 이 회차 커밋 — **버전 글자로 찾는다**(63·64 와 같은 방법 · 커밋 전에는 작업트리) */
-const THIS_REF = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v306)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF = thisRef(306);   /* 그 회차 커밋 — 제목이 (v306) 인 것 */
 
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {

@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드68 보정2 — **문자 속 긴 사진 주소 → 짧은 「알림장 보기」 하나** ·
    **문자 글에서 그림 글자 빼기** (v311).
    ① 재현 — 옛 판 문자 본문에 「문자에 못 실리는 글자」가 몇 개인가(전수 표)
@@ -20,14 +21,7 @@ const OLD = (p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':' +
 const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
 /* ★ 이 회차 커밋 — 「서버 0줄」은 **두 커밋 사이**로 잰다(하나만 쓰면 작업트리까지 재서
    다음 회차가 서버를 고치면 거짓으로 깨진다 · v272 보정1 규칙). */
-const THIS_REF_311 = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v311)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF_311 = thisRef(311);   /* 그 회차 커밋 — 제목이 (v311) 인 것 */
 
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {

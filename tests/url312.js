@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드68 보정3 — **출석 알림 문자에서 쓰지 않는 주소 줄 빼기** (v312).
    ① 재현 — 옛 판 문자에 `cosroad.com?name=<이름>&time=…&org=…` 가 들어갔다
    ② 그 칸을 **읽는 곳이 0** — `URLSearchParams` 전수(`org`·`admin`·`signup` 만 본다)
@@ -21,14 +22,7 @@ const OLD2 = (ref, p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':'
 const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
 /* ★ 이 회차 커밋 — 「서버 0줄」은 **두 커밋 사이**로 잰다(하나만 쓰면 작업트리까지 재서
    다음 회차가 서버를 고치면 거짓으로 깨진다 · v272 보정1 규칙). */
-const THIS_REF_312 = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v312)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF_312 = thisRef(312);   /* 그 회차 커밋 — 제목이 (v312) 인 것 */
 /* 쪽지(주석)는 떼고 센다 — 「왜 뺐는지」 적어 둔 쪽지가 「쓰고 있다」로 잡힌다(68·보정2 교훈) */
 const codeOnly = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
   .split('\n').filter((x) => !x.trim().startsWith('//')).join('\n');
@@ -195,14 +189,7 @@ const checkinBody = (p) => {
     /* ★ 「문답표를 안 건드렸다」는 **이 회차(v312) 커밋**에서 재야 한다 —
        뒷 회차(v313)가 다른 까닭으로 문답표를 고치면 작업트리로는 거짓으로 깨진다
        (회차 기록 묶음은 양쪽을 커밋에 고정한다 — v272 보정1 규칙). */
-    const THIS_REF = (() => {
-      if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-      try {
-        const h = cp.execSync('git -C ' + COS_ROOT
-          + ' log --format=%H -1 --fixed-strings --grep=(v312)').toString().trim();
-        return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-      } catch (e) { return ''; }
-    })();
+    const THIS_REF = thisRef(312);   /* 그 회차 커밋 — 제목이 (v312) 인 것 */
     const THIS_SRC = THIS_REF ? OLD2(THIS_REF, 'index.html') : NEW_SRC;
     ck('  이 회차는 문답표를 안 건드렸다', QA(THIS_SRC) === QA(OLD_SRC) ? '그대로' : '바뀜', '그대로');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');

@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드63 — **삭제 단순판** (v304).
    사장님 판단(11-10 01:04~01:08): 62-B(서버가 스스로 맞대어 지우는 장치)는 복잡하다 →
    **지우는 눈에 보이는 자리**에서 처리한다.
@@ -25,14 +26,7 @@ const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.
 /* ★ 이 회차 커밋 — **버전 글자로 찾는다**(해시를 손으로 박으면 커밋 전에는 적을 수 없다).
    못 찾으면(커밋 전) 작업트리를 본다. 그래서 커밋 뒤에는 **두 커밋 사이**가 된다
    (CLAUDE.md 검사 묶음 규칙 · 다음 회차에 거짓으로 깨지지 않는다). */
-const THIS_REF = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v304)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF = thisRef(304);   /* 그 회차 커밋 — 제목이 (v304) 인 것 */
 
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {

@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '../..').replace(/\\/g, '/');
+const { thisRef } = require('../thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* v313(코스로드69) 실제 크롬 — **출석 전용 기기 카드 자리** · 네 크기 × 네 업종.
    ⓐ 학원·공공 — 「«출결»관리」 화면에 보이고 **차량 탭에서는 안 보인다** · PIN 체크인 단추 아래
    ⓑ 물류·택배 — 차량 탭에 **그대로 보이고**(숨기지 않았다) 「아직 쓸 수 없어요」가 적혀 있다
@@ -21,14 +22,7 @@ const BIZ = ['academy', 'public', 'logistics', 'delivery'];
 /* ★★ 이 회차(v313) 커밋 사본 — **그 회차가 약속한 것은 그 커밋에서 잰다.**
    v314(코스로드70)가 물류·택배 자리와 카드 글을 **일부러 바꿨으므로**(서버 갈래가 생겼다)
    작업트리로 재면 고친 코드와 무관하게 거짓으로 깨진다(CLAUDE.md 「양쪽을 커밋에 고정」). */
-const THIS_REF = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v313)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF = thisRef(313);   /* 그 회차 커밋 — 제목이 (v313) 인 것 */
 function copyOf(ref, tag) {
   const body = cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':index.html',
     { maxBuffer: 1 << 28 }).toString();

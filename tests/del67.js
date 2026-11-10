@@ -1,5 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드67-B — **모든 자료는 업체별로 분리·저장** (v308).
    ① 사진 경로가 **업체별**인가(`orgs/<업체>/notice-images|drivelog-photos/…`) ·
       업종 글자로 만드는 자리 0 · 업체가 바뀌면 경로도 바뀌나 · v307 문지기 셋 그대로
@@ -18,14 +19,7 @@ const NEW_SRC = fs.readFileSync(COS_ROOT + '/index.html', 'utf8').replace(/\r\n/
 const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 /* ★ 이 회차 커밋 — **버전 글자로 찾는다**(63~66 과 같은 방법 · 커밋 전에는 작업트리) */
-const THIS_REF = (() => {
-  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
-  try {
-    const h = cp.execSync('git -C ' + COS_ROOT
-      + ' log --format=%H -1 --fixed-strings --grep=(v308)').toString().trim();
-    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
-  } catch (e) { return ''; }
-})();
+const THIS_REF = thisRef(308);   /* 그 회차 커밋 — 제목이 (v308) 인 것 */
 
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {
