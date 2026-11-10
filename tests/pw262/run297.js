@@ -183,17 +183,28 @@ async function page(b) {
       const ls = document.getElementById('login-screen'); if (ls) ls.classList.add('hide');
       const ap = document.getElementById('main-app'); if (ap) ap.style.display = 'block';
       initApp();
+      /* ★ v313(코스로드69): 학원·공공은 이 칸이 **「«출결»관리」로 옮겨졌다**(전에는 차량 탭).
+         v297 의 약속은 「**관리자 화면에** 그 칸이 있다」이므로 **두 탭을 다 열어** 본다 —
+         탭 이름을 박아 두면 카드가 자리를 옮길 때마다 이 묶음이 거짓으로 깨진다. */
       switchAdminTab('cars');
       await new Promise((x) => setTimeout(x, 700));
-      switchAdminTab('cars');
-      await new Promise((x) => setTimeout(x, 300));
-      const c = document.getElementById('admin-content');
-      const txt = ((c && c.textContent) || '').replace(/\s+/g, ' ');
-      const btns = [...document.querySelectorAll('button')].map((x) => String(x.getAttribute('onclick') || ''));
-      return { card: /출석 전용 기기/.test(txt),
-               issue: btns.some((x) => /kioskCodeIssue/.test(x)),
-               unbind: btns.some((x) => /kioskUnbindAsk/.test(x)) };
+      const grab = () => {
+        const c = document.getElementById('admin-content');
+        const txt = ((c && c.textContent) || '').replace(/\s+/g, ' ');
+        const btns = [...document.querySelectorAll('button')].map((x) => String(x.getAttribute('onclick') || ''));
+        return { card: /출석 전용 기기/.test(txt),
+                 issue: btns.some((x) => /kioskCodeIssue/.test(x)),
+                 unbind: btns.some((x) => /kioskUnbindAsk/.test(x)) };
+      };
+      const a = grab();
+      switchAdminTab('attendance');
+      await new Promise((x) => setTimeout(x, 500));
+      const b2 = grab();
+      return { card: a.card || b2.card, issue: a.issue || b2.issue,
+               unbind: a.unbind || b2.unbind,
+               where: b2.card ? '«출결»관리(v313)' : (a.card ? '차량관리' : '없음') };
     });
+    console.log('     카드가 있는 화면: ' + r.where);
     say(r.card === true, '★ 칸이 있다'.padEnd(46) + String(r.card));
     say(r.issue === true, '  「코드 만들기」 단추'.padEnd(46) + String(r.issue));
     say(r.unbind === true, '  「기기 풀기」 단추(묶여 있을 때)'.padEnd(46) + String(r.unbind));
@@ -202,7 +213,9 @@ async function page(b) {
   }
 
   await b.close();
-  console.log(bad ? '\nX 문제 ' + bad + '건' : '\n✔ 전부 통과');
+  /* ★ 돌림판은 「전부 통과 / 실패 N건」을 찾는다 — 「문제 N건」만 찍으면
+     **안 돌았다(출력 없음)**로 잡힌다(v313 에 실제로 그랬다). 두 글자를 함께 찍는다. */
+  console.log(bad ? '\nX 실패 ' + bad + '건' : '\n✔ 전부 통과');
   console.log('※ 바깥 요청 전부 차단 · Firestore·서버 api 가짜 — 실제 쓰기 0 · 문자 0');
   process.exit(bad ? 1 : 0);
 })();

@@ -15,6 +15,9 @@ const OLD_REF = process.env.COS_SRC_OLD_REF || '4d3d69a';   /* v311 — 고치�
 const F = (p) => fs.readFileSync(COS_ROOT + '/' + p, 'utf8').replace(/\r\n/g, '\n');
 const OLD = (p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':' + p,
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
+/* 아무 커밋의 글을 떠서 본다(그 회차에서 재야 하는 칸이 있다) */
+const OLD2 = (ref, p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':' + p,
+  { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
 /* 쪽지(주석)는 떼고 센다 — 「왜 뺐는지」 적어 둔 쪽지가 「쓰고 있다」로 잡힌다(68·보정2 교훈) */
 const codeOnly = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -175,9 +178,23 @@ const checkinBody = (p) => {
     const QA = (s) => { const i = s.indexOf('var HELP_QA=['); return i < 0 ? '' : s.slice(i, s.indexOf('\n];', i)); };
     ck('★ 문답표에 그 줄을 설명하는 글이 **애초에 없었다**',
       /출석 확인/.test(QA(OLD_SRC)), false);
+    ck('  지금도 없다', /출석 확인: https/.test(QA(NEW_SRC)), false);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  그래서 문답 항목·글이 그대로', QA(NEW_SRC) === QA(OLD_SRC) ? '그대로' : '바뀜', '그대로');
-    ck('  문답 항목 수', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ 「문답표를 안 건드렸다」는 **이 회차(v312) 커밋**에서 재야 한다 —
+       뒷 회차(v313)가 다른 까닭으로 문답표를 고치면 작업트리로는 거짓으로 깨진다
+       (회차 기록 묶음은 양쪽을 커밋에 고정한다 — v272 보정1 규칙). */
+    const THIS_REF = (() => {
+      if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
+      try {
+        const h = cp.execSync('git -C ' + COS_ROOT
+          + ' log --format=%H -1 --fixed-strings --grep=(v312)').toString().trim();
+        return /^[0-9a-f]{7,}$/.test(h) ? h : '';
+      } catch (e) { return ''; }
+    })();
+    const THIS_SRC = THIS_REF ? OLD2(THIS_REF, 'index.html') : NEW_SRC;
+    ck('  이 회차는 문답표를 안 건드렸다', QA(THIS_SRC) === QA(OLD_SRC) ? '그대로' : '바뀜', '그대로');
+    console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
+    ck('  문답 항목 수(지금도)', qaN(NEW_SRC), qaN(OLD_SRC));
     ck('★ 소스 쪽지에 **왜 뺐는지** 적혀 있다',
       /읽는 곳이 /.test(NEW_SRC) && /이름이 주소에 들어가/.test(NEW_SRC)
         && /URLSearchParams/.test(NEW_SRC), true);
