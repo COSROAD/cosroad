@@ -694,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 310;
+const APP_VERSION = 311;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5885,7 +5885,7 @@ var HELP_QA=[
   {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
    a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
-   a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — «회원» 검색(쉼표로 여러 명/곳 — 업종에 맞는 보기가 칸에 나와요) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요\n8. 문자 말고 카톡 공유도 돼요 — 목록의 「💬 카톡 공유」 (아래 「«알림장» 카톡으로 보내기」 참고)\n9. <b>사진은 저장과 같은 때만 올라가요</b> (v307) — 들어온 직후(자료를 불러오는 중)·이용 기간이 끝난 읽기 전용·둘러보기에서는 <b>올리지 않고</b> 왜 안 됐는지 알려 드려요. 몇 초 뒤 다시 누르시면 됩니다 (전에는 둘러보기 사진도 실제로 올라갔어요)\n10. <b>사진도 업체별로 따로 보관돼요</b> (v308) — 올린 사진은 그 업체 폴더에만 들어가고, 다른 업체는 그 폴더에 <b>올리거나 지울 수 없어요</b>. 문자로 보낸 사진 주소는 종전처럼 받는 분이 바로 열어 볼 수 있어요 (v307 이전에 올린 사진도 그대로 열려요)'},
+   a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — «회원» 검색(쉼표로 여러 명/곳 — 업종에 맞는 보기가 칸에 나와요) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가요. <b>사진이 있으면 「▶ «알림장» 보기:」 주소 한 줄</b>이 붙고, 그 주소를 누르면 내용과 사진을 함께 봐요 (v311) — 전에는 긴 사진 주소가 줄줄이 붙어 문자가 길었어요\n6-1. 그 주소는 <b>카톡 공유와 같은 링크</b>라 문자·카톡을 번갈아 보내도 <b>하나만</b> 만들어져요. '+SHARE_DAYS+'일 뒤 자동으로 만료되고, 내용을 고친 뒤 다시 보내면 <b>새 링크</b>가 만들어져요\n6-2. <b>문자에는 그림 글자(이모지)를 넣지 않아요</b> (v311) — 문자는 그림 글자를 싣지 못해 「?」로 깨져 보여서, 「-」·「▶」 같은 기호로 바꿔 보냅니다. 카카오 알림톡·카톡 공유는 그대로 그림 글자가 나와요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요\n8. 문자 말고 카톡 공유도 돼요 — 목록의 「💬 카톡 공유」 (아래 「«알림장» 카톡으로 보내기」 참고)\n9. <b>사진은 저장과 같은 때만 올라가요</b> (v307) — 들어온 직후(자료를 불러오는 중)·이용 기간이 끝난 읽기 전용·둘러보기에서는 <b>올리지 않고</b> 왜 안 됐는지 알려 드려요. 몇 초 뒤 다시 누르시면 됩니다 (전에는 둘러보기 사진도 실제로 올라갔어요)\n10. <b>사진도 업체별로 따로 보관돼요</b> (v308) — 올린 사진은 그 업체 폴더에만 들어가고, 다른 업체는 그 폴더에 <b>올리거나 지울 수 없어요</b>. 문자로 보낸 사진 주소는 종전처럼 받는 분이 바로 열어 볼 수 있어요 (v307 이전에 올린 사진도 그대로 열려요)'},
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)\n9. <b>공유 화면의 제목도 업종 용어로 나와요</b> (v309) — 물류는 「공지」, 학원·공공·택배는 「알림장」이에요. v309 이전에 보낸 링크는 「알림장」으로 그대로 보여요'},
   {role:'admin', keys:['출결','체크인','출석','결석','중복','두 번','또 눌'], t:'«출결» 체크인 (PIN)',
@@ -6439,7 +6439,7 @@ function sendDropoffSMS(member, timeStr){
   var phones=[]; if(member.phone)phones.push(member.phone); if(member.phone2)phones.push(member.phone2);
   if(phones.length===0){ return; }
   var msg=buildDropoffMessage(getBizType(), orgSettings.name, member.name, timeStr);
-  window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
+  smsOpen(phones, msg);                        /* v311: 문자 글자표에 맞춰 보낸다 */
 }
 function sendDropoffNotify(member, timeStr){
   if(!member.phone && !member.phone2){ return; }
@@ -6836,7 +6836,7 @@ function sendDropoffSoon(memberId){
     + '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n'
     + '잠시 후 도착하니 준비 부탁드려요.\n'
     + closing;
-  window.open('sms:' + phones.join(',') + '?body=' + encodeURIComponent(body), '_blank');
+  smsOpen(phones, body);                       /* v311: 문자 글자표에 맞춰 보낸다 */
 }
 
 function sendArrivalSoon(memberId){
@@ -6852,7 +6852,7 @@ function sendArrivalSoon(memberId){
     ? '['+orgName+'] '+m.name+' 담당자님, 기사님이 약 5분 후 도착 예정입니다. 인수 준비 부탁드려요!'
     : '['+orgName+'] '+m.name+'님, 약 5분 후 도착 예정입니다. 준비 부탁드려요!';
   var recipients = phones.join(',');
-  window.open('sms:'+recipients+'?body='+encodeURIComponent(smsBody),'_blank');
+  smsOpen(phones, smsBody);                    /* v311: 문자 글자표에 맞춰 보낸다 */
 }
 
 // 납품/배송 완료 발송 기록 (오늘 보냈는지)
@@ -7064,8 +7064,8 @@ function copyShareText(){
 function sendSMS(){
   const phones=(window._activeStudents||[]).map(s=>s.phone).filter(Boolean);
   if(phones.length===0){alert('연락처가 등록된 '+조사(T('학부모'),'이','가')+' 없습니다.');return;}
-  const body=encodeURIComponent(window._shareText||'');
-  window.open(`sms:${phones[0]}?body=${body}`,'_blank');
+  /* v311: 운행 안내 글은 화면·카톡 붙여넣기에도 쓰므로 **여기서만** 문자 글자표에 맞춘다 */
+  smsOpen([phones[0]], window._shareText||'');
 }
 
 function openNaverMap(){
@@ -7680,6 +7680,87 @@ function noticeImageUrlsAsync(n){
   });
 }
 
+/* ══════════ 문자(SMS/LMS)로 나가는 글은 「문자 글자표」에 맞춘다 (v311 · 68 보정2) ══════════
+   ★★ **문자는 그림 글자를 못 싣는다.** 실서비스에서 「📷 사진 보기」가 **「? 사진 보기」**로
+     깨져 나갔다(사장님 11-10 캡처 — 그 앞에는 `ð·` 꼴로도 보였다. 📷 의 UTF-8 바이트가
+     그대로 보인 것이다). 문자는 **EUC-KR(KS X 1001)** 로 실려 가므로 그 글자표에 없는
+     글자는 전부 「?」가 된다.
+   ★ 파이썬 `str.encode('euc-kr')` 로 대조한 결과 (v311):
+     · **실린다** — `▶ ※ ━ ♥ · → ← ↑ ↓ ☆ ★ ■ □ ● ○ ◆ ◇ ☎ ㈜ ℃`
+     · **안 실린다** — `⏰ ✅ 👤 📷 👉 📅 📚 🔒 📩 🎒 🚚 💬 📍 📊 🔔 💰 📝 📄` (그림 글자 전부)
+   ★★ **고치는 자리는 「문자로 나가는 출구」다** — 글을 만드는 자리가 아니다.
+     `buildDropoffMessage`(하차 알림)는 **알림톡 승인 글**이고, `showSharePanel` 의 운행 안내는
+     **화면·카톡 붙여넣기**에도 쓴다. 거기서 그림 글자를 빼면 **알림톡·카톡이 함께 망가진다**
+     (지시문: 「카톡 공유·알림톡 글은 그대로」). 그래서 **출구 둘**에서만 바꾼다. */
+var SMS_SAFE_MAP = {
+  /* 「가리키는」 표시는 ▶ 로 */
+  '👉':'▶', '📷':'▶', '📩':'▶', '🔗':'▶', '▶️':'▶',
+  /* 줄 머리 표시는 - 로 */
+  '👤':'-', '⏰':'-', '✅':'-', '📅':'-', '📚':'-', '🏠':'-', '📍':'-', '🕘':'-',
+  '🚐':'-', '🏢':'-', '🏫':'-', '🎒':'-', '🚚':'-', '💰':'-', '🔔':'-', '📊':'-',
+  '📝':'-', '📄':'-', '🔒':'-', '💬':'-', '🙏':'-', '😊':'', '👍':''
+};
+/* ★ 바꾸는 규칙은 **자리를 본다** — 「줄 머리」 표시는 글자 기호로 남기고, 글 가운데 꾸밈은 뺀다.
+   그래서 「👤 이름: …」은 **「- 이름: …」**이 되고, 「[업체] 🚐 1호차 운행 안내」는
+   **「[업체] 1호차 운행 안내」**가 된다(가운데에 「-」를 끼우면 글이 어색하다 — 실측해 고쳤다). */
+function smsSafe(text){
+  var s = String(text == null ? '' : text);
+  var keys = Object.keys(SMS_SAFE_MAP);
+  s = s.split('\n').map(function(line){
+    var pad = (line.match(/^[ \t]*/) || [''])[0];
+    for(var i=0;i<keys.length;i++){
+      var k = keys[i];
+      if(line.slice(pad.length).indexOf(k) === 0){
+        var sym = SMS_SAFE_MAP[k];
+        return pad + sym + line.slice(pad.length + k.length);
+      }
+    }
+    return line;
+  }).join('\n');
+  /* 줄 머리가 아닌 자리에 남은 그림 글자는 **뺀다** — 문자로 실리지 못해 「?」가 된다.
+     ★ 빼는 자리는 **그림 글자 영역뿐**이다 — `▶ ※ ━ ♥ ★ ■ ● ◆ ☎ → ①` 처럼
+       **문자에 실리는 기호는 건드리지 않는다**(위 대조표 · 묶음이 지킨다). */
+  s = s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')      /* U+10000~ (그림 글자 대부분) */
+       .replace(/[⌀-⏿✀-➿⬀-⯿]/g, '')  /* ⏰ ✅ ⬆ 같은 것 */
+       .replace(/[︀-️‍⃣]/g, '')         /* 꾸밈·이어붙임 글자 */
+       .replace(/[ \t]+$/gm, '')                             /* 뺀 자리에 남는 줄끝 공백 */
+       /* 글 가운데에서 글자를 빼면 공백이 둘이 된다(「[업체]  1호차」) → 하나로.
+          ★ **줄 머리 들여쓰기는 건드리지 않는다** — 앞에 글자가 있을 때만 줄인다
+            (하차 알림의 「     안전하게 하차했습니다」 다섯 칸을 지켜야 한다). */
+       .replace(/(\S)[ \t]{2,}/g, '$1 ');
+  return s;
+}
+/* 폰 문자앱으로 넘기는 **한 벌** — 문자 글자표에 맞춘 뒤 연다.
+   ★ `window.open('sms:…')` 를 따로 적지 말 것. 따로 적으면 그 자리만 그림 글자가 남는다. */
+function smsOpen(phones, body){
+  var to = Array.isArray(phones) ? phones.join(',') : String(phones||'');
+  window.open('sms:'+to+'?body='+encodeURIComponent(smsSafe(body)), '_blank');
+}
+
+/* ══════════ «알림장» 문자 — 긴 사진 주소 대신 짧은 「알림장 보기」 주소 하나 (v311) ══════════
+   ★★ 사장님 11-10: 문자에 Storage 사진 주소가 **줄줄이** 들어가 글이 길고 읽기 어려웠다.
+     → **카톡 공유와 같은 공유 스냅샷**(`shares` kind `notice` · `s.html#토큰` · 30일)을
+       만들어 그 주소 **하나**만 넣는다(사진은 그 화면에서 본다).
+   ★ 같은 «알림장» 에 스냅샷을 **여러 개 만들지 않는다** — 발급할 때 토큰을 «알림장» 에 적어 두고
+     (`shareToken`·`shareTs`·`shareSig`) 살아 있고 **내용이 그대로면** 다시 쓴다.
+     ★ `shareSig` 를 함께 보는 까닭: 스냅샷은 **만든 때의 글로 굳는다**. 글을 고친 뒤 문자를
+       보내면 「문자 본문」과 「링크 속 글」이 **달라진다** → 달라졌으면 새로 만든다.
+   ★ 전에는 토큰을 **아무 데도 안 적었다**(`n.kakaoTs` 는 공유창을 연 **시각**뿐이다 — 전수 확인). */
+function noticeShareSig(n){
+  var c = String((n && n.content) || '');
+  var u = (n && n.imageUrls && n.imageUrls.length) ? n.imageUrls.join(',') : '';
+  var s = c + '\u0001' + u;
+  var h = 0;
+  for(var i=0;i<s.length;i++){ h = (h*131 + s.charCodeAt(i)*7919) & 0x7fffffff; }
+  return String(h) + '.' + s.length;
+}
+function noticeLiveShareUrl(n){
+  if(!n || !n.shareToken || !n.shareTs) return '';
+  if(Date.now() - Number(n.shareTs) >= SHARE_DAYS*864e5) return '';        /* 만료됐다 */
+  if(String(n.shareSig||'') !== noticeShareSig(n)) return '';              /* 글이 바뀌었다 */
+  return shareUrlOf(String(n.shareToken));
+}
+
 function sendNoticeSms(id){
   var n = notices.find(function(x){ return x.id === id; });
   if(!n) return;
@@ -7720,12 +7801,35 @@ function sendNoticeSms(id){
   showToast((imgs.length && !cached) ? '사진 업로드 중...' : '문자 발송 중...');
   noticeEnsureImageUrls(n, function(urls){
     var smsBody = '['+orgName+'] '+T('알림장')+'\n'+n.content;
-    if(urls && urls.length){
-      smsBody += '\n\n📷 사진 보기:';
-      urls.forEach(function(u){ smsBody += '\n'+u; });
+    if(!(urls && urls.length)){
+      doSendNoticeMessage(n, phones, smsBody);        /* 사진이 없으면 글만 (종전 그대로) */
+      return;
     }
-    doSendNoticeMessage(n, phones, smsBody);
+    /* ★ 사진이 있을 때만 주소를 넣는다(사장님 결정 기본값) — 사진이 없으면 볼 것이 글뿐이고
+       문자에 이미 그 글이 다 들어 있다. */
+    noticeShareUrlForSms(n, function(url){
+      if(url){
+        smsBody += '\n\n▶ '+T('알림장')+' 보기:\n'+url;
+      } else {
+        /* 스냅샷을 못 만들었다 — **문자는 나가야 한다**. 종전처럼 사진 주소로 보내되
+           그림 글자는 쓰지 않는다(지시문 그대로). */
+        smsBody += '\n\n사진 보기:';
+        urls.forEach(function(u){ smsBody += '\n'+u; });
+      }
+      doSendNoticeMessage(n, phones, smsBody);
+    });
   });
+}
+
+/* 문자에 넣을 「알림장 보기」 주소를 구한다 — 살아 있는 것이 있으면 그것, 없으면 새로 발급.
+   ★ 실패하면 **빈 글자**를 돌려준다(부르는 쪽이 사진 주소로 떨어진다) — 문자를 막지 않는다. */
+function noticeShareUrlForSms(n, cb){
+  var live = noticeLiveShareUrl(n);
+  if(live){ cb(live); return; }
+  if(typeof shareIssueNotice !== 'function'){ cb(''); return; }
+  Promise.resolve().then(function(){ return shareIssueNotice(n.id, { quiet:true }); })
+    .then(function(r){ cb((r && r.url && !r.error) ? String(r.url) : ''); })
+    .catch(function(){ cb(''); });
 }
 
 // 실제 발송: 알리고 API가 설정돼 있으면 LMS로, 없으면 폰 문자앱으로 폴백
@@ -7741,6 +7845,10 @@ var SMS_CHUNK = 50;
 async function doSendNoticeMessage(n, phones, smsBody){
   var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : '';
   var title = '['+orgName+'] '+T('알림장');
+  /* ★ v311(68 보정2): **문자 글자표에 맞춘다** — 본문·제목 둘 다(제목도 문자에 실린다).
+     여기가 서버 `send-sms` 로 나가는 **하나뿐인 출구**다(전수 확인). */
+  smsBody = smsSafe(smsBody);
+  title = smsSafe(title);
   var groups = [];
   for(var i=0; i<phones.length; i+=SMS_CHUNK){ groups.push(phones.slice(i, i+SMS_CHUNK)); }
 
@@ -10546,11 +10654,11 @@ function sendCheckinSMSText(member, timeStr){
     + '✅ 학원에 안전하게 도착했습니다.\n\n'
     + '👉 출석 확인: '+checkUrl;
   if(member.phone){
-    window.open('sms:'+member.phone+'?body='+encodeURIComponent(msg),'_blank');
+    smsOpen([member.phone], msg);              /* v311 */
   }
   if(member.phone2){
     setTimeout(function(){
-      window.open('sms:'+member.phone2+'?body='+encodeURIComponent(msg),'_blank');
+      smsOpen([member.phone2], msg);           /* v311 */
     }, 1000);
   }
 }
@@ -11464,7 +11572,7 @@ function sendUnpaidOne(memberId){
     + m.name+'님, '+조사(feeWord,'이','가')+' 아직 납부되지 않았습니다.\n빠른 납부 부탁드립니다. 감사합니다.';
   var phones = [m.phone];
   if(m.phone2) phones.push(m.phone2);
-  window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
+  smsOpen(phones, msg);                        /* v311: 문자 글자표에 맞춰 보낸다 */
 }
 
 // 전체 미납 회원에게 일괄 미납 알림 문자
@@ -11487,7 +11595,7 @@ function sendUnpaidAll(){
   var msg = '['+orgName+'] '+payViewYear+'년 '+payViewMonth+'월 '+feeWord+' 미납 안내\n'
     + 조사(feeWord,'이','가')+' 아직 납부되지 않았습니다.\n빠른 납부 부탁드립니다. 감사합니다.';
   if(!confirm('미납 '+fmtNum(unpaid.length)+'명에게 문자를 보낼까요?')) return;
-  window.open('sms:'+phones.join(',')+'?body='+encodeURIComponent(msg),'_blank');
+  smsOpen(phones, msg);                        /* v311: 문자 글자표에 맞춰 보낸다 */
 }
 
 function exportPaymentExcel(){
@@ -14663,7 +14771,10 @@ async function shareIssueOneInvoice(id){
    스냅샷에 담는 것: 기관명 · 작성일 · 본문 · 사진 주소.
    ★ 대상 «회원» 이름·연락처·targets·sent 상태는 **담지 않는다**(9548 원칙 그대로).
    사진은 문자 보내기와 같은 noticeEnsureImageUrls 를 써서 중복 업로드를 막는다. */
-async function shareIssueNotice(id){
+/* ★ v311(68 보정2): 둘째 인자 `opt` — `{quiet:true}` 면 토스트를 띄우지 않는다
+   («알림장» 문자가 조용히 발급할 때 쓴다 · 카톡 공유 길은 종전처럼 토스트를 띄운다). */
+async function shareIssueNotice(id, opt){
+  opt = opt || {};
   /* v263: 이용 기간이 끝나면 공유 링크를 새로 만들지 않는다(규칙도 막는다) */
   if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){
     return { error:'이용 기간이 끝나 읽기 전용이에요. 연장하시면 다시 만들 수 있어요.' };
@@ -14691,6 +14802,20 @@ async function shareIssueNotice(id){
   var org = orgSettings || {};
   /* 사진을 먼저 올려 주소를 받는다(이미 올려 둔 것이 있으면 그대로 쓴다) */
   var urls = await noticeImageUrlsAsync(n);
+
+  /* ★ v311(68 보정2): **살아 있고 글이 그대로면 그 주소를 다시 쓴다** — 같은 «알림장» 에
+     스냅샷을 여러 개 만들지 않는다(문자·카톡을 번갈아 눌러도 하나다). */
+  var _live = noticeLiveShareUrl(n);
+  if(_live){
+    if(!opt.quiet){ try{ showToast('이미 만든 공유 링크를 그대로 써요.'); }catch(e){} }
+    return {
+      url:   _live,
+      title: T('알림장'),
+      text:  '['+String(org.name||'')+'] '+T('알림장'),
+      imageUrl: (urls && urls[0]) ? String(urls[0]) : '',
+      reused: true
+    };
+  }
 
   var snap = {
     v: 1,
@@ -14722,7 +14847,16 @@ async function shareIssueNotice(id){
     return { error:'공유 링크를 만들지 못했어요.\n\n'+m };
   }
 
-  try{ showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){}
+  /* ★ v311(68 보정2): 발급한 토큰을 «알림장» 에 적어 둔다 — 다음에 다시 쓴다.
+     ★ 글이 바뀌면 `shareSig` 가 달라져 **새로 만든다**(옛 링크는 만료까지 그대로 열린다). */
+  try{
+    n.shareToken = token;
+    n.shareTs = Date.now();
+    n.shareSig = noticeShareSig(n);
+    saveNotices();
+  }catch(e){ console.log('공유 토큰 기록 실패', e); }
+
+  if(!opt.quiet){ try{ showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){} }
   return {
     url:   shareUrlOf(token),
     title: T('알림장'),
