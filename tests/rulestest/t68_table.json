@@ -1,0 +1,11 @@
+{
+ "notice.org.label": "allow",
+ "notice.org.plain": "allow",
+ "notice.read.anon": "allow",
+ "notice.top.label": "deny",
+ "notice.top.bizType": "deny",
+ "notice.owner.other": "deny",
+ "notice.content.big": "deny",
+ "notice.images.3": "deny",
+ "notice.read.expired": "deny"
+}

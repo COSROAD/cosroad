@@ -104,5 +104,6 @@ run del64.js       node del64.js
 run del65.js       node del65.js
 run del66.js       node del66.js
 run del67.js       node del67.js
+run biz68.js       node biz68.js
 echo "────────────────────────────────────────"
-echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 88 · 88 · 0)"
+echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 89 · 89 · 0)"

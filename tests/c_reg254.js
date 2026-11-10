@@ -80,8 +80,21 @@ function norm306(s) {
   return String(s)
     .replace(/\n?\s*<div class="setting-row" style="background:#FFF7E6;[^>]*>📋 코스 없는[\s\S]*?<\/div>/g, '');
 }
+/* ★ v309(코스로드68): **보기 글(placeholder)이 업종별로** 일부러 달라졌다 —
+   «알림장» 검색 칸(`noticeSearchPh`)과 설정의 도착지 이름 칸이 업종에 맞는 보기를 낸다.
+   그 **두 칸의 보기 글만** 옛 글로 되돌려 견준다(v256 보정3·v299·v302·v306 예외와 같은 방식).
+   ★ 되돌리는 것은 `placeholder="…"` **한 조각씩**이라, 다른 변화가 생기면 그대로 잡힌다. */
+function norm309(s) {
+  return String(s)
+    .replace(/id="notice-search" placeholder="🔍 [^"]*"/g,
+             'id="notice-search" placeholder="🔍 이름 검색 (쉼표로 여러 명: 강하은,문소율)"')
+    .replace(/id="dest-name"([^>]*?)placeholder="예\) [^"]*"/g,
+             'id="dest-name"$1placeholder="예) 태권도장"')
+    .replace(/id="org-name"([^>]*?)placeholder="예\) [^"]*"/g,
+             'id="org-name"$1placeholder="예) 우리 태권도장"');
+}
 function norm299(s) {
-  return norm306(norm302(String(s)))
+  return norm309(norm306(norm302(String(s))))
     .replace(/ data-sido="[^"]*" data-sigungu="[^"]*" oninput="orgAddrTouched\(\)"/g, '')
     .replace(/\n\s*<div style="font-size:11\.5px;color:#667085;line-height:1\.6;margin-bottom:8px;">📍 <b>검색으로 고르면[^<]*<\/b>[^<]*<\/div>/g, '');
 }

@@ -342,7 +342,8 @@ const DUMP = (over) => {
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    ck('  버전 308', appV, 308);
+    /* ★ 버전은 **308 이상**으로 본다 — 뒷 회차가 올리면 거짓으로 깨진다(63~66 과 같은 손질) */
+    ck('  버전 308 이상', appV >= 308 ? 'OK(' + appV + ')' : 'NG(' + appV + ')', 'OK(' + appV + ')');
     ck('  `version.json` 과 같다',
       String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
     const QA = (s) => { const i = s.indexOf('var HELP_QA=['); return i < 0 ? '' : s.slice(i, s.indexOf('\n];', i)); };

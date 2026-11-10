@@ -56,7 +56,10 @@
   .doc .org{font-size:13px;color:#667085;margin-bottom:14px;}
   .doc .meta{font-size:13px;color:#475467;line-height:1.9;border-top:1px solid #EAECF0;padding-top:10px;}
   .doc .meta b{color:#1D2939;}
-  .nt-body{font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:break-word;margin:4px 0 14px;}
+  /* ★ v309(코스로드68): «알림장» 본문도 **앱과 같은 두 줄**(keep-all + overflow-wrap:anywhere).
+     `word-break:break-word` 는 한글을 **낱글자로 쪼갤** 수 있어 기본 원칙(v256 보정3)과 어긋났다 —
+     띄어쓰기 없는 긴 주소·번호는 `overflow-wrap:anywhere` 가 맡는다. */
+  .nt-body{font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;margin:4px 0 14px;}
   .nt-img{display:block;width:100%;height:auto;border-radius:10px;border:1px solid #EAECF0;margin-bottom:10px;cursor:pointer;}
   .ps-tbl{width:100%;border-collapse:collapse;margin:6px 0 2px;}
   .ps-tbl th,.ps-tbl td{border:1px solid #D0D5DD;font-size:13px;padding:6px 8px;}
@@ -145,7 +148,10 @@ function renderNotice(d){
   const org = String((d.org && d.org.name) || '');
   const date = String(d.date || '');
   const imgs = Array.isArray(d.images) ? d.images : [];
-  try{ if(org) document.title = org + ' 알림장' + (date ? '_'+date : ''); }catch(e){}
+  /* v309(코스로드68): 제목·머리글을 **업종 용어**로 — 발급할 때 `org.label` 에 담아 보낸다
+     (물류는 「공지」). 그 칸이 없는 **옛 링크**는 종전 글자 「알림장」으로 떨어진다. */
+  const label = String((d.org && d.org.label) || '알림장');
+  try{ if(org) document.title = org + ' ' + label + (date ? '_'+date : ''); }catch(e){}
 
   let pics = '';
   imgs.forEach(function(u){
@@ -162,7 +168,7 @@ function renderNotice(d){
 
   root.innerHTML = barHtml()
     + '<div class="doc">'
-      + '<h1>알림장</h1>'
+      + '<h1>'+esc(label)+'</h1>'
       + '<div class="org">'+esc(org)+(date ? '　|　'+esc(date) : '')+'</div>'
       + '<div class="nt-body">'+esc(d.content||'')+'</div>'
       + pics
