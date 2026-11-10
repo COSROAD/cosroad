@@ -402,7 +402,8 @@ const savedVal = (p, k) => (p.L.saved.filter((x) => x.k === k)[0] || {}).v || ''
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    ck('  버전 306', appV, 306);
+    /* ★ 이 회차는 306 이었다 — 뒷 회차가 올리므로 **그 이상**으로 본다(del63·del64 와 같은 손질) */
+    ck('  버전 306 이상', appV >= 306 ? 'OK(' + appV + ')' : appV, 'OK(' + appV + ')');
     ck('  `version.json` 과 같다',
       String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
     /* HELP_QA */

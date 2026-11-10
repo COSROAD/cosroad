@@ -694,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 306;
+const APP_VERSION = 307;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5877,7 +5877,7 @@ var HELP_QA=[
   {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
    a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
-   a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — 이름 검색(쉼표로 여러 명: 강하은,문소율) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요\n8. 문자 말고 카톡 공유도 돼요 — 목록의 「💬 카톡 공유」 (아래 「«알림장» 카톡으로 보내기」 참고)'},
+   a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — 이름 검색(쉼표로 여러 명: 강하은,문소율) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요\n8. 문자 말고 카톡 공유도 돼요 — 목록의 「💬 카톡 공유」 (아래 「«알림장» 카톡으로 보내기」 참고)\n9. <b>사진은 저장과 같은 때만 올라가요</b> (v307) — 들어온 직후(자료를 불러오는 중)·이용 기간이 끝난 읽기 전용·둘러보기에서는 <b>올리지 않고</b> 왜 안 됐는지 알려 드려요. 몇 초 뒤 다시 누르시면 됩니다 (전에는 둘러보기 사진도 실제로 올라갔어요)'},
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석','중복','두 번','또 눌'], t:'«출결» 체크인 (PIN)',
@@ -5954,7 +5954,7 @@ var HELP_QA=[
   {role:'admin', keys:['전체총미수','총미수','업체필터','거래처만','누적미수'], t:'업체 지정 — 목록 필터·전체 총 미수',
    a:'1. 거래명세서 탭의 「📄 거래처별 기간 거래내역」에서 거래처를 고르면, 아래 「📁 저장된 거래명세서」 목록도 그 거래처 것만 보여요\n2. 전체로 돌아가려면 목록 위의 「전체 거래처 보기 ↺」를 누르거나 거래처를 「— 거래처 선택 —」으로 바꾸세요\n3. 거래처를 고르면 「전체 총 미수」가 함께 나와요 — 매출 미수 / 매입 미지급 / 전체 순미수 세 줄이에요\n4. 「전체 총 미수」는 고른 기간과 무관하게 그 거래처의 전체 거래를 상계한 금액이에요 — 기간 거래내역 문서 아래쪽 기간 합계와는 다른 값이에요\n5. 전체 순미수가 음수(파란색)면 우리가 줄 돈이 더 많다는 뜻이에요'},
   {role:'admin', keys:['품목','상품','단가','입고가','출고가'], t:'품목 관리 (물류)',
-   a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요'},
+   a:'1. 거래명세서 작성 화면의 「⚙ 품목 관리」\n2. 품명 · 규격 · 단위 · 입고가(매입) · 출고가(매출)를 넣고 「추가」\n3. 등록해 두면 명세서에서 골라 넣을 수 있고, 명세서 종류에 맞는 단가만 자동으로 들어와요\n4. 「📋 엑셀 양식」을 받아 채운 뒤 「📥 엑셀 업로드」로 한 번에 등록할 수 있어요\n5. 바코드는 품목의 「코드」 칸과 대조해요 — 따로 바코드 칸은 없어요\n6. <b>엑셀을 두 번 올려도 같은 품목이 두 벌로 쌓이지 않아요</b> (v307) — <b>코드가 있으면 코드</b>로, 코드가 없으면 <b>품명+규격</b>으로 견주어 이미 있는 것은 건너뛰고 「N건은 이미 있어 건너뛰었어요」라고 알려 드려요\n6-1. 건너뛴 품목의 <b>기존 값(단가 등)은 그대로예요</b> — 엑셀로 덮어쓰지 않아요. 값을 바꾸시려면 품목 관리에서 그 품목을 눌러 수정해 주세요\n6-2. 같은 코드가 두 벌로 있으면 <b>바코드 스캔이 먼저 것만</b> 찾아요 — 그래서 겹침을 막아 드려요'},
   {role:'admin', keys:['파트너','제휴','추천업체'], t:'파트너(제휴 업체) 탭',
    a:'1. 관리자 → 「🛒 파트너」 탭\n2. 우리 업종에 맞는 분야만 보여요 — 세무 · 차량 · IT는 공통이고, 물류·택배는 포장/화물, 학원은 스포츠/용품 같은 식이에요\n3. 카테고리를 눌러 업체를 고르고, 누르면 그 사이트가 새 창으로 열려요'},
   {role:'admin', keys:['이용안내','흐름','전체과정'], t:'이용안내 탭 (전체 흐름 보기)',
@@ -7586,8 +7586,20 @@ function cancelNoticeEdit(){
 // 알림장 사진(dataURL 배열)을 Firebase Storage에 올리고 다운로드 URL 배열을 받음
 function uploadNoticeImages(images, cb){
   // images: dataURL 문자열 배열
+  /* ★★ v307(코스로드66): 사진 올리기도 **저장과 같은 문지기 셋**을 지난다
+     (`saveCarState` 와 **같은 순서**: 둘러보기 → 읽기 전용 → 첫 동기화).
+     v306 까지는 **읽기 전용 하나만** 보고 있어서
+       · 둘러보기(`_demo`)에서 「문자 보내기」를 누르면 체험 사진이 **실제 Storage 로 올라갔고**
+       · 로그인 직후(첫 동기화 전)에는 **폰에 남은 앞 업체 사진**이 올라갔다(스텁 실측).
+     ★ 막히면 **`cb(null)`(실패)** 로 돌려준다 — `[]` 로 주면 「사진 없는 알림장」으로 보여
+       부르는 쪽이 「주소를 받았다」고 여겨 `n.imageUrls` 를 저장할 수 있다. */
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    try{ if(typeof demoBlockNotice==='function') demoBlockNotice(); }catch(e){}
+    cb(null); return;
+  }
   /* v263: 읽기 전용이면 사진을 올리지 않는다 (서버 저장 자체가 막혀 있다) */
   if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ readOnlyBlocked('사진'); cb([]); return; }
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){ firstSyncBlocked('사진'); cb(null); return; }
   if(!images || images.length===0){ console.log('[알림장] 첨부 사진 없음'); cb([]); return; }
   if(!window._storage || !window._storageFns){
     // Storage 준비 안 됨 → URL 없이 진행
@@ -13158,6 +13170,22 @@ function pickProduct(idx, prodIdx){
     renderInvoice();
   }
 }
+/* ★ v307(코스로드66): 「같은 품목인가」 — **한 벌**로 둔다(엑셀 가져오기가 쓴다).
+   기준은 **바코드 대조와 같은 칸**이다(`handleBarcodeValue` 가 `code` 를 앞뒤 공백 떼고 견준다).
+     · 코드가 **있으면** `code` 하나로 본다(바코드가 그 칸으로 품목을 찾는다)
+     · 코드가 **없으면** 이름 + 규격으로 본다(코드 없는 품목은 그 둘로 고른다)
+   ★ 같은 엑셀 안에서 겹친 줄도 걸러진다 — 들어간 것을 바로 `list` 에 넣고 다시 보기 때문이다. */
+function prodSameExists(list, code, name, spec){
+  var c=String(code||'').trim();
+  var n=String(name||'').trim(), s=String(spec||'').trim();
+  for(var i=0;i<list.length;i++){
+    var p=list[i]||{};
+    if(c){ if(String(p.code||'').trim()===c) return true; }
+    else if(!String(p.code||'').trim()
+      && String(p.name||'').trim()===n && String(p.spec||'').trim()===s) return true;
+  }
+  return false;
+}
 function downloadProductTemplate(){
   var data=[
     ['코드','품명','규격','단위','과세구분','메모','단가',''],
@@ -13180,7 +13208,7 @@ function uploadProductExcel(ev){
       var ws=wb.Sheets[wb.SheetNames[0]];
       var rows=XLSX.utils.sheet_to_json(ws, {header:1});
       var list=loadProducts();
-      var added=0;
+      var added=0, skipped=0;
       rows.forEach(function(r, i){
         if(i<2) return;
         var code=String(r[0]||'').trim();
@@ -13192,11 +13220,20 @@ function uploadProductExcel(ev){
         var inPrice=Number(r[6])||0;
         var outPrice=Number(r[7])||0;
         var price=outPrice||inPrice;
+        /* ★★ v307(코스로드66): **겹치면 건너뛴다** — v306 까지는 겹침 검사가 없어
+           같은 엑셀을 두 번 올리면 품목이 **그대로 두 벌**이 됐다(스텁 실측).
+           같은 코드가 둘이면 **바코드 스캔이 먼저 것만 찾아** 뒤 것은 영원히 안 잡힌다.
+           ★ 기준은 **바코드가 보는 칸과 같다** — 코드가 있으면 `code`(앞뒤 공백 떼고),
+             코드가 없으면 **이름+규격**(코드 없는 품목은 명세서에서 그 둘로 고른다).
+           ★ **기존 값은 덮지 않는다** — «회원» 엑셀(`handleExcelFile`)과 **같은 태도**로
+             건너뛰고 끝에 수만 알린다(덮으면 손으로 고쳐 둔 단가가 사라진다). */
+        if(prodSameExists(list, code, name, spec)){ skipped++; return; }
         list.push({code:code, name:name, spec:spec, unit:unit, tax:tax, inPrice:inPrice, price:price});
         added++;
       });
       saveProducts(list);
-      alert('✅ 품목 '+fmtNum(added)+'개를 추가했어요.');
+      alert('✅ 품목 '+fmtNum(added)+'개를 추가했어요.'
+        + (skipped ? '\n('+fmtNum(skipped)+'건은 이미 있어 건너뛰었어요 — 기존 값은 그대로예요)' : ''));
       openProductManager();
     }catch(err){ alert('엑셀 읽기 실패: '+err.message); }
   };
@@ -16475,8 +16512,17 @@ function dlvFetchImageBase64(url){
 
 /* 계기판 사진 업로드 — 알림장 사진 업로드(uploadNoticeImages)와 같은 방식, 저장 경로만 분리 */
 function uploadDriveLogPhoto(dataUrl, cb){
+  /* ★★ v307(코스로드66): «알림장» 사진과 **같은 문지기 셋**(둘러보기 → 읽기 전용 → 첫 동기화).
+     ★ 막힌 것과 **통신 실패**를 가려야 한다 — 둘 다 `cb(null)` 이면 부르는 쪽이
+       「사진을 저장하지 못했어요 (인터넷 연결 확인)」라는 **틀린 까닭**을 덧붙인다.
+       그래서 둘째 인자로 `'blocked'` 를 준다(안내는 문지기가 이미 한 번 띄웠다). */
+  if(typeof isDemoMode==='function' && isDemoMode()){
+    try{ if(typeof demoBlockNotice==='function') demoBlockNotice(); }catch(e){}
+    cb(null, 'blocked'); return;
+  }
   /* v263: 읽기 전용이면 사진도 올리지 않는다 */
-  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ readOnlyBlocked('사진'); cb(null); return; }
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ readOnlyBlocked('사진'); cb(null, 'blocked'); return; }
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){ firstSyncBlocked('사진'); cb(null, 'blocked'); return; }
   if(!window._storage || !window._storageFns){
     console.log('[운행기록부] Storage 준비 안 됨');
     cb(null); return;
@@ -16716,8 +16762,9 @@ function dlvOnPhotoPick(el){
       dlvDemoPhoto=dataUrl; demoBlockNotice(); renderDriveLogView(); return;
     }
     showToast('사진 업로드 중...');
-    uploadDriveLogPhoto(dataUrl, function(url){
-      if(!url){ showToast('사진을 저장하지 못했어요 (인터넷 연결 확인)'); return; }
+    uploadDriveLogPhoto(dataUrl, function(url, why){
+      /* ★ v307(66): 문지기가 막은 것이면 **그 안내를 이미 띄웠다** — 틀린 까닭을 덧붙이지 않는다 */
+      if(!url){ if(why!=='blocked') showToast('사진을 저장하지 못했어요 (인터넷 연결 확인)'); return; }
       driveLogManualSet(dlvCarId, dlvYm, 'photo', url);
       renderDriveLogView();
       showToast('✅ 계기판 사진이 저장됐어요');

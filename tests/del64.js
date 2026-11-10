@@ -335,8 +335,19 @@ const restore = async (p, dumpObj) => {
       return f.slice(0, f.indexOf('\n}\n'));
     };
     /* 문지기 — v304 열넷 + 코스 하나 = **열다섯** */
-    ck('★ 문지기 자리 수', (NEW_SRC.match(/!okToWriteNow\(\)/g) || []).length, 15);
-    ck('  (대조) v304 는 열넷', (OLD_SRC.match(/!okToWriteNow\(\)/g) || []).length, 14);
+    /* ★★ **그 회차 수는 그 회차 커밋에서** 읽는다 — 작업트리에서 세면 뒷 회차가 문지기를
+       더 붙일 때마다 **거짓으로** 깨진다(v307/66 이 사진 둘을 더해 겪었다 · del63 과 같은 손질).
+       지금 소스는 「**줄지 않았나**」로만 본다. */
+    const THIS_SRC = THIS_REF
+      ? cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':index.html',
+        { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n')
+      : NEW_SRC;
+    const gates = (s) => (s.match(/!okToWriteNow\(\)/g) || []).length;
+    ck('★ 문지기 자리 수(이 회차 커밋)', gates(THIS_SRC), 15);
+    ck('  (대조) v304 는 열넷', gates(OLD_SRC), 14);
+    ck('  지금 소스는 **줄지 않았다**',
+      gates(NEW_SRC) >= 15 ? 'OK(' + gates(NEW_SRC) + ')' : gates(NEW_SRC),
+      'OK(' + gates(NEW_SRC) + ')');
     ck('★ `deleteCourse` 머리에 문지기',
       bodyOf(NEW_SRC, 'deleteCourse').indexOf('!okToWriteNow()') >= 0, true);
     /* 연결 막기 함수 — **셋이 같은 꼴**이고 각각 한 벌이다(새 꼴을 만들지 않았다) */
