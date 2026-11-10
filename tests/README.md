@@ -9,7 +9,7 @@
 
 | 묶이 | 돌림판 | 묶음 수 |
 |---|---|---|
-| 스텁(Node · 가짜 Firestore·가짜 알리고) | `tests/runall275.sh` | **90** |
+| 스텁(Node · 가짜 Firestore·가짜 알리고) | `tests/runall275.sh` | **91** |
 | 규칙(Firestore 에뮬레이터) | `tests/rulestest/runall41.sh` | **26** |
 | 화면(크롬 · Playwright) | `tests/pw262/runall41.sh` | **42** |
 
