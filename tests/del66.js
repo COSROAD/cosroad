@@ -225,18 +225,33 @@ const HDR = [['코드', '품명', '규격', '단위', '과세구분', '메모', 
         b.slice(0, 1600).indexOf('okToWriteNow()') >= 0, true);
     });
     /* 문지기 자리 수 — v306 열다섯 + 사진 둘 = **열일곱** */
-    ck('★ 문지기 자리 수', (NEW_SRC.match(/!okToWriteNow\(\)/g) || []).length, 17);
-    ck('  (대조) v306 은 열다섯', (OLD_SRC.match(/!okToWriteNow\(\)/g) || []).length, 15);
+    /* ★★ **그 회차 수·글은 그 회차 커밋에서** 읽는다(del63~65 와 같은 손질) —
+       작업트리에서 세면 뒷 회차가 문지기를 더 붙이거나 경로를 바꿀 때 **거짓으로** 깨진다. */
+    const THIS_SRC = THIS_REF
+      ? cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':index.html',
+        { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n')
+      : NEW_SRC;
+    const gates = (s) => (s.match(/!okToWriteNow\(\)/g) || []).length;
+    ck('★ 문지기 자리 수(이 회차 커밋)', gates(THIS_SRC), 17);
+    ck('  (대조) v306 은 열다섯', gates(OLD_SRC), 15);
+    ck('  지금 소스는 **줄지 않았다**',
+      gates(NEW_SRC) >= 17 ? 'OK(' + gates(NEW_SRC) + ')' : gates(NEW_SRC),
+      'OK(' + gates(NEW_SRC) + ')');
 
-    /* ★ 업체 경로 — **보고용으로 잰다**(이 회차에서 안 고친다) */
-    const paths = (NEW_SRC.match(/'(notice-images|drivelog-photos)\/'\+bizId/g) || []).length;
-    ck('★ (보고) 두 경로는 **업종 글자**(`getBizType`)를 쓴다 — 업체(`getFbOrgId`) 가 아니다', paths, 2);
-    ck('  (보고) 그 자리에 `getFbOrgId` 는 0곳',
-      /(notice-images|drivelog-photos)\/'\+\s*getFbOrgId/.test(NEW_SRC), false);
-    ck('  (보고) 이 회차에서 경로는 **안 바꿨다**(Storage 규칙이 필요하다)',
+    /* ★ 업체 경로 — v307 에는 **업종 글자**였다(그 사실을 기록으로 남긴다).
+       ★★ v308(67-B)에서 **업체 경로로 바꿨다** → 「지금 소스」로 재면 거짓으로 깨지므로
+         **그 회차 커밋에서** 잰다(del63~66 과 같은 손질). 지금 소스를 지키는 일은
+         `tests/del67.js`·`rulestest/s67.mjs` 가 이어 받는다. */
+    const paths = (THIS_SRC.match(/'(notice-images|drivelog-photos)\/'\+bizId/g) || []).length;
+    ck('★ (기록) v307 두 경로는 **업종 글자**(`getBizType`)였다', paths, 2);
+    ck('  (기록) 그때 `getFbOrgId` 는 0곳',
+      /(notice-images|drivelog-photos)\/'\+\s*getFbOrgId/.test(THIS_SRC), false);
+    ck('  (기록) 그 회차에서는 경로를 안 바꿨다',
       (OLD_SRC.match(/'(notice-images|drivelog-photos)\/'\+bizId/g) || []).length, paths);
-    console.log('      → 경로를 업체별로 바꾸려면 **Storage 규칙에 그 경로를 더해야** 한다');
-    console.log('        (CLAUDE.md 함정: 코드만 고치면 403 `storage/unauthorized`) — 사장님 판단 대기');
+    ck('★ 지금 소스는 **업체 경로**다(v308 에서 고쳤다)',
+      (NEW_SRC.match(/getFbOrgId\(\)\+'\/(notice-images|drivelog-photos)/g) || []).length, 2);
+    console.log('      → v308(67-B)에서 `orgs/<업체>/…` 로 바꿨다 ·');
+    console.log('        콘솔 Storage 규칙(1단계)이 그 경로를 업체로 막는다(`storage.rules` 기록)');
   }
 
   console.log('\n② 품목 엑셀 — 겹침 검사');
@@ -323,7 +338,8 @@ const HDR = [['코드', '품명', '규격', '단위', '과세구분', '메모', 
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    ck('  버전 307', appV, 307);
+    /* ★ 이 회차는 307 이었다 — 뒷 회차가 올리므로 **그 이상**으로 본다 */
+    ck('  버전 307 이상', appV >= 307 ? 'OK(' + appV + ')' : appV, 'OK(' + appV + ')');
     ck('  `version.json` 과 같다',
       String(JSON.parse(fs.readFileSync(COS_ROOT + '/version.json', 'utf8')).version), String(appV));
     const QA = (s) => { const i = s.indexOf('var HELP_QA=['); return i < 0 ? '' : s.slice(i, s.indexOf('\n];', i)); };

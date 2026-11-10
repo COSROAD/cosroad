@@ -33,6 +33,7 @@ tests/**/res*.json
 tests/**/out*.txt
 tests/rulestest/firestore.rules
 tests/rulestest/firestore.rules.*
+tests/rulestest/storage.rules
 tests/pw262/shots*/
 tests/pw262/pin271/
 tests/pw262/pin271b/

@@ -694,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 307;
+const APP_VERSION = 308;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -5877,7 +5877,7 @@ var HELP_QA=[
   {role:'admin', keys:['정산','월말','미수'], t:'월말/수납 정산',
    a:'물류: 거래명세서 → 「📊 월말 정산」 — 거래처별 매출·입금·미수·매입 + 엑셀\n학원·공공: 수납 → 「📊 월 수납 정산」 — 청구·납부·미납·수납률 + 엑셀'},
   {role:'admin', keys:['알림장','공지','알림톡','발송','사진'], t:'«알림장» 보내기',
-   a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — 이름 검색(쉼표로 여러 명: 강하은,문소율) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요\n8. 문자 말고 카톡 공유도 돼요 — 목록의 「💬 카톡 공유」 (아래 「«알림장» 카톡으로 보내기」 참고)\n9. <b>사진은 저장과 같은 때만 올라가요</b> (v307) — 들어온 직후(자료를 불러오는 중)·이용 기간이 끝난 읽기 전용·둘러보기에서는 <b>올리지 않고</b> 왜 안 됐는지 알려 드려요. 몇 초 뒤 다시 누르시면 됩니다 (전에는 둘러보기 사진도 실제로 올라갔어요)'},
+   a:'1. 관리자 → 「📝 «알림장»」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「👥 «회원» 선택」을 눌러 받는 대상을 고르세요 — 이름 검색(쉼표로 여러 명: 강하은,문소율) 후 「적용」, 전체에 보내려면 「📢 전체 선택」\n3. 내용을 쓰고 「📷 사진 첨부 (최대 2장)」로 사진도 넣을 수 있어요\n4. 「💾 «알림장» 기록 저장」 → 아래 「📋 «알림장» 기록」 목록에 쌓여요\n5. 목록의 「📩 문자 보내기」를 눌러야 그때 발송돼요 (보낸 뒤에는 「📩 다시 보내기」)\n6. 등록된 연락처 1·2번으로 모두 나가고, 사진은 링크로 붙어서 받는 분이 눌러 볼 수 있어요\n7. 발송은 문자(LMS)로 나가요 — 카카오 알림톡은 하차·납품·PIN 체크인 알림에 쓰여요\n8. 문자 말고 카톡 공유도 돼요 — 목록의 「💬 카톡 공유」 (아래 「«알림장» 카톡으로 보내기」 참고)\n9. <b>사진은 저장과 같은 때만 올라가요</b> (v307) — 들어온 직후(자료를 불러오는 중)·이용 기간이 끝난 읽기 전용·둘러보기에서는 <b>올리지 않고</b> 왜 안 됐는지 알려 드려요. 몇 초 뒤 다시 누르시면 됩니다 (전에는 둘러보기 사진도 실제로 올라갔어요)\n10. <b>사진도 업체별로 따로 보관돼요</b> (v308) — 올린 사진은 그 업체 폴더에만 들어가고, 다른 업체는 그 폴더에 <b>올리거나 지울 수 없어요</b>. 문자로 보낸 사진 주소는 종전처럼 받는 분이 바로 열어 볼 수 있어요 (v307 이전에 올린 사진도 그대로 열려요)'},
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)'},
   {role:'admin', keys:['출결','체크인','출석','결석','중복','두 번','또 눌'], t:'«출결» 체크인 (PIN)',
@@ -5918,7 +5918,7 @@ var HELP_QA=[
   {role:'all', keys:['안나가','안가요','못보내','발송실패','알림톡실패','문자오류','상한','명부에없'], t:'문자·알림톡이 안 나가요',
    a:'보내기 전에 서버가 세 가지를 봅니다. 그 가운데 하나에 걸린 거예요.\n1. <b>이용 기간</b> — 기간이 끝났거나 아직 승인 전이면 문자가 나가지 않아요. 「🔒 이용 기간이 끝나…」 안내가 뜹니다. 연장하시면 바로 다시 보내실 수 있어요\n2. <b>회원 명부에 없는 번호</b> — 받는 번호는 «회원»에 등록된 번호만 됩니다. 「회원 명부에 없는 번호가 N개…」가 뜨면 «회원»관리에서 번호를 확인해 주세요 (띄어쓰기·줄표는 상관없어요)\n3. <b>상한</b> — 한 업체가 <b>1분에 300명·하루 3,000명</b>까지 보낼 수 있어요(등하원 알림톡·출석·납품 알림도 함께 세어집니다). 넘으면 「오늘 보낼 수 있는 문자 수를 다 썼어요」가 뜹니다. 내일 다시 보내시거나 📧 cosroad@cosroad.com 으로 알려 주세요\n4. 기사님은 <b>자기 차량 회원</b>에게만 보낼 수 있어요\n5. 둘러보기(데모)에서는 진짜 문자가 나가지 않아요\n6. 「로그인이 필요해요」가 뜨면 로그아웃됐을 수 있어요 — 다시 로그인한 뒤 보내 주세요\n7. 알림장은 받는 분이 50명을 넘으면 <b>50명씩 나눠</b> 보냅니다 — 중간에 막히면 거기까지만 나가고 몇 건 나갔는지 알려 드려요'},
   {role:'admin', keys:['백업','복원','데이터'], t:'백업/복원',
-   a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·코스·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각, <b>교육비 납입증명서 발급 이력</b>(v305)까지 — 업체 자료 <b>20가지 전부</b>가 들어가요\n3-1. 증명서 발급 이력은 v305 부터 담깁니다 — <b>그 전에 받아 둔 백업 파일</b>에는 없어서, 그 파일로 복원하면 지금 이력을 <b>그대로 둬요</b>(지우지 않아요)\n4. <b>복원하면 사라지는 분들의 서버 PIN 도 같이 정리해요</b> (v304) — 지금 명단에 있는데 백업 파일에는 없는 «회원»·직원·차량이면 그 <b>출석/기사 PIN·묶인 기기·동승 배정</b>을 서버에서 지워요. 그래야 지워진 분이 PIN 으로 더는 들어오지 못해요\n4-1. 몇 건을 지웠는지 복원이 끝날 때 알려 드려요. 못 지운 것이 있어도 <b>복원은 그대로 진행</b>되고 수만 알려 드려요 — 그때는 그 분·차량을 한 번 더 지우거나 PIN 을 지워 주세요\n5. <b>복원으로 돌아온 분들은 PIN 을 다시 정해 주세요</b> (v304) — 화면에는 「PIN 설정됨」으로 보이지만 그 사이에 지웠다면 서버에 PIN 이 없어요. 앱이 대신 만들지는 못해요(원래 번호를 아무도 모르니까요). 복원이 끝날 때 「🔑 PIN 을 다시 정해 주세요 (N명)」으로 알려 드려요\n6. 들어온 직후(자료를 불러오는 중)에는 복원이 막혀요 — 몇 초 뒤 다시 하시면 됩니다\n7. <b>복원은 그 백업 파일에 들어 있는 자료만 되돌려요</b> (v306) — 옛 백업처럼 <b>빠진 칸</b>이 있으면 그 자료는 폰·서버 <b>모두 그대로 둬요</b>. 복원이 끝나면 「📦 이 백업에 없던 자료 N가지는 그대로 두었어요」로 무엇이 빠졌는지 알려 드려요\n7-1. v305 까지는 빠진 칸도 <b>복원 전 값이 서버로 다시 올라갔어요</b> — 그래서 다른 분이 서버에서 고쳐 둔 자료가 되돌아갈 수 있었어요 (지금은 그런 일이 없어요)'},
+   a:'1. 설정 탭 → 데이터 → 「⬇ 백업」: 전체를 파일로 저장\n2. 「⬆ 복원」: 백업 파일로 되돌리기 (현재 데이터를 덮어써요)\n3. 백업에는 «회원»·차량·코스·«출결»·수납·세무·«알림장»·차계부·급여 수기값·직원에 더해 기사·직원 출퇴근, 거래명세서, 품목, 출석 시각, <b>교육비 납입증명서 발급 이력</b>(v305)까지 — 업체 자료 <b>20가지 전부</b>가 들어가요\n3-1. 증명서 발급 이력은 v305 부터 담깁니다 — <b>그 전에 받아 둔 백업 파일</b>에는 없어서, 그 파일로 복원하면 지금 이력을 <b>그대로 둬요</b>(지우지 않아요)\n4. <b>복원하면 사라지는 분들의 서버 PIN 도 같이 정리해요</b> (v304) — 지금 명단에 있는데 백업 파일에는 없는 «회원»·직원·차량이면 그 <b>출석/기사 PIN·묶인 기기·동승 배정</b>을 서버에서 지워요. 그래야 지워진 분이 PIN 으로 더는 들어오지 못해요\n4-1. 몇 건을 지웠는지 복원이 끝날 때 알려 드려요. 못 지운 것이 있어도 <b>복원은 그대로 진행</b>되고 수만 알려 드려요 — 그때는 그 분·차량을 한 번 더 지우거나 PIN 을 지워 주세요\n5. <b>복원으로 돌아온 분들은 PIN 을 다시 정해 주세요</b> (v304) — 화면에는 「PIN 설정됨」으로 보이지만 그 사이에 지웠다면 서버에 PIN 이 없어요. 앱이 대신 만들지는 못해요(원래 번호를 아무도 모르니까요). 복원이 끝날 때 「🔑 PIN 을 다시 정해 주세요 (N명)」으로 알려 드려요\n6. 들어온 직후(자료를 불러오는 중)에는 복원이 막혀요 — 몇 초 뒤 다시 하시면 됩니다\n7. <b>복원은 그 백업 파일에 들어 있는 자료만 되돌려요</b> (v306) — 옛 백업처럼 <b>빠진 칸</b>이 있으면 그 자료는 폰·서버 <b>모두 그대로 둬요</b>. 복원이 끝나면 「📦 이 백업에 없던 자료 N가지는 그대로 두었어요」로 무엇이 빠졌는지 알려 드려요\n7-1. v305 까지는 빠진 칸도 <b>복원 전 값이 서버로 다시 올라갔어요</b> — 그래서 다른 분이 서버에서 고쳐 둔 자료가 되돌아갈 수 있었어요 (지금은 그런 일이 없어요)\n8. <b>백업 파일에 어느 업체 것인지 적혀요</b> (v308) — 복원할 때 <b>다른 업체 백업</b>이면 「「○○」 백업이에요 — 지금 업체와 다릅니다」로 <b>한 번 더</b> 물어봐요. 「아니요」를 누르면 아무것도 바뀌지 않아요\n8-1. v307 이전에 받아 둔 <b>옛 백업</b>에는 그 표시가 없어서 「표시가 없는 옛 파일이에요」로 한 번 더 물어봐요 — 내 업체 백업이 맞으면 「예」를 누르세요\n8-2. 백업 <b>파일 이름</b>에도 업체 표시(뒤 6자)가 붙어요 — 업체 이름이 같아도 파일을 구별할 수 있어요'},
   {role:'admin', keys:['날짜점검','날짜','하루전','전날','어제날짜','점검'], t:'날짜 점검 (예전 기록이 하루 전 날짜예요)',
    a:'1. 2026년 10월 하순 이전에는 앱이 오늘 날짜를 세계표준시로 만들어서, 한국 아침 9시 전에 넣은 기록이 「전날 날짜」로 들어갔을 수 있어요\n2. 설정 탭 → 데이터 → 「🗓 날짜 점검」 → 「점검」을 누르면 의심 건만 모아 보여줘요\n3. «출결»은 이렇게 찾아요 — 그날이 그 «회원»의 수업 요일이 아니고, 바로 다음 날이 수업 요일이며, 다음 날엔 기록이 없는 경우\n4. 거래명세서는 이렇게 찾아요 (거래명세서가 있는 업종만) — 만든 시각이 0~8시인데 적힌 날짜가 만든 날의 하루 전인 경우\n5. 「하루 뒤로」를 누르면 한 번 더 물어본 뒤 다음 날짜로 옮겨요 (결석 같은 다른 표시도 그대로 옮겨져요)\n6. 거래명세서는 「열기」를 누르면 그 명세서가 수정 화면으로 열려요 — 날짜만 고쳐 저장하시면 수납·세무도 같이 맞춰져요\n7. 일부러 그 날짜로 넣으신 것이면 「그대로」를 누르세요 — 그 기기에서 다시 안 보여요\n8. 세무 입력은 시각 기록이 없어서 찾을 수 없어요 — 직접 확인해 주세요'},
   {role:'driver', keys:['출근','퇴근','출퇴근','계기판','근태','출근단추','퇴근단추','둘러보기출퇴근'], t:'출근·퇴근 기록하기',
@@ -7614,9 +7614,16 @@ function uploadNoticeImages(images, cb){
   var done = 0;
   var failed = false;
   images.forEach(function(dataUrl, idx){
-    var bizId = (typeof getBizType==='function') ? getBizType() : 'org';
+    /* ★★ v308(코스로드67-B): **사진도 업체 경로**로 올린다 (사장님 원칙 11-10 —
+       「모든 자료와 데이터는 업체별로 분리와 저장은 원칙입니다」).
+       v307 까지는 `notice-images/<업종>_…` 이라 **같은 업종의 모든 업체가 한 폴더**를 썼다.
+       업체는 `getFbOrgId()` **한 벌** — 기기 저장 칸 꼬리(v292)·Firestore 자리와 같은 함수다.
+       ★ 파일 이름의 **시각+번호+난수는 그대로** 둔다(덮어쓰기 방지).
+       ★ 콘솔 Storage 규칙이 이 경로를 **업체로 막는다**(저장소 기록: `storage.rules` ·
+         1단계 게시 11-10). 옛 경로는 읽기만 남기고 쓰기는 **3단계**에서 막는다 —
+         그때까지 배포 직후 남은 **옛 앱**이 옛 경로로 올린다. */
     var rnd = Math.random().toString(36).slice(2,8);
-    var path = 'notice-images/'+bizId+'_'+Date.now()+'_'+idx+'_'+rnd+'.jpg';
+    var path = 'orgs/'+getFbOrgId()+'/notice-images/'+Date.now()+'_'+idx+'_'+rnd+'.jpg';
     var sref = fns.storageRef(window._storage, path);
     // dataURL 그대로 업로드 (data_url 형식)
     fns.uploadString(sref, dataUrl, 'data_url').then(function(snap){
@@ -8877,18 +8884,27 @@ function backupData(){
        백업을 받아 두고 복원해도 **이력이 사라졌다**(실측).
        ★ 이제 `ORG_KEYS`(20) 와 이 목록(20)이 **같다** — 묶음이 그 수를 전수로 지킨다. */
     var keys = ['tkd_members','tkd_cars','tkd_courses','tkd_org','tkd_payments','tkd_tax','tkd_attendance','tkd_notices','tkd_carlog','tkd_drivelog_manual','tkd_support_seen','tkd_payroll_manual','tkd_staff','tkd_driver_att','tkd_invoices','tkd_products','tkd_attendance_time','tkd_ridestate','tkd_driver_pay','tkd_certificates'];
-    var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(), data:{} };
+    /* ★★ v308(코스로드67-B): 백업 파일에 **어느 업체 것인지**를 적는다.
+       v307 까지는 `_app`·`_version`·`_date` 뿐이어서 **다른 업체 백업을 복원해도 막지 못했다**
+       (67-A 전수 조사에서 찾은 새 결함 · 위험 「중」). 복원 쪽이 이 두 칸을 본다.
+       ★ 옛 백업에는 이 칸이 **없다** — 그때는 「표시가 없는 옛 파일」로 안내한다(지우지 않는다). */
+    var _org = '';
+    try{ _org = getFbOrgId(); }catch(e){ _org = ''; }
+    var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : 'COSROAD';
+    var dump = { _app:'COSROAD', _version:1, _date:new Date().toISOString(),
+                 _org:_org, _orgName:orgName, data:{} };
     keys.forEach(function(k){
       var v = localStorage.getItem(k);
       if(v !== null) dump.data[k] = v;
     });
-    var orgName = (orgSettings && orgSettings.name) ? orgSettings.name : 'COSROAD';
     var stamp = todayStr();
     var blob = new Blob([JSON.stringify(dump, null, 2)], {type:'application/json'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = url;
-    a.download = 'COSROAD_백업_'+orgName+'_'+stamp+'.json';
+    /* ★ v308(67-B): 파일 이름에 **업체 id 뒤 6자**를 붙인다 — 이름이 같은 업체가 둘이면
+       파일만 보고 구별할 수 없었다(내용은 안 섞인다 · `_org` 칸이 정본이다). */
+    var _tail = _org ? ('_'+String(_org).slice(-6)) : '';
+    a.download = 'COSROAD_백업_'+orgName+_tail+'_'+stamp+'.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast('✅ 백업 파일이 저장됐어요!');
@@ -9056,6 +9072,28 @@ function restoreData(ev){
     catch(err){ alert('백업 파일을 읽을 수 없습니다. 올바른 파일인지 확인해주세요.'); ev.target.value=''; return; }
     if(!dump || dump._app !== 'COSROAD' || !dump.data){
       alert('COSROAD 백업 파일이 아닙니다.'); ev.target.value=''; return;
+    }
+    /* ★★ v308(코스로드67-B): **어느 업체 백업인지 먼저 본다** (사장님 원칙 — 업체별 분리).
+       v307 까지는 **다른 업체 백업을 그대로 덮었다**(막는 자리가 0 · 67-A 에서 찾았다).
+       · 파일 `_org` 가 지금 업체와 **다르면** 한 번 더 묻는다(「아니요」면 아무것도 안 한다).
+       · `_org` 가 **없는 옛 백업**(v307 이전)은 「표시가 없는 옛 파일」로 알리고 한 번 더 묻는다.
+       · 같은 업체면 **아무것도 더 묻지 않는다**(종전 그대로 · 창 하나).
+       ★ 자리는 **문지기 다음 · 덮기 확인 창 앞**이다 — 63·65 의 복원 판정(`_dumpHas`)은 그대로다. */
+    var _nowOrg = '';
+    try{ _nowOrg = getFbOrgId(); }catch(e){ _nowOrg = ''; }
+    var _fileOrg = String((dump && dump._org) || '');
+    var _fileName = String((dump && dump._orgName) || '');
+    if(!_fileOrg){
+      if(!confirm('어느 업체 백업인지 표시가 없는 옛 파일이에요 (v307 이전 백업).\n\n'
+        + '지금 업체('+((orgSettings&&orgSettings.name)||'')+')에 그대로 덮을까요?')){
+        ev.target.value=''; return;
+      }
+    } else if(_fileOrg !== _nowOrg){
+      if(!confirm('⚠ 「'+(_fileName||_fileOrg)+'」 백업이에요 — 지금 업체('
+        + ((orgSettings&&orgSettings.name)||'')+')와 다릅니다.\n\n'
+        + '정말 지금 업체에 덮을까요? 지금 자료가 그 업체 자료로 바뀝니다.')){
+        ev.target.value=''; return;
+      }
     }
     showConfirmModal(async function(){
       /* ★★ v304(63): **덮기 전에** 「사라지는 사람·차량」의 서버 칸을 지운다.
@@ -16528,9 +16566,9 @@ function uploadDriveLogPhoto(dataUrl, cb){
     cb(null); return;
   }
   var fns=window._storageFns;
-  var bizId=(typeof getBizType==='function') ? getBizType() : 'org';
+  /* ★★ v308(67-B): «알림장» 사진과 **같은 꼴** — 업체 경로 · `getFbOrgId()` 한 벌 */
   var rnd=Math.random().toString(36).slice(2,8);
-  var path='drivelog-photos/'+bizId+'_'+Date.now()+'_'+rnd+'.jpg';
+  var path='orgs/'+getFbOrgId()+'/drivelog-photos/'+Date.now()+'_'+rnd+'.jpg';
   var sref=fns.storageRef(window._storage, path);
   fns.uploadString(sref, dataUrl, 'data_url').then(function(snap){
     return fns.getDownloadURL(snap.ref);
@@ -17154,7 +17192,16 @@ function renderSupportList(){
 }
 
 /* 자동 확인 — 관리자 화면 진입 시 주기가 도래했으면 1회 호출.
-   마지막 확인 시각은 기기별 localStorage (ORG_KEYS 제외 키라 기관 접미사가 붙지 않음) */
+   ★★ v308(코스로드67-B): 마지막 확인 시각도 **업체별**로 가른다(사장님 원칙 — 업체별 분리).
+     v307 까지는 `tkd_support_lastcheck` 한 칸을 기기가 공통으로 써서, 한 기기에서 업체를
+     바꾸면 **앞 업체가 방금 확인한 시각** 때문에 그 업체의 「새 공고」 팝업이 **안 떴다**.
+     꼬리는 「본 공고」 표시(`tkd_support_seen`)와 **같은 꼴** — `getFbOrgId()` 한 벌.
+   ★ 옛 키(`tkd_support_lastcheck`)는 **읽지도 옮기지도 않는다** — 담긴 것이 「마지막으로
+     들여다본 시각」뿐이라, 새 칸이 비면 **한 번 더 확인할 뿐**이다(자료 손실 0 · v292 와 같은 태도).
+     지우지도 않는다(되돌릴 길을 남긴다). */
+function supportLastKey(){
+  try{ return 'tkd_support_lastcheck_'+getFbOrgId(); }catch(e){ return 'tkd_support_lastcheck_org'; }
+}
 /* 팝업 「7일 동안 보지 않기」 — 값은 '다시 보여줄 시각'(ms).
    ORG_KEYS에 넣지 않는다: 기관 데이터가 아니라 이 기기에서 팝업을 잠시 쉬게 하는
    표시 취향이라 기관 분리·백업·동기화가 필요 없다. */
@@ -17170,14 +17217,14 @@ function supportDueNow(){
   if(cfg.period==='off') return false;
   if(supportSnoozed()) return false;   /* 「7일 동안 보지 않기」 기간 — 팝업·자동 확인 모두 쉼 */
   var last=0;
-  try{ last=Number(localStorage.getItem('tkd_support_lastcheck')||0)||0; }catch(e){}
+  try{ last=Number(localStorage.getItem(supportLastKey())||0)||0; }catch(e){}
   if(!last) return true;
   var days=supportPeriodDays()[cfg.period] || 1;
   return (Date.now()-last) >= days*86400000;
 }
 function supportAutoCheck(){
   if(!supportDueNow()) return;
-  try{ localStorage.setItem('tkd_support_lastcheck', String(Date.now())); }catch(e){}
+  try{ localStorage.setItem(supportLastKey(), String(Date.now())); }catch(e){}
   supportFetch(function(items){
     var freshItems=items.filter(supportIsNew);
     supportNewCount=freshItems.length;

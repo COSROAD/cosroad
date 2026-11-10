@@ -1,0 +1,117 @@
+// 코스로드 Storage(사진) 규칙 · 코스로드67 1단계 (2026-11-10 게시)
+//
+// ★★ 원본은 **Firebase 콘솔**이다. 이 파일은 **기록**이다 —
+//    고칠 때는 콘솔에 붙여넣어 게시하고, 같은 글을 이 파일에도 남긴다.
+//    (Firestore 규칙과 달리 Storage 규칙은 배포 길이 없어 콘솔이 원본이다.)
+//    게시: 사장님 11-10 15:19 「게시 했어요」 · 드라이브 `코스로드67_Storage규칙_1단계.txt` 와 같은 글.
+//    ※ 띄어쓰기(들여쓰기)는 드라이브 사본에서 눌려 다를 수 있다 — **규칙 글귀는 같다.**
+//
+// 적용: Firebase 콘솔 → Storage → 규칙 → 이 글 전체 붙여넣기 → 게시
+// (처음 게시할 때 「Cloud Firestore 와 연결」 권한을 물으면 허용)
+// 되돌리기: 아래 맨 끝 「되돌리기용 옛 규칙」을 붙여넣기
+//
+// 원칙(사장님 11-10): 모든 자료와 데이터는 업체별로 분리·저장한다.
+// 새 사진은 orgs/{업체}/… 아래로만 올린다. 판정은 Firestore 규칙과 같은 기준이다.
+// · 업체 관리자 : users/{uid}.orgId == 업체 · 승인 · 탈퇴 아님 · 기간 안
+// · _test 4업종 : 마스터(admins/{uid}) 또는 「테스트 출입」 계정(사장님 가입 번호)
+// · 기사·도우미 : 로그인 토큰의 org == 업체 (서버가 넣는 값)
+// · 둘러보기(_demo)·익명·출석 기기 : 올리기 금지
+// 읽기는 모두 열어 둔다 — «알림장» 사진 주소를 문자로 받는 분(로그인 안 함)이 열어야 한다.
+// 주소에 난수가 있어 훑을 수 없고, 목록 보기는 주지 않는다.
+// Firestore 읽기는 한 번에 최대 2문서(users·admins) — 제한(2) 안이다.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null
+             && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasUserDoc() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+    function isAdmin() {
+      return firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+    // 업체 관리자 — Firestore 규칙 isMyOrgActive 와 같은 뜻(users 한 문서만 읽음)
+    function ownerOfOrg(org) {
+      return hasUserDoc()
+             && userDoc().get('orgId', '') == org
+             && userDoc().get('approved', false) == true
+             && userDoc().get('withdrawn', false) != true
+             && userDoc().get('paidUntil', 0) > request.time.toMillis();
+    }
+    // _test 4업종 — Firestore 규칙 testOrgAdmin 과 같은 뜻
+    function testOrgAdmin(org) {
+      return org.matches('.*_test')
+             && (isAdmin()
+                 || (hasUserDoc()
+                     && userDoc().get('testAccess', false) == true
+                     && userDoc().get('approved', false) == true
+                     && userDoc().get('withdrawn', false) != true
+                     && userDoc().get('role', '') != 'driver'));
+    }
+    // 기사·동승 도우미 — 토큰 클레임(서버 api/driver-auth 가 넣음)
+    function tokenOfOrg(org) {
+      return request.auth.token.get('org', '') == org
+             && (request.auth.token.get('driver', false) == true
+                 || request.auth.token.get('helper', false) == true);
+    }
+    function mayWrite(org) {
+      return signedIn()
+             && !org.matches('.*_demo')
+             && (tokenOfOrg(org) || ownerOfOrg(org) || testOrgAdmin(org));
+    }
+    // 앱은 압축한 JPEG 만 올린다
+    function photoOk() {
+      return request.resource != null
+             && request.resource.size < 5 * 1024 * 1024
+             && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── 새 경로: 업체별 ─────────────────────────────────────────────
+    match /orgs/{org}/notice-images/{file} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if mayWrite(org) && photoOk();
+      allow delete: if mayWrite(org);
+    }
+    match /orgs/{org}/drivelog-photos/{file} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if mayWrite(org) && photoOk();
+      allow delete: if mayWrite(org);
+    }
+
+    // ── 옛 경로: 읽기는 계속 · 쓰기는 앱 새 판 확인 뒤(3단계) 막는다 ──
+    // 지금(v307) 앱이 쓰는 자리라 당분간 열어 둔다. 익명 올리기는 이번에 막는다.
+    match /notice-images/{allPaths=**} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if signedIn() && photoOk();   // ← 3단계에서 if false
+    }
+    match /drivelog-photos/{allPaths=**} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if signedIn() && photoOk();   // ← 3단계에서 if false
+    }
+  }
+}
+
+// ── 되돌리기용 옛 규칙 (2026-11-10 콘솔 그대로) ──────────────────────
+// rules_version = '2';
+// service firebase.storage {
+//   match /b/{bucket}/o {
+//     match /notice-images/{allPaths=**} {
+//       allow read: if true;
+//       allow write: if request.auth != null;
+//     }
+//     match /drivelog-photos/{allPaths=**} {
+//       allow read: if true;
+//       allow write: if request.auth != null;
+//     }
+//   }
+// }

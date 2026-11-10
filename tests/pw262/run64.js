@@ -185,9 +185,34 @@ const fitsBox = (p, txt) => p.evaluate((t) => {
   console.log('\nⓒ 백업 파일에 **자격증 이력**이 실제로 담긴다 (파일을 열어 본다)');
   {
     const p = await open(b, 1366, 768);
-    await p.evaluate(() => { backupData(); });
-    await p.waitForTimeout(900);
-    say(p.__dl.length === 1, '★ 백업 파일이 내려갔다'.padEnd(46)
+    /* ★★ v308(67-B)에 고침 — **내려받기 이벤트로는 못 잰다.** `backupData` 가 `a.click()`
+       바로 뒤에 `URL.revokeObjectURL()` 을 부르는데, 헤드리스 크롬에서는 그 사이에
+       내려받기가 **끊겨 이벤트가 안 온다**(revoke 만 빼면 1개가 잡힌다 — v308 에 실측).
+       전에는 **운 좋게** 잡혀서 통과했을 뿐이라 그때그때 달라졌다.
+       → **파일을 만드는 자리**(`Blob`·`a.download`)를 가로채 잰다. */
+    const bk = await p.evaluate(() => {
+      window.__blob = ''; window.__name = '';
+      const OrigBlob = window.Blob;
+      window.Blob = function (parts, o) {
+        window.__blob = String((parts && parts[0]) || ''); return new OrigBlob(parts, o);
+      };
+      const origCreate = document.createElement.bind(document);
+      document.createElement = function (tag) {
+        const el = origCreate(tag);
+        if (String(tag).toLowerCase() === 'a') {
+          let v = '';
+          Object.defineProperty(el, 'download', {
+            get() { return v; }, set(x) { v = String(x); window.__name = v; }
+          });
+        }
+        return el;
+      };
+      const out = backupData();
+      document.createElement = origCreate; window.Blob = OrigBlob;
+      return { out: String(out), body: window.__blob, name: window.__name };
+    });
+    p.__dl.push({ name: bk.name, body: bk.body });
+    say(bk.out === 'true' && p.__dl.length === 1, '★ 백업 파일을 **정말 만들었다**'.padEnd(46)
       + ((p.__dl[0] && p.__dl[0].name) || '0개'));
     const body = (p.__dl[0] && p.__dl[0].body) || '';
     say(/tkd_certificates/.test(body), '★ 그 안에 `tkd_certificates` 가 있다'.padEnd(46)

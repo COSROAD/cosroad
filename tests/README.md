@@ -9,9 +9,9 @@
 
 | 묶이 | 돌림판 | 묶음 수 |
 |---|---|---|
-| 스텁(Node · 가짜 Firestore·가짜 알리고) | `tests/runall275.sh` | **87** |
-| 규칙(Firestore 에뮬레이터) | `tests/rulestest/runall41.sh` | **24** |
-| 화면(크롬 · Playwright) | `tests/pw262/runall41.sh` | **39** |
+| 스텁(Node · 가짜 Firestore·가짜 알리고) | `tests/runall275.sh` | **88** |
+| 규칙(Firestore 에뮬레이터) | `tests/rulestest/runall41.sh` | **25** |
+| 화면(크롬 · Playwright) | `tests/pw262/runall41.sh` | **40** |
 
 세 돌림판 모두 **맨 끝에 「돈 묶음 N 개 · 통과 · 문제」를 찍는다.** 먼저 그 수를 보고,
 기대보다 적으면 **묶음이 사라진 것**이다(통과율부터 보지 말 것).
@@ -28,7 +28,9 @@ cd tests && bash runall275.sh
 
 # ② 규칙 — 에뮬레이터가 떠 있어야 한다
 cd tests/rulestest && npm i                       # 처음 한 번
-npx firebase emulators:start --only firestore &   # 8988 포트 (firebase.json)
+npx firebase emulators:start --only firestore,storage --project cos-s67 &   # 8988·9199 (firebase.json)
+# ★ v308: Storage 규칙 묶음(s67.mjs)은 **둘을 함께** 띄우고 **--project 를 cos-s67 로** 해야 한다 —
+#   그래야 Storage 규칙의 교차 읽기(firestore.get)가 그 프로젝트 Firestore 를 본다(실측).
 bash runall41.sh                                  # 규칙 사본을 매번 새로 받아 LF 로 맞춘다
 
 # ③ 화면 — 크롬이 필요하다

@@ -233,19 +233,44 @@ const fitsBox = (p, txt) => p.evaluate((t) => {
     const p = await open(b, 1366, 768);
     const r = await p.evaluate(async () => {
       window.__alerts = []; window.__api = []; window.__saved = [];
+      /* ★★ v308(67-B)에 고침 — **내려받기 이벤트로는 못 잰다.**
+         `backupData` 가 `a.click()` 바로 뒤에 `URL.revokeObjectURL()` 을 부르는데,
+         헤드리스 크롬에서는 그 사이에 내려받기가 **끊겨 이벤트가 안 온다**
+         (같은 코드에서 revoke 만 빼면 1개가 잡힌다 — v308 에 실측).
+         전에는 **운 좋게** 잡혀서 통과했을 뿐이고, 그래서 그때그때 달라졌다.
+         → **파일을 만드는 자리**(`Blob`·`a.download`)를 가로채 「무엇을 파일로 내보내나」를 잰다. */
+      window.__blob = ''; window.__name = '';
+      const OrigBlob = window.Blob;
+      window.Blob = function (parts, o) {
+        window.__blob = String((parts && parts[0]) || ''); return new OrigBlob(parts, o);
+      };
+      const origCreate = document.createElement.bind(document);
+      document.createElement = function (tag) {
+        const el = origCreate(tag);
+        if (String(tag).toLowerCase() === 'a') {
+          let v = '';
+          Object.defineProperty(el, 'download', {
+            get() { return v; }, set(x) { v = String(x); window.__name = v; }
+          });
+        }
+        return el;
+      };
       resetData();
       const cb = window._confirmCallback;
       if (typeof cb === 'function') await cb();
       await new Promise((r2) => setTimeout(r2, 120));
+      document.createElement = origCreate; window.Blob = OrigBlob;
       return { n: members.length, api: window.__api.map((x) => x.action + ':' + x.memberId).join(','),
         saved: window.__saved.filter((k) => k === 'members').length,
-        alerts: window.__alerts.length };
+        alerts: window.__alerts.length, blob: window.__blob, name: window.__name };
     });
-    /* 실제 다운로드가 잡히기까지 잠깐 기다린다 */
-    await p.waitForTimeout(700);
-    say(p.__dl.length === 1, '★ 백업 파일이 **실제로** 내려갔다'.padEnd(46)
+    /* 가로챈 이름을 **내려받기 칸과 같은 꼴**(글자)로 맞춘다 — 아래 칸이 그대로 쓴다 */
+    if (r.name) p.__dl.push(r.name);
+    say(p.__dl.length === 1, '★ 백업 파일을 **정말 만들었다**'.padEnd(46)
       + (p.__dl[0] || '0개'));
     say(/^COSROAD_백업_/.test(p.__dl[0] || ''), '  파일 이름'.padEnd(46) + (p.__dl[0] || '-'));
+    say(/"_app": *"COSROAD"/.test(r.blob || ''), '  그 안에 백업 글이 들어 있다'.padEnd(46)
+      + (r.blob ? r.blob.length + '글자' : '없음'));
     say(r.api === 'removeMemberPin:1,removeMemberPin:2',
       '★ PIN 있는 둘의 서버 PIN 을 지웠다'.padEnd(46) + r.api);
     say(r.n === 0, '★ 명단이 비었다'.padEnd(46) + r.n + '명');
