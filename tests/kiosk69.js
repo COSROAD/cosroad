@@ -16,7 +16,23 @@ const F = (p) => fs.readFileSync(COS_ROOT + '/' + p, 'utf8').replace(/\r\n/g, '\
 const OLD = (p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':' + p,
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
-const SRV = F('api/driver-auth.js');
+/* ★★ 이 회차(v313) 커밋 — **그 회차가 약속한 것은 그 커밋에서 잰다.**
+   v314(코스로드70)가 물류·택배 자리와 서버 갈래를 **일부러 바꿨으므로**, 작업트리로 재면
+   고친 코드와 무관하게 거짓으로 깨진다(CLAUDE.md 「회차 기록 묶음은 양쪽을 커밋에 고정」). */
+const THIS_REF = (() => {
+  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
+  try {
+    const h = cp.execSync('git -C ' + COS_ROOT
+      + ' log --format=%H -1 --fixed-strings --grep=(v313)').toString().trim();
+    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
+  } catch (e) { return ''; }
+})();
+const AT = (p) => (THIS_REF
+  ? cp.execSync('git -C ' + COS_ROOT + ' show ' + THIS_REF + ':' + p, { maxBuffer: 1 << 28 })
+      .toString().replace(/\r\n/g, '\n')
+  : F(p));
+const THIS_SRC = AT('index.html');
+const SRV = AT('api/driver-auth.js');   /* ★ 그 회차 커밋의 서버(v314 가 갈래를 더했다) */
 const codeOnly = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
   .split('\n').filter((x) => !x.trim().startsWith('//')).join('\n');
 
@@ -100,7 +116,7 @@ const hasStaffMig = (h) => /🔢 옛 직원 PIN 옮기기/.test(h);
       ['staffAtt', 'carState'].filter((k) => pm.indexOf(k) >= 0).join(',') || '0개', '0개');
     /* 앱 — 물류·택배 «회원» 에게 PIN 을 줄 길이 있나 */
     const mb = (b) => {
-      const s = codeOnly(NEW_SRC);
+      const s = codeOnly(THIS_SRC);
       const i2 = s.indexOf('function applyBizModalLayout(');
       const body = s.slice(i2, s.indexOf('\n}', s.indexOf("if(biz==='delivery')", i2)));
       const seg = body.split("if(biz==='" + b + "')")[1] || '';
@@ -109,9 +125,9 @@ const hasStaffMig = (h) => /🔢 옛 직원 PIN 옮기기/.test(h);
     ck('★ 물류 «회원» 수정 창의 PIN 칸은 **숨는다**', mb('logistics'), true);
     ck('★ 택배도 숨는다', mb('delivery'), true);
     ck('  (대조) 학원·공공은 보인다',
-      /if\(wrapPin\)wrapPin\.style\.display='';/.test(codeOnly(NEW_SRC)), true);
+      /if\(wrapPin\)wrapPin\.style\.display='';/.test(codeOnly(THIS_SRC)), true);
     /* 엑셀 양식에 PIN 칸이 있나 — 학원·공공 양식에만 있다 */
-    const tpl = codeOnly(NEW_SRC);
+    const tpl = codeOnly(THIS_SRC);
     ck('★ 물류·택배 엑셀 양식에 PIN 칸 0',
       (tpl.match(/\['배정차량','주문번호'[^\]]*'PIN'/g) || []).length
       + (tpl.match(/\['거래처명'[^\]]*'PIN'/g) || []).length, 0);
@@ -127,9 +143,11 @@ const hasStaffMig = (h) => /🔢 옛 직원 PIN 옮기기/.test(h);
       ck('★ [' + b + '] **출결 화면**에 카드가 있다', hasKiosk(screen(b, 'att')), true);
       ck('  [' + b + '] 차량 탭에서는 **빠졌다**', hasKiosk(screen(b, 'cars')), false);
     });
+    /* ★ 물류·택배는 **그 회차(v313)에는** 차량 탭에 그대로 두었다 —
+       v314 에서 「근태관리」로 옮겼으므로(서버 갈래가 생겼다) 그 커밋에서 잰다. */
     ['logistics', 'delivery'].forEach((b) => {
-      ck('★ [' + b + '] 차량 탭에 **그대로 있다**(숨기지 않았다)', hasKiosk(screen(b, 'cars')), true);
-      ck('  [' + b + '] 근태 화면에는 아직 없다(판단 대기)', hasKiosk(screen(b, 'att')), false);
+      ck('[그때 ' + b + '] 차량 탭에 그대로 있었다', hasKiosk(screen(b, 'cars', THIS_SRC)), true);
+      ck('  [그때 ' + b + '] 근태 화면에는 없었다', hasKiosk(screen(b, 'att', THIS_SRC)), false);
     });
     /* 출결 화면에서 PIN 체크인 단추 **아래**에 온다 */
     const h = screen('academy', 'att');
@@ -138,12 +156,13 @@ const hasStaffMig = (h) => /🔢 옛 직원 PIN 옮기기/.test(h);
     ck('  카드 안 단추 셋이 그대로',
       ['🔄 코드 새로 만들기', '🗑 코드 지우기', 'ksk-msg'].filter((x) => h.indexOf(x) >= 0).length, 3);
     /* 물류·택배 카드에 **사실을 적는다** */
-    const lg = screen('logistics', 'cars');
-    ck('★ [물류] 카드에 「아직 쓸 수 없어요」', /아직 쓸 수 없어요/.test(lg), true);
+    const lg = screen('logistics', 'cars', THIS_SRC);
+    ck('[그때 물류] 카드에 「아직 쓸 수 없어요」', /아직 쓸 수 없어요/.test(lg), true);
     ck('  그 글에 업종 용어(거래처)', /거래처에는 출석 PIN 칸이 없어요/.test(lg), true);
     ck('  근태 찍는 자리를 알려 준다', /「🔢 PIN 출퇴근 체크」/.test(lg), true);
     ck('  (대조) 학원 카드에는 그 줄이 없다', /아직 쓸 수 없어요/.test(h), false);
-    ck('  [택배] 용어도 맞다', /배송지에는 출석 PIN 칸이 없어요/.test(screen('delivery', 'cars')), true);
+    ck('  [그때 택배] 용어도 맞다',
+      /배송지에는 출석 PIN 칸이 없어요/.test(screen('delivery', 'cars', THIS_SRC)), true);
   }
 
   console.log('\n④ 옛 직원 PIN 카드 — **네 업종 모두 근태 블록**에');
@@ -169,9 +188,13 @@ const hasStaffMig = (h) => /🔢 옛 직원 PIN 옮기기/.test(h);
     ck('  (대조) 옛 판은 넷이었다', (codeOnly(OLD_SRC).match(/currentAdminTab==='cars'/g) || []).length, 4);
     ck('  이제 열린 탭을 다시 그린다',
       (NEW_SRC.match(/renderAdminTab\(currentAdminTab\)/g) || []).length >= 5 ? 'OK' : 'NG', 'OK');
+    /* ★ 「서버 0줄」은 **두 커밋 사이**로 잰다 — 하나만 쓰면 작업트리까지 재서
+       다음 회차(v314 가 서버를 고쳤다)에 거짓으로 깨진다(v272 보정1 규칙). */
     ck('★ `api/`·`lib/`·규칙·`storage.rules` 0줄',
       '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF
+        + (THIS_REF ? ' ' + THIS_REF : '')
         + ' -- api lib firestore.rules storage.rules', { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
+    console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const panels = (s) => (s.match(/BACK_PANEL_IDS\s*=\s*\[[\s\S]*?\]/) || [''])[0];
     ck('  새 창(덮개) 0', panels(NEW_SRC) === panels(OLD_SRC) ? '그대로' : '바뀜', '그대로');
     ck('  (로그아웃 짝) 새 `setInterval`·리스너 0',

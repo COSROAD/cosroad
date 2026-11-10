@@ -265,6 +265,84 @@ export default async function handler(req, res) {
     } catch (e) { return false; }
   }
 
+  /* ★★ 업체 업종 — **서버가 확실한 값으로** 정한다 (v314 · 코스로드70 · 한 벌).
+     쓰는 곳: 출석 전용 기기의 **업종 갈래**(학원·공공 = «회원» 출석 / 물류·택배 = 기사·직원 출퇴근) ·
+             기기 로그인 응답 · 출석 알림톡 본문·템플릿.
+     ★★ **업체 id 의 앞붙이(`academy_…`)를 쪼개 짐작하지 않는다** — 가입은 그렇게 만들지만
+       (`api/signup.js`: `bizType + '_' + uid`), `cosroad_default`·`…_test`·`…_demo` 처럼
+       업종이 안 들어간 것이 있고 그 글자가 **판정의 근거가 아니다**(교훈: 글자 쪼개 짐작 금지).
+     ① **원본은 소유자 계정** `users/{ownerUid}.bizType` — 가입 때 서버가 적고(`signup.js`)
+        앱도 그것을 `_userBizType` 로 받는다.
+     ② 못 읽으면 관리자가 만들어 두는 요약 `orgs/{org}/data/orgDriver.bizType`(v272) —
+        기기 로그인·알림톡이 전부터 보던 자리다.
+     ③ 그래도 모르면 **`academy`** — **막는 쪽**이다(물류 갈래가 안 열려 기사 PIN 이 거부된다.
+        모르는 업체에서 근태가 찍히는 것보다 안 찍히는 것이 안전하다).
+     ★ 아는 네 글자만 돌려준다(그 밖의 값은 `academy` 로) — 뒤에서 `=== 'logistics'` 로 가른다. */
+  const BIZ_KNOWN = ['academy', 'public', 'logistics', 'delivery'];
+  async function orgBizType(org) {
+    const pick = (v) => (BIZ_KNOWN.indexOf(String(v || '')) >= 0 ? String(v) : '');
+    try {
+      const ownerUid = await resolveOwnerUid(org);
+      if (ownerUid) {
+        const s = await A.db.collection('users').doc(ownerUid).get();
+        if (s.exists) {
+          const got = pick((s.data() || {}).bizType);
+          if (got) return got;
+        }
+      }
+    } catch (e) {}
+    try {
+      const os = await A.db.collection('orgs').doc(org).collection('data').doc('orgDriver').get();
+      const ov = (os.exists && os.data()) || null;
+      if (ov && ov.value) {
+        const got = pick((JSON.parse(ov.value) || {}).bizType);
+        if (got) return got;
+      }
+    } catch (e) {}
+    return 'academy';
+  }
+  /* 이 업체에서 그 PIN 이 **누구 것인가** — 기사 → 직원 순서(관리자 판 `pinCheckin` 과 같은 순서).
+     ★ 찾기만 한다(아무것도 쓰지 않는다) · **그 업체(`org`) 안에서만** 본다.
+     반환: { carId } | { staffId } | {} | { error } */
+  async function whosePin(org, pin) {
+    const want = sha256(pin + '|' + org + '|' + secret);
+    let carId = null, staffId = null;
+    try {
+      const snap = await A.db.collection('driverPins').where('org', '==', org).get();
+      snap.forEach(d => {
+        const v = d.data() || {};
+        if (!carId && sameHash(v.pinHash, want)) carId = String(v.carId || '');
+      });
+      if (!carId) {
+        const s2 = await A.db.collection('staffPins').where('org', '==', org).get();
+        s2.forEach(d => {
+          const v = d.data() || {};
+          if (!staffId && sameHash(v.pinHash, want)) staffId = String(v.staffId || '');
+        });
+      }
+    } catch (e) { return { error: '잠시 뒤 다시 시도해 주세요.' }; }
+    if (carId) return { carId: carId };
+    if (staffId) return { staffId: staffId };
+    return {};
+  }
+  /* 찍은 사람을 화면에 보여 줄 **이름 하나** — 명단은 보내지 않는다(v297 원칙 그대로).
+     기사는 「○호차 · 기사명」, 직원은 그 사람 이름. 못 찾으면 빈 글자(화면이 비워 둔다). */
+  async function oneName(org, kind, id) {
+    try {
+      const key = (kind === 'staff') ? 'staff' : 'cars';
+      const s = await A.db.collection('orgs').doc(org).collection('data').doc(key).get();
+      if (!s.exists) return '';
+      const list = JSON.parse(String((s.data() || {}).value || '[]'));
+      if (!Array.isArray(list)) return '';
+      const hit = list.find(x => x && String(x.id) === String(id));
+      if (!hit) return '';
+      if (kind === 'staff') return String(hit.name || '');
+      const nm = String(hit.name || '');
+      const dv = String(hit.driver || '');
+      return dv ? (nm ? nm + ' · ' + dv : dv) : nm;
+    } catch (e) { return ''; }
+  }
+
   /* 이 기관의 소유자 uid — api/admin-account resolveOwnerUid 와 **같은 규칙**(v251·v254).
      _test 는 마스터를 소유자로 둔다(그 계정 체험이 끝나도 기사가 잠기지 않게). */
   /* 기기 묶기 — 첫 로그인 기기를 기억하고, 다른 기기는 거절.
@@ -941,11 +1019,55 @@ export default async function handler(req, res) {
       if (!(await ownerAlive((await resolveOwnerUid(org))))) {
         return fail(res, 403, '업체 이용 기간이 끝났어요. 관리자에게 문의해 주세요.', 'expired');
       }
+      /* ★★ v314(코스로드70 · 사장님 11-10 「업종별로 해요」): **업종으로 갈린다.**
+         · 학원·공공 — 지금 그대로 **«회원» 출석만**(기사·직원 PIN 은 「이 기기는 출석 전용」)
+         · 물류·택배 — **기사·직원 출퇴근만**(그 업종 «회원»(거래처·배송지)에는 PIN 칸이 없다)
+         업종은 **`orgBizType(org)` 한 벌**이 정한다(소유자 계정 `bizType` 원본 · 글자 쪼개기 0).
+         ★ 찍는 함수는 **이미 있는 것**을 그대로 쓴다 — `punch`(기사) · `punchStaff`(직원) ·
+           `punchMember`(«회원»). 관리자 판(`pinCheckin`)·직원 폰과 **같은 함수**라
+           같은 날 섞어 찍어도 셈이 맞는다(출근 → 퇴근 → 이미 퇴근).
+         ★ 응답 꼴은 **관리자 판과 같다**(`kind` · `punch`=in|out|done) — 옛 앱이 깨지지 않게.
+           보여 줄 **이름 하나**만 더한다(`name`) — 명단은 여전히 안 보낸다. */
+      const kBiz = await orgBizType(org);
+      if (kBiz === 'logistics' || kBiz === 'delivery') {
+        const who = await whosePin(org, pin);
+        if (who.error) return fail(res, 500, who.error);
+        if (!who.carId && !who.staffId) {
+          return fail(res, 404, 'PIN 번호가 올바르지 않습니다.', 'nodriver');
+        }
+        if (who.staffId) {
+          const sr = await punchStaff(org, who.staffId);
+          if (sr.error) return fail(res, 500, sr.error);
+          await writeLogin(org, '', true, 'kiosk:staff:' + sr.kind, '', null);
+          return res.status(200).json({ ok: true, kind: 'staff', staffId: who.staffId,
+            punch: sr.kind, time: sr.time, date: kstDateStr(),
+            name: await oneName(org, 'staff', who.staffId), sent: 0 });
+        }
+        /* 기사 — **기기 묶기(`driverDevices`)는 건드리지 않는다**(`punch` 는 `carState` 만 쓴다) */
+        const dr = await punch(org, who.carId);
+        if (dr.error) return fail(res, 500, dr.error);
+        await writeLogin(org, who.carId, true, 'kiosk:' + dr.kind, '', null);
+        return res.status(200).json({ ok: true, kind: dr.kind, carId: who.carId,
+          time: dr.time, date: kstDateStr(),
+          name: await oneName(org, 'driver', who.carId), sent: 0 });
+      }
+      /* ── 학원·공공 — 종전 그대로 «회원» 출석 ── */
+      /* ★ 기사·직원 PIN 이면 **찍지 않고 알려 준다**(v293 의 판 분리와 같은 뜻).
+         ★ `ok:false`(404)로 답하는 까닭 — 이 화면은 `ok:true` 를 **출석 성공**으로 그린다.
+           `pinCheckin` 의 `wrongPad`(ok:true)를 그대로 쓰면 **배포 직후 남은 옛 앱**이
+           「출석 완료!」를 이름 없이 띄운다. 404 + 글은 옛 앱도 그 글을 그대로 보여 준다. */
+      const kw = await whosePin(org, pin);
+      if (kw.error) return fail(res, 500, kw.error);
+      if (kw.carId || kw.staffId) {
+        return fail(res, 404, '이 기기는 ' + (kBiz === 'public' ? '이용자' : '회원')
+          + ' 출석 전용이에요. 기사·직원 출퇴근은 관리자 기기에서 찍어 주세요.', 'wrongpad');
+      }
       const mr = await punchMember(org, pin);
       if (mr.error) return fail(res, 500, mr.error);
       if (mr.notfound) return fail(res, 404, 'PIN 번호가 올바르지 않습니다.', 'nomember');
       await writeLogin(org, '', true, 'kiosk:att', '', null);
-      /* 알림톡 — 실패해도 **출석은 이미 찍혔다**(응답을 막지 않는다) */
+      /* 알림톡 — 실패해도 **출석은 이미 찍혔다**(응답을 막지 않는다)
+         ★ 출퇴근(물류·택배 갈래)에는 **알림톡을 보내지 않는다** — 관리자 판·직원 폰도 안 보낸다. */
       let sent = 0;
       try { sent = await kioskNotify(org, mr); } catch (e) { sent = 0; }
       return res.status(200).json({ ok: true, name: mr.name, photo: mr.photo,

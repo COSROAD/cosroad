@@ -694,7 +694,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 313;
+const APP_VERSION = 314;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2556,7 +2556,13 @@ var driverAttViewDate = todayStr();
 function renderDriverAttendance(){
   var cont = document.getElementById('admin-content');
   if(!cont) return;
-  cont.innerHTML = '<div id="driver-att-host">'+buildDriverAttHtml()+'</div>';
+  /* ★★ v314(코스로드70): **출퇴근 전용 기기 카드가 여기로 왔다**(차량 탭 → 「근태관리」).
+     물류·택배 기기는 기사·직원 PIN 으로 **출퇴근**을 찍으므로 근태 화면이 제 자리다
+     (학원·공공은 v313 에 「«출결»관리」로 옮겼다 — 같은 `attendance` 탭이다).
+     ★ 카드를 **`buildDriverAttHtml()` 안에 두지 않는다** — 그 블록은 학원·공공 **차량 탭**에도
+       그려지므로(근태 블록 공용), 안에 두면 거기에도 또 나온다(v313 에서 빼낸 자리다). */
+  cont.innerHTML = '<div id="driver-att-host">'+buildDriverAttHtml()+'</div>'
+    + '<div style="padding:0 16px 12px;">'+kioskCardHtml()+'</div>';
 }
 /* 근태 블록만 다시 그린다.
    학원·공공은 이 블록이 차량관리 화면(renderCars) 안에 들어가 있어서,
@@ -3427,6 +3433,13 @@ async function loginKiosk(){
   }
 }
 function isKioskMode(){ return !!window._kioskOrg; }
+/* 이 출석 기기가 **출퇴근 체크용**인가 — 물류·택배 (v314 · 코스로드70).
+   ★ 업종은 **서버가 기기 로그인 응답으로 보내 준 값**(`_userBizType`)이다 —
+     기기에는 업체 자료가 없으니 `getBizType()` 이 그 값으로 떨어진다(글자 쪼개기 0). */
+function _kioskWork(){
+  var b = (typeof getBizType==='function') ? getBizType() : '';
+  return b === 'logistics' || b === 'delivery';
+}
 /* 출석 기기 화면 — **PIN 판 하나**다(새 창을 만들지 않고 전체 화면 한 장을 쓴다) */
 function onKioskLoggedIn(){
   currentMode='kiosk';
@@ -3439,7 +3452,10 @@ function onKioskLoggedIn(){
     +'display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:18px 14px;box-sizing:border-box;';
   el.innerHTML=
     '<div style="color:#fff;font-size:15px;font-weight:800;margin:6px 0 2px;">'+escapeMasterHtml(window._kioskOrgName||'')+'</div>'
-    +'<div style="color:rgba(255,255,255,0.85);font-size:12px;margin-bottom:12px;">🎫 출석 기기 — 자기 PIN 4자리를 눌러 주세요</div>'
+    /* ★ v314(코스로드70): 물류·택배 기기는 **출퇴근 체크**다(서버가 기사·직원 PIN 을 받는다) */
+    +'<div style="color:rgba(255,255,255,0.85);font-size:12px;margin-bottom:12px;">'
+    + (_kioskWork() ? '🎫 출퇴근 체크 — 기사·직원 PIN 4자리를 눌러 주세요'
+                    : '🎫 출석 기기 — 자기 PIN 4자리를 눌러 주세요') + '</div>'
     +'<div style="background:#fff;border-radius:22px;padding:22px 18px;width:100%;max-width:360px;box-sizing:border-box;margin:auto;">'
     +'<div id="pin-display" style="text-align:center;font-size:30px;letter-spacing:10px;font-weight:800;color:#1D2939;min-height:40px;"></div>'
     +'<div id="pin-result" style="min-height:40px;"></div>'
@@ -5895,7 +5911,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)\n9. <b>공유 화면의 제목도 업종 용어로 나와요</b> (v309) — 물류는 「공지」, 학원·공공·택배는 「알림장」이에요. v309 이전에 보낸 링크는 「알림장」으로 그대로 보여요'},
   {role:'admin', keys:['출결','체크인','출석','결석','중복','두 번','또 눌'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n1-2. <b>출석 전용 기기</b>를 둘 수 있어요 (v297) — 「📋 «출결»관리」 탭의 「🎫 출석 전용 기기」에서 코드를 만들고 (v313 — 전에는 차량관리 탭에 있었어요), 태블릿·폰에서 로그인 화면의 <b>「🎫 출석 기기」</b>에 업체 번호 + 그 코드를 넣으세요. 그 기기는 <b>PIN 판만</b> 보이고 관리 화면이 열리지 않아요 (명단도 내려가지 않아요 · 알림톡은 서버가 보내요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n3-1. <b>같은 날 두 번 눌러도 괜찮아요</b> (v298) — 두 번째부터는 「<b>이미 출석했어요</b>」와 함께 <b>처음 찍은 시각</b>이 떠요. 기록은 처음 것이 그대로 남고 <b>알림톡도 다시 나가지 않아요</b> (출석 전용 기기도 같아요)\n3-2. 하원(귀가) 알림은 이 판에서 나가지 않아요 — 기사가 운행 화면에서 「하차 완료」를 누를 때 나가요. 이 판과 출석 기기는 <b>등원만</b> 받아요\n4. 처음 찍을 때 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n1-2. <b>출석 전용 기기</b>를 둘 수 있어요 (v297) — 「📋 «출결»관리」 탭의 「🎫 출석 전용 기기」에서 코드를 만들고 (v313 — 전에는 차량관리 탭에 있었어요), 태블릿·폰에서 로그인 화면의 <b>「🎫 출석 기기」</b>에 업체 번호 + 그 코드를 넣으세요. 그 기기는 <b>PIN 판만</b> 보이고 관리 화면이 열리지 않아요 (명단도 내려가지 않아요 · 알림톡은 서버가 보내요)\n1-3. <b>물류·택배는 그 기기가 「출퇴근 전용」이에요</b> (v314) — 「근태관리」 탭의 「🎫 출퇴근 전용 기기」에서 코드를 만들고, 기기에서 <b>기사·직원이 자기 PIN 4자리</b>를 누르면 출근·퇴근이 찍혀요. 관리자 기기의 「🔢 PIN 출퇴근 체크」·기사 폰·직원 폰과 <b>같은 근태</b>로 들어가요 (학원·공공 기기는 «회원» 출석만 받고, 물류·택배 기기는 «회원» 출석을 받지 않아요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n3-1. <b>같은 날 두 번 눌러도 괜찮아요</b> (v298) — 두 번째부터는 「<b>이미 출석했어요</b>」와 함께 <b>처음 찍은 시각</b>이 떠요. 기록은 처음 것이 그대로 남고 <b>알림톡도 다시 나가지 않아요</b> (출석 전용 기기도 같아요)\n3-2. 하원(귀가) 알림은 이 판에서 나가지 않아요 — 기사가 운행 화면에서 「하차 완료」를 누를 때 나가요. 이 판과 출석 기기는 <b>등원만</b> 받아요\n4. 처음 찍을 때 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -10434,6 +10450,35 @@ async function checkPin(){
      그래서 여기서 **먼저** 갈라 나간다(아래 판 분리·로컬 대조는 지나지 않는다). */
   if(typeof isKioskMode==='function' && isKioskMode()){
     var _kr = await kioskCheckinApi(pv);
+    /* ★★ v314(코스로드70): **물류·택배 기기는 기사·직원 출퇴근**을 찍는다(사장님 「업종별로 해요」).
+       서버가 업종으로 갈라 주고(그 기기 토큰의 업체), 응답 꼴은 **관리자 근태 판과 같다** —
+       기사 `{kind:'in'|'out'|'done', name, time}` · 직원 `{kind:'staff', punch, name, time}`.
+       ★ 가리는 자리는 **여기 한 곳**이다 — 출석 응답은 `name`+`time`+`first` 를 쓰고
+         출퇴근 응답은 `kind`·`punch` 를 쓴다(겹치지 않는다).
+       ★ 글은 **관리자 근태 판과 같은 뜻**으로 적는다(「○○ 출근 (시각)」) — 기기에는 명단이
+         없으므로 **서버가 보내 준 이름 하나**를 그대로 쓴다. */
+    var _kPunch = (_kr && _kr.ok) ? (_kr.kind === 'staff' ? String(_kr.punch || '') : String(_kr.kind || '')) : '';
+    if(_kr && _kr.ok && (_kPunch === 'in' || _kPunch === 'out' || _kPunch === 'done')){
+      var _knm = escapeMasterHtml(String(_kr.name || ''));
+      var _kwho = (_kr.kind === 'staff') ? '' : ' 기사님';
+      var _kmsg2, _kcol2, _kicon;
+      if(_kPunch === 'in'){      _kmsg2 = _knm + _kwho + ' 출근';  _kcol2 = '#12B76A'; _kicon = '🌅'; }
+      else if(_kPunch === 'out'){ _kmsg2 = _knm + _kwho + ' 퇴근';  _kcol2 = '#F04438'; _kicon = '🌆'; }
+      else {                      _kmsg2 = '오늘은 이미 퇴근했어요'; _kcol2 = '#F79009'; _kicon = '✅'; }
+      var _ke3 = document.getElementById('pin-result');
+      if(_ke3) _ke3.innerHTML = '<div style="text-align:center;padding:14px;">'
+        + '<div style="font-size:40px;margin-bottom:4px;">'+_kicon+'</div>'
+        + '<div style="font-size:20px;font-weight:800;color:'+_kcol2+';margin-bottom:4px;">'+_kmsg2+'</div>'
+        + (_kPunch === 'done' && _knm ? '<div style="font-size:17px;font-weight:700;color:#344054;">'+_knm+'</div>' : '')
+        + '<div style="font-size:12px;color:#98A2B3;margin-top:3px;">'+escapeMasterHtml(String(_kr.time||''))+'</div></div>';
+      pinInput='';
+      setTimeout(function(){
+        var r=document.getElementById('pin-result');
+        if(r)r.innerHTML='';
+        renderPinDisplay();
+      }, 3000);
+      return;
+    }
     if(_kr && _kr.ok){
       var _kphoto = _kr.photo
         ? ('<img src="'+escapeMasterHtml(_kr.photo)+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0 auto 10px;display:block;"/>')
@@ -17932,7 +17977,10 @@ async function kioskInfoLoad(){
   try{ renderAdminTab(currentAdminTab); }catch(e){}
 }
 function kioskCardHtml(){
-  var h='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">🎫 출석 전용 기기</div>';
+  /* ★ v314(코스로드70): 제목·앞글도 업종에 맞게 — 물류·택배 기기는 **출퇴근 전용**이다 */
+  var _kWork = (getBizType()==='logistics'||getBizType()==='delivery');
+  var h='<div class="status-card" style="margin-bottom:12px;"><div class="status-card-title">🎫 '
+   + (_kWork ? '출퇴근 전용 기기' : '출석 전용 기기') + '</div>';
   if(typeof isDemoMode==='function' && isDemoMode()){
     return h+'<div style="font-size:12px;color:#98A2B3;padding:6px 0;">둘러보기에서는 쓰지 않아요.</div></div>';
   }
@@ -17941,19 +17989,19 @@ function kioskCardHtml(){
     return h+'<div style="font-size:12px;color:#B42318;padding:6px 0;line-height:1.7;">불러오지 못했어요 · '
       +'<span onclick="kioskInfoLoad()" style="color:#1A6BFF;cursor:pointer;font-weight:700;">다시 시도</span></div></div>';
   }
-  h+='<div style="font-size:12px;color:#475467;line-height:1.8;">태블릿·폰 한 대를 <b>출석 체크 전용</b>으로 둘 수 있어요 — 그 기기는 '
-   + T('회원')+' 출석 PIN 판만 보이고 <b>관리 화면이 열리지 않아요.</b></div>';
-  /* ★★ v313(코스로드69): **물류·택배에는 지금 쓸 수 없다고 적는다.**
-     그 기기가 받는 것은 **«회원» 출석 PIN** 하나인데(서버 `kioskCheckin` → `punchMember`),
-     물류·택배 «회원»(거래처·배송지)에는 **PIN 칸이 없다**(수정 창에서 숨고 엑셀 양식에도 없다)
-     → 어떤 4자리를 눌러도 「PIN 번호가 올바르지 않습니다」가 뜬다. **숨기지 않고 사실을 적는다**
-     (사장님 「숨기지 말고」 · 기사·직원 근태를 그 기기로 찍는 것은 서버 변경 — 69 보고문 「멈춤」). */
+  h+='<div style="font-size:12px;color:#475467;line-height:1.8;">태블릿·폰 한 대를 <b>'
+   + (_kWork ? '출퇴근 체크 전용' : '출석 체크 전용') + '</b>으로 둘 수 있어요 — 그 기기는 '
+   + (_kWork ? '기사·직원 PIN 판' : T('회원')+' 출석 PIN 판')
+   + '만 보이고 <b>관리 화면이 열리지 않아요.</b></div>';
+  /* ★★ v314(코스로드70): **물류·택배는 그 기기로 기사·직원 출퇴근을 찍는다**
+     (사장님 11-10 「업종별로 해요」 — v313 의 「아직 쓸 수 없어요」 안내는 지웠다).
+     서버 `kioskCheckin` 이 업종으로 갈라 기사 PIN → `punch` · 직원 PIN → `punchStaff` 를 부른다. */
   if(getBizType()==='logistics'||getBizType()==='delivery'){
-    h+='<div style="font-size:12px;color:#B54708;background:#FFFAEB;border:1px solid #FEDF89;'
+    h+='<div style="font-size:12px;color:#067647;background:#ECFDF3;border:1px solid #A6F4C5;'
      + 'border-radius:9px;padding:9px 10px;margin-top:8px;line-height:1.8;">'
-     + '※ 이 업종에서는 <b>아직 쓸 수 없어요.</b> 이 기기는 '+T('회원')+' 출석 PIN 만 받는데, '
-     + T('회원')+'에는 출석 PIN 칸이 없어요.<br>기사·직원 출퇴근은 <b>「🔢 PIN 출퇴근 체크」</b>'
-     + '(«'+T('출결')+'»관리 탭)에서 찍어 주세요.</div>';
+     + '※ 이 업종 기기는 <b>기사·직원 PIN 으로 출퇴근</b>을 찍어요 (v314) — '
+     + T('회원')+' 출석은 받지 않아요.<br>관리자 기기의 「🔢 PIN 출퇴근 체크」와 '
+     + '<b>같은 근태</b>로 들어가요 (기사 폰·직원 폰과도 같아요).</div>';
   }
   h+='<div style="font-size:12px;font-weight:700;margin:8px 0 6px;color:'+(_kioskInfo.hasCode?'#067647':'#98A2B3')+';">'
    + (_kioskInfo.hasCode?'✓ 코드 설정됨':'코드 없음')
@@ -18411,14 +18459,11 @@ function renderCars(){
   html+='<div style="padding:12px 16px 0;">';
   /* v255: 기사 로그인용 업체 번호 + 옛 자료 옮기기 안내 (차량 카드보다 위) */
   html+=orgCodeCardHtml();
-  /* ★★ v313(코스로드69): **출석 전용 기기 카드를 「«출결»관리」로 옮겼다**(사장님 11-10
-     「학원·공공은 출결관리에 있어야」). 그 기기가 받는 것은 **«회원» 출석 PIN** 이므로
-     출결 화면이 제 자리다 — v297 에서는 「기사 로그인 관리」 옆이라 차량 탭에 있었다.
-     ★ **물류·택배는 여기 그대로 둔다** — 그 업종 「«출결»관리」 탭은 **근태 화면**이고,
-       지금 서버(`kioskCheckin` → `punchMember`)는 **«회원» 출석만** 찍는다(기사·직원 PIN 을
-       안 본다). 근태를 그 기기로 찍게 하려면 **서버를 고쳐야** 하므로 자리를 옮기지 않고
-       **멈추고 보고**했다(지시문 ② · 69 보고문의 「멈춤」 표). 숨기지도 않았다. */
-  if(getBizType()==='logistics'||getBizType()==='delivery') html+=kioskCardHtml();
+  /* ★★ v313(69)→v314(70): **출석/출퇴근 전용 기기 카드는 차량 탭에 없다.**
+     학원·공공은 「«출결»관리」(그 기기가 «회원» 출석 PIN 을 받는다) ·
+     물류·택배는 **「근태관리」**(v314 부터 그 기기가 기사·직원 PIN 으로 출퇴근을 찍는다) —
+     둘 다 `attendance` 탭이고, 그 탭을 그리는 함수가 업종마다 다르다
+     (`renderAttendance` / `renderDriverAttendance`). 카드는 **그 두 곳**에 있다. */
   html+=drvMigrateCardHtml();
   html+='<div class="status-card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="status-card-title">🚐 '+escapeMasterHtml(car.name)+' 정보'+carlogBadgeHtml(car.id)+'</div>'
     +'<button onclick="carlogSelCar=\''+car.id+'\';openCarlog();" style="font-size:11px;color:#0E7090;background:#E0F2FE;border:1px solid #B9E6FE;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;">📒 차계부</button></div>';

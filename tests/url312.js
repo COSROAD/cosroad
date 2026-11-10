@@ -19,6 +19,16 @@ const OLD = (p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':' +
 const OLD2 = (ref, p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':' + p,
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
+/* ★ 이 회차 커밋 — 「서버 0줄」은 **두 커밋 사이**로 잰다(하나만 쓰면 작업트리까지 재서
+   다음 회차가 서버를 고치면 거짓으로 깨진다 · v272 보정1 규칙). */
+const THIS_REF_312 = (() => {
+  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
+  try {
+    const h = cp.execSync('git -C ' + COS_ROOT
+      + ' log --format=%H -1 --fixed-strings --grep=(v312)').toString().trim();
+    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
+  } catch (e) { return ''; }
+})();
 /* 쪽지(주석)는 떼고 센다 — 「왜 뺐는지」 적어 둔 쪽지가 「쓰고 있다」로 잡힌다(68·보정2 교훈) */
 const codeOnly = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
   .split('\n').filter((x) => !x.trim().startsWith('//')).join('\n');
@@ -162,7 +172,9 @@ const checkinBody = (p) => {
   {
     ck('★ `api/`·`lib/`·규칙·`storage.rules` 0줄',
       '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF
+        + (THIS_REF_312 ? ' ' + THIS_REF_312 : '')
         + ' -- api lib firestore.rules storage.rules', { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
+    console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF_312 || '작업트리') + ')');
     const panels = (s) => (s.match(/BACK_PANEL_IDS\s*=\s*\[[\s\S]*?\]/) || [''])[0];
     ck('  새 창(덮개) 0', panels(NEW_SRC) === panels(OLD_SRC) ? '그대로' : '바뀜', '그대로');
     ck('  (로그아웃 짝) 새 `setInterval`·리스너 0',

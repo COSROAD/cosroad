@@ -18,6 +18,24 @@ const OLD_REF = process.env.COS_SRC_OLD_REF || 'bf31bbb';   /* v312 — 고치�
 const SIZES = [[1920, 969], [1366, 768], [390, 844], [360, 640]];
 const BIZ = ['academy', 'public', 'logistics', 'delivery'];
 
+/* ★★ 이 회차(v313) 커밋 사본 — **그 회차가 약속한 것은 그 커밋에서 잰다.**
+   v314(코스로드70)가 물류·택배 자리와 카드 글을 **일부러 바꿨으므로**(서버 갈래가 생겼다)
+   작업트리로 재면 고친 코드와 무관하게 거짓으로 깨진다(CLAUDE.md 「양쪽을 커밋에 고정」). */
+const THIS_REF = (() => {
+  if (process.env.COS_API_NEW_REF) return process.env.COS_API_NEW_REF;
+  try {
+    const h = cp.execSync('git -C ' + COS_ROOT
+      + ' log --format=%H -1 --fixed-strings --grep=(v313)').toString().trim();
+    return /^[0-9a-f]{7,}$/.test(h) ? h : '';
+  } catch (e) { return ''; }
+})();
+function copyOf(ref, tag) {
+  const body = cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':index.html',
+    { maxBuffer: 1 << 28 }).toString();
+  const out = path.join(os.tmpdir(), 'cos313_' + tag + '_index.html');
+  fs.writeFileSync(out, body);
+  return out.split('\\').join('/');
+}
 function oldCopy() {
   const body = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
     { maxBuffer: 1 << 28 }).toString();
@@ -127,6 +145,7 @@ const look = async (p, tab) => {
 (async () => {
   const b = await chromium.launch({ channel: 'chrome' });
   const OLD_APP = oldCopy();
+  const THIS_APP = THIS_REF ? copyOf(THIS_REF, 'this') : APP;
 
   console.log('════ ⓐⓑ 자리 — 재현(옛 판) → 고친 뒤 (네 크기 × 네 업종)');
   for (const [w, h] of SIZES) {
@@ -139,7 +158,8 @@ const look = async (p, tab) => {
       say(wasCars.kiosk, tag + '[옛 ' + biz + '] 차량 탭에 있었다'.padEnd(34) + wasCars.kiosk);
       await o.close();
       /* 고친 뒤 */
-      const p = await open(b, w, h, biz);
+      /* ★ 물류·택배는 **그 회차(v313)에는** 차량 탭에 두었다 — 그 커밋 사본으로 띄운다 */
+      const p = await open(b, w, h, biz, academyLike ? APP : THIS_APP);
       const cars = await look(p, 'cars');
       const att = await look(p, 'attendance');
       if (academyLike) {
@@ -206,8 +226,9 @@ const look = async (p, tab) => {
     say(r.msg === '', '  (기록) 카드 속 글은 다시 그리며 지워진다'.padEnd(40) + '"' + r.msg + '"');
     say(p.__errs.length === 0, '오류 0'.padEnd(40) + (p.__errs[0] || 'OK'));
     await p.close();
-    /* 물류 — 차량 탭에서 눌러도 같다 */
-    const q = await open(b, 1366, 768, 'logistics');
+    /* 물류 — 차량 탭에서 눌러도 같다
+       ★ v313 **그 회차**의 자리다(v314 가 「근태관리」로 옮겼다) → 그 커밋 사본으로 띄운다. */
+    const q = await open(b, 1366, 768, 'logistics', THIS_APP);
     await look(q, 'cars');
     const r2 = await q.evaluate(async () => {
       kioskCodeIssue();
