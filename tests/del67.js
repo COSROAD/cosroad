@@ -219,13 +219,17 @@ const DUMP = (over) => {
     ck('★ 백업에 `_org`', pd._org, 'B');
     ck('★ 백업에 `_orgName`', pd._orgName, '가온학원');
     ck('  옛 칸은 그대로', pd._app + '/' + pd._version, 'COSROAD/1');
-    ck('★ 파일 이름에 업체 id 뒤 6자', /가온학원_B_\d{4}-\d{2}-\d{2}\.json$/.test(p.L.names[0] || '')
-      ? 'OK' : (p.L.names[0] || '없음'), 'OK');
+    /* ★ v310(68 보정1)에 **표시를 정하는 규칙이 바뀌었다**(뒤 6자 → 마지막 `_` 뒤) —
+       이 묶음은 v308 의 약속 「**파일 이름에 업체 표시가 붙는다**」만 지킨다.
+       네 업종·네 모양의 **정확한 표**는 그 회차 묶음(`tests/biz68.js` ⑤)이 들고 있다. */
+    ck('★ 파일 이름에 업체 표시가 붙는다',
+      /가온학원_[A-Za-z0-9가-힣]{1,12}_\d{4}-\d{2}-\d{2}\.json$/.test(p.L.names[0] || '')
+        ? 'OK' : (p.L.names[0] || '없음'), 'OK');
     const pL = app({ org: 'academy_abc123def456' });
     pL.R.ev('backupData();');
-    /* `academy_abc123def456` → 뒤 6자는 `def456` */
-    ck('  긴 업체 id 는 **뒤 6자**만', /_def456_\d{4}-\d{2}-\d{2}\.json$/.test(pL.L.names[0] || '')
-      ? 'OK' : (pL.L.names[0] || '없음'), 'OK');
+    ck('  긴 업체 id 도 **12자까지만** 붙는다',
+      /_[A-Za-z0-9]{1,12}_\d{4}-\d{2}-\d{2}\.json$/.test(pL.L.names[0] || '')
+        ? 'OK' : (pL.L.names[0] || '없음'), 'OK');
 
     /* 고침 — 복원 */
     const sameP = app({});

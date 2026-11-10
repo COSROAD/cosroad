@@ -6,6 +6,7 @@ const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
    ② 기본 원칙 다섯 파일 — 카톡 변수 둘 · 줄바꿈 두 줄 · `break-word` 0 · 천단위
    ③ 카드 높이 맞춤이 소스에 있나(subgrid + 못 쓰는 브라우저 대비) — 실제 px 은 크롬 묶음이 잰다
    ④ 소스 전수 — 63~67 것 그대로 · HELP_QA · CLAUDE.md 두 줄
+   ⑤ **백업 파일 이름의 업체 표시**(v310 · 68 보정1) — 「마지막 `_` 뒤」 전수 표 + 실제 저장 이름
    ★ 바깥 통신 0. */
 const cp = require('child_process');
 const fs = require('fs');
@@ -226,7 +227,8 @@ const noCmt = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->
   console.log('\n④ 소스 전수');
   {
     ['carLinkBlock', 'staffLinkBlock', 'courseLinkBlock', '_dumpHas', 'courseNameOf',
-      'prodSameExists', 'supportLastKey', 'bizPlaceholders', 'noticeSearchPh'].forEach((f) => {
+      'prodSameExists', 'supportLastKey', 'bizPlaceholders', 'noticeSearchPh',
+      'orgNamePh', 'backupOrgTag'].forEach((f) => {
       ck('  `' + f + '` 한 벌',
         (NEW_SRC.match(new RegExp('^function ' + f + '\\(', 'mg')) || []).length, 1);
     });
@@ -249,7 +251,8 @@ const noCmt = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->
         { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     const appV = Number((NEW_SRC.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-    ck('  버전 309', appV, 309);
+    /* ★ 버전은 **309 이상**으로 본다 — 보정 회차가 올리면 거짓으로 깨진다(63~67 과 같은 손질) */
+    ck('  버전 309 이상', appV >= 309 ? 'OK(' + appV + ')' : 'NG(' + appV + ')', 'OK(' + appV + ')');
     ck('  `version.json` 과 같다',
       String(JSON.parse(F('version.json')).version), String(appV));
     const QA = (s) => { const i = s.indexOf('var HELP_QA=['); return i < 0 ? '' : s.slice(i, s.indexOf('\n];', i)); };
@@ -270,6 +273,51 @@ const noCmt = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->
         && /범위가 커서 따로 회차가 맞는 것/.test(CM), true);
     ck('★ CLAUDE.md — 기본 원칙은 다섯 파일 전부',
       /기본 원칙은 앱만이 아니라 홈페이지·공유 화면 전부에 적용한다/.test(CM), true);
+  }
+
+  console.log('\n⑤ 백업 파일 이름의 업체 표시 — 「마지막 `_` 뒤」 (v310 · 68 보정1)');
+  {
+    /* 재현 — v308·v309 는 **뒤 6자**라 `academy_acme` 가 `y_acme` 로 잘렸다 */
+    ck('[옛] 뒤 6자로 자르고 있었다', /String\(_org\)\.slice\(-6\)/.test(OLD_SRC), true);
+    ck('★ 이제 한 벌 `backupOrgTag` 를 부른다',
+      /var _tail = _org \? \('_'\+backupOrgTag\(_org\)\) : '';/.test(NEW_SRC), true);
+    /* 전수 표 — 네 모양 */
+    const R = app('academy');
+    const tag = (org) => R.ev('backupOrgTag(' + JSON.stringify(org) + ')');
+    [['academy_acme', 'acme', '보통 업체 — 마지막 `_` 뒤'],
+     ['logistics_hanbit', 'hanbit', '다른 업종도 같다'],
+     ['cosroad_default', 'default', '되돌림 칸'],
+     ['cosroad_test', 'test', '테스트 공간'],
+     ['academy_demo', 'demo', '둘러보기'],
+     ['B', 'B', '`_` 가 없으면 그대로'],
+     ['academy_abc123def456', 'abc123def456', '꼬리 12자는 그대로'],
+     ['academy_abc123def4567', 'ef4567', '꼬리 13자는 **뒤 6자**'],
+     ['academy_', 'ademy', '끝이 `_` 면 뒤 6자 + 끝 `_` 를 뗀다'],
+     ['', '', '빈 값은 빈 값']].forEach(([org, want, why]) => {
+      ck('  ' + String(org || '(빈 값)').padEnd(22) + '→ ' + why, tag(org), want);
+    });
+    /* 실제 저장되는 **파일 이름**을 본다(스텁이 `a.download` 를 받아 적는다) */
+    const names = [];
+    R.sandbox.Blob = R.win.Blob = function () {};
+    R.sandbox.URL = R.win.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} };
+    const origCreate = R.sandbox.document.createElement;
+    R.sandbox.document.createElement = (t) => {
+      const el = origCreate.call(R.sandbox.document, t);
+      if (String(t).toLowerCase() === 'a') {
+        Object.defineProperty(el, 'download', {
+          get() { return el.__dl || ''; }, set(v) { el.__dl = String(v); names.push(String(v)); }
+        });
+      }
+      return el;
+    };
+    R.ev('window._userOrgId="academy_acme"; orgSettings.name="가온학원"; backupData();');
+    ck('★ 실제 파일 이름', /^COSROAD_백업_가온학원_acme_\d{4}-\d{2}-\d{2}\.json$/.test(names[0] || '')
+      ? 'OK' : (names[0] || '없음'), 'OK');
+    ck('  (대조) 잘린 `y_acme` 는 **안 나온다**', /y_acme/.test(names[0] || ''), false);
+    ck('  `_` 가 겹치지 않는다', /__/.test(names[0] || ''), false);
+    ck('★ HELP_QA — 새 이름 규칙을 적었다',
+      /업체 id 의 마지막 「_」 뒤/.test(NEW_SRC), true);
+    ck('★ CLAUDE.md — 그 한 줄', /마지막 `_` 뒤/.test(F('CLAUDE.md')), true);
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

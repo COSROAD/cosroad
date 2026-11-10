@@ -201,8 +201,10 @@ const restore = (p, dump, answer) => p.evaluate(async (a) => {
     say(d._orgName === '가온학원', '★ 파일 안에 `_orgName`'.padEnd(46) + (d._orgName || '없음'));
     say(d._app === 'COSROAD' && d._version === 1, '  옛 칸도 그대로'.padEnd(46)
       + d._app + '/' + d._version);
-    say(/_y_acme_\d{4}-\d{2}-\d{2}\.json$/.test((p.__dl[0] || {}).name || ''),
-      '★ 파일 이름에 업체 뒤 6자'.padEnd(46) + ((p.__dl[0] || {}).name || '없음'));
+    /* ★ v310(68 보정1)에 표시 규칙이 바뀌었다(뒤 6자 → 마지막 `_` 뒤 · `academy_acme`→`acme`) —
+       여기서는 v308 의 약속 「업체 표시가 붙는다」만 지킨다(정확한 표는 `run68.js` ⓕ). */
+    say(/_[A-Za-z0-9가-힣]{1,12}_\d{4}-\d{2}-\d{2}\.json$/.test((p.__dl[0] || {}).name || ''),
+      '★ 파일 이름에 업체 표시'.padEnd(46) + ((p.__dl[0] || {}).name || '없음'));
     say(p.__errs.length === 0, '오류 0'.padEnd(46) + (p.__errs[0] || 'OK'));
     await p.close();
   }

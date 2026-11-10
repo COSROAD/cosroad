@@ -333,6 +333,45 @@ function seed(biz) {
     await p.close();
   }
 
+  console.log('\nⓕ 백업 파일 이름의 업체 표시 — 「마지막 `_` 뒤」 (v310 · 68 보정1)');
+  {
+    /* ★★ 내려받기 이벤트로는 못 잰다 — `backupData` 가 `a.click()` 바로 뒤에
+       `URL.revokeObjectURL()` 을 불러 헤드리스에서 내려받기가 끊긴다(run67 ⓑ 에 적어 둔 실측).
+       → `a.download` 를 가로채 **실제로 쓰는 이름**을 본다. */
+    const CASES = [['academy_acme', '가온학원', 'acme'],
+                   ['logistics_hanbit', '한빛물류', 'hanbit'],
+                   ['cosroad_default', '가온학원', 'default']];
+    for (const [org, orgName, wantTag] of CASES) {
+      const p = await page(b, 1366, 768);
+      await p.goto('file:///' + APP.replace(/\\/g, '/'), { waitUntil: 'domcontentloaded' });
+      await p.waitForFunction(() => typeof renderDrive === 'function', {}, { timeout: 20000 });
+      await p.evaluate(seed('academy'));
+      const r = await p.evaluate((a) => {
+        window._userOrgId = a.org; orgSettings.name = a.orgName;
+        let name = '';
+        const origCreate = document.createElement.bind(document);
+        document.createElement = function (tag) {
+          const el = origCreate(tag);
+          if (String(tag).toLowerCase() === 'a') {
+            let v = '';
+            Object.defineProperty(el, 'download', { get() { return v; }, set(x) { v = String(x); name = v; } });
+          }
+          return el;
+        };
+        const out = String(backupData());
+        document.createElement = origCreate;
+        return { out: out, name: name, tag: backupOrgTag(a.org) };
+      }, { org: org, orgName: orgName });
+      const want = new RegExp('^COSROAD_백업_' + orgName + '_' + wantTag + '_\\d{4}-\\d{2}-\\d{2}\\.json$');
+      say(r.out === 'true', '[' + org + '] 백업이 됐다'.padEnd(40) + r.out);
+      say(r.tag === wantTag, '★ [' + org + '] 업체 표시'.padEnd(40) + r.tag);
+      say(want.test(r.name), '★ [' + org + '] 실제 파일 이름'.padEnd(40) + (r.name || '없음'));
+      say(!/__/.test(r.name), '  `_` 가 겹치지 않는다'.padEnd(40) + 'OK');
+      say(p.__errs.length === 0, '  오류 0'.padEnd(40) + (p.__errs[0] || 'OK'));
+      await p.close();
+    }
+  }
+
   await b.close();
   console.log('\n' + (bad ? 'X 실패 ' + bad + '건' : 'o 전부 통과') + ' — 실제 크롬 4크기');
   console.log('※ 바깥 요청 차단 · Firestore 가짜 — 실제 쓰기 0 · 문자 0');
