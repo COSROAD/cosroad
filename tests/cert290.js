@@ -180,9 +180,22 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
        리스너 쪽을 집어야 한다(`'members'` 로 시작하는 것). */
     const listenKeys = new Set((/var keys = \['members'([^\]]+)\]/.exec(NEW_SRC) || [, ''])[1]
       .split(',').map((x) => x.trim().replace(/'/g, '')).filter(Boolean).concat(['members']));
+    /* ★ v317(72-C): 올리는 길이 `saveToFirebase` 하나가 아니다 — 「바뀐 레코드만」 쓰는 키는
+       `saveMapKey`·`saveListKey` 로 부른다. 그 둘의 목록도 **올리는 키**로 센다
+       (안 세면 v317부터 다섯 키가 이 검사에서 **조용히 빠진다**). */
+    const arrOf = (src, name) => ((new RegExp('var ' + name + " = \\[([^\\]]*)\\]").exec(src) || [, ''])[1])
+      .split(',').map((x) => x.trim().replace(/'/g, '')).filter(Boolean);
+    arrOf(NEW_SRC, 'MAP_KEYS').concat(arrOf(NEW_SRC, 'LIST_KEYS'))
+      .forEach((k) => { if (ups.indexOf(k) < 0) ups.push(k); });
     const onlyUp = ups.filter((k) => !downs.has(k) && !listenKeys.has(k));
     console.log('      올리는 키 ' + ups.length + '개 · 내려받는 키 ' + downs.size + '개 · 듣는 키 ' + listenKeys.size + '개');
     ck('★ 올리기만 하는 키가 **0개**', onlyUp.join(',') || '없음', '없음');
+    /* ★★ v317: **듣는 목록에 있는데 핸들러 가지가 없는 키**도 「안 받는 키」다 —
+       `driverPay` 가 그랬다(목록에는 있고 `key==='driverPay'` 가 없어 받아도 **버렸다**).
+       그래서 v316 까지 ⑤ 가 그것을 **놓쳤다**(목록에 있으니 통과). */
+    const handled = new Set([...NEW_SRC.matchAll(/key\s*===\s*'([a-zA-Z]+)'/g)].map((m) => m[1]));
+    ck('★ 듣는 키마다 **핸들러 가지가 있다**',
+      [...listenKeys].filter((k) => !handled.has(k)).join(',') || '없음', '없음');
     /* 대조 — 옛 판에서는 certificates 하나가 걸려야 한다 */
     const ups0 = [...new Set([...OLD_SRC.matchAll(/saveToFirebase\('([a-zA-Z]+)'/g)].map((m) => m[1]))];
     const downs0 = new Set([...OLD_SRC.matchAll(/loadFromFirebase\('([a-zA-Z]+)'/g)].map((m) => m[1]));
@@ -192,6 +205,10 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       .split(',').map((x) => x.trim().replace(/'/g, '')).filter(Boolean).concat(['members']));
     ck('  (대조) 옛 판에서는 **certificates 하나**가 걸린다',
       ups0.filter((k) => !downs0.has(k) && !lk0.has(k)).join(','), 'certificates');
+    /* ★ 대조 — 핸들러 가지 검사도 **1건을 잡을 수 있다**(v316 의 `driverPay`) */
+    const h0 = new Set([...OLD_SRC.matchAll(/key\s*===\s*'([a-zA-Z]+)'/g)].map((m) => m[1]));
+    ck('  (대조) 옛 판에서는 **driverPay** 가 가지가 없다',
+      [...lk0].filter((k) => !h0.has(k)).join(','), 'driverPay');
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

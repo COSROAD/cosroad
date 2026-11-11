@@ -255,7 +255,7 @@ const idsOf = (json) => { try { return JSON.parse(json).map((x) => String(x.id))
     ck('  소스 — 부르는 곳 둘 그대로(로그아웃·차량 바뀜)',
       (NEW_SRC.match(/csQueueReset\(\);/g) || []).length + '곳',
       (OLD_SRC.match(/csQueueReset\(\);/g) || []).length + '곳');
-    ck('  업체 표시도 비운다', R.ev('_lsBaseOrg'), '');
+    ck('  업체 표시도 비운다', R.ev('_baseOrg'), '');
   }
 
   console.log('\n⑥-2 ★★ 업체가 바뀌면 기준본을 **버린다** (같은 탭에서 계정만 바꿔도 바뀐다)');
@@ -267,7 +267,7 @@ const idsOf = (json) => { try { return JSON.parse(json).map((x) => String(x.id))
     const S = makeServer();
     const R = admin(S);                             /* 업체 B 로 들어왔다 — 기준본은 B 것 */
     ck('기준본이 서 있다(업체 B)', R.ev('_lsBase["members"] !== null'), true);
-    ck('  업체 표시가 B', R.ev('_lsBaseOrg'), 'B');
+    ck('  업체 표시가 B', R.ev('_baseOrg'), 'B');
     R.ev('window._userOrgId = "C";');               /* 같은 탭에서 **계정만** 바꿨다 */
     ck('  업체가 C 로 바뀌었다', R.ev('getFbOrgId()'), 'C');
     ck('★ 그 기준본을 **안 쓴다**(없는 것으로 본다)', R.ev('_lsBaseOf("members") === null'), true);
@@ -278,7 +278,7 @@ const idsOf = (json) => { try { return JSON.parse(json).map((x) => String(x.id))
     ck('  이름도 새 업체 것', nameOf(got, 1), 'C업체 가하은');
     /* 기준본을 세우면 앞 업체 몫은 전부 버려진다 */
     R.ev('_lsSetBase("members", JSON.parse(' + JSON.stringify(srvC) + '));');
-    ck('  기준본을 세우면 표시가 C', R.ev('_lsBaseOrg'), 'C');
+    ck('  기준본을 세우면 표시가 C', R.ev('_baseOrg'), 'C');
     ck('  다른 키 기준본은 비워졌다',
       R.ev('_lsBase["cars"] === null && _lsBase["staff"] === null && _lsBase["courses"] === null'), true);
     /* ★ 대조 — 「업체가 그대로면」 기준본을 그대로 쓴다(검사가 살아 있다) */

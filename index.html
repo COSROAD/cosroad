@@ -701,7 +701,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 316;
+const APP_VERSION = 317;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -981,7 +981,13 @@ function mergedDriverAtt(byCar, staffAtt){
       그리고 둘러보기 전용 `handleDriverPinCheckin` 뿐이다).
    ★ 자료 모양에 시각 칸을 새로 넣지 않는다 — 옛 문서·서버 punch 와 모양이 갈린다. */
 var _csBase = {};                     /* 차량 → 마지막으로 서버에서 받은 값(기준본) */
+/* ★ v317(72-C): 기준본을 읽는 자리는 **업체 표시를 지난다**(`baseOrgGuard`) —
+   같은 탭에서 계정만 바꿔 업체가 바뀌면 앞 업체 기준본을 **없는 것으로** 본다. */
+function _csBaseOf(cid){ baseOrgGuard(); return _csBase[String(cid)]; }
+function _saBaseOf(){ baseOrgGuard(); return _saBase; }
+function _atBaseOf(key){ baseOrgGuard(); return _atBase[key]; }
 function _csSetBase(cid, obj){
+  baseOrgGuard(); _baseTick();          /* v317: 업체 표시 · 기준본 셈 */
   try{ _csBase[String(cid)] = JSON.parse(JSON.stringify(obj || {})); }catch(e){}
 }
 function _csJson(x){ try{ return JSON.stringify(x); }catch(e){ return String(x); } }
@@ -1107,6 +1113,7 @@ async function writeCarStatePatch(orgId, cid, patch){
         sent: carStateApply(JSON.parse(JSON.stringify(_csBase[_k] || emptyCarState())), patch) };
     }catch(e){ _csFlight[_k] = { at: _at, sent: null }; }
     var ref = doc(window._db,'orgs',orgId,'carState',_k);
+    var _seq = _baseSeq;                       /* v317: 기준본 덮기 순서 */
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = {};
@@ -1117,7 +1124,9 @@ async function writeCarStatePatch(orgId, cid, patch){
       tx.set(ref, { value: JSON.stringify(next), updatedAt: _at });
       return next;
     });
-    _csSetBase(cid, written);                  /* 쓴 값이 새 기준본 */
+    /* ★★ v317(72-C): 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면**
+       덮지 않는다 — 덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다. */
+    if(_baseSeq === _seq) _csSetBase(cid, written);   /* 쓴 값이 새 기준본 */
     delete _csFlight[_k];
     return true;
   }catch(e){
@@ -1181,14 +1190,16 @@ var _atBase = { attendance: null, attendanceTime: null };   /* 두 키의 기준
 var _atSaving = { attendance: false, attendanceTime: false };
 var _atAgain  = { attendance: false, attendanceTime: false };
 function _atSetBase(key, obj){
+  baseOrgGuard(); _baseTick();          /* v317 */
   try{ _atBase[key] = JSON.parse(JSON.stringify(obj || {})); }catch(e){ _atBase[key] = {}; }
 }
 function _atLocal(key){
   return (key === 'attendanceTime') ? loadAttendanceTime() : loadAttendance();
 }
 function attendancePatch(key, now){
-  var p = _dayCellDiff(_atBase[key] || {}, now || {});
-  if(_atBase[key] === null) p.drop = [];      /* 기준본을 모르면 남의 칸을 지우지 않는다 */
+  var B = _atBaseOf(key);                     /* v317: 업체 표시를 지나서 읽는다 */
+  var p = _dayCellDiff(B || {}, now || {});
+  if(B === null) p.drop = [];      /* 기준본을 모르면 남의 칸을 지우지 않는다 */
   return p;
 }
 function attendancePatchEmpty(p){
@@ -1201,7 +1212,7 @@ function atRebase(key, R, L, baseOverride){
   try{
     if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
     if(typeof isDemoMode==='function' && isDemoMode()) return R;
-    var B = (baseOverride === undefined) ? _atBase[key] : baseOverride;
+    var B = (baseOverride === undefined) ? _atBaseOf(key) : baseOverride;
     if(B === null || B === undefined) return R;
     var p = _dayCellDiff(B || {}, L || {});
     if(attendancePatchEmpty(p)) return R;
@@ -1218,6 +1229,7 @@ async function writeAttendancePatch(orgId, key, patch){
       var _prev = await getDoc(ref);
       if(_prev.exists()) await _backupBeforeSave(orgId, key, (_prev.data()||{}).value);
     }catch(e){ console.log('출석 백업 건너뜀:', e && e.message); }
+    var _seq = _baseSeq;                       /* v317: 기준본 덮기 순서 */
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = {};
@@ -1229,7 +1241,9 @@ async function writeAttendancePatch(orgId, key, patch){
       tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
       return next;
     });
-    _atSetBase(key, written);                 /* 쓴 값이 새 기준본 */
+    /* ★★ v317(72-C): 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면**
+       덮지 않는다 — 덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다. */
+    if(_baseSeq === _seq) _atSetBase(key, written);  /* 쓴 값이 새 기준본 */
     return true;
   }catch(e){
     console.log('출석 합쳐 쓰기 실패:', e && e.message);
@@ -1285,21 +1299,42 @@ var _lsAgain  = { members: false, cars: false, staff: false, courses: false };
    실측(크롬): A → B 로 들어오면 **B 명단이 빈 화면**이 됐다.
    → 기준본을 읽는 자리는 **`_lsBaseOf(key)` 한 곳**이고, 업체가 다르면 **없는 것으로 본다**
      (= 서버가 이긴다 · v285 의 「서버가 이겨야 하는 때」에 한 줄 더). */
-var _lsBaseOrg = '';
+/* ★★ v317(72-C): 업체 표시를 **한 자리**로 합쳤다 — v315 는 배열+id 넷만(`_lsBaseOrg`) 들고
+   있어서 `carState`·`staffAtt`·`attendance` 는 같은 탭에서 계정만 바꿔도 **앞 업체 기준본을
+   그대로 썼다**(72-B 보고문 「예외로 남긴 것」). 이제 **기준본을 읽는 모든 자리**가
+   `baseOrgGuard()` 를 지나고, 업체가 바뀌면 **다섯 묶음 전부**(carState·staffAtt·attendance
+   ·배열+id 넷·map 꼴 다섯)를 한 번에 버린다. */
+var _baseOrg = '';
 function _lsOrgNow(){
   try{ return String((typeof getFbOrgId==='function' ? getFbOrgId() : '') || ''); }
   catch(e){ return ''; }
 }
+/* 업체가 바뀌었으면 **모든 기준본·보낸 값**을 버린다(한 자리) · 지금 업체를 돌려준다 */
+function baseOrgGuard(){
+  var org = _lsOrgNow();
+  if(_baseOrg === org) return org;
+  try{ LIST_KEYS.forEach(function(k){ _lsBase[k] = null; _lsFlight[k] = null; }); }catch(e){}
+  try{ MAP_KEYS.forEach(function(k){ _mpBase[k] = null; _mpFlight[k] = null; }); }catch(e){}
+  try{ _csBase = {}; _csFlight = {}; }catch(e){}
+  try{ _saBase = null; _saFlight = null; }catch(e){}
+  try{ _atBase = { attendance: null, attendanceTime: null }; }catch(e){}
+  _baseOrg = org;
+  return org;
+}
+/* ★★ 기준본이 바뀔 때마다 올라가는 셈 — 「쓰기 성공 때 기준본 덮기」가 이것을 본다.
+   왜 — 트랜잭션을 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿀 수 있다.**
+   그때 쓰기가 끝나고 「내가 쓴 값」으로 기준본을 되돌리면 기준본이 **뒤처져**,
+   다음 차이표가 리스너가 가져온 남의 변경을 「지움」으로 계산한다(72-B 예외 표 3번).
+   → 쓰기 전에 셈을 떠 두고, **셈이 그대로일 때만** 기준본을 덮는다. */
+var _baseSeq = 0;
+function _baseTick(){ _baseSeq++; return _baseSeq; }
 function _lsBaseOf(key){
-  if(_lsBaseOrg && _lsBaseOrg !== _lsOrgNow()) return null;   /* 남의 업체 기준본은 안 쓴다 */
+  baseOrgGuard();
   return _lsBase[key];
 }
 function _lsSetBase(key, arr){
-  var org = _lsOrgNow();
-  if(_lsBaseOrg !== org){                 /* 업체가 바뀌었다 — 앞 업체 기억을 버린다 */
-    LIST_KEYS.forEach(function(k){ _lsBase[k] = null; _lsFlight[k] = null; });
-    _lsBaseOrg = org;
-  }
+  baseOrgGuard();
+  _baseTick();
   try{ _lsBase[key] = JSON.parse(JSON.stringify(Array.isArray(arr) ? arr : [])); }
   catch(e){ _lsBase[key] = []; }
 }
@@ -1382,6 +1417,7 @@ async function writeListPatch(orgId, key, patch){
     /* 메아리 — 「보낸 값」을 적어 둔다(보낸 뒤에 또 고친 것이 사라지지 않게 · v284 ③) */
     try{ _lsFlight[key] = idApply(JSON.parse(JSON.stringify(_lsBaseOf(key) || [])), patch); }
     catch(e){ _lsFlight[key] = null; }
+    var _seq = _baseSeq;                       /* v317: 기준본 덮기 순서 */
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = [];
@@ -1393,7 +1429,9 @@ async function writeListPatch(orgId, key, patch){
       tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
       return next;
     });
-    _lsSetBase(key, written);                 /* 쓴 값이 새 기준본 */
+    /* ★★ v317(72-C): 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면**
+       덮지 않는다 — 덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다. */
+    if(_baseSeq === _seq) _lsSetBase(key, written);  /* 쓴 값이 새 기준본 */
     _lsFlight[key] = null;
     return true;
   }catch(e){
@@ -1419,19 +1457,24 @@ async function saveListKey(key, opt){
   var local = _lsLocal(key);
   if(opt.whole === true){                                       /* 일부러 통째로 */
     _lsSaving[key] = true;
-    try{ await saveToFirebase(key, local); _lsSetBase(key, local); }
+    /* ★ v317(72-C): `saveToFirebase` 가 **참·거짓을 돌려준다** — 그 값을 그대로 돌려준다
+       (v275 보정1 의 약속: 저장 함수가 오류를 삼키는 자리에 「완료」를 붙이지 않는다). */
+    var okW = false;
+    try{ okW = await saveToFirebase(key, local); if(okW) _lsSetBase(key, local); }
     finally{ _lsSaving[key] = false; }
     _lsAgain[key] = false;
-    return true;
+    return okW;
   }
   /* 기준본을 아직 못 받았으면(첫 저장) **종전처럼 통째로** 쓴다 —
      남의 레코드를 「지움」으로 셀 수 없기 때문이다(안전한 쪽). 쓴 값이 기준본이 된다. */
   if(_lsBaseOf(key) === null){
     _lsSaving[key] = true;
-    try{ await saveToFirebase(key, local); _lsSetBase(key, local); }
+    var okF = false;
+    try{ okF = await saveToFirebase(key, local); if(okF) _lsSetBase(key, local); }
     finally{ _lsSaving[key] = false; }
-    if(_lsAgain[key]){ _lsAgain[key] = false; try{ await saveListKey(key); }catch(e){} }
-    return true;
+    if(_lsAgain[key]){ _lsAgain[key] = false;
+      try{ return await saveListKey(key); }catch(e){} }
+    return okF;
   }
   var patch = idDiff(_lsBaseOf(key), local);
   if(idPatchEmpty(patch)) return true;                            /* 바뀐 것이 없으면 안 쓴다 */
@@ -1454,6 +1497,221 @@ async function saveListKey(key, opt){
   return ok;
 }
 
+/* ══ map 꼴 자료도 「바뀐 레코드만」 얹어 쓴다 (v317 · 코스로드72-C) ══════════════
+   ★★ 왜 — `payments`·`tax`·`driverPay`·`drivelogManual`·`payrollManual` 다섯은
+     `data/{키}` 문서를 **통째로**(setDoc) 덮었다. 그래서 관리자 둘(또는 PC·폰 두 대)이
+     **서로 다른 달·다른 차량**을 고쳐 저장하면 **늦게 저장한 쪽이 앞사람 것을 지웠다**
+     (72-A 설계 · `tests/map317.js` ① 로 다섯 키 모두 재현).
+   ★ 틀은 72-B(배열+id)와 **같다** — 기준본·차이표·얹기·메아리·줄 세우기.
+     다른 점은 **「레코드 이름」이 칸 이름**이고, 키마다 **깊이**가 다르다는 것뿐이다.
+   ★★ **레코드 단위(깊이) 표** — 그 깊이까지가 이름이고 **그 아래는 한 칸으로** 본다:
+     · `payments`       깊이 1 — `«회원»id_YYYY_MM`  (그 달 그 사람 수납 한 칸)
+     · `tax`            깊이 1 — `YYYY_MM`          (그 달 전체 · 안쪽은 income/expense **배열**)
+     · `driverPay`      깊이 1 — `carId`            (급여 4값)
+     · `drivelogManual` 깊이 2 — `carId` → `ym`     (그 차량 그 달 수기값)
+     · `payrollManual`  가지마다 — `holidays` → `ym`(2) · `cars` → `carId` → `ym`(3)
+     ★ `tax` 는 **그 달이 한 칸**이다 — 같은 달을 둘이 같은 시각에 고치면 **나중 이김**이라
+       한쪽 줄이 사라질 수 있다. 더 잘게 쪼개려면 수입·지출 줄에 **id** 가 있어야 한다(72-D/E).
+   ★ 경로 잇는 글자는 `\u0001` — 키 글자(`_`·`-`)와 겹치지 않는다. 이 경로는 **메모리에서만**
+     쓰고 서버에는 **원래 모양 그대로** 저장한다(저장 모양 0줄). */
+var MAP_KEYS = ['payments', 'tax', 'driverPay', 'drivelogManual', 'payrollManual'];
+var MAP_SEP = '\u0001';
+var MAP_DEPTH = { payments: 1, tax: 1, driverPay: 1, drivelogManual: 2,
+                  payrollManual: { holidays: 2, cars: 3 } };
+var _mpBase   = { payments: null, tax: null, driverPay: null, drivelogManual: null, payrollManual: null };
+var _mpFlight = { payments: null, tax: null, driverPay: null, drivelogManual: null, payrollManual: null };
+var _mpSaving = { payments: false, tax: false, driverPay: false, drivelogManual: false, payrollManual: false };
+var _mpAgain  = { payments: false, tax: false, driverPay: false, drivelogManual: false, payrollManual: false };
+/* 그 키·그 첫 칸의 깊이 */
+function _mpDepth(key, firstSeg){
+  var d = MAP_DEPTH[key];
+  if(typeof d === 'number') return d;
+  if(d && typeof d === 'object'){
+    var v = d[String(firstSeg)];
+    return (typeof v === 'number') ? v : 1;     /* 모르는 가지는 그 칸 하나를 레코드로 */
+  }
+  return 1;
+}
+function _mpBaseOf(key){ baseOrgGuard(); return _mpBase[key]; }
+function _mpSetBase(key, obj){
+  baseOrgGuard();
+  _baseTick();
+  try{ _mpBase[key] = JSON.parse(JSON.stringify((obj && typeof obj==='object' && !Array.isArray(obj)) ? obj : {})); }
+  catch(e){ _mpBase[key] = {}; }
+}
+function _mpLocal(key){
+  if(key === 'payments')       return loadPayments();
+  if(key === 'tax')            return loadTaxData();
+  if(key === 'driverPay')      return loadDriverPay();
+  if(key === 'drivelogManual') return loadDriveLogManual();
+  return loadPayrollManual();
+}
+/* 받은 값을 폰에 넣는다 — 동기화·리스너가 이 한 곳으로 쓴다(키 이름을 가지마다 적지 않게) */
+function _mpSaveLocal(key, obj){
+  var k = (key === 'payments') ? 'tkd_payments'
+        : (key === 'tax') ? 'tkd_tax'
+        : (key === 'driverPay') ? 'tkd_driver_pay'
+        : (key === 'drivelogManual') ? 'tkd_drivelog_manual'
+        : 'tkd_payroll_manual';
+  try{ localStorage.setItem(k, JSON.stringify(obj || {})); }catch(e){}
+}
+/* 깊이까지 펼친다 — { '경로': 그 아래 통째 } */
+function mapFlat(obj, key){
+  var out = {};
+  var walk = function(o, path, depth, firstSeg){
+    if(!o || typeof o !== 'object' || Array.isArray(o)){ out[path.join(MAP_SEP)] = o; return; }
+    Object.keys(o).forEach(function(k){
+      var p2 = path.concat([k]);
+      var fs = (path.length === 0) ? k : firstSeg;
+      if(p2.length >= _mpDepth(key, fs)) out[p2.join(MAP_SEP)] = o[k];
+      else walk(o[k], p2, depth + 1, fs);
+    });
+  };
+  walk((obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {}, [], 0, '');
+  return out;
+}
+function mapDiff(base, now, key){
+  var b = mapFlat(base, key), l = mapFlat(now, key), put = {}, drop = [];
+  Object.keys(l).forEach(function(p){
+    if(!(p in b) || _csJson(b[p]) !== _csJson(l[p])) put[p] = l[p];
+  });
+  Object.keys(b).forEach(function(p){ if(!(p in l)) drop.push(p); });
+  return { put: put, drop: drop };
+}
+function mapPatchEmpty(p){
+  if(!p) return true;
+  return Object.keys(p.put || {}).length === 0 && (p.drop || []).length === 0;
+}
+/* 서버 값 R 위에 얹는다 — 지우기 먼저, 그다음 고치기·더하기.
+   ★ 지운 뒤 **빈 가지는 치운다**(`cars.car1` 이 비면 `car1` 을, 그래서 `cars` 까지 비면 `cars` 도).
+     안 치우면 서버 문서에 **빈 껍데기**가 쌓이고, 차이표가 그것을 또 레코드로 센다.
+     모양이 사라져도 **읽는 쪽이 고쳐 준다** — `loadPayrollManual()` 이 `holidays`·`cars` 가
+     없으면 빈 묶음으로 채운다(2422행). 그 보장이 없는 자료를 더할 때는 **여기를 다시 본다.** */
+function mapApply(R, p){
+  var out;
+  try{ out = JSON.parse(JSON.stringify((R && typeof R==='object' && !Array.isArray(R)) ? R : {})); }
+  catch(e){ out = {}; }
+  (p && p.drop ? p.drop : []).forEach(function(path){
+    var segs = String(path).split(MAP_SEP), cur = out, stack = [];
+    for(var i=0;i<segs.length-1;i++){
+      if(!cur || typeof cur !== 'object') return;
+      stack.push([cur, segs[i]]);
+      cur = cur[segs[i]];
+    }
+    if(cur && typeof cur === 'object') delete cur[segs[segs.length-1]];
+    /* 위로 올라가며 **빈 묶음**만 치운다 */
+    for(var j=stack.length-1;j>=0;j--){
+      var par = stack[j][0], nm = stack[j][1];
+      if(par[nm] && typeof par[nm]==='object' && !Array.isArray(par[nm])
+         && Object.keys(par[nm]).length === 0) delete par[nm];
+      else break;
+    }
+  });
+  Object.keys((p && p.put) || {}).forEach(function(path){
+    var segs = String(path).split(MAP_SEP), cur = out;
+    for(var i=0;i<segs.length-1;i++){
+      if(!cur[segs[i]] || typeof cur[segs[i]] !== 'object' || Array.isArray(cur[segs[i]])) cur[segs[i]] = {};
+      cur = cur[segs[i]];
+    }
+    cur[segs[segs.length-1]] = p.put[path];
+  });
+  return out;
+}
+/* 받은 서버 값에 **아직 안 올린 내 변경**을 얹어 돌려준다(v284·v315 꼴) */
+function mpRebase(key, R, L, baseOverride){
+  try{
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
+    if(typeof isDemoMode==='function' && isDemoMode()) return R;
+    var B = (baseOverride === undefined) ? _mpBaseOf(key) : baseOverride;
+    if(B === null || B === undefined) return R;      /* 첫 로그인·업체 바뀜 — 서버가 이긴다 */
+    var p = mapDiff(B, L || {}, key);
+    if(mapPatchEmpty(p)) return R;
+    return mapApply(R, p);
+  }catch(e){ return R; }
+}
+/* 그 문서의 **바뀐 레코드만** 트랜잭션으로 얹는다 */
+async function writeMapPatch(orgId, key, patch){
+  try{
+    var { doc, runTransaction, getDoc } = window._firestore;
+    if(!runTransaction){ console.log('runTransaction 없음 — 합치기 건너뜀: '+key); return false; }
+    var ref = doc(window._db, 'orgs', orgId, 'data', key);
+    try{
+      var _prev = await getDoc(ref);
+      if(_prev.exists() && !_skipBackup(key)) await _backupBeforeSave(orgId, key, (_prev.data()||{}).value);
+    }catch(e){ console.log('백업 건너뜀('+key+'):', e && e.message); }
+    try{ _mpFlight[key] = mapApply(JSON.parse(JSON.stringify(_mpBaseOf(key) || {})), patch); }
+    catch(e){ _mpFlight[key] = null; }
+    var _seq = _baseSeq;                 /* ★ 기준본 덮기 순서 — 아래 쪽지 */
+    var written = await runTransaction(window._db, async function(tx){
+      var snap = await tx.get(ref);
+      var srv = {};
+      if(snap.exists()){
+        try{ srv = JSON.parse((snap.data()||{}).value || '{}'); }catch(e){ srv = {}; }
+      }
+      if(!srv || typeof srv!=='object' || Array.isArray(srv)) srv = {};
+      var next = mapApply(srv, patch);
+      tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
+      return next;
+    });
+    /* ★★ 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면** 덮지 않는다
+       (덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다 · 72-B 예외 3번). */
+    if(_baseSeq === _seq) _mpSetBase(key, written);
+    _mpFlight[key] = null;
+    return true;
+  }catch(e){
+    _mpFlight[key] = null;
+    console.log('합쳐 쓰기 실패('+key+'):', e && e.message);
+    return false;
+  }
+}
+/* 저장 한 자리 — 막는 셋·줄 세우기·통째 길은 `saveListKey` 와 **같은 꼴**이다 */
+async function saveMapKey(key, opt){
+  opt = opt || {};
+  if(MAP_KEYS.indexOf(key) < 0) return false;
+  if(typeof isDemoMode==='function' && isDemoMode()){ try{ demoBlockNotice(); }catch(e){} return false; }
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ try{ readOnlyBlocked('바꾼 내용'); }catch(e){} return false; }
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){ try{ firstSyncBlocked('바꾼 내용'); }catch(e){} return false; }
+  /* 기사·도우미는 이 다섯 키를 쓰지 않는다(규칙도 막는다 — `driverWritableKey` 가 0개다) */
+  if(currentMode==='driver') return false;
+  if(!window._db || !window._firestore) return false;
+  if(_mpSaving[key]){ _mpAgain[key] = true; return false; }      /* 줄 세우기 */
+  var local = _mpLocal(key);
+  if(opt.whole === true){                                        /* 일부러 통째로(복원·전체 삭제) */
+    _mpSaving[key] = true;
+    var okW = false;
+    try{ okW = await saveToFirebase(key, local); if(okW) _mpSetBase(key, local); }
+    finally{ _mpSaving[key] = false; }
+    _mpAgain[key] = false;
+    return okW;
+  }
+  if(_mpBaseOf(key) === null){                                   /* 첫 저장 — 종전처럼 통째로 */
+    _mpSaving[key] = true;
+    var okF = false;
+    try{ okF = await saveToFirebase(key, local); if(okF) _mpSetBase(key, local); }
+    finally{ _mpSaving[key] = false; }
+    if(_mpAgain[key]){ _mpAgain[key] = false;
+      try{ return await saveMapKey(key); }catch(e){} }
+    return okF;
+  }
+  var patch = mapDiff(_mpBaseOf(key), local, key);
+  if(mapPatchEmpty(patch)) return true;                          /* 바뀐 것이 없으면 안 쓴다 */
+  /* ★ 「전부 비우기」는 종전처럼 **한 번 묻는다**(`saveToFirebase` 의 빈 값 가드와 같은 뜻) */
+  if(Object.keys(patch.put).length === 0 && patch.drop.length > 0 && _isEmptyData(local)){
+    var okEmpty = true;
+    try{
+      okEmpty = window.confirm('⚠️ 주의\n\n['+key+'] 자료를 전부 비우려고 합니다.\n'
+        + '서버에 저장된 기존 자료가 모두 사라집니다.\n\n정말 비우시겠습니까?');
+    }catch(e){ okEmpty = true; }
+    if(!okEmpty) return false;
+  }
+  _mpSaving[key] = true;
+  var ok = false;
+  try{ ok = await writeMapPatch(getFbOrgId(), key, patch); }
+  finally{ _mpSaving[key] = false; }
+  if(_mpAgain[key]){ _mpAgain[key] = false; try{ await saveMapKey(key); }catch(e){} }
+  return ok;
+}
+
 /* ── 직원 근태(`data/staffAtt`)도 **바뀐 칸만** (43-C · v282) ──────────────
    ★★ 왜 — v275 에서 직원 근태를 `data/staffAtt` 로 떼어낼 때 **통째로(setDoc)** 썼다.
      43-C 부터 **서버가** 도우미 출퇴근을 그 문서에 찍으므로, 관리자가 아무 저장을 한 번 하면
@@ -1464,11 +1722,13 @@ async function saveListKey(key, opt){
 var _saBase = null;                    /* 직원 근태 기준본 — 마지막으로 서버에서 받은 값 */
 var _saFlight = null;                  /* v284(58): 지금 보내고 있는 쓰기의 「보낸 값」 */
 function _saSetBase(obj){
+  baseOrgGuard(); _baseTick();          /* v317 */
   try{ _saBase = JSON.parse(JSON.stringify(obj || {})); }catch(e){ _saBase = {}; }
 }
 function staffAttPatch(now){
-  var p = _csAttDiff(_saBase || {}, now || {});
-  if(_saBase === null) p.drop = [];     /* 기준본을 모르면 남의 칸을 지우지 않는다 */
+  var B = _saBaseOf();                        /* v317: 업체 표시를 지나서 읽는다 */
+  var p = _csAttDiff(B || {}, now || {});
+  if(B === null) p.drop = [];     /* 기준본을 모르면 남의 칸을 지우지 않는다 */
   return p;
 }
 function staffAttPatchEmpty(p){
@@ -1491,6 +1751,7 @@ async function writeStaffAttPatch(orgId, patch){
       var _prev = await getDoc(ref);
       if(_prev.exists()) await _backupBeforeSave(orgId, 'staffAtt', (_prev.data()||{}).value);
     }catch(e){ console.log('직원 근태 백업 건너뜀:', e && e.message); }
+    var _seq = _baseSeq;                       /* v317: 기준본 덮기 순서 */
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = {};
@@ -1502,7 +1763,9 @@ async function writeStaffAttPatch(orgId, patch){
       tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
       return next;
     });
-    _saSetBase(written);                      /* 쓴 값이 새 기준본 */
+    /* ★★ v317(72-C): 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면**
+       덮지 않는다 — 덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다. */
+    if(_baseSeq === _seq) _saSetBase(written);      /* 쓴 값이 새 기준본 */
     _saFlight = null;
     return true;
   }catch(e){
@@ -1563,7 +1826,11 @@ function csQueueReset(){
   _lsFlight = { members: null, cars: null, staff: null, courses: null };
   _lsSaving = { members: false, cars: false, staff: false, courses: false };
   _lsAgain  = { members: false, cars: false, staff: false, courses: false };
-  _lsBaseOrg = '';                           /* 기준본이 어느 업체 것인지도 잊는다 */
+  /* ★★ v317(72-C): map 꼴 다섯 기준본·줄·메아리도 여기서 버린다(로그아웃 짝) */
+  MAP_KEYS.forEach(function(k){ _mpBase[k] = null; _mpFlight[k] = null;
+                                _mpSaving[k] = false; _mpAgain[k] = false; });
+  _atBase = { attendance: null, attendanceTime: null };   /* v317: 출석 기준본도 */
+  _baseOrg = '';                             /* 기준본이 어느 업체 것인지도 잊는다 */
 }
 
 /* 기사·도우미 폰의 「내 차량 몫」 — **저장과 얹기가 같은 함수**를 쓴다(두 벌로 베끼면 어긋난다) */
@@ -1608,7 +1875,7 @@ function csRebase(cid, R, L, withAtt, baseOverride){
     if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
     if(typeof isDemoMode==='function' && isDemoMode()) return R;
     var B = (baseOverride && typeof baseOverride==='object') ? baseOverride[String(cid)]
-                                                            : _csBase[String(cid)];
+                                                            : _csBaseOf(String(cid));
     if(!B) return R;
     var p = carStatePatch(B, L, withAtt);
     if(carStatePatchEmpty(p)) return R;
@@ -1622,7 +1889,7 @@ function saRebase(R, L, baseOverride){
        (위 csRebase 쪽지 참고 — 직원 수기 근태도 되돌아가야 한다). */
     if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
     if(typeof isDemoMode==='function' && isDemoMode()) return R;
-    var B = (baseOverride === undefined) ? _saBase : baseOverride;
+    var B = (baseOverride === undefined) ? _saBaseOf() : baseOverride;
     if(B === null || B === undefined) return R;
     var p = _csAttDiff(B || {}, L || {});
     if((Object.keys(p.put||{}).length + (p.drop||[]).length) === 0) return R;
@@ -1811,6 +2078,10 @@ async function saveCarState(){
   /* 동기화 중 — **안 썼으므로 거짓**을 돌려준다(v275 보정1: 정말 썼을 때만 참).
      끝나면 syncFromFirebase 가 줄에 남은 것을 한 번 돌린다. */
   if(_csSyncing){ _csSaveAgain = true; return false; }
+  /* ★ v317(72-C): **업체 표시를 한 번 지난다** — 이 아래는 기준본(`_csBase`·`_saBase`·`_atBase`)을
+     **직접** 보는 자리가 여럿이라, 같은 탭에서 계정만 바뀐 뒤면 앞 업체 기준본과 견주게 된다
+     (v286 과 같은 꼴). 읽는 함수(`_csBaseOf` 등)와 **같은 문지기**를 여기서 한 번 부른다. */
+  baseOrgGuard();
   if(_csSaveRun){ _csSaveAgain = true; return await _csSaveRun; }
   var _myRun = (async function(){
     var ok = true;
@@ -2050,7 +2321,7 @@ function loadDriverPay(){
        return (o && typeof o==='object' && !Array.isArray(o)) ? o : {}; }
   catch(e){ return {}; }
 }
-function saveDriverPay(d){ localStorage.setItem('tkd_driver_pay', JSON.stringify(d||{})); saveToFirebase('driverPay', d||{}); }
+function saveDriverPay(d){ localStorage.setItem('tkd_driver_pay', JSON.stringify(d||{})); saveMapKey('driverPay'); }   /* v317: 바뀐 차량만 */
 /* 한 차량의 급여 값 — 옛 자료(cars 안)도 함께 본다(옮기기 전에도 급여가 맞게 나오도록) */
 function carPay(car){
   var id=String((car&&car.id)||'');
@@ -2168,7 +2439,7 @@ function loadPayrollManual(){
 }
 function savePayrollManual(d){
   localStorage.setItem('tkd_payroll_manual', JSON.stringify(d));
-  saveToFirebase('payrollManual', d);
+  saveMapKey('payrollManual');      /* v317: 바뀐 달·차량+달만 */
 }
 /* 임시공휴일 — 기관 공통·월별 */
 function payrollHolidays(ym){
@@ -9638,20 +9909,23 @@ function restoreData(ev){
       if(H('tkd_carlog') || H('tkd_ridestate') || H('tkd_driver_att')) saveCarState();
       notices = loadNotices(); if(H('tkd_notices')) saveToFirebase('notices', notices);
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
-      var pay = localStorage.getItem('tkd_payments'); if(pay && H('tkd_payments')){ try{ saveToFirebase('payments', JSON.parse(pay)); }catch(e5){} }
-      var tax = localStorage.getItem('tkd_tax'); if(tax && H('tkd_tax')){ try{ saveToFirebase('tax', JSON.parse(tax)); }catch(e6){} }
+      /* ★ v317(72-C): 복원은 **일부러 통째로** 쓴다(사람이 확인창을 지났다) —
+         쓴 값을 **기준본으로 맞춘다**. 안 맞추면 다음 「바뀐 레코드만」 저장이
+         옛 기준본과 견줘 엉뚱한 지우기를 보낸다(v315 배열+id 와 같은 자리). */
+      var pay = localStorage.getItem('tkd_payments'); if(pay && H('tkd_payments')){ try{ saveToFirebase('payments', JSON.parse(pay)); _mpSetBase('payments', JSON.parse(pay)); }catch(e5){} }
+      var tax = localStorage.getItem('tkd_tax'); if(tax && H('tkd_tax')){ try{ saveToFirebase('tax', JSON.parse(tax)); _mpSetBase('tax', JSON.parse(tax)); }catch(e6){} }
       /* ★ v295(60-B3): 복원은 **일부러 통째로 덮는 것**이다(사람이 확인창을 지났다) —
          그래서 여기만 `saveToFirebase` 를 그대로 쓰고, **기준본을 그 값으로 맞춘다**.
          안 맞추면 다음 「바뀐 칸만」 저장이 옛 기준본과 견줘 엉뚱한 지우기를 보낼 수 있다. */
       var att = localStorage.getItem('tkd_attendance'); if(att && H('tkd_attendance')){ try{ var _attR=JSON.parse(att); saveToFirebase('attendance', _attR); _atSetBase('attendance', _attR); }catch(e7){} }
       /* v275: 차계부·탑승 토글·출퇴근은 **차량별 문서**로 간다 — 아래 saveCarState() 한 번이 셋을 다 올린다.
          옛 `data/*` 키에는 **다시 쓰지 않는다**(원본이 둘이 되지 않게). */
-      var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm && H('tkd_drivelog_manual')){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
-      var pym = localStorage.getItem('tkd_payroll_manual'); if(pym && H('tkd_payroll_manual')){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
+      var dlm = localStorage.getItem('tkd_drivelog_manual'); if(dlm && H('tkd_drivelog_manual')){ try{ saveToFirebase('drivelogManual', JSON.parse(dlm)); _mpSetBase('drivelogManual', JSON.parse(dlm)); }catch(e9){} }
+      var pym = localStorage.getItem('tkd_payroll_manual'); if(pym && H('tkd_payroll_manual')){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); _mpSetBase('payrollManual', JSON.parse(pym)); }catch(e10){} }
 
       var stf = localStorage.getItem('tkd_staff'); if(stf && H('tkd_staff')){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
       if(stf && H('tkd_staff')){ try{ _lsSetBase('staff', JSON.parse(stf)); }catch(e11b){} }   /* v315 */
-      var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy && H('tkd_driver_pay')){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 */
+      var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy && H('tkd_driver_pay')){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); _mpSetBase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 · v317 기준본 */
 
       var ivc = localStorage.getItem('tkd_invoices'); if(ivc && H('tkd_invoices')){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
       var prd = localStorage.getItem('tkd_products'); if(prd && H('tkd_products')){ try{ saveToFirebase('products', JSON.parse(prd)); }catch(e14){} }
@@ -11084,7 +11358,7 @@ function loadPayments(){
 }
 function savePayments(data){
   localStorage.setItem('tkd_payments',JSON.stringify(data));
-  saveToFirebase('payments',data);
+  saveMapKey('payments');          /* v317: 바뀐 레코드만(«회원»id_YYYY_MM) */
 }
 // 거래처 사업자정보 클립보드 복사
 function copyBizInfo(encoded){
@@ -12037,7 +12311,7 @@ function loadTaxData(){
 function saveTaxData(data){
   _localSaving = true;
   localStorage.setItem('tkd_tax',JSON.stringify(data));
-  saveToFirebase('tax',data);
+  saveMapKey('tax');               /* v317: 바뀐 레코드만(YYYY_MM) */
   setTimeout(function(){ _localSaving = false; }, 2000);
 }
 function addIncomeRecord(year, month, name, amount, category, link, method, dateStr){
@@ -16449,7 +16723,7 @@ function loadDriveLogManual(){
 /* 공용 저장 함수 — 화면 입력은 이 경로로만 저장 (Firebase 포함) */
 function saveDriveLogManual(d){
   localStorage.setItem('tkd_drivelog_manual', JSON.stringify(d));
-  saveToFirebase('drivelogManual', d);
+  saveMapKey('drivelogManual');     /* v317: 바뀐 차량+달만 */
 }
 /* 차량+월 단위로 꺼내기 — 없으면 빈 값 (차량·월이 섞이지 않도록 항상 두 단계로 접근) */
 function driveLogManualGet(carId, ym){
@@ -19835,22 +20109,22 @@ async function _backupBeforeSave(orgId, key, prevValueStr, idKey){
 async function saveToFirebase(key, data){
   try{
     // 데모(읽기전용) 모드: 서버 저장 차단 → 방문자끼리 데이터 안 섞임
-    if(isDemoMode()){ demoBlockNotice(); return; }
+    if(isDemoMode()){ demoBlockNotice(); return false; }
     /* v263: 이용 기간이 끝난 업체는 **보기만** 된다. 규칙도 막지만 여기서 먼저 막고
        화면을 서버 자료로 되돌린다 — 안 그러면 로컬에만 남아 조용히 사라진다. */
-    if(isReadOnlyMode()){ readOnlyBlocked('바꾼 내용'); return; }
+    if(isReadOnlyMode()){ readOnlyBlocked('바꾼 내용'); return false; }
     /* ★★ v288(59-B2): **첫 동기화가 끝나기 전에는 쓰지 않는다.**
        로그인 직후 화면은 아직 **앞 업체 자료**다 — 그 창에서 저장하면 59-A 실측처럼
        **새 업체 문서가 앞 업체 명단으로 바뀐다**. 동기화가 스스로 쓰는 길은 통과시킨다
        (`okToWriteNow()` 가 `_csSyncDepth` 를 본다). */
-    if(!okToWriteNow()){ firstSyncBlocked('바꾼 내용'); return; }
+    if(!okToWriteNow()){ firstSyncBlocked('바꾼 내용'); return false; }
     /* v257: 기사 모드는 규칙이 허락한 키만 쓴다 (규칙에서 거부당해 콘솔만 더럽히는 일을 막는다).
        목록은 firestore.rules 의 driverWritableKey 와 같다 — 한쪽만 고치지 말 것. */
     if(currentMode==='driver' && !driverWriteAllowed(key)){
       console.warn('기사 모드에서는 저장하지 않는 키:', key);
-      return;
+      return false;
     }
-    if(!window._db || !window._firestore) return;
+    if(!window._db || !window._firestore) return false;
     var { doc, setDoc, getDoc } = window._firestore;
     // 알리고 설정은 전역 공통(프리존 계정 1개)이라 고정 위치에 저장
     var orgId = (key==='aligo') ? 'cosroad_global' : getFbOrgId();
@@ -19870,7 +20144,7 @@ async function saveToFirebase(key, data){
         var ok = window.confirm('⚠️ 주의\n\n['+key+'] 데이터를 전부 비우려고 합니다.\n서버에 저장된 기존 데이터가 모두 사라집니다.\n\n정말 비우시겠습니까?');
         if(!ok){
           console.log('빈 값 저장 취소됨:', key);
-          return; // 저장 중단 → 데이터 보존
+          return false; // 저장 중단 → 데이터 보존
         }
       }
 
@@ -19882,7 +20156,8 @@ async function saveToFirebase(key, data){
 
     await setDoc(ref, { value: JSON.stringify(data), updatedAt: Date.now() });
     console.log('Firebase 저장:', key);
-  } catch(e){ console.log('Firebase 저장 실패:', e.message); }
+    return true;                 /* ★ v317(72-C): 정말 썼다 */
+  } catch(e){ console.log('Firebase 저장 실패:', e.message); return false; }
 }
 
 async function loadFromFirebase(key){
@@ -20002,6 +20277,9 @@ async function _syncFromFirebaseOnce(){
      **서버에 켜져 있던 탑승이 폰의 빈 값으로 지워졌다**(코스로드54 조사 C · 실측).
      → 그 사이 저장은 **줄에 세워 두고**(`saveCarState` 가 거짓을 돌려준다),
        맞춘 뒤에 한 번 돌린다. 그리고 **옛 기준본을 떠 두어** 아직 안 올린 내 변경을 얹는다. */
+  /* ★ v317(72-C): 기준본을 **뜨기 전에** 업체 표시를 본다 — 같은 탭에서 계정만 바꿨으면
+     앞 업체 기준본을 여기서 버린다(안 보면 옛 기준본을 떠서 새 업체 값에 얹는다). */
+  baseOrgGuard();
   var _preBase = {}; try{ _preBase = JSON.parse(JSON.stringify(_csBase||{})); }catch(e){}
   var _preSaBase = _saBase;
   /* ★ v295(60-B3): 출석·출석시각도 **옛 기준본을 떠 둔다** — 아래에서 받은 값에
@@ -20074,8 +20352,20 @@ async function _syncFromFirebaseOnce(){
     localStorage.setItem('tkd_courses', JSON.stringify(_coUse)); courses = _coUse;
   }
   if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
-  if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
-  if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
+  /* ★★ v317(72-C): map 꼴 다섯도 **받은 값 + 아직 안 올린 내 변경**을 쓴다(v315 꼴) —
+     기준본은 **받은 서버값 그대로** 두고, 얹기는 **그 전 기준본**으로 센다(순서가 중요). */
+  if(fbPayments){
+    var _pyB = _mpBaseOf('payments');
+    var _pyBU = mpRebase('payments', fbPayments, _mpLocal('payments'), _pyB);
+    _mpSetBase('payments', fbPayments);
+    _mpSaveLocal('payments', _pyBU);
+  }
+  if(fbTax){
+    var _txB = _mpBaseOf('tax');
+    var _txBU = mpRebase('tax', fbTax, _mpLocal('tax'), _txB);
+    _mpSetBase('tax', fbTax);
+    _mpSaveLocal('tax', _txBU);
+  }
   /* ★★ v295(60-B3): 덮지 말고 **얹는다** — 서버도 이 문서를 쓰므로(출결 판·출석 기기)
      받은 값 위에 「아직 안 올린 내 변경」을 올리고, **받은 값을 기준본**으로 둔다. */
   if(fbAtt){
@@ -20098,9 +20388,29 @@ async function _syncFromFirebaseOnce(){
      (돌리는 저장은 **그때의 로컬·기준본으로 다시 계산**하므로 옛 값이 올라가지 않는다.) */
   _csSyncEnd();        /* v285: 구간 닫기는 **한 자리**로 — 겹친 동기화도 맞게 */
   var fbDlManual = await loadFromFirebase('drivelogManual');
-  if(fbDlManual){ localStorage.setItem('tkd_drivelog_manual', JSON.stringify(fbDlManual)); }
+  if(fbDlManual){
+    var _dlB = _mpBaseOf('drivelogManual');
+    var _dlBU = mpRebase('drivelogManual', fbDlManual, _mpLocal('drivelogManual'), _dlB);
+    _mpSetBase('drivelogManual', fbDlManual);
+    _mpSaveLocal('drivelogManual', _dlBU);
+  }
   var fbPayManual = await loadFromFirebase('payrollManual');
-  if(fbPayManual){ localStorage.setItem('tkd_payroll_manual', JSON.stringify(fbPayManual)); }
+  if(fbPayManual){
+    var _pmB = _mpBaseOf('payrollManual');
+    var _pmBU = mpRebase('payrollManual', fbPayManual, _mpLocal('payrollManual'), _pmB);
+    _mpSetBase('payrollManual', fbPayManual);
+    _mpSaveLocal('payrollManual', _pmBU);
+  }
+  /* ★★ v317(72-C): `driverPay` 를 **내려받는다** — v255 부터 올리기만 했다(동기화에 읽는 줄이
+     없고 리스너에도 가지가 없었다 · `certificates` 가 v290 에 그랬던 것과 **같은 꼴**).
+     그래서 다른 기기·새 기기에서는 급여 4값(시급·식대·공제방식·출퇴근거리)이 **안 보였다**. */
+  var fbDriverPay = await loadFromFirebase('driverPay');
+  if(fbDriverPay){
+    var _dpB = _mpBaseOf('driverPay');
+    var _dpBU = mpRebase('driverPay', fbDriverPay, _mpLocal('driverPay'), _dpB);
+    _mpSetBase('driverPay', fbDriverPay);
+    _mpSaveLocal('driverPay', _dpBU);
+  }
   var fbStaff = await loadFromFirebase('staff');
   if(fbStaff){
     var _preSt = _lsBaseOf('staff');
@@ -20439,8 +20749,17 @@ function startFirebaseListeners(){
       else if(key==='orgDriver'){
         if(currentMode==='driver'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
       }
-      else if(key==='payments'){ localStorage.setItem('tkd_payments',JSON.stringify(data)); }
-      else if(key==='tax'){ localStorage.setItem('tkd_tax',JSON.stringify(data)); }
+      /* ★★ v317(72-C): map 꼴 다섯도 통째로 덮지 않는다(v315 배열+id 와 같은 꼴) */
+      else if(key==='payments'){
+        var _u = mpRebase('payments', data, _mpLocal('payments'), _mpFlight['payments'] || undefined);
+        _mpSetBase('payments', data);
+        _mpSaveLocal('payments', _u);
+      }
+      else if(key==='tax'){
+        var _u = mpRebase('tax', data, _mpLocal('tax'), _mpFlight['tax'] || undefined);
+        _mpSetBase('tax', data);
+        _mpSaveLocal('tax', _u);
+      }
       /* ★★ v295(60-B3): 덮지 말고 **얹는다** — 서버도 이 문서를 쓴다(출결 판·출석 기기).
          받은 값을 **기준본**으로 두고, 아직 안 올린 내 변경만 그 위에 올린다. */
       else if(key==='attendance'){
@@ -20471,8 +20790,23 @@ function startFirebaseListeners(){
       else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
       else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
-      else if(key==='drivelogManual'){ localStorage.setItem('tkd_drivelog_manual',JSON.stringify(data)); }
-      else if(key==='payrollManual'){ localStorage.setItem('tkd_payroll_manual',JSON.stringify(data)); }
+      else if(key==='drivelogManual'){
+        var _u = mpRebase('drivelogManual', data, _mpLocal('drivelogManual'), _mpFlight['drivelogManual'] || undefined);
+        _mpSetBase('drivelogManual', data);
+        _mpSaveLocal('drivelogManual', _u);
+      }
+      else if(key==='payrollManual'){
+        var _u = mpRebase('payrollManual', data, _mpLocal('payrollManual'), _mpFlight['payrollManual'] || undefined);
+        _mpSetBase('payrollManual', data);
+        _mpSaveLocal('payrollManual', _u);
+      }
+      /* ★ v317: `driverPay` 가지를 **새로 더했다** — 목록에는 있었는데 가지가 없어
+         받아도 폰에 넣지 않았다(급여 4값이 다른 기기에 안 보였다). */
+      else if(key==='driverPay'){
+        var _u = mpRebase('driverPay', data, _mpLocal('driverPay'), _mpFlight['driverPay'] || undefined);
+        _mpSetBase('driverPay', data);
+        _mpSaveLocal('driverPay', _u);
+      }
       else if(key==='staff'){
         var _stUse2 = lsRebase('staff', data, loadStaff(), _lsFlight['staff'] || undefined);
         _lsSetBase('staff', data);
