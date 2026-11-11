@@ -701,7 +701,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 315;
+const APP_VERSION = 316;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1637,6 +1637,124 @@ function staffAttLocal(){
     Object.keys(cur||{}).forEach(function(k){ if(_isStaffAttKey(k)) out[k]=cur[k]; });
   }catch(e){}
   return out;
+}
+
+/* ══ v316(72-B 보정1): **기기에만 남은 기록을 한 번 올린다** ══════════════════
+   ★★ 왜 — v277(11-05)~v314 동안 `runTransaction` 이 import 줄에 없어서
+     「바뀐 칸만」 쓰기 셋(`writeCarStatePatch`·`writeStaffAttPatch`·`writeAttendancePatch`)이
+     **거짓만 돌려주고 아무것도 쓰지 않았다**(72-B 1번 항목 · 배포본으로 확인).
+     그 기간 앱에서 누른 탑승 토글·차계부·납품/하차 완료·수기 근태·수기 출석이
+     **그 기기 localStorage 에만** 남아 있다.
+   ★★ 그런데 v315 로 앱을 열면 그 기록이 **사라진다** — 첫 동기화의 얹기
+     (`csRebase`·`saRebase`·`atRebase`)는 **「그 전 기준본」**으로 세는데, 새로 연 페이지에는
+     기준본이 **없어서**(= 첫 로그인은 서버가 이긴다) 얹기를 건너뛰고 서버값으로 덮는다.
+     그 뒤 저장해도 차이표가 비어 **0건**이다(`tests/left316.js` ① 로 재현).
+   → 그래서 **첫 동기화에서 한 번** 「서버에 **없는** 칸」만 보낸다.
+   ★ 정한 것(지시문 11-11 13:46):
+     · **지움(drop)은 보내지 않는다** — 되살림·잘못 지움을 막는다(추가만).
+     · **값이 다른 칸(수정)도 보내지 않는다** — 서버 값이 더 새것일 수 있다
+       (서버 `punch`·`punchStaff`·`punchMember` 와 다른 기기). 그래서 「없는 칸」만이다.
+     · **업체가 맞아야** 한다 — 로컬은 `getFbOrgId()` 꼬리 칸에서만 읽는다(load… 함수가 그렇게 읽는다).
+     · 둘러보기·읽기 전용은 **아예 안 한다** · 기사는 자기 차량 하나 · `att` 는 안 보낸다(원본은 서버).
+     · **기기+업체마다 한 번**만 한다(`tkd_leftover316__<업체>`) — 매번 하면 남이 지운 칸을
+       이 기기가 계속 되살린다. **정말 다 썼을 때만** 표시를 찍는다(v275 보정1 교훈).
+   ★ 표시 칸은 **기기 표시**다(서버에 안 올린다) — 다만 업체마다 따로여야 해서 꼬리를 손으로 붙인다
+     (`ORG_KEYS` 에 넣지 않는다 · `tkd_support_seen` 과 같은 성격). */
+var LEFTOVER_MARK = 'tkd_leftover316';
+function _leftoverKey(){ try{ return LEFTOVER_MARK + '__' + getFbOrgId(); }catch(e){ return ''; } }
+function _leftoverDone(){
+  try{ var k = _leftoverKey(); return !k || localStorage.getItem(k) === '1'; }catch(e){ return true; }
+}
+function _leftoverMark(){ try{ var k = _leftoverKey(); if(k) localStorage.setItem(k, '1'); }catch(e){} }
+/* 「서버에 없는 칸만」 거르기 — 네 꼴(맵·기록·칸·차량 기록 묶음) */
+function _addsOnlyMap(srvMap, p){
+  var out = { set: {}, del: [] }, s = srvMap || {};
+  Object.keys((p||{}).set || {}).forEach(function(k){ if(!(k in s)) out.set[k] = p.set[k]; });
+  return out;
+}
+function _addsOnlyRec(srvRecs, p){
+  var have = {};
+  (srvRecs || []).forEach(function(r){ if(r && r.id != null) have[String(r.id)] = 1; });
+  return { put: ((p||{}).put || []).filter(function(r){ return r && !have[String(r.id)]; }), drop: [] };
+}
+/* `att`·`staffAtt`·`attendance` 는 **{날짜:{칸:값}}** 꼴이라 같은 함수로 거른다 */
+function _addsOnlyCell(srvObj, p){
+  var out = { put: {}, drop: [] }, s = srvObj || {};
+  Object.keys((p||{}).put || {}).forEach(function(d){
+    var b = s[d] || {};
+    Object.keys(p.put[d] || {}).forEach(function(f){
+      if(!(f in b)) (out.put[d] = out.put[d] || {})[f] = p.put[d][f];
+    });
+  });
+  return out;
+}
+function _addsOnlyCs(srvCs, p){
+  var s = srvCs || {};
+  var out = {
+    ride:      _addsOnlyMap(s.ride,      p.ride),
+    rideOff:   _addsOnlyMap(s.rideOff,   p.rideOff),
+    delivDone: _addsOnlyMap(s.delivDone, p.delivDone),
+    dropDone:  _addsOnlyMap(s.dropDone,  p.dropDone),
+    plans:     _addsOnlyMap((s.carlog||{}).plans, p.plans),
+    recs:      _addsOnlyRec((s.carlog||{}).records, p.recs)
+  };
+  if(p.att) out.att = _addsOnlyCell(s.att, p.att);
+  return out;
+}
+/* 첫 동기화에서 **한 번** — 서버에 없는 칸만 올리고, 올린 값을 돌려준다
+   (돌려준 값을 쓰는 쪽이 화면·폰에 그대로 남긴다 — 안 그러면 올리고도 화면에서 사라진다). */
+async function uploadLeftoverOnce(drvMode, byCar, mine, srvStaffAtt, srvAtt){
+  var out = { did: false, byCar: null, mine: null, staffAtt: null, att: null };
+  try{
+    if(_leftoverDone()) return out;
+    if(typeof isDemoMode === 'function' && isDemoMode()) return out;
+    if(typeof isReadOnlyMode === 'function' && isReadOnlyMode()) return out;
+    if(typeof isKioskMode === 'function' && isKioskMode()) return out;   /* 출석 기기는 폰 자료가 없다 */
+    if(!window._db || !window._firestore || !window._firestore.runTransaction) return out;
+    var orgId = getFbOrgId(); if(!orgId) return out;
+    var allOk = true, n = 0;
+    /* ① 차량 기록 — 기사는 자기 차량 하나, 관리자는 폰에 있는 차량 전부 */
+    var sp = null; try{ sp = splitCarState(); }catch(e){ sp = null; }
+    var ids = [];
+    if(drvMode){ var mc = String(driverLockedCarId()||''); if(mc) ids = [mc]; }
+    else if(sp) ids = Object.keys(sp.byCar || {});
+    for(var i=0;i<ids.length;i++){
+      var cid = String(ids[i]);
+      var L = drvMode ? driverCarStateLocal(cid) : ((sp.byCar||{})[cid] || emptyCarState());
+      var S = drvMode ? (mine || null) : ((byCar||{})[cid] || null);
+      /* ★ 기사는 `att` 를 보내지 않는다(v277 — 출퇴근 원본은 서버 `punch`) */
+      var q = _addsOnlyCs(S, carStatePatch(S || emptyCarState(), L, !drvMode));
+      if(carStatePatchEmpty(q)) continue;
+      if(await writeCarStatePatch(orgId, cid, q)){
+        n++;
+        if(drvMode) out.mine = _csBase[cid];
+        else { out.byCar = out.byCar || JSON.parse(JSON.stringify(byCar||{})); out.byCar[cid] = _csBase[cid]; }
+      } else { allOk = false; }
+    }
+    /* ② 직원 근태 · ③ 출석 둘 — **관리자만**(기사·도우미는 규칙이 막는다) */
+    if(!drvMode){
+      var qs = _addsOnlyCell(srvStaffAtt, _csAttDiff(srvStaffAtt || {}, staffAttLocal()));
+      if(Object.keys(qs.put).length){
+        if(await writeStaffAttPatch(orgId, qs)){ n++; out.staffAtt = _saBase; } else { allOk = false; }
+      }
+      var qa = _addsOnlyCell(srvAtt, _dayCellDiff(srvAtt || {}, loadAttendance()));
+      if(Object.keys(qa.put).length){
+        if(await writeAttendancePatch(orgId, 'attendance', qa)){ n++; out.att = _atBase.attendance; }
+        else { allOk = false; }
+      }
+      /* 출석 시각은 이 자리에서 서버값을 따로 읽는다(동기화가 읽는 자리는 **아래**라 아직 없다) */
+      var srvAtT = null;
+      try{ srvAtT = await loadFromFirebase('attendanceTime'); }catch(e){ srvAtT = null; }
+      var qt = _addsOnlyCell(srvAtT, _dayCellDiff(srvAtT || {}, loadAttendanceTime()));
+      if(Object.keys(qt.put).length){
+        if(await writeAttendancePatch(orgId, 'attendanceTime', qt)){ n++; } else { allOk = false; }
+      }
+    }
+    /* ★ **정말 다 썼을 때만** 표시를 찍는다 — 하나라도 실패하면 다음에 다시 한다 */
+    if(allOk){ _leftoverMark(); out.did = (n > 0); }
+    if(n) console.log('기기에만 남은 기록 올림:', n + '곳');
+    return out;
+  }catch(e){ console.log('기기에만 남은 기록 올리기 실패(건너뜀):', e && e.message); return out; }
 }
 
 /* 서버에서 차량 문서 전부 읽기 (관리자) */
@@ -19895,6 +20013,18 @@ async function _syncFromFirebaseOnce(){
   var fbStaffAtt = _drvMode0 ? null : await loadFromFirebase('staffAtt');
   /* ★ 43-C: 받은 값이 **직원 근태 기준본**이다(바뀐 칸만 쓰기가 이것을 본다) */
   if(!_drvMode0) _saSetBase(fbStaffAtt || {});
+  /* ★★ v316(72-B 보정1): **기기에만 남은 기록을 한 번 올린다** — 아래에서 로컬을 서버값으로
+     덮기 **전**이어야 한다(덮은 뒤에는 올릴 것이 없어진다 · `uploadLeftoverOnce` 쪽지 참고).
+     올린 값을 돌려받아 **그 자리에 끼운다** — 그래야 올리고도 화면에서 사라지지 않는다. */
+  var _lo = await uploadLeftoverOnce(_drvMode0, _cs, _csMine, fbStaffAtt, fbAtt);
+  if(_lo && _lo.did){
+    if(_drvMode0){ if(_lo.mine) _csMine = _lo.mine; }
+    else {
+      if(_lo.byCar) _cs = _lo.byCar;
+      if(_lo.staffAtt) fbStaffAtt = _lo.staffAtt;
+    }
+    if(_lo.att) fbAtt = _lo.att;
+  }
   /* ★ v284: 받은 값에 **아직 안 올린 내 변경**을 얹는다(옛 기준본 기준).
      첫 로그인은 옛 기준본이 없어 **서버가 이긴다** — 폰의 옛 값을 서버 위에 얹지 않는다. */
   var _merged = null;

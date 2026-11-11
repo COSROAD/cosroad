@@ -110,5 +110,6 @@ run url312.js      node url312.js
 run kiosk69.js     node kiosk69.js
 run kiosk70.js     node kiosk70.js
 run list72.js      node list72.js
+run left316.js     node left316.js
 echo "────────────────────────────────────────"
-echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 94 · 94 · 0)"
+echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 95 · 95 · 0)"
