@@ -10,6 +10,7 @@ const COS_ROOT = _cosR(_cosD(_cosF(import.meta.url)), '../..').replace(/\\/g, '/
    ★ 실서비스 Storage·Firestore 는 **읽지 않는다** — 전부 에뮬레이터다.
    돌리는 법: `npx firebase emulators:start --only firestore,storage` 가 떠 있어야 한다. */
 import fs from 'fs';
+import cp from 'child_process';          /* 대조 시험 — 옛 커밋 소스를 떠서 본다 (71) */
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadString, getBytes, listAll, deleteObject } from 'firebase/storage';
@@ -154,15 +155,28 @@ console.log('\n⑦ 읽기 — 주소를 아는 누구나 `get` · `list` 는 금
   await t('★ 관리자2(남) → 그 사진 지우기', 'deny', () => deleteObject(ref(asOwner2(), p2)), 'del.other');
 }
 
-console.log('\n⑧ 옛 경로 — 당분간 쓰기 허용(3단계에서 막는다) · 익명은 이미 금지');
-await t('관리자 → 옛 «알림장» 경로', 'allow', () => put(asOwner(), oldN()), 'old.notice.owner');
-await t('관리자 → 옛 운행 경로', 'allow', () => put(asOwner(), oldD()), 'old.drivelog.owner');
-await t('★ 익명 → 옛 경로(이번에 막혔다)', 'deny', () => put(anon(), oldN()), 'old.anon');
+/* ★★ v314/71(2단계 · 사장님 11-11 09:13 게시): 옛 경로 **쓰기를 막았다.**
+   v308(1단계)에서는 「앱 새 판을 확인할 때까지」 로그인 쓰기를 열어 두었다 —
+   `_test` 로 새 경로가 실제로 되는 것을 보고(11-10 18:43) 이제 닫았다.
+   ★ **읽기(`get`)는 영원히 열어 둔다** — 이미 문자로 보낸 사진 주소가 열려야 한다.
+     그래서 옛 사진은 **규칙을 끄고** 올려 두고 `get` 만 잰다(쓰기가 막혀서 그 길로는 못 만든다). */
+console.log('\n⑧ 옛 경로 — **쓰기 막음**(2단계) · 읽기는 계속');
+await t('★ 관리자 → 옛 «알림장» 경로(2단계에서 막혔다)', 'deny', () => put(asOwner(), oldN()), 'old.notice.owner');
+await t('★ 관리자 → 옛 운행 경로(2단계에서 막혔다)', 'deny', () => put(asOwner(), oldD()), 'old.drivelog.owner');
+await t('  마스터도 못 쓴다', 'deny', () => put(asMaster(), oldN()), 'old.notice.master');
+await t('  기사도 못 쓴다', 'deny', () => put(asDrv(), oldD()), 'old.drivelog.driver');
+await t('  익명은 1단계부터 금지', 'deny', () => put(anon(), oldN()), 'old.anon');
 {
+  /* 옛 사진 하나를 **규칙을 끄고** 올려 둔다(실서비스에 이미 있는 사진을 흉내 낸다) */
   const p = oldN();
-  await assertSucceeds(put(asOwner(), p));
-  await t('익명 → 옛 사진 `get`(이미 보낸 문자가 열려야 한다)', 'allow',
+  await env.withSecurityRulesDisabled(async (c) => {
+    await uploadString(ref(c.storage(), p), IMG, 'data_url');
+  });
+  await t('★ 익명 → 옛 사진 `get`(이미 보낸 문자가 열려야 한다)', 'allow',
     () => getBytes(ref(anon(), p)), 'old.get.anon');
+  await t('  관리자도 옛 사진을 읽는다', 'allow', () => getBytes(ref(asOwner(), p)), 'old.get.owner');
+  await t('★ 옛 사진 **지우기**도 막혔다(쓰기에 든다)', 'deny',
+    () => deleteObject(ref(asOwner(), p)), 'old.delete.owner');
   await t('★ 옛 폴더 `list`', 'deny', () => listAll(ref(anon(), 'notice-images')), 'old.list');
 }
 
@@ -173,8 +187,19 @@ console.log('\n⑨ 규칙 글 — 저장소 기록이 콘솔 글과 같은 꼴�
   const s = S_RULES.split('\n').filter((ln) => !/^\s*\/\//.test(ln)).join('\n');
   ck('새 경로 둘이 적혀 있다',
     (s.match(/match \/orgs\/\{org\}\/(notice-images|drivelog-photos)\/\{file\}/g) || []).length, 2);
-  ck('옛 경로 둘도 아직 있다(3단계에서 막는다)',
+  ck('옛 경로 둘도 그대로 있다(읽기용)',
     (s.match(/match \/(notice-images|drivelog-photos)\/\{allPaths=\*\*\}/g) || []).length, 2);
+  /* ★ 2단계 — 옛 경로 쓰기 줄이 **둘 다** `if false` 인가(콘솔 글과 같은 꼴) */
+  ck('★ 옛 경로 쓰기 줄이 둘 다 `if false`',
+    (s.match(/allow write: if false;/g) || []).length, 2);
+  ck('  1단계의 `signedIn\\(\\) && photoOk\\(\\)` 쓰기 줄은 **0곳**',
+    (s.match(/allow write: if signedIn\(\) && photoOk\(\);/g) || []).length, 0);
+  ck('  머리에 2단계라고 적었다', /코스로드67 2단계 \(2026-11-10 · 옛 경로 쓰기 막음\)/.test(S_RULES), true);
+  ck('  게시 날짜도 적었다', /2단계 11-11 09:13 게시/.test(S_RULES), true);
+  ck('  옛 경로 쪽지가 2단계 글이다',
+    /옛 경로: 읽기는 계속\(이미 보낸 문자 주소\) · 쓰기는 막음/.test(S_RULES), true);
+  ck('  되돌리기 안내가 1단계 파일을 가리킨다',
+    /코스로드67_Storage규칙_1단계\.txt` 를 붙여넣기/.test(S_RULES), true);
   ck('  (대조) 주석을 안 떼면 4개로 보인다',
     (S_RULES.match(/match \/(notice-images|drivelog-photos)\/\{allPaths=\*\*\}/g) || []).length, 4);
   ck('교차 규칙을 쓴다(`firestore.get`·`firestore.exists`)',
@@ -202,6 +227,24 @@ console.log('\n⑩ 앱이 그 경로로 올리나 — 소스 대조');
   ck('  업종 글자(`bizId`)로 만드는 경로가 **0곳**',
     /(notice-images|drivelog-photos)\/'\+bizId/.test(app), false);
   ck('  업체는 `getFbOrgId()` 한 벌', (app.match(/getFbOrgId\(\)\+'\/(notice-images|drivelog-photos)/g) || []).length, 2);
+  /* ★★ 2단계(71): 옛 경로 쓰기가 막혔으므로 **앱이 옛 경로를 부르는 줄이 0** 이어야 한다 —
+     하나라도 남아 있으면 그 자리에서 사진 올리기가 403 이 된다. */
+  const oldUp = (src) => lf(src).split('\n')
+    .filter((ln) => !ln.trim().startsWith('//') && !ln.trim().startsWith('*'))
+    .filter((ln) => /=\s*['"`](notice-images|drivelog-photos)\/'/.test(ln)
+                 || /storageRef\([^,]*,\s*['"`](notice-images|drivelog-photos)\//.test(ln));
+  const oldCalls = oldUp(app);
+  ck('★ 앱이 **옛 경로로** 올리는 줄 0', oldCalls.length ? oldCalls[0].trim().slice(0, 56) : '0줄', '0줄');
+  /* ★ 대조 시험 — 같은 검사가 **v307**(경로를 옮기기 전)에서는 잡는다(「0건」은 대조 뒤에만) */
+  {
+    let old307 = '';
+    try {
+      old307 = cp.execSync('git -C ' + COS_ROOT + ' show 6586dcf:index.html',
+        { maxBuffer: 1 << 28 }).toString();
+    } catch (e) { old307 = ''; }
+    const hit = old307 ? oldUp(old307) : [];
+    ck('  (대조) v307 에서는 **둘**을 잡는다', hit.length, 2);
+  }
 }
 
 fs.writeFileSync('s67_table.json', JSON.stringify(table, null, 2));

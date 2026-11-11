@@ -26,9 +26,13 @@
   "list.owner": "deny",
   "del.own": "allow",
   "del.other": "deny",
-  "old.notice.owner": "allow",
-  "old.drivelog.owner": "allow",
+  "old.notice.owner": "deny",
+  "old.drivelog.owner": "deny",
+  "old.notice.master": "deny",
+  "old.drivelog.driver": "deny",
   "old.anon": "deny",
   "old.get.anon": "allow",
+  "old.get.owner": "allow",
+  "old.delete.owner": "deny",
   "old.list": "deny"
 }

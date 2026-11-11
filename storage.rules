@@ -1,14 +1,14 @@
-// 코스로드 Storage(사진) 규칙 · 코스로드67 1단계 (2026-11-10 게시)
+// 코스로드 Storage(사진) 규칙 · 코스로드67 2단계 (2026-11-10 · 옛 경로 쓰기 막음)
 //
 // ★★ 원본은 **Firebase 콘솔**이다. 이 파일은 **기록**이다 —
 //    고칠 때는 콘솔에 붙여넣어 게시하고, 같은 글을 이 파일에도 남긴다.
 //    (Firestore 규칙과 달리 Storage 규칙은 배포 길이 없어 콘솔이 원본이다.)
-//    게시: 사장님 11-10 15:19 「게시 했어요」 · 드라이브 `코스로드67_Storage규칙_1단계.txt` 와 같은 글.
+//    게시: 1단계 사장님 11-10 15:19 「게시 했어요」 · **2단계 11-11 09:13 게시**.
 //    ※ 띄어쓰기(들여쓰기)는 드라이브 사본에서 눌려 다를 수 있다 — **규칙 글귀는 같다.**
 //
 // 적용: Firebase 콘솔 → Storage → 규칙 → 이 글 전체 붙여넣기 → 게시
 // (처음 게시할 때 「Cloud Firestore 와 연결」 권한을 물으면 허용)
-// 되돌리기: 아래 맨 끝 「되돌리기용 옛 규칙」을 붙여넣기
+// 되돌리기: 드라이브 `코스로드67_Storage규칙_1단계.txt` 를 붙여넣기
 //
 // 원칙(사장님 11-10): 모든 자료와 데이터는 업체별로 분리·저장한다.
 // 새 사진은 orgs/{업체}/… 아래로만 올린다. 판정은 Firestore 규칙과 같은 기준이다.
@@ -86,17 +86,17 @@ service firebase.storage {
       allow delete: if mayWrite(org);
     }
 
-    // ── 옛 경로: 읽기는 계속 · 쓰기는 앱 새 판 확인 뒤(3단계) 막는다 ──
-    // 지금(v307) 앱이 쓰는 자리라 당분간 열어 둔다. 익명 올리기는 이번에 막는다.
+    // ── 옛 경로: 읽기는 계속(이미 보낸 문자 주소) · 쓰기는 막음 ──
+    // _test 실사용 확인(11-10 18:43 · orgs/academy_test/notice-images) 뒤 막았다.
     match /notice-images/{allPaths=**} {
       allow get: if true;
       allow list: if false;
-      allow write: if signedIn() && photoOk();   // ← 3단계에서 if false
+      allow write: if false;   // 2단계(11-10): v308 부터 앱은 orgs/{업체}/… 로만 올린다
     }
     match /drivelog-photos/{allPaths=**} {
       allow get: if true;
       allow list: if false;
-      allow write: if signedIn() && photoOk();   // ← 3단계에서 if false
+      allow write: if false;   // 2단계(11-10): v308 부터 앱은 orgs/{업체}/… 로만 올린다
     }
   }
 }

@@ -16,7 +16,9 @@ const fs = require('fs');
 const E = require('./drvenv.js');
 const { SRC, makeState, call } = E;
 
+const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 const OLD_REF = process.env.COS_SRC_OLD_REF || 'f23e964';   /* v313 — 고치기 전 */
+const THIS_REF = thisRef(314);                 /* 이 회차 커밋 — 제목이 (v314) 인 것 */
 const SRC_OLD_DRV = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':api/driver-auth.js',
   { maxBuffer: 1 << 26 }).toString().replace(/\r\n/g, '\n');
 const F = (p) => fs.readFileSync(COS_ROOT + '/' + p, 'utf8').replace(/\r\n/g, '\n');
@@ -232,9 +234,13 @@ const sms = (S) => (S.calls || []).filter((c) => /aligo|alimtalk/i.test(String(c
       ['punch(', 'punchStaff(', 'punchMember('].filter((f) => S2.indexOf('await ' + f) >= 0).length, 3);
     ck('  새 찍기 함수 0', (S2.match(/async function punch[A-Za-z]*\(/g) || []).length,
       (SRC_OLD_DRV.match(/async function punch[A-Za-z]*\(/g) || []).length);
+    /* ★ **두 커밋 사이**로 잰다 — 하나만 쓰면 작업트리까지 재서, 뒷 회차가 규칙을 고치면
+       거짓으로 깨진다(71 이 `storage.rules` 2단계를 기록하자 실제로 그랬다 · v272 보정1 규칙). */
     ck('★ 규칙·`storage.rules`·`lib/` 0줄',
       '[' + cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF
+        + (THIS_REF ? ' ' + THIS_REF : '')
         + ' -- lib firestore.rules storage.rules', { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
+    console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
     ck('  바뀐 서버 파일은 `driver-auth` 하나',
       cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' -- api',
         { maxBuffer: 1 << 24 }).toString().trim(), 'api/driver-auth.js');
