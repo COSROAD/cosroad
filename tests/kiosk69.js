@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드69 — **출석 전용 기기 카드를 「«출결»관리」로** · 옛 직원 PIN 카드를 근태 블록으로 (v313).
    ① 재현 — 옛 판은 네 업종 모두 **차량 탭**에 있었다
    ② ★ **그 기기가 무엇을 찍나** — 서버 코드로 전수(물류·택배는 찍을 것이 없다 → 멈춤 근거)
@@ -212,7 +212,9 @@ const hasStaffMig = (h) => /🔢 옛 직원 PIN 옮기기/.test(h);
     ck('★ HELP_QA — 직원 PIN 카드가 네 업종 모두 근태 화면',
       /네 업종 모두 <b>근태 화면<\/b>에서 보여요/.test(QA(NEW_SRC)), true);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로', qaN(srcAt(THIS_REF)), qaN(OLD_SRC));
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

@@ -193,7 +193,9 @@ const checkinBody = (p) => {
     const THIS_SRC = THIS_REF ? OLD2(THIS_REF, 'index.html') : NEW_SRC;
     ck('  이 회차는 문답표를 안 건드렸다', QA(THIS_SRC) === QA(OLD_SRC) ? '그대로' : '바뀜', '그대로');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
-    ck('  문답 항목 수(지금도)', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): **그 회차 커밋에서** 잰다(위 THIS_SRC) — 작업트리로 재면
+       뒷 회차가 문답을 더할 때마다 거짓으로 깨진다. */
+    ck('  문답 항목 수(그 회차)', qaN(THIS_SRC), qaN(OLD_SRC));
     ck('★ 소스 쪽지에 **왜 뺐는지** 적혀 있다',
       /읽는 곳이 /.test(NEW_SRC) && /이름이 주소에 들어가/.test(NEW_SRC)
         && /URLSearchParams/.test(NEW_SRC), true);

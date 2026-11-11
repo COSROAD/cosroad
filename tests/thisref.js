@@ -28,4 +28,18 @@ function thisRef(ver) {
     return /^[0-9a-f]{7,}$/.test(id) ? id : '';
   } catch (e) { return ''; }
 }
-module.exports = { thisRef: thisRef };
+/* ★★ v315(72-B): **그 회차 커밋의 `index.html`** 한 벌.
+   「이 회차에 문답(HELP_QA) 수가 안 늘었다」처럼 **그 회차를 두고 한 약속**은
+   작업트리로 재면 **뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다**
+   (v315 에 아홉 묶음이 그랬다 — CLAUDE.md 「기대값이 가리키는 회차에 맞춘다」).
+   → 그런 검사는 `srcAt(THIS_REF)` 로 **그 커밋의 글**을 읽는다.
+   커밋 전(THIS_REF 가 빈 글자)에는 **작업트리**를 읽는다 — 지금 회차는 그게 맞다. */
+function srcAt(ref, file) {
+  const f = file || 'index.html';
+  const LFfix = (x) => x.split(String.fromCharCode(13) + String.fromCharCode(10))
+    .join(String.fromCharCode(10));
+  if (!ref) return LFfix(require('fs').readFileSync(COS_ROOT + '/' + f, 'utf8'));
+  return LFfix(cp.execSync('git -C ' + COS_ROOT + ' show ' + ref + ':' + f,
+    { maxBuffer: 1 << 28 }).toString());
+}
+module.exports = { thisRef: thisRef, srcAt: srcAt };

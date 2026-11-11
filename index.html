@@ -271,7 +271,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   /* v261: createUserWithEmailAndPassword 를 뺐다 — 계정은 서버(api/signup)만 만든다 */
   import { getAuth, signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged, sendPasswordResetEmail, signInAnonymously, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getStorage, ref as storageRef, uploadBytes, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -290,7 +290,14 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(
   const auth = getAuth(app);
   const storage = getStorage(app);
   window._db = db;
-  window._firestore = { doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot };
+  /* ★★ v315(72-B): **`runTransaction` 을 넣었다** — 넣지 않아서 v277·v282·v295 의
+     「바뀐 칸만」 쓰기 셋(`writeCarStatePatch`·`writeAttendancePatch`·`writeStaffAttPatch`)이
+     **실서비스에서 한 번도 돌지 않았다** — 그 함수들이 `if(!runTransaction) … return false` 로
+     조용히 건너뛰었다(배포본 `cosroad.com/index.html` 의 import 줄로 확인).
+     ★ 묶음들이 `window._firestore` 를 **가짜로 끼워 넣으면서** 그 안에 `runTransaction` 을
+       넣어 두었기 때문에 아무도 못 잡았다 → 이제 **소스의 import·노출 줄**을 묶음이 지킨다.
+     ★ `updateDoc`·`deleteField` 는 `users/{uid}` 를 **그 칸만** 고치려고 넣었다(72-B ③). */
+  window._firestore = { doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, deleteDoc, onSnapshot, runTransaction };
   window._auth = auth;
   window._authFns = { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
   window._storage = storage;
@@ -694,7 +701,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 314;
+const APP_VERSION = 315;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -1248,6 +1255,205 @@ async function saveAttendanceKey(key){
   return ok;
 }
 
+/* ══ 배열+id 자료는 「바뀐 레코드만」 얹어 쓴다 (v315 · 코스로드72-B) ══════════════
+   ★★ 왜 — `members`·`cars`·`staff`·`courses` 는 `saveToFirebase` 로 **문서를 통째로** 덮었다.
+     그래서 관리자 둘(또는 한 사람의 PC·폰 두 대)이 **서로 다른 «회원»** 을 고쳐 저장하면
+     **늦게 저장한 쪽이 앞사람 수정을 지웠다**(72-A 에서 스텁으로 재현 · A 가 고친 1번이 사라졌다).
+     동시가 아니어도 「리스너로 받기 전에 저장」이면 같은 일이 난다.
+   ★ 방법은 이 저장소에 이미 있다 — `carState`(v284 `csRebase`)·`staffAtt`(v282)·
+     `attendance`(v295 `_dayCellDiff`)가 쓰는 **기준본·차이표·얹기·메아리** 네 가지를 그대로 쓴다.
+     여기서는 칸 이름이 **레코드 `id`** 라서 `idDiff`·`idApply` **한 벌**을 새로 둔다
+     (넷이 같이 쓴다 — 셈을 베끼면 한쪽만 고쳐져 어긋난다 · otp-core 교훈).
+   ★ 규칙·저장 모양은 **0줄** 바뀐다(같은 문서 `{value: JSON}` 그대로).
+   ★ 정한 것(72-A 설계 · 사장님 승인 11-11):
+     · 같은 레코드를 둘이 고치면 **나중 저장이 이긴다**(알림 없음 — 지금과 같은 체감)
+     · **지움이 이긴다** — 내가 지운 id 는 상대가 고쳤어도 되살리지 않고, 남이 지운 id 는
+       내가 고쳤어도 **되살리지 않는다**(그래서 차이표에 「내가 새로 만든 것」을 따로 적는다)
+     · 읽기 전용·둘러보기면 **얹지 않고 서버 값 그대로**(v285 한 자리와 같은 뜻)
+   ★ `on`·`offOn` 은 **견줄 때 뺀다** — 그 둘의 원본은 `rideState`/`carState` 다(v274 쪽지).
+     안 빼면 기사가 토글할 때마다 모든 «회원» 이 「바뀐 것」으로 보여 통째 쓰기와 같아진다. */
+var LIST_KEYS = ['members', 'cars', 'staff', 'courses'];
+var _lsBase = { members: null, cars: null, staff: null, courses: null };   /* 마지막으로 받은 서버 값 */
+var _lsFlight = { members: null, cars: null, staff: null, courses: null }; /* 보내고 있는 쓰기의 「보낸 값」 */
+var _lsSaving = { members: false, cars: false, staff: false, courses: false };
+var _lsAgain  = { members: false, cars: false, staff: false, courses: false };
+/* ★★ **기준본은 「어느 업체 것인가」를 함께 들고 있어야 한다** (v315 · 크롬 `run292` 가 잡았다).
+   같은 탭에서 **계정만 바꿔도 업체가 바뀐다**(v286 쪽지 — `getFbOrgId()` 가 `_userOrgId`·
+   `_driverOrg` 를 본다). 그때 `csQueueReset()` 은 **안 불린다**(로그아웃·차량 바뀜에서만 부른다).
+   앞 업체 기준본이 남아 있으면, 새 업체 동기화에서 **앞 업체 id 전부를 「지움」으로 계산**해
+   받은 새 업체 명단을 **깎아 없앤다** — 차량 id·«회원» id 는 업체 사이에 실제로 겹친다(v286).
+   실측(크롬): A → B 로 들어오면 **B 명단이 빈 화면**이 됐다.
+   → 기준본을 읽는 자리는 **`_lsBaseOf(key)` 한 곳**이고, 업체가 다르면 **없는 것으로 본다**
+     (= 서버가 이긴다 · v285 의 「서버가 이겨야 하는 때」에 한 줄 더). */
+var _lsBaseOrg = '';
+function _lsOrgNow(){
+  try{ return String((typeof getFbOrgId==='function' ? getFbOrgId() : '') || ''); }
+  catch(e){ return ''; }
+}
+function _lsBaseOf(key){
+  if(_lsBaseOrg && _lsBaseOrg !== _lsOrgNow()) return null;   /* 남의 업체 기준본은 안 쓴다 */
+  return _lsBase[key];
+}
+function _lsSetBase(key, arr){
+  var org = _lsOrgNow();
+  if(_lsBaseOrg !== org){                 /* 업체가 바뀌었다 — 앞 업체 기억을 버린다 */
+    LIST_KEYS.forEach(function(k){ _lsBase[k] = null; _lsFlight[k] = null; });
+    _lsBaseOrg = org;
+  }
+  try{ _lsBase[key] = JSON.parse(JSON.stringify(Array.isArray(arr) ? arr : [])); }
+  catch(e){ _lsBase[key] = []; }
+}
+function _lsLocal(key){
+  if(key === 'members') return loadMembers();
+  if(key === 'cars')    return loadCars();
+  if(key === 'staff')   return loadStaff();
+  return loadCourses();
+}
+function _lsIdOf(r){ return (r && r.id !== undefined && r.id !== null) ? String(r.id) : ''; }
+/* 견줄 때만 쓰는 꼴 — 탑승 토글 두 칸을 뺀다(원본은 rideState) */
+function _lsNorm(r){
+  try{
+    var o = JSON.parse(JSON.stringify(r || {}));
+    delete o.on; delete o.offOn;
+    return JSON.stringify(o);
+  }catch(e){ return ''; }
+}
+function listById(arr){
+  var o = {};
+  (Array.isArray(arr) ? arr : []).forEach(function(r){
+    var k = _lsIdOf(r); if(k) o[k] = r;
+  });
+  return o;
+}
+/* 기준본 B → 지금 로컬 L 의 차이. `fresh` = 기준본에 없던 id(내가 새로 만든 것) */
+function idDiff(B, L){
+  var b = listById(B), l = listById(L), put = {}, drop = [], fresh = {};
+  Object.keys(l).forEach(function(k){
+    if(!(k in b)){ put[k] = l[k]; fresh[k] = true; }
+    else if(_lsNorm(b[k]) !== _lsNorm(l[k])) put[k] = l[k];
+  });
+  Object.keys(b).forEach(function(k){ if(!(k in l)) drop.push(k); });
+  return { put: put, drop: drop, fresh: fresh };
+}
+function idPatchEmpty(p){
+  if(!p) return true;
+  return Object.keys(p.put || {}).length === 0 && (p.drop || []).length === 0;
+}
+/* 서버 값 R 위에 차이표를 얹는다 — **순서가 중요하다**: 지우기 먼저, 그다음 고치기·더하기.
+   ★ 「고친 것」은 **R 에 그 id 가 남아 있을 때만** 바꾼다(없으면 남이 지웠다 → 되살리지 않는다).
+   ★ 「새로 만든 것」(`fresh`)은 R 에 없으면 **뒤에 더한다**(내가 만든 것이라 지워진 것이 아니다). */
+function idApply(R, p){
+  var out = (Array.isArray(R) ? R : []).slice();
+  var dropSet = {};
+  (p && p.drop ? p.drop : []).forEach(function(k){ dropSet[String(k)] = true; });
+  out = out.filter(function(r){ return !dropSet[_lsIdOf(r)]; });
+  var at = {};
+  out.forEach(function(r, i){ at[_lsIdOf(r)] = i; });
+  Object.keys((p && p.put) || {}).forEach(function(k){
+    var rec = p.put[k];
+    if(at[k] !== undefined){ out[at[k]] = rec; return; }        /* 남아 있으면 바꾼다 */
+    if(p.fresh && p.fresh[k]) out.push(rec);                    /* 내가 새로 만든 것만 더한다 */
+    /* 그 밖(내가 고쳤지만 서버에서 사라진 것)은 **되살리지 않는다** — 지움이 이긴다 */
+  });
+  return out;
+}
+/* 받은 서버 값에 **아직 안 올린 내 변경**을 얹어 돌려준다(리스너·동기화가 쓴다 · v284 꼴) */
+function lsRebase(key, R, L, baseOverride){
+  try{
+    if(typeof isReadOnlyMode==='function' && isReadOnlyMode()) return R;
+    if(typeof isDemoMode==='function' && isDemoMode()) return R;
+    var B = (baseOverride === undefined) ? _lsBaseOf(key) : baseOverride;
+    if(B === null || B === undefined) return R;      /* 첫 로그인 — 서버가 이긴다 */
+    var p = idDiff(B, L || []);
+    if(idPatchEmpty(p)) return R;
+    return idApply(R, p);
+  }catch(e){ return R; }
+}
+/* 그 문서의 **바뀐 레코드만** 트랜잭션으로 얹는다 — `writeAttendancePatch` 와 같은 꼴 */
+async function writeListPatch(orgId, key, patch){
+  try{
+    var { doc, runTransaction, getDoc } = window._firestore;
+    if(!runTransaction){ console.log('runTransaction 없음 — 합치기 건너뜀: '+key); return false; }
+    var ref = doc(window._db, 'orgs', orgId, 'data', key);
+    try{
+      var _prev = await getDoc(ref);
+      if(_prev.exists() && !_skipBackup(key)) await _backupBeforeSave(orgId, key, (_prev.data()||{}).value);
+    }catch(e){ console.log('백업 건너뜀('+key+'):', e && e.message); }
+    /* 메아리 — 「보낸 값」을 적어 둔다(보낸 뒤에 또 고친 것이 사라지지 않게 · v284 ③) */
+    try{ _lsFlight[key] = idApply(JSON.parse(JSON.stringify(_lsBaseOf(key) || [])), patch); }
+    catch(e){ _lsFlight[key] = null; }
+    var written = await runTransaction(window._db, async function(tx){
+      var snap = await tx.get(ref);
+      var srv = [];
+      if(snap.exists()){
+        try{ srv = JSON.parse((snap.data()||{}).value || '[]'); }catch(e){ srv = []; }
+      }
+      if(!Array.isArray(srv)) srv = [];
+      var next = idApply(srv, patch);
+      tx.set(ref, { value: JSON.stringify(next), updatedAt: Date.now() });
+      return next;
+    });
+    _lsSetBase(key, written);                 /* 쓴 값이 새 기준본 */
+    _lsFlight[key] = null;
+    return true;
+  }catch(e){
+    _lsFlight[key] = null;
+    console.log('합쳐 쓰기 실패('+key+'):', e && e.message);
+    return false;
+  }
+}
+/* 저장 한 자리 — 차이표를 **첫 기다림 앞에서** 만들고(v283) 줄을 세워 쓴다.
+   막는 것은 종전 `saveToFirebase` 와 **같은 셋**(둘러보기·읽기 전용·첫 동기화)이다. */
+/* ★ `opt.whole === true` — **일부러 통째로** 쓰는 자리(복원·전체 삭제)에서 쓴다.
+   사람이 확인창을 지난 자리라 묻지 않고 덮고, **기준본을 그 값으로 맞춘다**(v295 꼴). */
+async function saveListKey(key, opt){
+  opt = opt || {};
+  if(LIST_KEYS.indexOf(key) < 0) return false;
+  if(typeof isDemoMode==='function' && isDemoMode()){ try{ demoBlockNotice(); }catch(e){} return false; }
+  if(typeof isReadOnlyMode==='function' && isReadOnlyMode()){ try{ readOnlyBlocked('바꾼 내용'); }catch(e){} return false; }
+  if(typeof okToWriteNow==='function' && !okToWriteNow()){ try{ firstSyncBlocked('바꾼 내용'); }catch(e){} return false; }
+  /* 기사·도우미는 이 키를 쓰지 않는다(규칙도 막는다 — `driverWritableKey` 가 0개다) */
+  if(currentMode==='driver') return false;
+  if(!window._db || !window._firestore) return false;
+  if(_lsSaving[key]){ _lsAgain[key] = true; return false; }      /* 줄 세우기 */
+  var local = _lsLocal(key);
+  if(opt.whole === true){                                       /* 일부러 통째로 */
+    _lsSaving[key] = true;
+    try{ await saveToFirebase(key, local); _lsSetBase(key, local); }
+    finally{ _lsSaving[key] = false; }
+    _lsAgain[key] = false;
+    return true;
+  }
+  /* 기준본을 아직 못 받았으면(첫 저장) **종전처럼 통째로** 쓴다 —
+     남의 레코드를 「지움」으로 셀 수 없기 때문이다(안전한 쪽). 쓴 값이 기준본이 된다. */
+  if(_lsBaseOf(key) === null){
+    _lsSaving[key] = true;
+    try{ await saveToFirebase(key, local); _lsSetBase(key, local); }
+    finally{ _lsSaving[key] = false; }
+    if(_lsAgain[key]){ _lsAgain[key] = false; try{ await saveListKey(key); }catch(e){} }
+    return true;
+  }
+  var patch = idDiff(_lsBaseOf(key), local);
+  if(idPatchEmpty(patch)) return true;                            /* 바뀐 것이 없으면 안 쓴다 */
+  /* ★ 「전부 비우기」는 종전처럼 **한 번 묻는다**(`saveToFirebase` 의 빈 값 가드와 같은 뜻) —
+     택배의 `courses` 처럼 로컬이 빈 자료일 수 있어, 말없이 지우면 안 된다. */
+  if(Object.keys(patch.put).length === 0 && patch.drop.length > 0
+     && (!Array.isArray(local) || local.length === 0)){
+    var okEmpty = true;
+    try{
+      okEmpty = window.confirm('⚠️ 주의\n\n['+key+'] 자료를 전부 비우려고 합니다.\n'
+        + '서버에 저장된 기존 자료가 모두 사라집니다.\n\n정말 비우시겠습니까?');
+    }catch(e){ okEmpty = true; }
+    if(!okEmpty) return false;
+  }
+  _lsSaving[key] = true;
+  var ok = false;
+  try{ ok = await writeListPatch(getFbOrgId(), key, patch); }
+  finally{ _lsSaving[key] = false; }
+  if(_lsAgain[key]){ _lsAgain[key] = false; try{ await saveListKey(key); }catch(e){} }
+  return ok;
+}
+
 /* ── 직원 근태(`data/staffAtt`)도 **바뀐 칸만** (43-C · v282) ──────────────
    ★★ 왜 — v275 에서 직원 근태를 `data/staffAtt` 로 떼어낼 때 **통째로(setDoc)** 썼다.
      43-C 부터 **서버가** 도우미 출퇴근을 그 문서에 찍으므로, 관리자가 아무 저장을 한 번 하면
@@ -1350,6 +1556,14 @@ function csQueueReset(){
   _csSaveAgain = false; _csSaveRun = null; _csSyncing = false; _csSyncDepth = 0;
   _csBase = {}; _saBase = null;              /* 기준본 — 다음 업체에 얹히지 않게 */
   _csFlight = {}; _saFlight = null;          /* 「보낸 값」 — 앞 업체 쓰기의 메아리 기준 */
+  /* ★★ v315(72-B): **배열+id 기준본·줄·메아리도 여기서 버린다** (로그아웃 짝).
+     안 버리면 앞 업체 기준본으로 다음 업체 서버값에 **그 변경을 얹는다** —
+     v286 에서 겪은 것과 **같은 꼴**이다(차량 id·«회원» id 가 업체 사이에 겹친다). */
+  _lsBase = { members: null, cars: null, staff: null, courses: null };
+  _lsFlight = { members: null, cars: null, staff: null, courses: null };
+  _lsSaving = { members: false, cars: false, staff: false, courses: false };
+  _lsAgain  = { members: false, cars: false, staff: false, courses: false };
+  _lsBaseOrg = '';                           /* 기준본이 어느 업체 것인지도 잊는다 */
 }
 
 /* 기사·도우미 폰의 「내 차량 몫」 — **저장과 얹기가 같은 함수**를 쓴다(두 벌로 베끼면 어긋난다) */
@@ -1678,7 +1892,7 @@ function loadCourses(){
     {id:'c2',name:'5~6시반',depart:'16:50',arrive:'17:00'}
   ];})();
 }
-function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));saveToFirebase('courses',c);rebuildCarData();}
+function saveCourses(c){localStorage.setItem('tkd_courses',JSON.stringify(c));saveListKey('courses');rebuildCarData();}   /* v315: 바뀐 레코드만 */
 let courses=loadCourses();
 
 // ── 차량 설정 ──
@@ -1693,7 +1907,7 @@ function loadCars(){
     {id:'car5',name:'5호차',driver:'',phone:'',plate:''},
   ];
 }
-function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveToFirebase('cars',c);rebuildCarData();}
+function saveCars(c){localStorage.setItem('tkd_cars',JSON.stringify(c));saveListKey('cars');rebuildCarData();}   /* v315: 바뀐 레코드만 */
 
 // ══════════ 직원(기사 외) — 근태·급여 (v241, 4업종 공통) ══════════
 // 저장 구조: tkd_staff = [{ id:'st'+Date.now(), name, phone, pin,
@@ -1705,7 +1919,7 @@ function loadStaff(){
   try{ var a=JSON.parse(localStorage.getItem('tkd_staff')||'[]'); return Array.isArray(a)?a:[]; }
   catch(e){ return []; }
 }
-function saveStaff(s){ localStorage.setItem('tkd_staff', JSON.stringify(s)); saveToFirebase('staff', s); }
+function saveStaff(s){ localStorage.setItem('tkd_staff', JSON.stringify(s)); saveListKey('staff'); }   /* v315: 바뀐 레코드만 */
 
 /* ── v255: 기사 급여 값을 `cars` 에서 떼어 냈다 ──────────────────────────
    v254 까지 시급·식대·공제방식·출퇴근거리가 `cars` 안에 있었고, 기사 폰이 `cars` 를
@@ -3224,7 +3438,7 @@ function loadMembers(){
    `saveCarState()` 는 지금 로컬 값을 **새 배정 기준으로** 다시 쪼개 전 차량에 쓰므로,
    그 «회원» 몫이 **옛 차량 문서에서 빠지고 새 차량 문서로 들어간다**(40-A 보고 7번 메모).
    배정을 바꾸는 길(회원 수정·빠른 배정·엑셀·차량 삭제)이 **모두 saveMembers 를 거친다.** */
-function saveMembers(){localStorage.setItem('tkd_members',JSON.stringify(members));saveToFirebase('members',members);rebuildCarData();saveCarState();}
+function saveMembers(opt){localStorage.setItem('tkd_members',JSON.stringify(members));saveListKey('members',opt);rebuildCarData();saveCarState();}   /* v315: 바뀐 레코드만 · opt.whole 이면 통째로 */
 let members=loadMembers();
 
 // ── 알림장 ──
@@ -4104,14 +4318,18 @@ function doWithdraw(){
   if(v!=='탈퇴'){ showErr('확인 칸에 «탈퇴» 두 글자를 적어주세요.'); return; }
   var u = window._auth && window._auth.currentUser;
   if(!u || !window._db || !window._firestore){ showErr('잠시 후 다시 시도해주세요.'); return; }
-  var d=window._firestore.doc, gd=window._firestore.getDoc, sd=window._firestore.setDoc;
+  /* ★★ v315(72-B): **그 두 칸만** 고친다(`updateDoc`).
+     전에는 읽기 → 고치기 → **전체 `setDoc`** 이었다. 그 사이 **서버가** 기간(`paidUntil`)이나
+     승인을 바꿨으면(`api/admin-account` 가 같은 문서를 쓴다) 보호 칸이 `affectedKeys()` 에
+     들어가 **쓰기 자체가 규칙에 거부되어 탈퇴가 실패했다**(에뮬레이터 `t72.mjs` ④ 로 실측).
+     이제는 바뀐 칸이 그 둘뿐이라 겹쳐도 통과한다 — 그리고 **서버 값을 안 건드린다**.
+     ★ 읽기(`getDoc`)는 그대로 둔다 — 「계정 정보를 찾지 못했습니다」 안내를 그대로 내기 위해서다. */
+  var d=window._firestore.doc, gd=window._firestore.getDoc, ud=window._firestore.updateDoc;
   var ref=d(window._db, 'users', u.uid);
   gd(ref)
     .then(function(snap){
       if(!snap.exists()) throw new Error('계정 정보를 찾지 못했습니다.');
-      var rec=snap.data();
-      rec.withdrawn=true; rec.withdrawnAt=Date.now();
-      return sd(ref, rec);
+      return ud(ref, { withdrawn: true, withdrawnAt: Date.now() });
     })
     .then(function(){
       var m=document.getElementById('wd-modal'); if(m) m.remove();
@@ -5001,12 +5219,15 @@ function masterTestAccessAsk(targetUid, orgName, on){
 async function masterTestAccessGo(targetUid, turnOn){
   var b=document.getElementById('mta-'+targetUid); if(b) b.remove();
   try{
-    /* 읽기 → 고치기 → 전체 setDoc.
-       v263: 규칙의 마스터 분기는 이제 **testAccess 하나만** 허용한다 —
-       이 자리는 testAccess 만 바꾸므로 그대로 통과한다(승인·기간은 서버가 쓴다).
-       (updateDoc·deleteField 는 이 앱이 import 하지 않는다. 규칙의 마스터 분기는
-        diff().affectedKeys() 로 **실제로 바뀐 키만** 보므로 전체 저장도 통과한다.) */
-    var d=window._firestore.doc, sd=window._firestore.setDoc, gd=window._firestore.getDoc;
+    /* ★★ v315(72-B): **`testAccess` 한 칸만** 고친다(`updateDoc` · 끌 때는 `deleteField()`).
+       v314 까지는 읽기 → 고치기 → **전체 `setDoc`** 이었다 — 그 사이 **서버가** 승인·연장·기간을
+       쓰면(`api/admin-account`) 보호 칸이 `affectedKeys()` 에 들어가 **쓰기가 거부됐다**
+       (그러면 「🧪 출입 켜기」가 실패한다 · 에뮬레이터 `t72.mjs` ④ 로 실측).
+       v263: 규칙의 마스터 분기는 **testAccess 하나만** 허용한다 — 바뀐 키가 그 하나뿐이라
+       `diff().affectedKeys()` 검사를 그대로 통과한다(에뮬레이터로 못 박았다).
+       ★ 읽기는 그대로 둔다 — 기사 계정·미승인 업체를 **먼저 가려 안내**해야 한다. */
+    var d=window._firestore.doc, gd=window._firestore.getDoc,
+        ud=window._firestore.updateDoc, df=window._firestore.deleteField;
     var ref=d(window._db, 'users', targetUid);
     var snap=await gd(ref);
     if(!snap.exists()){ alert('그 계정을 찾을 수 없어요.'); return; }
@@ -5014,8 +5235,7 @@ async function masterTestAccessGo(targetUid, turnOn){
     if(u.role==='driver'){ alert('기사 계정에는 테스트 출입을 줄 수 없어요.'); return; }
     if(u.approved!==true){ alert('먼저 승인된 업체여야 해요.'); return; }
     /* 끌 때는 **필드를 지운다** — false 로 남겨 두면 「켠 적 있음」이 흔적으로 남는다 */
-    if(turnOn){ u.testAccess = true; } else { delete u.testAccess; }
-    await sd(ref, u);
+    await ud(ref, { testAccess: turnOn ? true : df() });
     await loadSignupUsers();
     drawMasterPanel();
     alert(turnOn ? '🧪 테스트 출입을 켰어요.\n이 계정으로 _test 주소에 들어갈 수 있어요.'
@@ -5881,6 +6101,8 @@ var HELP_QA=[
    a:'1. 관리 → 대시보드 오른쪽 위 「비밀번호 변경」\n2. 지금 비밀번호와 새 비밀번호(6자 이상)를 넣으세요\n3. 로그인할 때 쓰는 비밀번호예요 (기기 비밀번호 1234 는 없앴어요 — 이제 계정 로그인만 써요)\n4. 휴대폰으로 가입한 계정도 비밀번호가 있어요 — 같은 자리에서 바꾸시면 돼요'},
   {role:'all', keys:['다른업체','남의자료','격리','보안'], t:'다른 업체 자료는 안 보이나요',
    a:'1. 안 보여요. 계정마다 자기 업체 자료만 열려요\n2. 주소(링크)를 알아도 자기 업체가 아니면 열리지 않아요\n3. 둘러보기(데모)는 누구나 볼 수 있지만 저장은 안 돼요'},
+  {role:'all', keys:['동시','둘이','같이쓰','두사람','두기기','덮어','사라져','섞여','동시수정'], t:'둘이 같은 시간에 고쳐도 되나요',
+   a:'1. 네, 됩니다 (v315) — <b>서로 다른 분·차량·직원·코스</b>를 같은 시간에 고치면 <b>둘 다 남아요</b>\n2. v314 까지는 명단을 <b>통째로</b> 올려서, 거의 같은 시간에 저장하면 <b>나중에 저장한 쪽이 앞사람 것을 지웠어요</b>\n3. 지금은 <b>바뀐 분(레코드)만</b> 올려요 — 내가 고친 분만 서버에 얹어요\n4. <b>같은 분을 둘이 고쳤으면 나중에 저장한 값이 남아요</b> (따로 알려 드리지는 않아요)\n5. <b>한쪽이 지운 분은 되살아나지 않아요</b> — 다른 쪽이 그 분을 고치던 중이었어도 지운 쪽을 따라가요\n6. 「복원」·「«회원» 전체 삭제」는 사람이 통째로 고른 자리라 <b>그대로 통째로</b> 바꿔요'},
   /* keys에 맨 '등록'·'추가'를 두면 「도장 등록」·「아이콘 추가」 같은 질문까지 끌어와서 뺐다 */
   {role:'admin', keys:['회원','거래처','회원등록','거래처등록','전체삭제','모두삭제'], t:'회원/거래처 등록',
    a:'1. 관리 → «회원» 탭 → 「＋ 등록」\n2. 주소는 꼭 「📍 검색」을 눌러 결과를 선택하세요 (위치 확정 안 되면 저장이 막혀요)\n3. 동·호수는 「상세 주소」 칸에 — 명세서·기사 화면에 함께 표시돼요\n4. <b>금액·수량 칸은 천단위 쉼표가 저절로 붙어요</b> (v301) — 「1234567」을 치면 <b>1,234,567</b> 로 보이고, 저장되는 값은 숫자예요. 쉼표를 지우지 않아도 됩니다\n5. <b>번호 칸에는 쉼표가 안 붙어요</b> — 출석 PIN·전화번호·사업자번호·계좌번호·송장번호는 적은 그대로예요\n5-1. <b>칸의 보기 글도 업종에 맞게 나와요</b> (v309) — 물류는 「예) 한빛상사」, 공공은 「예) 김복순」처럼 이름·주소·특이사항 보기가 업종에 맞춰 바뀌어요 (전에는 네 업종 모두 「예) 홍길동」이었어요). 업체명·도착지 이름·코스 이름·«알림장» 검색 칸도 같아요\n6. <b>지울 때</b>는 출석 PIN 이 있는 사람이면 서버에서 그 PIN 을 먼저 지워요 (v303) — 못 지우면 <b>삭제를 멈추고</b> 알려 드려요\n6-1. 여러 명을 골라 지울 때는 <b>된 사람만</b> 지워지고, 안 된 사람은 <b>남겨 두고</b> 「N명은 서버 PIN 을 못 지워 남겨 두었어요」라고 알려 드려요 (고른 표시도 그 사람만 남아 다시 누르면 그 사람만 시도해요)\n6-2. <b>「전체 삭제」는 백업 파일을 먼저 받아 둬요</b> (v304) — 지우기 전에 지금 자료가 파일로 저장되고, 그 다음에 서버 출석 PIN 을 지우고 명단을 비워요. 백업이 안 되면 <b>아무것도 지우지 않아요</b>\n6-3. 지운 결과는 <b>서버에도 바로 올라가요</b> (v304) — 전에는 그 기기에서만 지워져 새로고침하면 되살아났어요\n6-4. 들어온 직후(자료를 불러오는 중)에 지우기를 누르면 <b>「잠시만요 — 자료를 불러오는 중이라 삭제한 내용은 저장하지 않았어요」</b>가 떠요. 몇 초 뒤 다시 누르시면 돼요 (앞서 쓰던 자료가 섞여 지워지지 않게 막는 거예요)'},
@@ -8836,7 +9058,9 @@ function resetData(){
     }
     /* ③ 성공한 사람만 지우고 **서버에도 저장**한다(`saveMembers`) */
     members=members.filter(function(m){ return okIds.indexOf(m.id)===-1; });
-    saveMembers();
+    /* ★ v315(72-B): 전체 삭제는 **일부러 통째로** 쓴다 — 사람이 이미 확인창을 지났으므로
+       「전부 비우기」를 **두 번 묻지 않는다**(기준본도 그 값으로 맞춘다). */
+    saveMembers({ whole: true });
     renderAdminTab('settings');
     if(failIds.length){
       if(firstErr && firstErr.why==='expired' && firstErr.message){ alert(firstErr.message); }
@@ -9277,8 +9501,14 @@ function restoreData(ev){
       var H = function(k){ return _dumpHas(dump, k); };
       // 메모리 변수 갱신 + Firebase 반영
       members = loadMembers(); if(H('tkd_members')) saveToFirebase('members', members);
+      /* ★ v315(72-B): 복원은 **일부러 통째로** 쓴다(사람이 확인창을 지났다) —
+         그래서 아래 `saveToFirebase` 를 그대로 쓰고 **기준본을 그 값으로 맞춘다**.
+         안 맞추면 다음 「바뀐 레코드만」 저장이 옛 기준본과 견줘 엉뚱한 지우기를 보낸다. */
+      if(H('tkd_members')) _lsSetBase('members', members);
       try { cars = JSON.parse(localStorage.getItem('tkd_cars')||'[]'); if(H('tkd_cars')) saveToFirebase('cars',cars); } catch(e2){}
+      if(H('tkd_cars')) _lsSetBase('cars', cars);                 /* v315 */
       try { courses = JSON.parse(localStorage.getItem('tkd_courses')||'[]'); if(H('tkd_courses')) saveToFirebase('courses',courses); } catch(e3){}
+      if(H('tkd_courses')) _lsSetBase('courses', courses);        /* v315 */
       orgSettings = loadOrgSettings();
       if(H('tkd_org')){
         saveToFirebase('org', orgSettings);
@@ -9302,6 +9532,7 @@ function restoreData(ev){
       var pym = localStorage.getItem('tkd_payroll_manual'); if(pym && H('tkd_payroll_manual')){ try{ saveToFirebase('payrollManual', JSON.parse(pym)); }catch(e10){} }
 
       var stf = localStorage.getItem('tkd_staff'); if(stf && H('tkd_staff')){ try{ saveToFirebase('staff', JSON.parse(stf)); }catch(e11){} }
+      if(stf && H('tkd_staff')){ try{ _lsSetBase('staff', JSON.parse(stf)); }catch(e11b){} }   /* v315 */
       var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy && H('tkd_driver_pay')){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 */
 
       var ivc = localStorage.getItem('tkd_invoices'); if(ivc && H('tkd_invoices')){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
@@ -19692,9 +19923,26 @@ async function _syncFromFirebaseOnce(){
   /* v250: 탑승·완료 토글은 rideState 에 따로 있다 — members 를 내려받은 뒤 덮어씌운다 */
   var fbRide = _merged ? _merged.rideState : null;
   if(fbRide){ localStorage.setItem('tkd_ridestate', JSON.stringify(fbRide)); }
-  if(fbMembers){ localStorage.setItem('tkd_members', JSON.stringify(fbMembers)); members = applyRideState(fbMembers); }
-  if(fbCars){ localStorage.setItem('tkd_cars', JSON.stringify(fbCars)); cars = fbCars; }
-  if(fbCourses){ localStorage.setItem('tkd_courses', JSON.stringify(fbCourses)); courses = fbCourses; }
+  /* ★★ v315(72-B): 배열+id 키는 **받은 값 + 아직 안 올린 내 변경**을 쓴다(v284 꼴) —
+     기준본은 **받은 서버값 그대로** 두고, 얹기는 **그 전 기준본**으로 센다(순서가 중요). */
+  if(fbMembers){
+    var _preMb = _lsBaseOf('members');
+    var _mbUse = lsRebase('members', fbMembers, loadMembers(), _preMb);
+    _lsSetBase('members', fbMembers);
+    localStorage.setItem('tkd_members', JSON.stringify(_mbUse)); members = applyRideState(_mbUse);
+  }
+  if(fbCars){
+    var _preCr = _lsBaseOf('cars');
+    var _crUse = lsRebase('cars', fbCars, loadCars(), _preCr);
+    _lsSetBase('cars', fbCars);
+    localStorage.setItem('tkd_cars', JSON.stringify(_crUse)); cars = _crUse;
+  }
+  if(fbCourses){
+    var _preCo = _lsBaseOf('courses');
+    var _coUse = lsRebase('courses', fbCourses, loadCourses(), _preCo);
+    _lsSetBase('courses', fbCourses);
+    localStorage.setItem('tkd_courses', JSON.stringify(_coUse)); courses = _coUse;
+  }
   if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
   if(fbPayments){ localStorage.setItem('tkd_payments', JSON.stringify(fbPayments)); }
   if(fbTax){ localStorage.setItem('tkd_tax', JSON.stringify(fbTax)); }
@@ -19724,7 +19972,12 @@ async function _syncFromFirebaseOnce(){
   var fbPayManual = await loadFromFirebase('payrollManual');
   if(fbPayManual){ localStorage.setItem('tkd_payroll_manual', JSON.stringify(fbPayManual)); }
   var fbStaff = await loadFromFirebase('staff');
-  if(fbStaff){ localStorage.setItem('tkd_staff', JSON.stringify(fbStaff)); }
+  if(fbStaff){
+    var _preSt = _lsBaseOf('staff');
+    var _stUse = lsRebase('staff', fbStaff, loadStaff(), _preSt);
+    _lsSetBase('staff', fbStaff);
+    localStorage.setItem('tkd_staff', JSON.stringify(_stUse));
+  }
   var fbAttTime = await loadFromFirebase('attendanceTime');
   if(fbAttTime){
     _atSetBase('attendanceTime', fbAttTime);
@@ -20024,13 +20277,29 @@ function startFirebaseListeners(){
          onSnapshot 은 **붙자마자 한 번** 부르고 관리자가 회원을 고칠 때마다 또 부른다.
          applyRideState 를 안 하면 그때마다 on·offOn 이 members 문서의 옛 값으로 되돌아간다.
          localStorage 에는 지금처럼 받은 data 를 그대로 둔다(토글은 tkd_ridestate 가 정본). */
-      if(key==='members'){ members=applyRideState(data); localStorage.setItem('tkd_members',JSON.stringify(data)); }
+      /* ★★ v315(72-B): 통째로 덮지 않는다 — 「서버값 + 아직 안 올린 내 변경」을 쓴다.
+         ★ 보내고 있는 쓰기가 있으면 **그 보낸 값**이 기준이다(내 메아리) — 그래야
+           「보낸 뒤에 또 고친 것」이 안 사라진다(v284 ③).
+         ★ 기준본은 **받은 서버값 그대로** 두고, 얹기는 **그 전 기준본**으로 센다. */
+      if(key==='members'){
+        var _mbUse2 = lsRebase('members', data, loadMembers(), _lsFlight['members'] || undefined);
+        _lsSetBase('members', data);
+        members=applyRideState(_mbUse2); localStorage.setItem('tkd_members',JSON.stringify(_mbUse2));
+      }
       else if(key==='rideState'){
         localStorage.setItem('tkd_ridestate',JSON.stringify(data));
         members=applyRideState(members);
       }
-      else if(key==='cars'){ cars=data; localStorage.setItem('tkd_cars',JSON.stringify(data)); }
-      else if(key==='courses'){ courses=data; localStorage.setItem('tkd_courses',JSON.stringify(data)); }
+      else if(key==='cars'){
+        var _crUse2 = lsRebase('cars', data, loadCars(), _lsFlight['cars'] || undefined);
+        _lsSetBase('cars', data);
+        cars=_crUse2; localStorage.setItem('tkd_cars',JSON.stringify(_crUse2));
+      }
+      else if(key==='courses'){
+        var _coUse2 = lsRebase('courses', data, loadCourses(), _lsFlight['courses'] || undefined);
+        _lsSetBase('courses', data);
+        courses=_coUse2; localStorage.setItem('tkd_courses',JSON.stringify(_coUse2));
+      }
       /* v272: 관리자는 `org`(전체), 기사는 요약 `orgDriver` — **섞이면 안 된다.**
          위에서 역할에 맞는 키만 붙이지만, 여기서 한 번 더 막는다(두 곳을 같이 본다).
          섞이면 나중에 온 쪽이 이겨 관리자의 계좌·도장이 사라진다 — v272 에서 실측. */
@@ -20074,7 +20343,11 @@ function startFirebaseListeners(){
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
       else if(key==='drivelogManual'){ localStorage.setItem('tkd_drivelog_manual',JSON.stringify(data)); }
       else if(key==='payrollManual'){ localStorage.setItem('tkd_payroll_manual',JSON.stringify(data)); }
-      else if(key==='staff'){ localStorage.setItem('tkd_staff',JSON.stringify(data)); }
+      else if(key==='staff'){
+        var _stUse2 = lsRebase('staff', data, loadStaff(), _lsFlight['staff'] || undefined);
+        _lsSetBase('staff', data);
+        localStorage.setItem('tkd_staff',JSON.stringify(_stUse2));
+      }
       else if(key==='attendanceTime'){
         var _atTL = loadAttendanceTime();
         var _atTUse2 = atRebase('attendanceTime', data, _atTL, _atBase['attendanceTime']);

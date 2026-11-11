@@ -44,6 +44,11 @@ function boot(src, opts) {
       return Promise.resolve({ exists: () => !!d, data: () => JSON.parse(JSON.stringify(d || {})) });
     },
     setDoc: (ref, data) => { saved.push([ref._p, data]); return Promise.resolve(); },
+    /* ★ v315(72-B): 테스트 출입은 **그 칸만** 고친다(`updateDoc`·`deleteField`) —
+       전에는 문서를 통째로 `setDoc` 했다. 받은 칸을 **같은 `saved` 자리**에 담아
+       아래 검사가 「무엇이 저장됐나」를 그대로 보게 한다(셋째 칸에 `'only'` 표시만 더한다). */
+    updateDoc: (ref, data) => { saved.push([ref._p, data, 'only']); return Promise.resolve(); },
+    deleteField: () => '__DEL__',
     deleteDoc: () => Promise.resolve(),
     collection: () => ({}), getDocs: () => Promise.resolve({ forEach: () => {} })
   };
@@ -195,11 +200,12 @@ const blocked = (R) => !!R.byId['testorg-blocked'];
     R.sandbox.masterCompanies = []; R.sandbox.masterInquiries = []; R.sandbox.signupUsers = [APPROVED];
     await R.sandbox.masterTestAccessGo('A1', true);
     await wait();
-    ck('setDoc 경로', (R.saved[0] || [])[0], 'users/A1');
+    ck('쓰기 경로', (R.saved[0] || [])[0], 'users/A1');
     ck('   testAccess:true 로 저장', ((R.saved[0] || [])[1] || {}).testAccess, true);
-    ck('   다른 값은 그대로 (orgId·approved·plan)',
-      JSON.stringify({ o: R.saved[0][1].orgId, a: R.saved[0][1].approved, p: R.saved[0][1].plan }),
-      '{"o":"academy_a1","a":true,"p":"trial"}');
+    /* ★ v315: 「다른 값은 그대로」를 **보내는 칸이 그것 하나뿐인가**로 잰다 —
+       통째로 보내지 않으므로 `orgId`·`approved`·`plan` 은 애초에 요청에 없다(그래서 안 덮인다). */
+    ck('   보내는 칸은 `testAccess` 하나뿐', JSON.stringify(Object.keys(R.saved[0][1])), '["testAccess"]');
+    ck('   그 칸만 고치는 길로 보냈다', (R.saved[0] || [])[2], 'only');
     ck('   알림 문구', /테스트 출입을 켰어요/.test(R.alerts.join('\n')), true);
   }
   {
@@ -209,9 +215,10 @@ const blocked = (R) => !!R.byId['testorg-blocked'];
     R.sandbox.masterCompanies = []; R.sandbox.masterInquiries = []; R.sandbox.signupUsers = [];
     await R.sandbox.masterTestAccessGo('A1', false);
     await wait();
-    ck('끄면 testAccess 키가 **사라지나**',
-      Object.prototype.hasOwnProperty.call(R.saved[0][1], 'testAccess'), false);
+    /* ★ v315: 끄기는 **칸을 지우는 표시**(`deleteField()`)를 보낸다 — false 로 남기지 않는다 */
+    ck('끄면 **칸을 지우는 표시**를 보내나', R.saved[0][1].testAccess, '__DEL__');
     ck('   false 로 남겨 두지 않는다', R.saved[0][1].testAccess === false, false);
+    ck('   보내는 칸도 그것 하나뿐', JSON.stringify(Object.keys(R.saved[0][1])), '["testAccess"]');
     ck('   알림 문구', /테스트 출입을 껐어요/.test(R.alerts.join('\n')), true);
   }
   {
@@ -238,7 +245,8 @@ const blocked = (R) => !!R.byId['testorg-blocked'];
     const R = boot(NEW, { org: 'admin', uid: 'MASTER', isMaster: true,
       docs: { 'users/A1': { orgId: 'academy_a1', approved: true } } });
     R.sandbox.signupUsers = []; R.sandbox.masterCompanies = []; R.sandbox.masterInquiries = [];
-    R.win._firestore.setDoc = () => { const e = new Error('x'); e.code = 'permission-denied'; return Promise.reject(e); };
+    /* ★ v315(72-B): 쓰는 길이 `updateDoc` 으로 바뀌었다 — **거부를 내는 자리도** 그쪽이다 */
+    R.win._firestore.updateDoc = () => { const e = new Error('x'); e.code = 'permission-denied'; return Promise.reject(e); };
     await R.sandbox.masterTestAccessGo('A1', true);
     await wait();
     ck('permission-denied → 규칙 미게시 안내',

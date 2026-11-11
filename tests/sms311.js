@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드68 보정2 — **문자 속 긴 사진 주소 → 짧은 「알림장 보기」 하나** ·
    **문자 글에서 그림 글자 빼기** (v311).
    ① 재현 — 옛 판 문자 본문에 「문자에 못 실리는 글자」가 몇 개인가(전수 표)
@@ -317,7 +317,9 @@ const smsBodyOf = (p) => {
     ck('  (대조) 옛 문답표에는 둘 다 없다',
       [/「▶ «알림장» 보기:」/, /그림 글자\(이모지\)를 넣지 않아요/].filter((r) => r.test(QA(OLD_SRC))).length, 0);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로', qaN(srcAt(THIS_REF_311)), qaN(OLD_SRC));
     const CM = F('CLAUDE.md');
     ck('★ CLAUDE.md — 문자에는 그림 글자를 넣지 않는다',
       /문자\(SMS\/LMS\)에는 그림 글자를 넣지 않는다/.test(CM), true);

@@ -1,0 +1,15 @@
+{
+ "self.withdraw.fieldsOnly": "allow",
+ "master.testAccess.on": "allow",
+ "master.testAccess.off": "allow",
+ "race.fieldsOnly": "allow",
+ "old.wholeDoc.race": "deny",
+ "old.wholeDoc.calm": "allow",
+ "self.paidUntil": "deny",
+ "self.testAccess": "deny",
+ "self.approved": "deny",
+ "self.orgId": "deny",
+ "self.other": "deny",
+ "master.paidUntil": "deny",
+ "master.testAccessPlus": "deny"
+}

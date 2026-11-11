@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드63 — **삭제 단순판** (v304).
    사장님 판단(11-10 01:04~01:08): 62-B(서버가 스스로 맞대어 지우는 장치)는 복잡하다 →
    **지우는 눈에 보이는 자리**에서 처리한다.
@@ -549,7 +549,13 @@ const DUMP = (over) => {
       [/먼저 해제해 주세요/, /백업 파일을 먼저 받아 둬요/, /돌아온 분들은 PIN/,
        /자료를 불러오는 중이라 삭제한/].filter((r) => r.test(QAO)).length, 0);
     const qaN = (s) => (s.match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로(네 항목의 글만 늘렸다)', qaN(QA), qaN(QAO));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    const QAR = (() => { const t = srcAt(THIS_REF);
+      const i = t.indexOf('var HELP_QA=[');
+      const end = String.fromCharCode(10) + '];';
+      return i < 0 ? '' : t.slice(i, t.indexOf(end, i)); })();
+    ck('  문답 항목 수는 그대로(네 항목의 글만 늘렸다)', qaN(QAR), qaN(QAO));
     /* CLAUDE.md 한 줄 */
     ck('★ CLAUDE.md 에 기본 점검 한 줄',
       /지우는 길을 새로 만들면 서버 칸\(PIN·기기·배정\)도 같이 지운다 · 연결된 것은 「먼저 해제」 안내/

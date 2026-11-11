@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드66 — **작은 것들** (v307).
    ① 사진 올리기 **두 곳** 문지기 — `uploadNoticeImages`(«알림장») · `uploadDriveLogPhoto`(운행 사진)
       · 재현: 둘러보기·첫 동기화 전에 **실제로 Storage 로 올라갔다**(읽기 전용만 막혀 있었다)
@@ -342,7 +342,9 @@ const HDR = [['코드', '품명', '규격', '단위', '과세구분', '메모', 
     ck('  (대조) 옛 문답표에는 둘 다 없다',
       [/사진은 저장과 같은 때만/, /두 벌로 쌓이지 않아요/].filter((r) => r.test(QA(OLD_SRC))).length, 0);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로', qaN(srcAt(THIS_REF)), qaN(OLD_SRC));
     ck('  CLAUDE.md 기본 점검 그대로',
       /지우는 길을 새로 만들면 서버 칸\(PIN·기기·배정\)도 같이 지운다/
         .test(fs.readFileSync(COS_ROOT + '/CLAUDE.md', 'utf8').replace(/\r\n/g, '\n')), true);

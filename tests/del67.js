@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드67-B — **모든 자료는 업체별로 분리·저장** (v308).
    ① 사진 경로가 **업체별**인가(`orgs/<업체>/notice-images|drivelog-photos/…`) ·
       업종 글자로 만드는 자리 0 · 업체가 바뀌면 경로도 바뀌나 · v307 문지기 셋 그대로
@@ -352,7 +352,9 @@ const DUMP = (over) => {
       [/어느 업체 것인지 적혀요/, /표시가 없는 옛 파일이에요/, /업체별로 따로 보관/]
         .filter((r) => r.test(QA(OLD_SRC))).length, 0);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로', qaN(srcAt(THIS_REF)), qaN(OLD_SRC));
     ck('★ CLAUDE.md 에 「사진·파일도 업체 경로」 한 줄',
       /사진·파일도 업체 경로/.test(fs.readFileSync(COS_ROOT + '/CLAUDE.md', 'utf8').replace(/\r\n/g, '\n')), true);
   }

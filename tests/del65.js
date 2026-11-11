@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드65 — **복원은 백업에 있는 칸만** · **끊긴 코스는 「코스 없음」** (v306).
    63·64 의 원칙·함수를 재사용한다(새 꼴 0).
    ① 복원 — 백업에 **칸이 없는** 키는 폰도 서버도 **손대지 않는다**(v305 는 자격증 하나만 그랬다) ·
@@ -407,7 +407,9 @@ const savedVal = (p, k) => (p.L.saved.filter((x) => x.k === k)[0] || {}).v || ''
     ck('  (대조) 옛 문답표에는 둘 다 없다',
       [/이 백업에 없던 자료/, /코스 없음/].filter((r) => r.test(QA(OLD_SRC))).length, 0);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로', qaN(srcAt(THIS_REF)), qaN(OLD_SRC));
     ck('  CLAUDE.md 기본 점검 그대로',
       /지우는 길을 새로 만들면 서버 칸\(PIN·기기·배정\)도 같이 지운다/
         .test(fs.readFileSync(COS_ROOT + '/CLAUDE.md', 'utf8').replace(/\r\n/g, '\n')), true);

@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드68 — **보기 글·예시도 업종에 맞게** · **기본 원칙은 다섯 파일 전부** (v309).
    ① 보기 글(placeholder) — 네 업종에서 이름·주소·검색·코스·도착지 보기가 업종에 맞나 ·
       **한 벌**(`bizPlaceholders`·`noticeSearchPh`)이고 가지마다 적지 않나
@@ -258,7 +258,9 @@ const noCmt = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->
     ck('  (대조) 옛 문답표에 학생 이름 예시가 있었다',
       /이름 검색\(쉼표로 여러 명: 강하은,문소율\)/.test(QA(OLD_SRC)), true);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로', qaN(srcAt(THIS_REF)), qaN(OLD_SRC));
     const CM = F('CLAUDE.md');
     ck('★ CLAUDE.md — 연관은 같이 고친다',
       /연관은 찾아서 같이 고친다/.test(CM), true);

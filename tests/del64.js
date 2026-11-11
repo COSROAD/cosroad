@@ -1,6 +1,6 @@
 /* tests/ 로 옮김(코스로드53) — 저장소 루트는 이 줄로 찾는다(절대경로 금지). */
 const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 /* 코스로드64 — **같은 꼴 셋** (v305). 63 에서 만든 한 벌을 **재사용**한다(새 꼴 0).
    ① 코스(반) 삭제 — 그 코스를 쓰는 «회원» 이 있으면 **막음**(`courseLinkBlock`) ·
       확인 문구에 **코스 이름** · 맨 앞 문지기
@@ -391,7 +391,9 @@ const restore = async (p, dumpObj) => {
     ck('  (대조) 옛 문답표에는 둘 다 없다',
       [/이 코스에 «회원» N명/, /교육비 납입증명서 발급 이력/].filter((r) => r.test(QA(OLD_SRC))).length, 0);
     const qaN = (s) => (QA(s).match(/\{role:'(admin|driver|all)'/g) || []).length;
-    ck('  문답 항목 수는 그대로(두 항목의 글만 늘렸다)', qaN(NEW_SRC), qaN(OLD_SRC));
+    /* ★ v315(72-B): 이 수는 **그 회차 커밋에서** 잰다 — 작업트리로 재면
+       뒷 회차가 문답을 하나 더할 때마다 거짓으로 깨진다(공용 `srcAt` 한 벌). */
+    ck('  문답 항목 수는 그대로(두 항목의 글만 늘렸다)', qaN(srcAt(THIS_REF)), qaN(OLD_SRC));
     /* CLAUDE.md 기본 점검이 그대로 있나(63에서 넣은 줄) */
     ck('  CLAUDE.md 기본 점검 그대로',
       /지우는 길을 새로 만들면 서버 칸\(PIN·기기·배정\)도 같이 지운다/
