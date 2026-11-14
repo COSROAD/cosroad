@@ -701,7 +701,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 317;
+const APP_VERSION = 318;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -778,7 +778,15 @@ function saveOrgDriver(s){
     saveToFirebase('orgDriver', buildOrgDriver(s));
   }catch(e){}
 }
-function saveOrgSettings(s){localStorage.setItem('tkd_org',JSON.stringify(s));saveToFirebase('org',s);saveOrgDriver(s);}
+/* ★ v318(72-D): 업체 설정도 **바뀐 칸만** 쓴다(map 한 벌 · 깊이 1) — 계좌·도장·사업자번호
+   ·주소·지역(`addrSido`·`addrSigungu`)·발신번호·보험요율이 **한 문서**에 있어, 두 사람이
+   서로 다른 칸을 고치면 통째 쓰기는 **앞사람 칸을 지웠다**(v272 가 겪은 그 손실과 같은 자리).
+   ★ 기사용 요약(`orgDriver`)은 **저장 뒤 지금처럼 다시 만든다**(통째 · 만들어 낸 사본이다). */
+function saveOrgSettings(s){
+  localStorage.setItem('tkd_org',JSON.stringify(s));
+  saveMapKey('org');
+  saveOrgDriver(s);
+}
 
 /* ── 차량별 읽기용 사본 `orgs/{org}/carData/{carId}` (v274 · 40-B) ──────────────
    왜 — 기사 폰이 **업체 전체 명단**을 받고 있었다. `members` 는 기관 키 하나라
@@ -1286,11 +1294,16 @@ async function saveAttendanceKey(key){
      · 읽기 전용·둘러보기면 **얹지 않고 서버 값 그대로**(v285 한 자리와 같은 뜻)
    ★ `on`·`offOn` 은 **견줄 때 뺀다** — 그 둘의 원본은 `rideState`/`carState` 다(v274 쪽지).
      안 빼면 기사가 토글할 때마다 모든 «회원» 이 「바뀐 것」으로 보여 통째 쓰기와 같아진다. */
-var LIST_KEYS = ['members', 'cars', 'staff', 'courses'];
-var _lsBase = { members: null, cars: null, staff: null, courses: null };   /* 마지막으로 받은 서버 값 */
-var _lsFlight = { members: null, cars: null, staff: null, courses: null }; /* 보내고 있는 쓰기의 「보낸 값」 */
-var _lsSaving = { members: false, cars: false, staff: false, courses: false };
-var _lsAgain  = { members: false, cars: false, staff: false, courses: false };
+/* ★ v318(72-D): 넷을 더했다 — `notices`(«알림장») · `invoices`(거래명세서) · `products`(품목)
+     · `certificates`(자격증 이력). **같은 한 벌**을 쓴다(새 꼴 0).
+   ★ 목록이 길어졌으니 네 묶음은 **목록에서 만든다** — 손으로 적으면 하나를 빠뜨린다. */
+var LIST_KEYS = ['members', 'cars', 'staff', 'courses',
+                 'notices', 'invoices', 'products', 'certificates'];
+var _lsBase = {};      /* 마지막으로 받은 서버 값 */
+var _lsFlight = {};    /* 보내고 있는 쓰기의 「보낸 값」 */
+var _lsSaving = {};
+var _lsAgain  = {};
+LIST_KEYS.forEach(function(k){ _lsBase[k] = null; _lsFlight[k] = null; _lsSaving[k] = false; _lsAgain[k] = false; });
 /* ★★ **기준본은 「어느 업체 것인가」를 함께 들고 있어야 한다** (v315 · 크롬 `run292` 가 잡았다).
    같은 탭에서 **계정만 바꿔도 업체가 바뀐다**(v286 쪽지 — `getFbOrgId()` 가 `_userOrgId`·
    `_driverOrg` 를 본다). 그때 `csQueueReset()` 은 **안 불린다**(로그아웃·차량 바뀜에서만 부른다).
@@ -1342,9 +1355,52 @@ function _lsLocal(key){
   if(key === 'members') return loadMembers();
   if(key === 'cars')    return loadCars();
   if(key === 'staff')   return loadStaff();
+  if(key === 'notices')      return loadNotices();        /* v318 */
+  if(key === 'invoices')     return loadInvoices();
+  if(key === 'products')     return loadProducts();
+  if(key === 'certificates') return loadCertificates();
   return loadCourses();
 }
+/* 받은 값을 폰에 넣는다 — 동기화·리스너가 **이 한 곳**으로 쓴다(v318 · `_mpSaveLocal` 과 같은 꼴).
+   ★ `notices` 는 **전역**(`notices`)도 같이 바꿔야 한다 — 화면이 그 전역을 그린다. */
+function _lsSaveLocal(key, arr){
+  var a = Array.isArray(arr) ? arr : [];
+  var k = (key === 'members') ? 'tkd_members'
+        : (key === 'cars') ? 'tkd_cars'
+        : (key === 'staff') ? 'tkd_staff'
+        : (key === 'courses') ? 'tkd_courses'
+        : (key === 'notices') ? 'tkd_notices'
+        : (key === 'invoices') ? 'tkd_invoices'
+        : (key === 'products') ? 'tkd_products'
+        : 'tkd_certificates';
+  try{ localStorage.setItem(k, JSON.stringify(a)); }catch(e){}
+  try{
+    if(key === 'members') members = a;
+    else if(key === 'cars') cars = a;
+    else if(key === 'courses') courses = a;
+    else if(key === 'notices') notices = a;
+  }catch(e){}
+}
 function _lsIdOf(r){ return (r && r.id !== undefined && r.id !== null) ? String(r.id) : ''; }
+/* 배열에 **id 없는 레코드**가 있나 (v318 — 있으면 그 키는 통째로 쓴다 · `saveListKey` 쪽지) */
+function _lsHasNoId(arr){
+  if(!Array.isArray(arr)) return false;
+  for(var i=0;i<arr.length;i++){ if(!_lsIdOf(arr[i])) return true; }
+  return false;
+}
+/* 없는 `id` 를 **한 번만** 붙인다(멱등) — 붙였으면 참을 돌려준다.
+   ★ `products`(품목) 전용이다 — 나머지 일곱 키는 만들 때부터 `id` 가 있다(전수 확인).
+   ★ 옛 앱(v317 이하)이 통째로 써도 **id 는 같은 JSON 안에 있어 남는다**(지워지지 않는다). */
+function ensureListIds(arr, prefix){
+  var changed = false;
+  (Array.isArray(arr) ? arr : []).forEach(function(r, i){
+    if(r && typeof r === 'object' && !_lsIdOf(r)){
+      r.id = (prefix || 'r') + '_' + Date.now() + '_' + i;
+      changed = true;
+    }
+  });
+  return changed;
+}
 /* 견줄 때만 쓰는 꼴 — 탑승 토글 두 칸을 뺀다(원본은 rideState) */
 function _lsNorm(r){
   try{
@@ -1418,6 +1474,7 @@ async function writeListPatch(orgId, key, patch){
     try{ _lsFlight[key] = idApply(JSON.parse(JSON.stringify(_lsBaseOf(key) || [])), patch); }
     catch(e){ _lsFlight[key] = null; }
     var _seq = _baseSeq;                       /* v317: 기준본 덮기 순서 */
+    var _preB = _lsBaseOf(key);                /* v318: 쓰기 전 기준본(아래 합치기에 쓴다) */
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = [];
@@ -1432,6 +1489,17 @@ async function writeListPatch(orgId, key, patch){
     /* ★★ v317(72-C): 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면**
        덮지 않는다 — 덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다. */
     if(_baseSeq === _seq) _lsSetBase(key, written);  /* 쓴 값이 새 기준본 */
+    /* ★★ v318(72-D): **쓴 값(합친 결과)을 폰에도 넣는다.**
+       왜 — 트랜잭션이 돌려준 값에는 **남의 레코드**가 들어 있는데 폰에는 없다. 리스너가
+       오기 전에 저장이 한 번 더 일어나면, 다음 차이표가 그 레코드를 **「내가 지웠다」**로
+       세어 **남의 것을 지운다**(`pw262/run318.js` ⓒ 가 실제 크롬에서 잡았다 —
+       v315·v317 부터 있던 자리다). **화면을 다시 그리지는 않는다**(글자 넣는 중에 튀지 않게).
+       ★ 얹기는 **쓰기 전 기준본**으로 센다 — 그래야 「아직 안 올린 내 변경」만 남는다. */
+    /* ★ 쓴 값이 **배열이 아니면 폰을 건드리지 않는다** — 트랜잭션이 이상한 값을 돌려주면(망·흉내)
+       폰을 비울 수 있다(옛 묶음의 흉내가 `null` 을 돌려주어 «알림장» 이 비는 것을 보았다). */
+    if(Array.isArray(written)){
+      try{ _lsSaveLocal(key, lsRebase(key, written, _lsLocal(key), _preB)); }catch(e){}
+    }
     _lsFlight[key] = null;
     return true;
   }catch(e){
@@ -1466,8 +1534,14 @@ async function saveListKey(key, opt){
     return okW;
   }
   /* 기준본을 아직 못 받았으면(첫 저장) **종전처럼 통째로** 쓴다 —
-     남의 레코드를 「지움」으로 셀 수 없기 때문이다(안전한 쪽). 쓴 값이 기준본이 된다. */
-  if(_lsBaseOf(key) === null){
+     남의 레코드를 「지움」으로 셀 수 없기 때문이다(안전한 쪽). 쓴 값이 기준본이 된다.
+     ★★ v318(72-D): **기준본에 `id` 없는 레코드가 하나라도 있으면** 그 키도 통째로 쓴다.
+       왜 — `products`(품목)는 v317 까지 `id` 칸이 **없었다**. 폰에서 id 를 붙인 뒤
+       차이표를 만들면 서버의 **id 없는 줄은 셈에 안 들어가** 지워지지도 않고,
+       내 줄은 전부 「새로 만든 것」이 되어 **같은 품목이 두 벌**로 쌓인다(스텁으로 실측).
+       그래서 **id 를 붙이는 첫 저장만 통째**로 쓰고(= v317 과 같은 동작), 그 뒤부터 얹는다.
+       `tax` 줄 단위도 **같은 규칙**이다(`_taxMonthHasNoId` — 그 달만 통째). */
+  if(_lsBaseOf(key) === null || _lsHasNoId(_lsBaseOf(key))){
     _lsSaving[key] = true;
     var okF = false;
     try{ okF = await saveToFirebase(key, local); if(okF) _lsSetBase(key, local); }
@@ -1514,14 +1588,17 @@ async function saveListKey(key, opt){
        한쪽 줄이 사라질 수 있다. 더 잘게 쪼개려면 수입·지출 줄에 **id** 가 있어야 한다(72-D/E).
    ★ 경로 잇는 글자는 `\u0001` — 키 글자(`_`·`-`)와 겹치지 않는다. 이 경로는 **메모리에서만**
      쓰고 서버에는 **원래 모양 그대로** 저장한다(저장 모양 0줄). */
-var MAP_KEYS = ['payments', 'tax', 'driverPay', 'drivelogManual', 'payrollManual'];
+/* ★ v318(72-D): **`org`(업체 설정)** 을 더했다 — 깊이 1 이라 **칸 하나가 레코드**다.
+   ★ 그리고 **`tax` 는 줄 단위**가 되었다(아래 `taxFlat` 쪽지) — 깊이 표에서는 1 로 남겨 두고
+     줄 쪼개기를 `MAP_ROWS` 가 따로 적는다(그 달 안의 `income`·`expense` 배열). */
+var MAP_KEYS = ['payments', 'tax', 'driverPay', 'drivelogManual', 'payrollManual', 'org'];
 var MAP_SEP = '\u0001';
 var MAP_DEPTH = { payments: 1, tax: 1, driverPay: 1, drivelogManual: 2,
-                  payrollManual: { holidays: 2, cars: 3 } };
-var _mpBase   = { payments: null, tax: null, driverPay: null, drivelogManual: null, payrollManual: null };
-var _mpFlight = { payments: null, tax: null, driverPay: null, drivelogManual: null, payrollManual: null };
-var _mpSaving = { payments: false, tax: false, driverPay: false, drivelogManual: false, payrollManual: false };
-var _mpAgain  = { payments: false, tax: false, driverPay: false, drivelogManual: false, payrollManual: false };
+                  payrollManual: { holidays: 2, cars: 3 }, org: 1 };
+/* 「그 달 안에서 **줄마다** 쪼갤 칸」 — `tax` 하나다(v318) */
+var MAP_ROWS = { tax: ['income', 'expense'] };
+var _mpBase = {}, _mpFlight = {}, _mpSaving = {}, _mpAgain = {};
+MAP_KEYS.forEach(function(k){ _mpBase[k] = null; _mpFlight[k] = null; _mpSaving[k] = false; _mpAgain[k] = false; });
 /* 그 키·그 첫 칸의 깊이 */
 function _mpDepth(key, firstSeg){
   var d = MAP_DEPTH[key];
@@ -1540,6 +1617,7 @@ function _mpSetBase(key, obj){
   catch(e){ _mpBase[key] = {}; }
 }
 function _mpLocal(key){
+  if(key === 'org')            return loadOrgSettings();      /* v318 */
   if(key === 'payments')       return loadPayments();
   if(key === 'tax')            return loadTaxData();
   if(key === 'driverPay')      return loadDriverPay();
@@ -1548,6 +1626,12 @@ function _mpLocal(key){
 }
 /* 받은 값을 폰에 넣는다 — 동기화·리스너가 이 한 곳으로 쓴다(키 이름을 가지마다 적지 않게) */
 function _mpSaveLocal(key, obj){
+  /* ★ v318: `org` 은 **전역 `orgSettings` 도** 같이 바꾼다(화면이 그 전역을 읽는다) */
+  if(key === 'org'){
+    try{ localStorage.setItem('tkd_org', JSON.stringify(obj || {})); }catch(e){}
+    try{ orgSettings = obj || {}; }catch(e){}
+    return;
+  }
   var k = (key === 'payments') ? 'tkd_payments'
         : (key === 'tax') ? 'tkd_tax'
         : (key === 'driverPay') ? 'tkd_driver_pay'
@@ -1555,10 +1639,67 @@ function _mpSaveLocal(key, obj){
         : 'tkd_payroll_manual';
   try{ localStorage.setItem(k, JSON.stringify(obj || {})); }catch(e){}
 }
+/* ══ 그 달 안의 「줄」까지 쪼갠다 (v318 · 코스로드72-D · `tax` 하나) ══════════════
+   ★★ 왜 — v317 은 `tax` 를 **그 달 통째**로 한 레코드로 셌다(72-C 보고문의 한계 1번).
+     그래서 같은 달 수입·지출을 두 사람이 고치면 **나중 저장이 앞사람 줄을 지웠다.**
+   ★ 줄에는 **id 가 없었다** → `ensureTaxIds()` 가 저장 때 **없는 것만 한 번** 붙인다(멱등).
+   ★★ **옛 줄(id 없음)이 섞인 달은 「그 달 통째」로 센다** — 한쪽만 줄로 쪼개면 서로 못 맞춰
+     **같은 줄이 두 벌로 쌓인다**(스텁으로 실측). 그 달만 v317 처럼 동작하고, 한 번 저장되면
+     (id 가 붙어 서버로 올라가면) 그 뒤부터 줄 단위로 얹는다. 옛 앱(v317 이하)이 통째로 써도
+     **id 는 같은 JSON 안에 있어 지워지지 않는다.** */
+function _mapRows(key){ return MAP_ROWS[key] || null; }
+/* 그 달의 줄에 **모두 id 가 있나** — 하나라도 없으면 그 달은 통째로 센다 */
+function _rowsAllHaveId(mv, rows){
+  if(!mv || typeof mv !== 'object' || Array.isArray(mv)) return false;
+  for(var i=0;i<rows.length;i++){
+    var a = mv[rows[i]];
+    if(a === undefined || a === null) continue;
+    if(!Array.isArray(a)) return false;
+    for(var j=0;j<a.length;j++){ if(!_lsIdOf(a[j])) return false; }
+  }
+  return true;
+}
+/* 없는 줄 id 를 **한 번만** 붙인다(멱등) — 붙였으면 참 */
+function ensureTaxIds(data){
+  var rows = _mapRows('tax'), changed = false;
+  if(!rows || !data || typeof data !== 'object') return false;
+  Object.keys(data).forEach(function(M){
+    var mv = data[M];
+    if(!mv || typeof mv !== 'object' || Array.isArray(mv)) return;
+    rows.forEach(function(t){
+      if(Array.isArray(mv[t]) && ensureListIds(mv[t], 't')) changed = true;
+    });
+  });
+  return changed;
+}
+/* 그 달이 줄 단위로 쪼개지나(= 옛 줄이 없나) — 보고문·검사에서 쓴다 */
+function taxMonthSplit(data, M){
+  var rows = _mapRows('tax');
+  return !!(rows && _rowsAllHaveId((data || {})[M], rows));
+}
 /* 깊이까지 펼친다 — { '경로': 그 아래 통째 } */
 function mapFlat(obj, key){
   var out = {};
-  var walk = function(o, path, depth, firstSeg){
+  var rows = _mapRows(key);
+  if(rows){                                   /* v318: 달 → 줄(id) */
+    var src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+    Object.keys(src).forEach(function(M){
+      var mv = src[M];
+      if(!_rowsAllHaveId(mv, rows)){ out[M] = mv; return; }   /* 옛 줄이 섞였다 → 그 달 통째 */
+      Object.keys(mv).forEach(function(f){
+        if(rows.indexOf(f) >= 0){
+          (mv[f] || []).forEach(function(r){ out[M + MAP_SEP + f + MAP_SEP + _lsIdOf(r)] = r; });
+        } else { out[M + MAP_SEP + f] = mv[f]; }
+      });
+      /* ★★ **줄이 하나도 없는 달은 아무것도 내지 않는다** — 처음에는 「그 달 자리」를 남기려고
+         `out[M] = mv` 를 넣었는데, 그러면 **내가 그 달 마지막 줄을 지울 때 그 달을 통째로**
+         쓰게 되어 **남의 줄이 같이 지워졌다**(`tests/d318.js` ⑤ 가 잡았다).
+         빈 달은 자료가 없는 것과 같다(`loadTaxData` 가 없는 달을 알아서 다룬다). */
+    });
+    return out;
+  }
+  var walk =
+ function(o, path, depth, firstSeg){
     if(!o || typeof o !== 'object' || Array.isArray(o)){ out[path.join(MAP_SEP)] = o; return; }
     Object.keys(o).forEach(function(k){
       var p2 = path.concat([k]);
@@ -1576,7 +1717,8 @@ function mapDiff(base, now, key){
     if(!(p in b) || _csJson(b[p]) !== _csJson(l[p])) put[p] = l[p];
   });
   Object.keys(b).forEach(function(p){ if(!(p in l)) drop.push(p); });
-  return { put: put, drop: drop };
+  /* ★ v318: **어느 키의 차이표인가**를 적어 둔다 — `mapApply` 가 줄 갈래를 가린다 */
+  return { put: put, drop: drop, key: key };
 }
 function mapPatchEmpty(p){
   if(!p) return true;
@@ -1591,8 +1733,18 @@ function mapApply(R, p){
   var out;
   try{ out = JSON.parse(JSON.stringify((R && typeof R==='object' && !Array.isArray(R)) ? R : {})); }
   catch(e){ out = {}; }
+  var rows = _mapRows(p && p.key);           /* v318: 줄 단위 키(`tax`)인가 */
+  var isRow = function(segs){ return !!(rows && segs.length === 3 && rows.indexOf(segs[1]) >= 0); };
   (p && p.drop ? p.drop : []).forEach(function(path){
     var segs = String(path).split(MAP_SEP), cur = out, stack = [];
+    if(isRow(segs)){                          /* 그 줄만 뺀다 — 달 모양(income/expense)은 남긴다 */
+      var mv0 = out[segs[0]];
+      if(mv0 && typeof mv0 === 'object' && Array.isArray(mv0[segs[1]])){
+        mv0[segs[1]] = mv0[segs[1]].filter(function(r){ return _lsIdOf(r) !== segs[2]; });
+      }
+      return;
+    }
+
     for(var i=0;i<segs.length-1;i++){
       if(!cur || typeof cur !== 'object') return;
       stack.push([cur, segs[i]]);
@@ -1609,7 +1761,17 @@ function mapApply(R, p){
   });
   Object.keys((p && p.put) || {}).forEach(function(path){
     var segs = String(path).split(MAP_SEP), cur = out;
+    if(isRow(segs)){                          /* 같은 id 면 바꾸고, 없으면 뒤에 더한다 */
+      if(!out[segs[0]] || typeof out[segs[0]] !== 'object' || Array.isArray(out[segs[0]])) out[segs[0]] = {};
+      var mv1 = out[segs[0]];
+      if(!Array.isArray(mv1[segs[1]])) mv1[segs[1]] = [];
+      var at = -1;
+      mv1[segs[1]].forEach(function(r, i){ if(_lsIdOf(r) === segs[2]) at = i; });
+      if(at >= 0) mv1[segs[1]][at] = p.put[path]; else mv1[segs[1]].push(p.put[path]);
+      return;
+    }
     for(var i=0;i<segs.length-1;i++){
+
       if(!cur[segs[i]] || typeof cur[segs[i]] !== 'object' || Array.isArray(cur[segs[i]])) cur[segs[i]] = {};
       cur = cur[segs[i]];
     }
@@ -1642,6 +1804,7 @@ async function writeMapPatch(orgId, key, patch){
     try{ _mpFlight[key] = mapApply(JSON.parse(JSON.stringify(_mpBaseOf(key) || {})), patch); }
     catch(e){ _mpFlight[key] = null; }
     var _seq = _baseSeq;                 /* ★ 기준본 덮기 순서 — 아래 쪽지 */
+    var _preB = _mpBaseOf(key);          /* v318: 쓰기 전 기준본(아래 합치기에 쓴다) */
     var written = await runTransaction(window._db, async function(tx){
       var snap = await tx.get(ref);
       var srv = {};
@@ -1656,6 +1819,16 @@ async function writeMapPatch(orgId, key, patch){
     /* ★★ 기다리는 사이 **리스너가 더 새 서버값으로 기준본을 바꿨으면** 덮지 않는다
        (덮으면 기준본이 뒤처져 다음 차이표가 남의 변경을 「지움」으로 센다 · 72-B 예외 3번). */
     if(_baseSeq === _seq) _mpSetBase(key, written);
+    /* ★★ v318(72-D): **쓴 값(합친 결과)을 폰에도 넣는다.**
+       왜 — 트랜잭션이 돌려준 값에는 **남의 레코드**가 들어 있는데 폰에는 없다. 리스너가
+       오기 전에 저장이 한 번 더 일어나면, 다음 차이표가 그 레코드를 **「내가 지웠다」**로
+       세어 **남의 것을 지운다**(`pw262/run318.js` ⓒ 가 실제 크롬에서 잡았다 —
+       v315·v317 부터 있던 자리다). **화면을 다시 그리지는 않는다**(글자 넣는 중에 튀지 않게).
+       ★ 얹기는 **쓰기 전 기준본**으로 센다 — 그래야 「아직 안 올린 내 변경」만 남는다. */
+    /* ★ 쓴 값이 **묶음(객체)이 아니면 폰을 건드리지 않는다**(위 배열 쪽과 같은 까닭) */
+    if(written && typeof written === 'object' && !Array.isArray(written)){
+      try{ _mpSaveLocal(key, mpRebase(key, written, _mpLocal(key), _preB)); }catch(e){}
+    }
     _mpFlight[key] = null;
     return true;
   }catch(e){
@@ -1822,10 +1995,12 @@ function csQueueReset(){
   /* ★★ v315(72-B): **배열+id 기준본·줄·메아리도 여기서 버린다** (로그아웃 짝).
      안 버리면 앞 업체 기준본으로 다음 업체 서버값에 **그 변경을 얹는다** —
      v286 에서 겪은 것과 **같은 꼴**이다(차량 id·«회원» id 가 업체 사이에 겹친다). */
-  _lsBase = { members: null, cars: null, staff: null, courses: null };
-  _lsFlight = { members: null, cars: null, staff: null, courses: null };
-  _lsSaving = { members: false, cars: false, staff: false, courses: false };
-  _lsAgain  = { members: false, cars: false, staff: false, courses: false };
+  /* ★★ v318(72-D): **목록에서 돌린다** — v315 는 네 키를 **손으로 적어** 두었고, 72-D 에서
+     키가 여덟이 되자 새 넷(«알림장»·거래명세서·품목·자격증)이 **안 비워졌다**
+     (`tests/d318.js` ⑦ 이 돌려서 잡았다 · 소스 글자만 보면 못 잡는다).
+     map 꼴은 v317부터 `MAP_KEYS.forEach` 였다 — 같은 꼴로 맞췄다. */
+  LIST_KEYS.forEach(function(k){ _lsBase[k] = null; _lsFlight[k] = null;
+                                 _lsSaving[k] = false; _lsAgain[k] = false; });
   /* ★★ v317(72-C): map 꼴 다섯 기준본·줄·메아리도 여기서 버린다(로그아웃 짝) */
   MAP_KEYS.forEach(function(k){ _mpBase[k] = null; _mpFlight[k] = null;
                                 _mpSaving[k] = false; _mpAgain[k] = false; });
@@ -3834,7 +4009,12 @@ let members=loadMembers();
 function loadNotices(){
   try{ var d=localStorage.getItem('tkd_notices'); return d?JSON.parse(d):[]; }catch(e){ return []; }
 }
-function saveNotices(){ localStorage.setItem('tkd_notices',JSON.stringify(notices)); saveToFirebase('notices',notices); }
+function saveNotices(){
+  localStorage.setItem('tkd_notices',JSON.stringify(notices));
+  /* v318(72-D): 바뀐 «알림장» 만 — 공유 스냅샷 칸(`shareToken`·`shareTs`·`shareSig` · v311)도
+     그 레코드 **안에** 있어 함께 간다(얹기에서 빠지지 않는다 · `tests/d318.js` ②가 지킨다). */
+  saveListKey('notices');
+}
 let notices=loadNotices();
 let nextId=Math.max(...members.map(m=>m.id),0)+1;
 
@@ -9901,13 +10081,15 @@ function restoreData(ev){
       orgSettings = loadOrgSettings();
       if(H('tkd_org')){
         saveToFirebase('org', orgSettings);
+        _mpSetBase('org', orgSettings);    /* v318: 쓴 값이 기준본(복원은 일부러 통째) */
         saveOrgDriver(orgSettings);        /* v272: 기사용 요약도 같이 되돌린다 */
       }
       /* 차량별 사본(v274)·차량별 운행 기록(v275)은 **그 재료가 들어왔을 때만** 다시 만든다 —
          재료가 그대로면 다시 만들어 올릴 것이 없고, 올리면 서버의 새 값을 덮는다. */
       if(H('tkd_members') || H('tkd_cars') || H('tkd_courses')) rebuildCarData();
       if(H('tkd_carlog') || H('tkd_ridestate') || H('tkd_driver_att')) saveCarState();
-      notices = loadNotices(); if(H('tkd_notices')) saveToFirebase('notices', notices);
+      notices = loadNotices();
+      if(H('tkd_notices')){ saveToFirebase('notices', notices); _lsSetBase('notices', notices); }   /* v318 */
       /* 알리고 키는 서버(Vercel)에만 보관합니다. 업로드하지 않습니다. */
       /* ★ v317(72-C): 복원은 **일부러 통째로** 쓴다(사람이 확인창을 지났다) —
          쓴 값을 **기준본으로 맞춘다**. 안 맞추면 다음 「바뀐 레코드만」 저장이
@@ -9927,8 +10109,8 @@ function restoreData(ev){
       if(stf && H('tkd_staff')){ try{ _lsSetBase('staff', JSON.parse(stf)); }catch(e11b){} }   /* v315 */
       var dpy = localStorage.getItem('tkd_driver_pay'); if(dpy && H('tkd_driver_pay')){ try{ saveToFirebase('driverPay', JSON.parse(dpy)); _mpSetBase('driverPay', JSON.parse(dpy)); }catch(e16){} }   /* v255 · v317 기준본 */
 
-      var ivc = localStorage.getItem('tkd_invoices'); if(ivc && H('tkd_invoices')){ try{ saveToFirebase('invoices', JSON.parse(ivc)); }catch(e13){} }
-      var prd = localStorage.getItem('tkd_products'); if(prd && H('tkd_products')){ try{ saveToFirebase('products', JSON.parse(prd)); }catch(e14){} }
+      var ivc = localStorage.getItem('tkd_invoices'); if(ivc && H('tkd_invoices')){ try{ saveToFirebase('invoices', JSON.parse(ivc)); _lsSetBase('invoices', JSON.parse(ivc)); }catch(e13){} }
+      var prd = localStorage.getItem('tkd_products'); if(prd && H('tkd_products')){ try{ saveToFirebase('products', JSON.parse(prd)); _lsSetBase('products', JSON.parse(prd)); }catch(e14){} }
       var atm = localStorage.getItem('tkd_attendance_time'); if(atm && H('tkd_attendance_time')){ try{ var _atmR=JSON.parse(atm); saveToFirebase('attendanceTime', _atmR); _atSetBase('attendanceTime', _atmR); }catch(e15){} }
       /* ★★ v305(코스로드64): 자격증 이력도 서버에 올린다 — 다만 **백업 파일이 그 칸을 들고
          왔을 때만**이다. 옛 백업(그 칸이 없는 파일)을 복원하면 위 `localStorage.setItem` 고리가
@@ -9937,7 +10119,7 @@ function restoreData(ev){
          ★ 다른 키들은 폰 값을 그대로 올리는 종전 길이다(이 회차에서 바꾸지 않았다 — 보고문 참고). */
       if(H('tkd_certificates')){                 /* v306: 판정을 `_dumpHas` 한 벌로 모았다 */
         var crt = localStorage.getItem('tkd_certificates');
-        if(crt){ try{ saveToFirebase('certificates', JSON.parse(crt)); }catch(e17){} }
+        if(crt){ try{ saveToFirebase('certificates', JSON.parse(crt)); _lsSetBase('certificates', JSON.parse(crt)); }catch(e17){} }
       }
       showToast('✅ 복원 완료! (백업일: '+(dump._date?dump._date.slice(0,10):'알수없음')+')');
       renderAdminTab('settings');
@@ -12310,8 +12492,11 @@ function loadTaxData(){
 }
 function saveTaxData(data){
   _localSaving = true;
+  /* ★ v318(72-D): 줄마다 **id** 를 한 번 붙인다(멱등) — 그래야 같은 달을 둘이 고쳐도
+     **다른 줄은 둘 다 남는다**. 옛 줄이 섞인 달은 `mapFlat` 이 그 달만 통째로 센다. */
+  ensureTaxIds(data);
   localStorage.setItem('tkd_tax',JSON.stringify(data));
-  saveMapKey('tax');               /* v317: 바뀐 레코드만(YYYY_MM) */
+  saveMapKey('tax');               /* v317: 바뀐 레코드만 · v318: 줄 단위 */
   setTimeout(function(){ _localSaving = false; }, 2000);
 }
 function addIncomeRecord(year, month, name, amount, category, link, method, dateStr){
@@ -13972,8 +14157,12 @@ function loadProducts(){
 }
 var prodEditIdx = null; // 품목 관리에서 인라인 편집 중인 항목 index (null이면 없음)
 function saveProducts(list){
+  /* ★ v318(72-D): 품목은 **`id` 칸이 없었다** — 얹어 쓰려면 레코드 이름이 있어야 한다.
+     없는 것만 **한 번** 붙인다(멱등) · 그 저장은 `saveListKey` 가 **통째로** 보낸다
+     (기준본에 id 없는 줄이 있으면 통째 — 두 벌로 쌓이지 않게 · 그 쪽지 참고). */
+  ensureListIds(list, 'p');
   localStorage.setItem('tkd_products', JSON.stringify(list));
-  saveToFirebase('products', list);
+  saveListKey('products');
 }
 function openProductManager(){
   var list = loadProducts();
@@ -14152,7 +14341,7 @@ function loadInvoices(){
 }
 function saveInvoicesList(list){
   localStorage.setItem('tkd_invoices', JSON.stringify(list));
-  saveToFirebase('invoices', list);
+  saveListKey('invoices');         /* v318: 바뀐 명세서만(id = 'inv_…') */
 }
 function saveInvoice(){
   if(!invoiceSelMember){ alert('거래처를 선택해주세요.'); return; }
@@ -16172,7 +16361,10 @@ function _certLabels(biz){
 }
 
 function loadCertificates(){ return JSON.parse(localStorage.getItem('tkd_certificates')||'[]'); }
-function saveCertificates(arr){ localStorage.setItem('tkd_certificates', JSON.stringify(arr)); saveToFirebase('certificates', arr); }
+function saveCertificates(arr){
+  localStorage.setItem('tkd_certificates', JSON.stringify(arr));
+  saveListKey('certificates');     /* v318: 바뀐 이력만(id = 발급번호) */
+}
 
 function _certEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _certComma(n){ return fmtNum(Number(n)||0); }   /* v301: 셈은 fmtNum 한 벌 */
@@ -20351,7 +20543,19 @@ async function _syncFromFirebaseOnce(){
     _lsSetBase('courses', fbCourses);
     localStorage.setItem('tkd_courses', JSON.stringify(_coUse)); courses = _coUse;
   }
-  if(fbOrg){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
+  /* ★★ v318(72-D): 업체 설정도 **받은 값 + 아직 안 올린 내 변경**(칸 단위 · v317 꼴).
+     ★ 기사·도우미가 받는 것은 **요약 `orgDriver`** 다(`fbOrg` 가 그것이다) — 기사는 쓰지
+       않으므로 얹지 않고 **그대로** 넣는다(기준본도 두지 않는다).
+     ★ 기준본은 **받은 서버값 그대로** 두고, 얹기는 **그 전 기준본**으로 센다(순서가 중요). */
+  if(fbOrg){
+    if(_drvMode){ localStorage.setItem('tkd_org', JSON.stringify(fbOrg)); orgSettings = fbOrg; }
+    else {
+      var _orgB = _mpBaseOf('org');
+      var _orgUse = mpRebase('org', fbOrg, _mpLocal('org'), _orgB);
+      _mpSetBase('org', fbOrg);
+      _mpSaveLocal('org', _orgUse);
+    }
+  }
   /* ★★ v317(72-C): map 꼴 다섯도 **받은 값 + 아직 안 올린 내 변경**을 쓴다(v315 꼴) —
      기준본은 **받은 서버값 그대로** 두고, 얹기는 **그 전 기준본**으로 센다(순서가 중요). */
   if(fbPayments){
@@ -20373,15 +20577,37 @@ async function _syncFromFirebaseOnce(){
     var _atUse = atRebase('attendance', fbAtt, loadAttendance(), _preAtBase.attendance);
     localStorage.setItem('tkd_attendance', JSON.stringify(_atUse));
   }
-  if(fbNotices){ localStorage.setItem('tkd_notices', JSON.stringify(fbNotices)); notices = fbNotices; }
+  /* v318(72-D): «알림장» 도 배열+id 한 벌로 — 공유 스냅샷 칸도 레코드 안에 있어 같이 간다 */
+  if(fbNotices){
+    var _ntB = _lsBaseOf('notices');
+    var _ntUse = lsRebase('notices', fbNotices, loadNotices(), _ntB);
+    _lsSetBase('notices', fbNotices);
+    _lsSaveLocal('notices', _ntUse);
+  }
   /* 알리고 키는 서버(Vercel)에만 있습니다. 클라우드에서 내려받지 않습니다. */
   try{ localStorage.removeItem('tkd_aligo'); }catch(e){}
   /* 43-C: 덮을 때 **도우미 자기 근태 키**는 챙긴다(driverAttSetLocal 쪽지 참고) */
   if(fbDriverAtt){ driverAttSetLocal(fbDriverAtt); }
   else { driverAttSetLocal({}); } // 이 업체에 기록 없으면 비움(다른 업체 기록 섞임 방지)
-  if(fbProducts){ localStorage.setItem('tkd_products', JSON.stringify(fbProducts)); }
-  if(fbInvoices){ localStorage.setItem('tkd_invoices', JSON.stringify(fbInvoices)); }
-  if(fbCerts){ localStorage.setItem('tkd_certificates', JSON.stringify(fbCerts)); }
+  /* v318(72-D): 품목·거래명세서·자격증 이력도 같은 한 벌 */
+  if(fbProducts){
+    var _prB = _lsBaseOf('products');
+    var _prUse = lsRebase('products', fbProducts, loadProducts(), _prB);
+    _lsSetBase('products', fbProducts);
+    _lsSaveLocal('products', _prUse);
+  }
+  if(fbInvoices){
+    var _ivB = _lsBaseOf('invoices');
+    var _ivUse = lsRebase('invoices', fbInvoices, loadInvoices(), _ivB);
+    _lsSetBase('invoices', fbInvoices);
+    _lsSaveLocal('invoices', _ivUse);
+  }
+  if(fbCerts){
+    var _crB = _lsBaseOf('certificates');
+    var _crUse = lsRebase('certificates', fbCerts, loadCertificates(), _crB);
+    _lsSetBase('certificates', fbCerts);
+    _lsSaveLocal('certificates', _crUse);
+  }
   var fbCarlog = _merged ? _merged.carlog : null;
   if(fbCarlog){ localStorage.setItem('tkd_carlog', JSON.stringify(fbCarlog)); }
   /* ★★ v284(58): 기준본과 로컬을 **다 맞췄다** — 여기서 구간을 닫고, 줄에 남은 저장을 한 번 돌린다.
@@ -20744,7 +20970,12 @@ function startFirebaseListeners(){
          위에서 역할에 맞는 키만 붙이지만, 여기서 한 번 더 막는다(두 곳을 같이 본다).
          섞이면 나중에 온 쪽이 이겨 관리자의 계좌·도장이 사라진다 — v272 에서 실측. */
       else if(key==='org'){
-        if(currentMode!=='driver'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
+        /* v318: 관리자만 받는다(기사는 `orgDriver` 가지로 온다) · 통째로 덮지 않고 얹는다 */
+        if(currentMode!=='driver'){
+          var _u = mpRebase('org', data, _mpLocal('org'), _mpFlight['org'] || undefined);
+          _mpSetBase('org', data);
+          _mpSaveLocal('org', _u);
+        }
       }
       else if(key==='orgDriver'){
         if(currentMode==='driver'){ orgSettings=data; localStorage.setItem('tkd_org',JSON.stringify(data)); }
@@ -20771,7 +21002,11 @@ function startFirebaseListeners(){
         _atSetBase('attendance', data);
         localStorage.setItem('tkd_attendance', JSON.stringify(_atUse2));
       }
-      else if(key==='notices'){ notices=data; localStorage.setItem('tkd_notices',JSON.stringify(data)); }
+      else if(key==='notices'){
+        var _u = lsRebase('notices', data, loadNotices(), _lsFlight['notices'] || undefined);
+        _lsSetBase('notices', data);
+        _lsSaveLocal('notices', _u);
+      }
       /* v275: 직원 근태만 따로 온다 — 기사 몫은 carState 리스너가 가져온다.
          화면이 보는 `tkd_driver_att` 는 **합친 것**이라 여기서 통째로 덮지 않고 직원 몫만 바꾼다. */
       else if(key==='staffAtt'){
@@ -20787,8 +21022,16 @@ function startFirebaseListeners(){
           localStorage.setItem('tkd_driver_att', JSON.stringify(_cur));
         }catch(e){}
       }
-      else if(key==='products'){ localStorage.setItem('tkd_products',JSON.stringify(data)); }
-      else if(key==='invoices'){ localStorage.setItem('tkd_invoices',JSON.stringify(data)); }
+      else if(key==='products'){
+        var _u = lsRebase('products', data, loadProducts(), _lsFlight['products'] || undefined);
+        _lsSetBase('products', data);
+        _lsSaveLocal('products', _u);
+      }
+      else if(key==='invoices'){
+        var _u = lsRebase('invoices', data, loadInvoices(), _lsFlight['invoices'] || undefined);
+        _lsSetBase('invoices', data);
+        _lsSaveLocal('invoices', _u);
+      }
       else if(key==='carlog'){ localStorage.setItem('tkd_carlog',JSON.stringify(data)); }
       else if(key==='drivelogManual'){
         var _u = mpRebase('drivelogManual', data, _mpLocal('drivelogManual'), _mpFlight['drivelogManual'] || undefined);
@@ -20819,7 +21062,11 @@ function startFirebaseListeners(){
         localStorage.setItem('tkd_attendance_time', JSON.stringify(_atTUse2));
       }
       /* ★ v290(59-B5): 자격증 — 올리기만 하던 키를 받기 쪽에도 넣었다 */
-      else if(key==='certificates'){ localStorage.setItem('tkd_certificates',JSON.stringify(data)); }
+      else if(key==='certificates'){
+        var _u = lsRebase('certificates', data, loadCertificates(), _lsFlight['certificates'] || undefined);
+        _lsSetBase('certificates', data);
+        _lsSaveLocal('certificates', _u);
+      }
       renderByTab();
     });
   });

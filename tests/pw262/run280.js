@@ -60,12 +60,20 @@ function seed(biz) {
         if(ref.col==='data' && d && d.value!==undefined) SERVER[ref.key]=JSON.parse(d.value);
       },
       deleteDoc:async function(){},
+      /* ★★ v318(72-D): 트랜잭션 가짜도 **그 컬렉션의 문서**를 읽고 쓴다.
+         v317 까지는 carState(window.__srv)만 보고 set 은 **아무것도 저장하지 않았다** —
+         그래서 data/cars 패치 쓰기가 「서버에 그 문서가 없다」로 보여 합친 값이 반쪽이었다.
+         v318 부터 앱이 **합친 값을 폰에도 넣으므로**, 가짜가 엉성하면 그 반쪽이 폰에 들어와
+         이 묶음이 ④⑤에서 거짓 실패했다(실제 앱은 서버 값을 제대로 읽는다). */
       runTransaction:async function(db, fn){
         return await fn({ get:async function(ref){
-            var v=window.__srv[ref.key];
+            var src = ref.col==='carState' ? window.__srv : SERVER;
+            var v = src[ref.key];
             return { exists:function(){return v!==undefined;},
                      data:function(){return {value:JSON.stringify(v)};} };
-          }, set:function(ref,d){ window.__writes.push('tx '+ref.col+'/'+ref.key); } });
+          }, set:function(ref,d){ window.__writes.push('tx '+ref.col+'/'+ref.key);
+            var dst = ref.col==='carState' ? window.__srv : SERVER;
+            if(d && d.value!==undefined) dst[ref.key] = JSON.parse(d.value); } });
       },
       onSnapshot:function(){ return function(){}; }
     };
