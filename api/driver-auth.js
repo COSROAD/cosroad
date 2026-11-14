@@ -718,6 +718,10 @@ export default async function handler(req, res) {
           okSent = !!(r && r.ok);
         } catch (e) { okSent = false; }
       }
+      /* ★★ v319(74-B): **조용한 자리에 기록 한 줄** — 하원은 이미 찍혔으니 응답은 막지 않지만,
+         중계(또는 알리고)가 죽으면 **아무 표시 없이 안 가던** 자리였다. 이제 Vercel 기록에 남는다.
+         ★ 번호·본문·이름·키는 **적지 않는다** — 「무엇이 실패했나」만. */
+      if (!okSent) console.log('[leave] 하원 알림 실패 (문자·알림톡 둘 다)');
       if (okSent) sent++;                              /* 실패는 삼킨다 — 하원은 이미 찍혔다 */
     }
     return sent;
@@ -764,7 +768,9 @@ export default async function handler(req, res) {
       const form = AT.alimtalkForm({ tplCode: tpl, receiver: rcv, name: mr.name, message: msg,
                                      biz: biz, courier: mr._courier, invoice: mr._invoice });
       if (!form) break;                              /* 알리고 설정이 없다 */
-      try { await AT.postAlimtalk(form); sent++; } catch (e) { /* 실패는 삼킨다 — 출석은 찍혔다 */ }
+      /* ★ v319(74-B): 조용한 자리에 **기록 한 줄**(번호·본문·이름 없이) — 출석은 이미 찍혔다 */
+      try { await AT.postAlimtalk(form); sent++; }
+      catch (e) { console.log('[kiosk] 출석 알림톡 실패'); }
     }
     return sent;
   }

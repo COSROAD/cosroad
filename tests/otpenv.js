@@ -131,7 +131,16 @@ function makeHandler(SRC, S) {
     .replace(/^import \{[^}]*\} from 'firebase-admin\/auth';$/m, "const { getAuth } = __fb.auth;")
     .replace(/^import \{[^}]*\} from 'firebase-admin\/firestore';$/m, "const { getFirestore } = __fb.fs;")
     .replace(/^import \{([^}]*)\} from 'crypto';$/m, "const {$1} = require('crypto');");
-  const corePre = CORE_IMP.test(SRC) ? (fbRw(CORE_SRC).replace(/^export /mg, '') + '\n') : '';
+  /* ★★ v319(74-B): `lib/otp-core.js` 가 알리고 호출 한 벌(`lib/aligo-fetch.js`)을 쓴다 —
+     그것을 **먼저** 붙이고 안쪽 import 줄은 지운다(안 하면 `aligoFetch` 가 없다). */
+  const ALI_IMP = /^import \{[^}]*\} from '\.\/aligo-fetch\.js';$/m;
+  const aliPre = CORE_IMP.test(SRC)
+    ? (require('fs').readFileSync('' + COS_ROOT + '/lib/aligo-fetch.js', 'utf8')
+         .replace(/^export /mg, '') + '\n')
+    : '';
+  const corePre = CORE_IMP.test(SRC)
+    ? (aliPre + fbRw(CORE_SRC).replace(ALI_IMP, '/* 위에 붙였다 */').replace(/^export /mg, '') + '\n')
+    : '';
   const code = corePre + SRC
     .replace(CORE_IMP, '/* lib/otp-core.js 는 위에 붙였다 */')
     /* ★ 순서 주의 — `export default …` 를 먼저 바꾼 뒤에 남은 `export ` 를 떼야 한다.

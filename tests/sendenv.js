@@ -150,14 +150,23 @@ function makeHandler(src, S) {
   }
   /* ★ v297(60-B4b): `api/send-alimtalk.js` 가 `lib/alimtalk-core.js`(본문·버튼·알리고 호출 한 벌)도
      쓴다 — 같은 방법으로 앞에 붙인다(옛 판에는 그 import 가 없어 아무것도 안 붙는다). */
+  /* ★★ v319(74-B): 알리고 호출 **한 벌**(`lib/aligo-fetch.js`)을 **두 벌보다 먼저** 붙인다
+     (`alimtalk-core`·`sms-core` 가 `aligoFetch` 를 쓴다 · 안 붙이면 그 이름이 없다). */
+  const ALI_IMP = /^import \{[^}]*\} from '\.\/aligo-fetch\.js';$/m;
   const AT_IMP = /^import \{[^}]*\} from '\.\.\/lib\/alimtalk-core\.js';$/m;
+  const SMSC_IMP0 = /^import \{[^}]*\} from '\.\.\/lib\/sms-core\.js';$/m;
+  if (AT_IMP.test(src) || SMSC_IMP0.test(src)) {
+    pre += read('lib/aligo-fetch.js').replace(/^export /mg, '') + String.fromCharCode(10);
+  }
   if (AT_IMP.test(src)) {
-    pre += read('lib/alimtalk-core.js').replace(/^export /mg, '') + String.fromCharCode(10);
+    pre += read('lib/alimtalk-core.js').replace(ALI_IMP, '/* 위에 붙였다 */')
+             .replace(/^export /mg, '') + String.fromCharCode(10);
   }
   /* ★ v319(73-B):  가 (문자 한 벌)를 쓴다 — 같은 방법 */
   const SMSC_IMP = /^import \{[^}]*\} from '\.\.\/lib\/sms-core\.js';$/m;
   if (SMSC_IMP.test(src)) {
-    pre += read('lib/sms-core.js').replace(/^export /mg, '') + String.fromCharCode(10);
+    pre += read('lib/sms-core.js').replace(ALI_IMP, '/* 위에 붙였다 */')
+             .replace(/^export /mg, '') + String.fromCharCode(10);
   }
   const code = pre + src
     .replace(AT_IMP, '/* lib/alimtalk-core.js 는 위에 붙였다 */')

@@ -328,7 +328,11 @@ console.log('\n════ ⑥ `smsSafe` — 앱과 `lib/sms-core.js` **두 표
   const a0 = APP.indexOf('var SMS_SAFE_MAP = {');
   const a1 = APP.indexOf('\n}', APP.indexOf('return s;', APP.indexOf('function smsSafe(text){')));
   const runApp = new Function(APP.slice(a0, a1 + 2) + '\nreturn smsSafe;')();
-  const runCore = new Function(CORE.replace(/^export /gm, '') + '\nreturn smsSafe;')();
+  /* ★ v319(74-B): lib 는 이제 `./aligo-fetch.js` 를 가져다 쓴다 — 글자로 떠서 돌릴 때는
+     그 import 줄을 지운다(`smsSafe` 는 그것을 쓰지 않는다). */
+  const ALI_IMP = /^import \{[^}]*\} from '\.\/aligo-fetch\.js';$/m;
+  const runCore = new Function(CORE.replace(ALI_IMP, '').replace(/^export /gm, '')
+                               + '\nreturn smsSafe;')();
   const SAMPLES = [
     '[가온학원] 귀가 알림\n━━━━━━━━━\n👤 이름: 가하은\n⏰ 귀가: 17:05\n✅ 오늘 수업을 마치고\n      학원을 나섰습니다.',
     '[가온학원] 🚐 1호차 운행 안내\n👉 사진 보기: https://x.y/z',
@@ -347,7 +351,7 @@ console.log('\n════ ⑥ `smsSafe` — 앱과 `lib/sms-core.js` **두 표
 
   /* 서버가 보내는 하원 문자 본문에는 **처음부터** 그림 글자를 넣지 않는다 */
   const core = new Function(LF(fs.readFileSync(COS_ROOT + '/lib/alimtalk-core.js', 'utf8'))
-    .replace(/^export /gm, '') + '\nreturn { buildLeaveSmsText: buildLeaveSmsText, buildLeaveMessage: buildLeaveMessage };')();
+    .replace(ALI_IMP, '').replace(/^export /gm, '') + '\nreturn { buildLeaveSmsText: buildLeaveSmsText, buildLeaveMessage: buildLeaveMessage };')();
   const smsBody = core.buildLeaveSmsText('academy', '가온학원', '가하은', '17:05');
   ck('★ 하원 **문자 본문**에 그림 글자 0',
     /[\uD800-\uDBFF][\uDC00-\uDFFF]|[⌀-⏿✀-➿]/.test(smsBody), false);

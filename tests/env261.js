@@ -196,7 +196,16 @@ function makeHandler(SRC_ENTRY, S) {
      firebase-admin import 세 줄까지 한꺼번에 지워 버린다(실제로 겪었다 — getApps undefined). */
   const impRe = /^import \{[^}]*\} from '\.\.\/lib\/otp-core\.js';$/m;
   const usesCore = impRe.test(SRC_ENTRY);
-  const core = usesCore ? fb(SRC_CORE).replace(/^export /mg, '') : '';
+  /* ★★ v319(74-B): `lib/otp-core.js` 가 알리고 호출 한 벌(`lib/aligo-fetch.js`)을 쓴다 —
+     **먼저** 붙이고 안쪽 import 줄은 지운다(안 하면 `aligoFetch` 가 없다). */
+  const ALI_IMP = /^import \{[^}]*\} from '\.\/aligo-fetch\.js';$/m;
+  const aliSrc = usesCore
+    ? fs.readFileSync('' + COS_ROOT + '/lib/aligo-fetch.js', 'utf8').replace(/^export /mg, '')
+    : '';
+  const core = usesCore
+    ? (aliSrc + String.fromCharCode(10)
+       + fb(SRC_CORE).replace(ALI_IMP, '/* 위에 붙였다 */').replace(/^export /mg, ''))
+    : '';
   /* v264: api/signup.js 가 lib/price.js 도 가져다 쓴다 — 같은 방식으로 앞에 붙인다.
      옛 판(v261~v263)에는 그 import 가 없으므로 아무것도 안 붙는다(전/후 비교 그대로). */
   const prcRe = /^import \{[^}]*\} from '\.\.\/lib\/price\.js';$/m;

@@ -257,11 +257,21 @@ function makeHandler(src, S) {
   };
   const SG_IMP = /^import \* as SG from '\.\.\/lib\/send-guard\.js';$/m;
   const AT_IMP = /^import \* as AT from '\.\.\/lib\/alimtalk-core\.js';$/m;
+  /* ★ v319(73-B): 하원 알림 문자를 서버가 보내므로 `lib/sms-core.js` 도 이름공간으로 쓴다
+     ★ v319(74-B): 이 줄을 **위로 올렸다** — 아래 알리고 한 벌 붙이기가 이것을 보기 때문이다
+       (`const` 는 선언 앞에서 쓰면 터진다 — 처음에 그렇게 적었다가 바로 잡았다). */
+  const SMS_IMP = /^import \* as SMS from '\.\.\/lib\/sms-core\.js';$/m;
+  /* ★★ v319(74-B): 알리고 호출 **한 벌**(`lib/aligo-fetch.js`)을 **이름공간보다 먼저** 붙인다 —
+     `sms-core`·`alimtalk-core` 가 `aligoFetch` 를 쓴다. 안 붙이면 그 이름이 없어
+     **조용히 터진다**(v315 의 `runTransaction` 과 같은 꼴 · ㊳). `nsOf` 가 상대경로 import 를
+     지우므로, 바깥 자리에 이렇게 선언해 두면 IIFE 안에서도 보인다. */
   let nsPre = '';
+  if (AT_IMP.test(src) || SMS_IMP.test(src)) {
+    nsPre += require('fs').readFileSync('' + COS_ROOT + '/lib/aligo-fetch.js', 'utf8')
+               .replace(/^export /mg, '') + String.fromCharCode(10);
+  }
   if (SG_IMP.test(src)) nsPre += nsOf('lib/send-guard.js', 'SG');
   if (AT_IMP.test(src)) nsPre += nsOf('lib/alimtalk-core.js', 'AT');
-  /* ★ v319(73-B): 하원 알림 문자를 서버가 보내므로  도 이름공간으로 쓴다 */
-  const SMS_IMP = /^import \* as SMS from '\.\.\/lib\/sms-core\.js';$/m;
   if (SMS_IMP.test(src)) nsPre += nsOf('lib/sms-core.js', 'SMS');
   const code = perPre + prcPre + nsPre + src
     .replace(SG_IMP, '/* lib/send-guard.js 는 위에 붙였다 */')

@@ -1,0 +1,299 @@
+# 알리고 중계 서버 — 설치 글 (v319 · 코스로드74-B)
+
+알리고가 **고정 IP만** 받게 바뀌었습니다. Vercel 함수는 나가는 IP 가 바뀌므로, **알리고 호출만**
+이 서버(공인 IP 하나)를 거쳐 나가게 합니다 → 알리고가 보는 IP 는 **늘 같습니다**.
+
+- 서버: 가비아 클라우드 **cosroad-relay** · Ubuntu 24.04 · Micro · 공인 IP **1.201.109.4**
+- 주소: **`https://relay.cosroad.com`** (가비아 DNS · `cosroad.com` apex 는 **안 건드립니다**)
+- 서비스 **둘**: **Caddy**(HTTPS·인증서 자동) → **Node 문지기**(`127.0.0.1:8080` · 이 폴더 `relay.js`)
+- 중계는 **몸통을 읽지 않고 바이트 그대로** 넘깁니다. **알리고 키는 Vercel 에만** 있습니다.
+- 중계는 **다시 보내지 않습니다(재시도 0)** — 문자는 두 번 보내면 두 번 갑니다.
+
+> ★★ **토큰·SSH 키·비밀번호는 사장님만 가집니다.** 아래 글에는 비밀 값이 **하나도 없습니다**.
+> 토큰은 ⓓ 에서 사장님이 직접 만들어 적습니다. **누구에게도(클로드에게도) 보내지 마세요.**
+
+---
+
+## 차례 (위에서 아래로)
+
+| 단계 | 어디서 | 무엇 |
+|---|---|---|
+| ⓞ | **가비아 콘솔** | DNS `relay` A → 1.201.109.4 · 보안 그룹 **443 추가** |
+| ⓐ~ⓗ | **SSH** | 다지기 · Caddy · Node · 토큰 · 중계 프로그램 · 확인 |
+| ⓘ | **알리고** | 1.201.109.4 **IP 신청**(승인까지 기다립니다) |
+| ⓙ | **Vercel** | `ALIGO_RELAY_URL`·`ALIGO_RELAY_TOKEN` 넣기 — **알리고 승인 뒤에** |
+
+★★ **ⓙ를 ⓘ보다 먼저 하면 안 됩니다** — 승인 전 IP 로 나가 문자가 **전부 실패**합니다.
+ⓐ~ⓗ 까지 해 두면 중계는 **아무 일도 하지 않고 기다립니다**(앱은 아직 바로 보냅니다).
+
+---
+
+## ⓞ 가비아 콘솔 (사장님)
+
+1. **DNS** — `cosroad.com` 관리 → 레코드 추가
+   - 타입 **A** · 호스트 **`relay`** · 값 **`1.201.109.4`** (TTL 기본)
+   - ★ `@`(apex)와 `www` 는 **그대로 두세요** — GitHub Pages 가 쓰고 있습니다.
+   - 확인: 잠시 뒤 `nslookup relay.cosroad.com` 이 1.201.109.4 를 돌려주면 됩니다.
+2. **보안 그룹 `relay-sg`** — 들어옴에 **TCP 443** 추가 (출처 `0.0.0.0/0`)
+   - SSH 22 는 **사무실 IP 하나만** 그대로 두세요.
+   - **80 은 열지 않습니다** — Caddy 가 443 만으로 인증서를 받습니다(TLS-ALPN-01).
+     ⓖ 에서 인증서가 안 나오면 **그때만** 80 을 잠깐 열고, 받은 뒤 다시 닫습니다.
+
+---
+
+## ⓐ 서버 다지기 (SSH)
+
+★★ **ufw 를 켜기 전에 22 허용 줄을 먼저** 넣습니다. 순서가 바뀌면 **그 자리에서 끊깁니다.**
+
+```bash
+sudo apt update && sudo apt -y upgrade
+sudo apt -y install ufw fail2ban unattended-upgrades curl
+
+# 방화벽 — 22 를 **먼저** 허용하고 그 다음에 켭니다
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from <사무실IP> to any port 22 proto tcp     # ← 사장님 사무실 IP
+sudo ufw allow 443/tcp
+sudo ufw status numbered                                     # 22·443 이 보이는지 눈으로 확인
+sudo ufw --force enable
+
+sudo systemctl enable --now fail2ban
+sudo dpkg-reconfigure -plow unattended-upgrades              # 「예」
+```
+
+> ★ **사무실 IP 가 바뀌어 SSH 가 막히면?** 가비아 콘솔의 **웹 콘솔(VNC/원격 접속)** 로 들어가
+> `sudo ufw allow from <새IP> to any port 22 proto tcp` 를 넣으면 됩니다. 서버를 다시 만들 필요 없습니다.
+> (보안 그룹 쪽 22 출처도 가비아 콘솔에서 같이 고쳐 주세요.)
+
+### SSH 잠그기 — ★ 조심할 곳 둘
+
+```bash
+# ① 우분투 24.04 는 /etc/ssh/sshd_config.d/*.conf 가 본 파일을 **덮어씁니다**
+#    (예: 50-cloud-init.conf 가 PasswordAuthentication yes 를 들고 있습니다)
+ls -l /etc/ssh/sshd_config.d/
+sudo grep -R -nE 'PasswordAuthentication|PermitRootLogin' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ || true
+
+# ② 우리 설정을 **맨 나중에 읽히는 파일**로 둡니다(이름이 뒤일수록 나중)
+sudo tee /etc/ssh/sshd_config.d/99-cosroad.conf >/dev/null <<'EOF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+EOF
+
+# ★★ PermitRootLogin 은 **no 가 아니라 prohibit-password** 입니다 —
+#    「키로만 root 로 들어올 수 있다」는 뜻입니다. no 로 해 두면 어떤 사정으로
+#    일반 계정이 막혔을 때 **아무도 못 들어오는** 상태가 될 수 있습니다.
+
+# ③ 정말 그렇게 읽히는지 **먼저 확인**하고(여기서 yes 가 보이면 덮는 파일이 남아 있습니다)
+sudo sshd -t                                                  # 설정 글 검사
+sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|kbdinteractive'
+#   기대: passwordauthentication no / permitrootlogin prohibit-password / kbdinteractiveauthentication no
+
+# ④ 그 다음에 다시 읽힙니다. ★ **지금 열려 있는 창은 닫지 말고**,
+#    새 창으로 한 번 더 들어와 보고 나서 닫으세요.
+sudo systemctl reload ssh
+```
+
+---
+
+## ⓑ Caddy (HTTPS·인증서 자동)
+
+```bash
+sudo apt -y install debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt -y install caddy
+```
+
+## ⓒ Node 20
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt -y install nodejs
+node -v          # v20.x
+```
+
+## ⓓ 토큰 — **사장님이 값을 만들어 적습니다**
+
+```bash
+# 1) 사장님 **컴퓨터**에서 글자를 만듭니다 (서버에서 만들면 기록에 남을 수 있습니다)
+#      openssl rand -hex 32
+#    (윈도우라면 PowerShell:  -join ((48..57)+(97..102) | Get-Random -Count 64 | % {[char]$_}) )
+# 2) 그 글자를 **두 곳**에 넣습니다 — 여기(서버)와 ⓙ(Vercel). 아무에게도 보내지 마세요.
+
+sudo mkdir -p /etc/cosroad-relay
+sudo nano /etc/cosroad-relay/env
+#   한 줄만:   RELAY_TOKEN=만든_글자_붙여넣기
+sudo chmod 600 /etc/cosroad-relay/env
+sudo chown root:root /etc/cosroad-relay/env
+```
+
+★ 토큰이 **없거나 16자보다 짧으면 중계가 시작하지 않습니다**(일부러 그렇게 두었습니다 —
+토큰 없이 뜨면 누구나 쓸 수 있는 창구가 열립니다).
+
+## ⓔ 중계 프로그램 올리기
+
+저장소의 **`relay/relay.js`** 파일 하나입니다(바깥 의존 0 · 설치할 것 없음).
+
+```bash
+sudo useradd -r -s /usr/sbin/nologin cosroad-relay || true
+sudo mkdir -p /opt/cosroad-relay
+```
+
+**옮기는 길 — 둘 중 편한 쪽 하나만** (둘 다 비밀 값이 없습니다)
+
+```bash
+# ㉮ 깃허브에서 바로 받기 (가장 간단 — 공개 저장소입니다)
+sudo curl -fsSL -o /opt/cosroad-relay/relay.js \
+  https://raw.githubusercontent.com/COSROAD/cosroad/main/relay/relay.js
+
+# ㉯ 또는 손으로 붙여넣기
+sudo nano /opt/cosroad-relay/relay.js      # 저장소 relay/relay.js 내용을 그대로 붙여넣기
+```
+
+```bash
+sudo chown -R cosroad-relay: /opt/cosroad-relay
+sudo chmod 644 /opt/cosroad-relay/relay.js
+node --check /opt/cosroad-relay/relay.js   # 글이 성한지
+```
+
+## ⓕ systemd (꺼지면 되살림)
+
+```bash
+sudo tee /etc/systemd/system/cosroad-relay.service >/dev/null <<'EOF'
+[Unit]
+Description=COSROAD aligo relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=cosroad-relay
+EnvironmentFile=/etc/cosroad-relay/env
+ExecStart=/usr/bin/node /opt/cosroad-relay/relay.js
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now cosroad-relay
+sudo systemctl status cosroad-relay --no-pager        # active (running)
+```
+
+## ⓖ Caddy 설정 — 경로 **셋만** 넘김
+
+```bash
+sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
+relay.cosroad.com {
+	request_body {
+		max_size 64KB
+	}
+	@ok path /a/sms /a/alimtalk /healthz
+	handle @ok {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle {
+		respond 404
+	}
+	log {
+		output file /var/log/caddy/relay.log
+		format console
+	}
+}
+EOF
+
+sudo caddy validate --config /etc/caddy/Caddyfile     # 설정 글 검사
+sudo systemctl reload caddy
+sudo journalctl -u caddy -n 30 --no-pager             # 인증서를 받았는지(certificate obtained)
+```
+
+★ 인증서가 안 나오면: ⓞ의 DNS 가 아직 안 퍼졌거나 443 이 닫혀 있습니다.
+`nslookup relay.cosroad.com` 과 보안 그룹을 보시고, 그래도 안 되면 **80 을 잠깐 열고**
+`sudo systemctl reload caddy` → 받은 뒤 **다시 닫습니다**.
+
+## ⓗ 확인 — **문자는 한 통도 안 나갑니다**
+
+```bash
+# 살아있음 (토큰 없이)
+curl -s https://relay.cosroad.com/healthz                       # {"ok":true}
+
+# 토큰 없이 보내려 하면 401
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  https://relay.cosroad.com/a/sms \
+  -H 'Content-Type: application/x-www-form-urlencoded' --data 'x=1'     # 401
+
+# GET 으로는 405
+curl -s -o /dev/null -w '%{http_code}\n' https://relay.cosroad.com/a/sms          # 405
+
+# 모르는 경로는 404
+curl -s -o /dev/null -w '%{http_code}\n' https://relay.cosroad.com/aaa            # 404
+
+# 물음표가 붙은 주소도 404 (`?url=` 류를 끊습니다)
+curl -s -o /dev/null -w '%{http_code}\n' 'https://relay.cosroad.com/a/sms?url=x'  # 404
+
+# 기록 보기 — 본문·번호·키는 **없습니다**(시각·경로·상태·ms·바이트수만)
+sudo journalctl -u cosroad-relay -n 20 --no-pager
+```
+
+---
+
+## ⓘ 알리고에 IP 신청 (사장님)
+
+알리고 문자 API 메뉴에서 **발송 서버 IP** 에 **`1.201.109.4`** 를 등록합니다.
+
+- ★ **알림톡(`kakaoapi.aligo.in`)도 같은 IP 가 필요한지 함께 물어보세요** (☎ 02-511-4560).
+  필요하다고 하면 그쪽에도 등록합니다. 앱은 **문자·알림톡 둘 다 중계로** 보냅니다.
+- ★ **공인 IP 를 반납하지 마세요** — 바뀌면 **다시 신청**해야 합니다.
+- 승인될 때까지 ⓙ 를 **하지 마세요**.
+
+## ⓙ Vercel 환경변수 — **알리고 승인 뒤에** (사장님)
+
+Vercel → 프로젝트 → Settings → Environment Variables (Production)
+
+| 이름 | 값 |
+|---|---|
+| `ALIGO_RELAY_URL` | `https://relay.cosroad.com` |
+| `ALIGO_RELAY_TOKEN` | ⓓ 에서 만든 글자 (**Secret** 으로) |
+
+넣은 뒤 **다시 배포**(Redeploy)해야 함수가 새 값을 읽습니다.
+
+**확인** — 사장님 `_test` 업체에서 **문자 1통**만 보내 보세요(인증번호가 가장 간단합니다).
+서버에서 `sudo journalctl -u cosroad-relay -n 5 --no-pager` 에 `/a/sms  200  aligo=200` 이 보이면 된 것입니다.
+
+### 되돌리기
+
+Vercel 에서 **`ALIGO_RELAY_URL` 만 지우고 다시 배포** → 즉시 **바로 보내기**로 돌아갑니다.
+(단 알리고가 Vercel IP 를 막고 있으면 그 길로는 안 나갑니다 — 그때는 중계를 살려야 합니다.)
+
+---
+
+## 중계가 죽으면
+
+| 길 | 어떻게 되나 |
+|---|---|
+| 인증번호 · 공지·«알림장» 문자 · 앱 알림톡 | 화면에 **500 안내**가 뜹니다(사람이 바로 압니다) |
+| 가입 알림·계좌 안내 · 하원 문자/알림톡 · 출석 기기 알림톡 | **조용히 안 갑니다** — Vercel 기록에 `[signup] 마스터 알림 문자 실패` 같은 **한 줄**이 남습니다(v319 에 넣었습니다) |
+
+- **살아있음 확인**을 무료 서비스에 걸어 두시면 좋습니다 → `https://relay.cosroad.com/healthz`
+- 서버에서 바로 보기: `sudo systemctl status cosroad-relay` · `sudo journalctl -u cosroad-relay -n 50 --no-pager`
+
+## 손이 가는 일 (한 달에 한 번쯤)
+
+```bash
+sudo apt update && sudo apt -y upgrade          # 보안 업데이트(자동도 돌지만 한 번씩)
+sudo systemctl status cosroad-relay caddy       # 둘 다 active
+sudo journalctl -u cosroad-relay --since '7 days ago' | grep -cE ' 50[0-9] | 429 '   # 실패 수
+```
+
+- 비용: **월 19,750원**(Micro + 공인 IP) · Caddy·Node·Let's Encrypt **0원**
+- 인증서는 Caddy 가 **알아서 갱신**합니다(90일마다 · 손댈 것 없음)

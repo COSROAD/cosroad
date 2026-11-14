@@ -306,8 +306,13 @@ export default async function handler(req, res) {
       const bizLabel = { academy: '학원', public: '공공', logistics: '물류', delivery: '택배' }[bizType] || bizType;
       /* 마스터 알림 — 받는 번호는 billing.notifyPhone, 없으면 종전 번호 */
       const masterTo = phoneDigits(billing.notifyPhone) || phoneDigits(MASTER_PHONE_FALLBACK);
-      await aligoSend(masterTo,
+      /* ★★ v319(74-B): 반환값을 **본다** — 전에는 실패해도 **아무 표시가 없었다**
+         (가입은 성공하고 문자만 안 가서, 사장님이 가입 신청을 모르고 지나칠 수 있었다).
+         ★ 가입을 막지는 않는다(문자가 안 가도 계정은 이미 만들어졌다) — 기록만 남긴다.
+         ★ 번호·본문은 적지 않는다. */
+      const mSent = await aligoSend(masterTo,
         '[코스로드] 가입 신청 ' + orgName + ' (' + bizLabel + ') ' + digits, 'signup');
+      if (!mSent || !mSent.ok) console.log('[signup] 마스터 알림 문자 실패', (mSent && mSent.why) || '');
 
       /* 신청자 계좌 안내 — 계좌는 코드에 박지 않고 billing 에서 읽는다 */
       const bank = String(billing.bank || '').trim();
@@ -316,11 +321,13 @@ export default async function handler(req, res) {
       if (bank && acct) {
         /* v264 — 금액은 **billing 값**으로 만든다(lib/price.js 한 벌). 코드에 금액을 적지 않는다.
            입금자명은 업체명으로 해 주셔야 확인이 빠르다. */
-        await aligoSend(digits,
+        /* ★ v319(74-B): 여기도 **기록 한 줄** — 조용히 안 가던 자리다(가입은 막지 않는다) */
+        const aSent = await aligoSend(digits,
           '[코스로드] 가입 신청 접수. '
           + bank + ' ' + acct + (holder ? ' (' + holder + ')' : '')
           + ' 입금자명 ' + orgName + '. '
           + priceNotice(billing), 'signup');
+        if (!aSent || !aSent.ok) console.log('[signup] 계좌 안내 문자 실패', (aSent && aSent.why) || '');
       }
 
       /* 응답에 비밀번호·토큰·uid 를 담지 않는다 — 화면이 같은 번호·비번으로 로그인한다 */
