@@ -338,6 +338,19 @@ console.log('\n════ ⑩ 설치 글 — 잠길 위험을 막는 줄이 �
     /PermitRootLogin no/.test(SRC.guide), false);
   ck('★ `sshd_config.d` 가 덮는 것을 본다', /sshd_config\.d/.test(SRC.guide), true);
   ck('★ `sshd -T` 로 확인하는 줄이 있다', /sshd -T/.test(SRC.guide), true);
+  /* ★★ v319(74-B 보정1): sshd 는 **처음 읽은 값**이 이긴다(공식 `man sshd_config`:
+     "for each keyword, the first obtained value will be used" · `Include` 는 **이름 차례**).
+     그래서 우리 설정은 **이름이 앞인** `00-cosroad.conf` 여야 한다 —
+     `99-` 에 두면 `50-cloud-init.conf` 의 `PasswordAuthentication yes` 가 **먼저 읽혀 이긴다**
+     (보정 전에는 `99-` 로 적어 두어, 그대로 하면 비밀번호 로그인이 **안 꺼졌다**). */
+  ck('★★ 우리 설정은 `00-cosroad.conf`(가장 먼저 읽힘)',
+    /sshd_config\.d\/00-cosroad\.conf/.test(SRC.guide), true);
+  ck('★★ `99-cosroad.conf` 라고 적은 곳이 **0곳**',
+    /99-cosroad\.conf/.test(SRC.guide), false);
+  ck('  까닭을 글에 적어 두었다(처음 읽은 값이 이긴다)',
+    /first obtained value|처음 읽은 값/.test(SRC.guide), true);
+  ck('  본 파일의 `Include` 줄 번호를 보는 줄이 있다',
+    /Include[^\n]*\/etc\/ssh\/sshd_config|grep -nE '\^\[\[:space:\]\]\*Include/.test(SRC.guide), true);
   ck('★ ufw 켜기 **전에** 22 허용',
     SRC.guide.indexOf('ufw allow from') < SRC.guide.indexOf('ufw --force enable'), true);
   ck('★ 사무실 IP 가 바뀌면 들어가는 길', /웹 콘솔|VNC/.test(SRC.guide), true);

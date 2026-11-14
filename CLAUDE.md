@@ -1369,9 +1369,15 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
     ★ **설치 글의 두 함정**(`relay/README.md` · 묶음 ⑩ 이 지킨다):
       · `PermitRootLogin` 은 **`no` 가 아니라 `prohibit-password`** — `no` 로 두면 일반 계정이
         막혔을 때 **아무도 못 들어오는** 상태가 된다.
-      · 우분투 24.04 는 **`/etc/ssh/sshd_config.d/*.conf`** 가 본 파일을 덮는다(`50-cloud-init.conf`
-        가 `PasswordAuthentication yes` 를 들고 있다) → **99-** 로 시작하는 파일에 적고
-        **`sudo sshd -T | grep …`** 로 정말 그렇게 읽히는지 **먼저 확인**한다.
+      · ★★ **sshd 는 「처음 읽은 값」이 이긴다** — 공식 `man sshd_config`:
+        「Unless noted otherwise, for each keyword, the first obtained value will be used.」
+        그리고 `Include` 의 `*.conf` 는 **이름 차례**로 읽힌다(「expanded and processed in lexical
+        order」). 우분투 24.04 는 그 `Include` 가 본 파일 **맨 위**에 있고 `50-cloud-init.conf`
+        가 `PasswordAuthentication yes` 를 들고 있다 → 우리 설정은 **이름이 앞인 `00-cosroad.conf`**
+        에 적는다(**`99-` 에 적으면 50- 가 먼저 읽혀 비밀번호 로그인이 안 꺼진다** — v319 74-B
+        보정1 에 그렇게 적었다가 바로잡았다). 본 파일에서 `Include` **위**에 같은 키워드가 있으면
+        그것이 이기므로 **줄 번호로 확인**하고, 끝으로 **`sudo sshd -T | grep …`** 로
+        정말 그렇게 읽히는지 **먼저 확인**한다.
       · `ufw` 는 **켜기 전에 22 를 허용**한다(순서가 바뀌면 그 자리에서 끊긴다) · 사무실 IP 가
         바뀌면 **가비아 웹 콘솔**로 들어가 고친다.
     ★ **Vercel 환경변수는 알리고 IP 승인 뒤에** 넣는다 — 먼저 넣으면 승인 전 IP 로 나가 전부 실패한다.

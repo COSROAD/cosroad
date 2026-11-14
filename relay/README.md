@@ -67,14 +67,20 @@ sudo dpkg-reconfigure -plow unattended-upgrades              # 「예」
 
 ### SSH 잠그기 — ★ 조심할 곳 둘
 
+> ★★ **sshd 는 「처음 읽은 값」이 이깁니다** — 공식 `man sshd_config` :
+> *"Unless noted otherwise, for each keyword, the first obtained value will be used."*
+> 그리고 `Include` 의 `*.conf` 는 *"expanded and processed in lexical order"*(이름 차례)로 읽힙니다.
+> → **이름이 앞일수록 이깁니다.** 그래서 우리 설정은 **`00-cosroad.conf`** 에 둡니다
+> (`99-` 에 두면 `50-cloud-init.conf` 의 `PasswordAuthentication yes` 가 **먼저 읽혀 이깁니다**).
+
 ```bash
-# ① 우분투 24.04 는 /etc/ssh/sshd_config.d/*.conf 가 본 파일을 **덮어씁니다**
+# ① 우분투 24.04 는 /etc/ssh/sshd_config.d/*.conf 를 **본 파일보다 먼저** 읽습니다
 #    (예: 50-cloud-init.conf 가 PasswordAuthentication yes 를 들고 있습니다)
 ls -l /etc/ssh/sshd_config.d/
 sudo grep -R -nE 'PasswordAuthentication|PermitRootLogin' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ || true
 
-# ② 우리 설정을 **맨 나중에 읽히는 파일**로 둡니다(이름이 뒤일수록 나중)
-sudo tee /etc/ssh/sshd_config.d/99-cosroad.conf >/dev/null <<'EOF'
+# ② 우리 설정을 **가장 먼저 읽히는 파일**로 둡니다(이름이 앞일수록 이깁니다)
+sudo tee /etc/ssh/sshd_config.d/00-cosroad.conf >/dev/null <<'EOF'
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
@@ -84,12 +90,21 @@ EOF
 #    「키로만 root 로 들어올 수 있다」는 뜻입니다. no 로 해 두면 어떤 사정으로
 #    일반 계정이 막혔을 때 **아무도 못 들어오는** 상태가 될 수 있습니다.
 
-# ③ 정말 그렇게 읽히는지 **먼저 확인**하고(여기서 yes 가 보이면 덮는 파일이 남아 있습니다)
+# ③ 본 파일에서 Include 보다 **위에** 같은 키워드가 있으면 그것이 이깁니다 — 줄 번호로 봅니다
+sudo grep -nE '^[[:space:]]*Include|PasswordAuthentication|PermitRootLogin' /etc/ssh/sshd_config
+#   Include 줄 번호보다 **작은** 줄에 그 키워드가 있으면, 그 줄을 # 로 막거나 값을 고치세요.
+
+# ④ 정말 그렇게 읽히는지 **먼저 확인**합니다
 sudo sshd -t                                                  # 설정 글 검사
 sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|kbdinteractive'
 #   기대: passwordauthentication no / permitrootlogin prohibit-password / kbdinteractiveauthentication no
+#
+#   ★ 그래도 yes 가 보이면 — **우리보다 앞에 있는 파일**이 그 값을 들고 있습니다.
+#     ls /etc/ssh/sshd_config.d/ 로 이름 차례를 보고(00- 보다 앞선 이름이 있나),
+#     그 파일의 그 줄을 no 로 고치거나 # 로 막으면 됩니다.
+#     (`sudo grep -n PasswordAuthentication /etc/ssh/sshd_config.d/*.conf` 로 어디인지 찾습니다)
 
-# ④ 그 다음에 다시 읽힙니다. ★ **지금 열려 있는 창은 닫지 말고**,
+# ⑤ 그 다음에 다시 읽힙니다. ★ **지금 열려 있는 창은 닫지 말고**,
 #    새 창으로 한 번 더 들어와 보고 나서 닫으세요.
 sudo systemctl reload ssh
 ```
