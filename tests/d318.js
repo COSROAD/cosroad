@@ -15,7 +15,7 @@ const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
 const cp = require('child_process');
 const fs = require('fs');
 const E = require('./env246.js');
-const { thisRef } = require('./thisref.js');
+const { thisRef, srcAt } = require('./thisref.js');
 
 const OLD_REF = process.env.COS_SRC_OLD_REF || '4fac008';   /* v317 — 고치기 전 */
 const F = (p) => fs.readFileSync(COS_ROOT + '/' + p, 'utf8').replace(/\r\n/g, '\n');
@@ -466,7 +466,10 @@ const doSave = (K) => K.save + JSON.stringify(K.mine) + '); ' + saveCall[K.key] 
     ck('  버전 318 이상', appV >= 318 ? 'OK(' + appV + ')' : 'NG(' + appV + ')', 'OK(' + appV + ')');
     ck('  `version.json` 과 같다', String(JSON.parse(F('version.json')).version), String(appV));
     const QA = (s) => { const i = s.indexOf('var HELP_QA=['); return i < 0 ? '' : s.slice(i, s.indexOf('\n];', i)); };
-    ck('  문답표 그대로(화면 글자 0줄)', QA(NEW_SRC) === QA(OLD_SRC) ? '그대로' : '바뀜', '그대로');
+    /* ★★ v319(73-B): 문답표 검사는 **그 회차 커밋**에서 잰다 (CLAUDE.md 「검사 묶음 규칙」) —
+       작업트리로 재면 **다음 회차가 문답을 더할 때마다** 거짓으로 깨진다(v315 에 아홉이 그랬다).
+       ★ 커밋 전에는 `srcAt('')` 가 **작업트리**를 읽는다 — 그 회차에는 그게 맞다. */
+    ck('  문답표 그대로(화면 글자 0줄)', QA(srcAt(THIS_REF)) === QA(OLD_SRC) ? '그대로' : '바뀜', '그대로');
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

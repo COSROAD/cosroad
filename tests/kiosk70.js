@@ -16,7 +16,7 @@ const fs = require('fs');
 const E = require('./drvenv.js');
 const { SRC, makeState, call } = E;
 
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 const OLD_REF = process.env.COS_SRC_OLD_REF || 'f23e964';   /* v313 — 고치기 전 */
 const THIS_REF = thisRef(314);                 /* 이 회차 커밋 — 제목이 (v314) 인 것 */
 const SRC_OLD_DRV = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':api/driver-auth.js',
@@ -241,15 +241,21 @@ const sms = (S) => (S.calls || []).filter((c) => /aligo|alimtalk/i.test(String(c
         + (THIS_REF ? ' ' + THIS_REF : '')
         + ' -- lib firestore.rules storage.rules', { maxBuffer: 1 << 24 }).toString().trim() + ']', '[]');
     console.log('      (잰 자리: ' + OLD_REF + ' → ' + (THIS_REF || '작업트리') + ')');
+    /* ★ 여기도 **두 커밋 사이**다 — 작업트리로 재면 뒷 회차가 `api/` 를 고칠 때마다 깨진다
+       (v319 가 `send-sms`·`send-alimtalk`·`pinCheckin` 을 일부러 고치자 실제로 그랬다). */
     ck('  바뀐 서버 파일은 `driver-auth` 하나',
-      cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF + ' -- api',
+      cp.execSync('git -C ' + COS_ROOT + ' diff --name-only ' + OLD_REF
+        + (THIS_REF ? ' ' + THIS_REF : '') + ' -- api',
         { maxBuffer: 1 << 24 }).toString().trim(), 'api/driver-auth.js');
     ck('  기기 로그인(`kioskLogin`)은 안 건드렸다',
       S2.slice(S2.indexOf("action === 'kioskLogin'"), S2.indexOf("action === 'kioskCheckin'"))
         === SRC_OLD_DRV.slice(SRC_OLD_DRV.indexOf("action === 'kioskLogin'"), SRC_OLD_DRV.indexOf("action === 'kioskCheckin'")),
       true);
+    /* ★ 이 줄은 **그 회차가 한 약속**이다 → `srcAt(THIS_REF)` 로 **그 커밋의 글**을 읽는다
+       (v319 가 하원 알림 때문에 `pinCheckin` 을 일부러 고쳤다 · 커밋 전에는 작업트리). */
+    const S2R = srcAt(THIS_REF, 'api/driver-auth.js');
     ck('  관리자 판(`pinCheckin`)도 안 건드렸다',
-      S2.slice(S2.indexOf("action === 'pinCheckin'")) === SRC_OLD_DRV.slice(SRC_OLD_DRV.indexOf("action === 'pinCheckin'")), true);
+      S2R.slice(S2R.indexOf("action === 'pinCheckin'")) === SRC_OLD_DRV.slice(SRC_OLD_DRV.indexOf("action === 'pinCheckin'")), true);
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

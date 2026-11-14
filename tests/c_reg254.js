@@ -93,8 +93,16 @@ function norm309(s) {
     .replace(/id="org-name"([^>]*?)placeholder="예\) [^"]*"/g,
              'id="org-name"$1placeholder="예) 우리 태권도장"');
 }
+/* ★ v319(코스로드73-B): **설정 화면**에 「하원 알림 보내기」 칸이 일부러 더해졌다 —
+   **학원·공공만** 나오고 기본 꺼짐이다(물류·택배는 **바이트 그대로**여서 지울 것이 없다).
+   그 **한 묶음만** 지우고 견준다(v256 보정3·v299·v302·v306·v309 예외와 같은 방식).
+   ★ 지우고도 나머지는 바이트 동일해야 한다 — 그래서 이 예외가 다른 변화를 덮지 않는다. */
+function norm319(s) {
+  return String(s).replace(
+    /<label class="form-label">[^<]*알림 보내기<\/label>[\s\S]*?건당 문자 요금[\s\S]*?<\/div>/g, '');
+}
 function norm299(s) {
-  return norm309(norm306(norm302(String(s))))
+  return norm319(norm309(norm306(norm302(String(s)))))
     .replace(/ data-sido="[^"]*" data-sigungu="[^"]*" oninput="orgAddrTouched\(\)"/g, '')
     .replace(/\n\s*<div style="font-size:11\.5px;color:#667085;line-height:1\.6;margin-bottom:8px;">📍 <b>검색으로 고르면[^<]*<\/b>[^<]*<\/div>/g, '');
 }

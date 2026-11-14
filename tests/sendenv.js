@@ -154,8 +154,14 @@ function makeHandler(src, S) {
   if (AT_IMP.test(src)) {
     pre += read('lib/alimtalk-core.js').replace(/^export /mg, '') + String.fromCharCode(10);
   }
+  /* ★ v319(73-B):  가 (문자 한 벌)를 쓴다 — 같은 방법 */
+  const SMSC_IMP = /^import \{[^}]*\} from '\.\.\/lib\/sms-core\.js';$/m;
+  if (SMSC_IMP.test(src)) {
+    pre += read('lib/sms-core.js').replace(/^export /mg, '') + String.fromCharCode(10);
+  }
   const code = pre + src
     .replace(AT_IMP, '/* lib/alimtalk-core.js 는 위에 붙였다 */')
+    .replace(SMSC_IMP, '/* lib/sms-core.js 는 위에 붙였다 */')
     .replace(IMP, '/* lib/send-guard.js 는 위에 붙였다 */')
     .replace(/^import \{[^}]*\} from 'firebase-admin\/app';$/m, "const { initializeApp, getApps, cert } = __fb.app;")
     .replace(/^import \{[^}]*\} from 'firebase-admin\/auth';$/m, "const { getAuth } = __fb.auth;")

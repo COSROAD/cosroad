@@ -29,6 +29,10 @@ import { isAliveUser } from '../lib/period.js';
    본문·템플릿·알리고 호출은 `lib/alimtalk-core.js` **한 벌**을 쓴다(두 벌로 적지 않는다). */
 import * as SG from '../lib/send-guard.js';
 import * as AT from '../lib/alimtalk-core.js';
+/* ★★ v319(73-B): **하원 알림은 서버가 문자로 보낸다** — 출석 전용 기기는 번호를 모르고,
+   관리자 판도 **같은 글**이어야 한다. 그림 글자 거르기·알리고 호출은 `lib/sms-core.js` **한 벌**이고
+   `api/send-sms.js` 도 그것을 쓴다(표를 두 벌로 베끼면 한쪽만 고쳐져 어긋난다 — otp-core 교훈). */
+import * as SMS from '../lib/sms-core.js';
 
 /* v266: 안 쓰는 주소 셋(roadjob.co.kr·www.roadjob.co.kr·roadcrew.kr)을 뺐다.
    0단계 조사에서 배포된 roadjob.co.kr 을 받아 확인한 결과, 로드잡은 자기 서버
@@ -512,6 +516,47 @@ export default async function handler(req, res) {
      ★ 시각·날짜는 **서버 KST**(`kstDateStr`·`kstTimeStr`) — 기기 시계를 바꿔도 안 바뀐다.
      ★ 백업은 다른 쓰기와 **같은 자리·같은 꼴**(`<키>__<시각>` · `key` 필드).
      반환: { ok, name, photo, time, date } | { error } */
+  /* ★★ v319(73-B): **두 번째 누름 = 하원**(사장님 결정 11-14) ────────────────────────
+     · 첫 누름 = 등원(종전 그대로) · 두 번째 = **하원 시각 기록 + 하원 알림** ·
+       세 번째부터 「이미 하원」(쓰기 0 · 백업 0 · 알림 0)
+     · **잘못 두 번 누름**을 막으려고 **최소 간격**을 둔다 — 상수는 **이 한 곳**이다
+       (업체마다 바꾸지 않는다 — 73-A 설계 ② · 필요해지면 그때 `data/org` 로 올린다).
+     · 담는 자리는 **새 키가 아니다** — `attendanceTime[날짜][회원]` 칸을 `{t, by, out}` 으로
+       넓힌다. 읽는 쪽(`attTimeInfo`)이 이미 객체를 받고, 72 얹기는 그 칸을 **통째로 한 레코드**로
+       보므로 **저장 모양·규칙·백업·동기화가 0줄**이다(새 키는 네 곳을 같이 고쳐야 한다 — v290). */
+  const LEAVE_MIN_GAP_MIN = 30;
+  /* 칸 하나를 읽는다 — 'HH:MM'(v243) · {t,by}(v244) · {t,by,out}(v319) 셋 다 받는다 */
+  function cellInfo(v) {
+    if (v == null) return null;
+    if (typeof v === 'string') return v ? { t: v, by: 'pin', out: '' } : null;
+    if (typeof v === 'object' && v.t) {
+      return { t: String(v.t), by: (v.by === 'admin' ? 'admin' : 'pin'), out: String(v.out || '') };
+    }
+    return null;
+  }
+  function hhmmMin(x) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(x || ''));
+    return m ? (Number(m[1]) * 60 + Number(m[2])) : -1;
+  }
+  /* 지난 분 수 — 시각을 못 읽거나 **자정을 넘겼으면** 「간격은 지났다」로 본다(음수 방지) */
+  function gapMin(from, to) {
+    const x = hhmmMin(from), y = hhmmMin(to);
+    if (x < 0 || y < 0) return 9999;
+    const d = y - x;
+    return d < 0 ? 9999 : d;
+  }
+  /* 그 차량 기사가 **오늘 하차 완료**를 눌렀나 — `carState/{차량}.dropDone[회원]` 은 날짜만 적힌다 */
+  async function dropDoneToday(org, carId, memberId) {
+    if (!carId) return false;
+    try {
+      const snap = await A.db.collection('orgs').doc(org).collection('carState').doc(String(carId)).get();
+      if (!snap.exists) return false;
+      const cs = JSON.parse(String((snap.data() || {}).value || '{}'));
+      const dd = (cs && cs.dropDone) || {};
+      return String(dd[String(memberId)] || '') === kstDateStr();
+    } catch (e) { return false; }
+  }
+
   async function punchMember(org, pin) {
     const mRef = A.db.collection('orgs').doc(org).collection('data').doc('members');
     let list = null;
@@ -571,15 +616,25 @@ export default async function handler(req, res) {
        ★ **먼저 시각 칸**을 보고 그 뒤에 출석 칸을 고친다(순서가 뒤집히면 `first` 를 알 수 없다).
        ★ 처음이 아니면 `apply` 가 거짓을 돌려주므로 **쓰기도 백업도 아예 없다**.
        ★ 다만 **결석으로 둔 사람이 실제로 왔으면** 출석 칸은 고친다(시각은 처음 것을 지킨다). */
-    let isFirst = false, firstTime = '';
+    /* ★ v319(73-B): **다리(leg)를 가린다** — 'in'(등원) · 'out'(하원) ·
+       'already-in'(간격 안 · 쓰기 0) · 'already-out'(이미 하원 · 쓰기 0). 판정·기록은 **이 한 자리**다
+       (창구가 둘이라 앱에 또 적으면 어긋난다 — v298 이 알림 문지기를 서버 한 줄로 둔 것과 같다). */
+    let isFirst = false, firstTime = '', outTime = '', leg = '', gapLeft = 0;
     try {
-      isFirst = await put('attendanceTime', (day) => {
-        const prev = day[String(me.id)];
-        if (prev) {                      /* 'HH:MM' 또는 {t,by:'admin'}(앱 v244) 둘 다 받는다 */
-          firstTime = (typeof prev === 'object') ? String(prev.t || '') : String(prev);
-          return false;
+      await put('attendanceTime', (day) => {
+        const info = cellInfo(day[String(me.id)]);
+        if (!info) {                     /* 첫 누름 = 등원 — 칸 꼴은 **그대로 문자열**(옛 앱 호환) */
+          day[String(me.id)] = timeStr;
+          isFirst = true; firstTime = timeStr; leg = 'in';
+          return true;
         }
-        day[String(me.id)] = timeStr; firstTime = timeStr;
+        firstTime = info.t;
+        if (info.out) { outTime = info.out; leg = 'already-out'; return false; }
+        const g = gapMin(info.t, timeStr);
+        if (g < LEAVE_MIN_GAP_MIN) { leg = 'already-in'; gapLeft = LEAVE_MIN_GAP_MIN - g; return false; }
+        /* 하원 — 등원 칸(`t`·`by`)은 **그대로 두고** `out` 만 더한다 */
+        day[String(me.id)] = { t: info.t, by: info.by, out: timeStr };
+        outTime = timeStr; leg = 'out';
         return true;
       });
       await put('attendance', (day) => {
@@ -601,7 +656,71 @@ export default async function handler(req, res) {
     /* ★ `time` 은 **처음 시각**이다(둘째 누름에는 화면이 「이미 출석했어요 (08:10)」로 쓴다) */
     return { ok: true, name: String(me.name || ''), photo: /^https?:\/\//.test(photo) ? photo : '',
              time: firstTime || timeStr, date: dateStr, first: isFirst,
+             /* ★ v319(73-B): `time`·`first` 는 **뜻을 바꾸지 않았다**(옛 앱 호환 — 교훈 ⑳).
+                하원 시각은 **새 칸 `outTime`**, 어느 다리인지는 `leg`, 남은 간격은 `gapLeft` —
+                **더하기만** 한다. 하원 누름도 `first:false` 라 옛 앱은 지금과 똑같이 돈다. */
+             leg: leg, outTime: outTime, gapLeft: gapLeft, gapNeed: LEAVE_MIN_GAP_MIN,
+             _id: String(me.id), _dropCar: String(me.carIdDrop || me.carId || ''),
              _phones: phones, _invoice: String(me.invoice || ''), _courier: String(me.courier || '') };
+  }
+
+  /* ── 하원(귀가) 알림을 **서버가** 보낸다 (73-B · v319) ────────────────────────────
+     ★★ 문지기는 **이 한 자리**다(부르는 쪽에 두면 창구가 늘 때 빠뜨린다 — v298 과 같은 태도):
+       ① 하원 누름일 때만(`leg==='out'`) ② 학원·공공만(`orgBizType`) ③ 업체가 켜 두었을 때만
+       (`data/org.leaveNotify === true` · **기본 꺼짐**) ④ **그 차량 기사가 오늘 하차 완료**를
+       눌렀으면 보내지 않는다(하루 한 사람 **한 번** — 먼저 간 것이 그날의 알림이다).
+     ★ 받는 번호·상한은 **출석 알림과 같은 길**이다 — `orgPhones`(그 업체 명부 번호만) ·
+       `rateHit`+`orgLimits`(업체별 1분·하루). 하루 한 번은 `out` 칸이 지킨다(둘째부터 쓰기 0).
+     ★ **알림톡 자리는 미리 두었다** — `TPL_LEAVE_BY_BIZ` 에 승인 코드가 들어오면
+       **알림톡을 먼저** 보내고 실패하면 문자로 떨어진다(기사 하차 알림과 같은 태도).
+     반환: 보낸 건수(0 이면 안 보냈다 — 하원 기록은 이미 찍혔으므로 응답을 막지 않는다) */
+  async function leaveNotify(org, mr) {
+    if (!mr || mr.leg !== 'out') return 0;
+    const phones = Array.isArray(mr._phones) ? mr._phones : [];
+    if (!phones.length) return 0;
+    const biz = await orgBizType(org);
+    if (biz !== 'academy' && biz !== 'public') return 0;
+    let on = false, orgName = '';
+    try {
+      const os = await A.db.collection('orgs').doc(org).collection('data').doc('org').get();
+      if (os.exists) {
+        const o = JSON.parse(String((os.data() || {}).value || '{}'));
+        on = (o && o.leaveNotify === true);
+        orgName = String((o && o.name) || '');
+      }
+    } catch (e) { return 0; }
+    if (!on) return 0;                                 /* 꺼져 있으면 **기록만** 하고 끝 */
+    if (await dropDoneToday(org, mr._dropCar, mr._id)) return 0;   /* 기사 하차가 먼저 갔다 */
+    let allow = null;
+    try { allow = await SG.orgPhones(A, org, ''); } catch (e) { allow = null; }
+    if (allow === null) return 0;
+    const tpl = AT.tplLeaveCodeFor(biz);               /* 승인 전에는 빈 값 → 문자로 간다 */
+    const atMsg = AT.buildLeaveMessage(biz, orgName, mr.name, mr.outTime);
+    const smsMsg = AT.buildLeaveSmsText(biz, orgName, mr.name, mr.outTime);
+    let sent = 0;
+    for (const raw of phones) {
+      const rcv = SG.phoneDigits(raw);
+      if (!/^0\d{8,10}$/.test(rcv)) continue;
+      if (!allow.has(rcv)) continue;                   /* 명부에 없는 번호로는 안 보낸다 */
+      const over = await SG.rateHit(A, 'org.' + SG.sha256(org), SG.orgLimits(), 1);
+      if (over) break;                                 /* 상한에 걸리면 멈춘다(앱과 같다) */
+      let okSent = false;
+      if (tpl) {                                       /* 승인 코드가 들어온 뒤 — 알림톡 먼저 */
+        try {
+          const form = AT.alimtalkForm({ tplCode: tpl, receiver: rcv, name: mr.name,
+                                         message: atMsg, biz: biz, courier: '', invoice: '' });
+          if (form) { await AT.postAlimtalk(form); okSent = true; }
+        } catch (e) { okSent = false; }
+      }
+      if (!okSent) {
+        try {
+          const r = await SMS.postSms({ receiver: rcv, msg: smsMsg, title: '귀가 알림', msgType: 'LMS' });
+          okSent = !!(r && r.ok);
+        } catch (e) { okSent = false; }
+      }
+      if (okSent) sent++;                              /* 실패는 삼킨다 — 하원은 이미 찍혔다 */
+    }
+    return sent;
   }
 
   /* ── 출석 알림톡을 **서버가** 보낸다 (60-B4b · v297) ────────────────────────
@@ -1070,8 +1189,13 @@ export default async function handler(req, res) {
          ★ 출퇴근(물류·택배 갈래)에는 **알림톡을 보내지 않는다** — 관리자 판·직원 폰도 안 보낸다. */
       let sent = 0;
       try { sent = await kioskNotify(org, mr); } catch (e) { sent = 0; }
+      /* ★ v319(73-B): **하원 누름이면** 하원 알림(문자)을 보낸다 — 문지기는 `leaveNotify` 안에 있다 */
+      let leaveSent = 0;
+      try { leaveSent = await leaveNotify(org, mr); } catch (e) { leaveSent = 0; }
       return res.status(200).json({ ok: true, name: mr.name, photo: mr.photo,
-                                    time: mr.time, date: mr.date, first: mr.first, sent: sent });
+                                    time: mr.time, date: mr.date, first: mr.first, sent: sent,
+                                    leg: mr.leg, outTime: mr.outTime, gapLeft: mr.gapLeft,
+                                    gapNeed: mr.gapNeed, leaveSent: leaveSent });
     }
 
     /* ── c) 관리자 공용 기기의 PIN 출퇴근 패드 ── */
@@ -1125,9 +1249,23 @@ export default async function handler(req, res) {
         if (mr.error) return fail(res, 500, mr.error);
         if (mr.notfound) return fail(res, 404, 'PIN 번호가 올바르지 않습니다.', 'nomember');
         await writeLogin(org, '', true, 'pad:member', '', null);
-        /* ★ v298: `first` 를 함께 준다 — **알림톡은 앱이** 보내므로 앱이 같은 기준으로 가른다 */
+        /* ★ v298: `first` 를 함께 준다 — **등원 알림톡은 앱이** 보내므로 앱이 같은 기준으로 가른다.
+           ★ v319(73-B): **하원 알림은 서버가** 보낸다(두 창구가 같은 글이어야 한다) —
+             앱은 `leg` 로 화면만 가린다(앱이 하원 문자를 보내는 길은 **0개**다). */
+        let leaveSent2 = 0;
+        try { leaveSent2 = await leaveNotify(org, mr); } catch (e) { leaveSent2 = 0; }
+        /* ★★ v319(73-B) 연관 고침: **`memberId` 를 돌려준다** — 관리자 판 전용이다.
+           왜 — v296 에서 «회원» PIN 을 서버 해시로 옮긴 뒤 `data/members[].pin` 이 비었다.
+           그런데 앱은 **그 평문으로 명단에서 사람을 찾고** 있었다(`m.pin === 누른 값`).
+           못 찾으면 `{ id:'', name:…}` 로 떨어져 ① 폰 출석·시각이 **빈 id 칸(`""`)**에 쌓이고
+           ② 번호가 없어 **등원 알림톡이 아예 안 나갔다**(크롬으로 실측 — v318 배포본도 같다).
+           ★ 관리자는 **이미 명단 전체를 가졌다** — id 는 새로 알려 주는 정보가 아니다.
+             **출석 기기 응답에는 넣지 않는다**(기기는 명단이 없고 쓸 데도 없다 — 60-A 설계 3-4). */
         return res.status(200).json({ ok: true, kind: 'member', name: mr.name, photo: mr.photo,
-                                      time: mr.time, date: mr.date, first: mr.first });
+                                      time: mr.time, date: mr.date, first: mr.first,
+                                      memberId: mr._id,
+                                      leg: mr.leg, outTime: mr.outTime, gapLeft: mr.gapLeft,
+                                      gapNeed: mr.gapNeed, leaveSent: leaveSent2 });
       }
       /* 기사도 직원도 아니면 **앱이 «회원» PIN 으로 이어서 본다** — 404 로 알려 준다 */
       if (!carId && !staffId) return fail(res, 404, '기사 PIN 이 아니에요.', 'notdriver');

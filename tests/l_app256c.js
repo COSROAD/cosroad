@@ -188,7 +188,15 @@ console.log('\n════ 5. 버전·바뀐 파일·설정 ════');
     ck('설정 파일 ask 35줄 (다시 맞춤)', perm.ask.length, 35);
     ck('   gh 두 줄이 들어갔다', perm.ask.filter(x => /gh \*/.test(x)).sort().join(','), 'Bash(gh *),PowerShell(gh *)');
     ck('   allow 의 gh 3줄은 그대로', perm.allow.filter(x => /\bgh /.test(x)).length, 3);
-    ck('   allow 381 / deny 4', perm.allow.length + '/' + perm.deny.length, '381/4');
+    /* ★★ v319(73-B): `allow` 는 **정확한 수로 못 박지 않는다** — 사장님이 「모두 허용해요」로
+       도구를 더할 때마다 이 줄이 거짓으로 깨졌다(11-14 에 일곱이 늘어 381→388).
+       지킬 것은 **① 줄어들지 않았나 ② `deny` 넷이 그대로인가**다(그쪽이 안전 장치다).
+       ★ `git ls-files` 로 보면 이 파일은 **저장소에 없다**(기기별 설정) — 그래서 수를
+         못 박으면 컴퓨터마다 답이 달라진다. */
+    ck('   allow 381줄 이상 (사장님이 더해 간다)', perm.allow.length >= 381, true);
+    ck('   deny 는 넷 그대로', perm.deny.length, 4);
+    ck('   커밋·올리기는 **여전히 물어본다**',
+      perm.ask.filter((x) => /git (commit|push)/.test(x)).length >= 2, true);
     ck('   allow 에 도구 이름 두 줄', ['Bash', 'PowerShell'].every(x => perm.allow.indexOf(x) >= 0), true);
   }
 }

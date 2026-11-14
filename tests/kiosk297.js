@@ -104,7 +104,12 @@ const attOf = (S) => {
     ck('200', r.code, 200);
     /* ★ v298(60-B4 보정1): `first`(그날 처음인가) 한 칸이 늘었다 — 알림톡을 하루 한 번만
        보내려고 **서버가** 가린다. 사람 정보는 늘지 않았다(그 점은 아래 줄이 지킨다). */
-    ck('★ 이름·시각만 온다', Object.keys(r.body || {}).sort().join(','), 'date,first,name,ok,photo,sent,time');
+    /* ★ v319(73-B): 네 칸이 더 늘었다 — `leg`(등원·하원 갈래) · `outTime`(하원 시각)
+       · `gapLeft`·`gapNeed`(하원까지 남은 분) · `leaveSent`(하원 문자 보낸 수).
+       **사람 정보는 늘지 않았다** — 번호·PIN·해시·명단은 여전히 안 온다(아래 줄이 지킨다).
+       서버가 속으로 쓰는 `_id`·`_dropCar` 는 **응답에 넣지 않는다**(이 줄이 그것도 지킨다). */
+    ck('★ 이름·시각만 온다', Object.keys(r.body || {}).sort().join(','),
+      'date,first,gapLeft,gapNeed,leaveSent,leg,name,ok,outTime,photo,sent,time');
     ck('  이름', (r.body || {}).name, '가하은');
     ck('★ 응답에 **번호가 없다**', /010-/.test(JSON.stringify(r.body)), false);
     ck('★ 출석이 그 칸에 찍혔다', JSON.stringify(attOf(S)), '{"1":"present"}');

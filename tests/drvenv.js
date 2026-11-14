@@ -260,9 +260,13 @@ function makeHandler(src, S) {
   let nsPre = '';
   if (SG_IMP.test(src)) nsPre += nsOf('lib/send-guard.js', 'SG');
   if (AT_IMP.test(src)) nsPre += nsOf('lib/alimtalk-core.js', 'AT');
+  /* ★ v319(73-B): 하원 알림 문자를 서버가 보내므로  도 이름공간으로 쓴다 */
+  const SMS_IMP = /^import \* as SMS from '\.\.\/lib\/sms-core\.js';$/m;
+  if (SMS_IMP.test(src)) nsPre += nsOf('lib/sms-core.js', 'SMS');
   const code = perPre + prcPre + nsPre + src
     .replace(SG_IMP, '/* lib/send-guard.js 는 위에 붙였다 */')
     .replace(AT_IMP, '/* lib/alimtalk-core.js 는 위에 붙였다 */')
+    .replace(SMS_IMP, '/* lib/sms-core.js 는 위에 붙였다 */')
     .replace(PER_IMP, '/* lib/period.js 는 위에 붙였다 */')
     .replace(PRC_IMP, '/* lib/price.js 는 위에 붙였다 */')
     .replace(/^import \{[^}]*\} from 'firebase-admin\/app';$/m, "const { initializeApp, getApps, cert } = __fb.app;")

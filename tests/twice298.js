@@ -65,11 +65,19 @@ const wrOf = (S, key) => S.calls.filter(c => /^(tx\.)?set$/.test(c[0])
   && c[1] === 'orgs/' + ORG + '/data/' + key).length;
 const bkOf = (S) => S.calls.filter(c => /^(tx\.)?set$/.test(c[0])
   && c[1].indexOf('orgs/' + ORG + '/backups/') === 0).length;
+/* ★ v319(73-B): 알리고 창구가 **둘**이다 — 알림톡(`kakaoapi.aligo.in`)·문자(`apis.aligo.in/send`).
+   가짜 fetch 는 둘을 같은 `S.sent` 에 쌓으므로 **주소로 갈라** 센다(하원 문자가 섞이지 않게). */
+const smsOf = (S) => (S.sent || []).filter((x) => /apis\.aligo\.in\/send/.test(x.url)).length;
 
 /* ── 앱 쪽 환경 (출결 판 · 출석 기기 화면) ───────────────────────────────── */
 const NEW_SRC = fs.readFileSync(COS_ROOT + '/index.html', 'utf8').replace(/\r\n/g, '\n');
 const OLD_REF = process.env.COS_SRC_OLD_REF || 'd60f576';       /* v297 — 고치기 전 */
 const OLD_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':index.html',
+  { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
+/* ★ v319(73-B): 바로 앞 회차(v318)도 대조로 읽는다 — 「글이 두 자리였다」를 재려면 그 쪽이 맞다
+   (v297 에는 그 글이 **아예 없었다**). 커밋 제목으로 찾는 한 벌(`thisref.js`)을 쓴다. */
+const PREV_REF = process.env.COS_SRC_PREV_REF || require('./thisref.js').thisRef(318);
+const PREV_SRC = cp.execSync('git -C ' + COS_ROOT + ' show ' + PREV_REF + ':index.html',
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 const D7 = ['월', '화', '수', '목', '금', '토', '일'];
 const AMEM = [{ id: 1, name: '가하은', carId: 'car1', courseId: 'c1', days: D7, location: '1',
@@ -199,20 +207,43 @@ const resultHtml = (p) => String(p.L.pr[p.L.pr.length - 1] || '');
     ck('★ 둘째 — 쓰기 0건 더', (wrOf(S, 'attendance') + wrOf(S, 'attendanceTime')) - w1, 0);
     ck('★ 둘째 — 백업 0건 더', bkOf(S) - b1, 0);
     ck('  서버는 관리자 판에 알림톡을 **안 보낸다**(앱이 보낸다)', (S.sent || []).length, 0);
-    ck('  응답 칸', Object.keys(r2.body || {}).sort().join(','), 'date,first,kind,name,ok,photo,time');
+    /* ★ v319(73-B): `leg`·`outTime`·`gapLeft`·`gapNeed`·`leaveSent` 다섯이 늘고,
+       **연관 고침**으로 `memberId` 가 하나 더 늘었다 — 관리자 판 전용이다(기기에는 안 준다).
+       까닭은 `tests/leave73.js` ⑦ 에 적어 두었다(v296 뒤 평문이 비어 사람을 못 찾았다).
+       ★ 관리자는 이미 명단 전체를 가졌으므로 **새로 아는 정보가 아니다**. */
+    ck('  응답 칸', Object.keys(r2.body || {}).sort().join(','),
+      'date,first,gapLeft,gapNeed,kind,leaveSent,leg,memberId,name,ok,outTime,photo,time');
   }
 
   console.log('\n════ ③ **결석으로 둔 사람이 오면** 출석으로 바꾼다(알림은 0)');
   {
     /* 관리자가 결석으로 바꿔 둔 뒤 그 «회원» 이 실제로 왔다 — 시각 칸은 이미 있다 */
+    /* ★★ v319(73-B): 이 장면은 **08:10 등원 → 20:20 누름**이라 이제 「하원」이다(간격 30분 넘음).
+       그래서 시각 칸에 **`out` 이 붙는다** — 그래도 **처음 시각 `t` 는 그대로**다(아래 줄).
+       「시각을 아예 안 건드린다」는 **간격 안**(30분 전)일 때의 약속이고, 그 장면은 ③-2 에서 잰다. */
     const S = st({ att: { [KDATE]: { 1: 'absent' } }, attTime: { [KDATE]: { 1: '08:10' } } });
     const r = await kAtt(S, '1111');
     ck('★ 출석으로 바뀐다', JSON.stringify(dayOf(S, 'attendance')), '{"1":"present"}');
     ck('  그 쓰기는 한다(출석 1건)', wrOf(S, 'attendance'), 1);
-    ck('  시각은 **안 건드린다**', wrOf(S, 'attendanceTime'), 0);
+    ck('★ 하원 시각이 붙는다(v319)',
+      JSON.stringify(dayOf(S, 'attendanceTime')), '{"1":{"t":"08:10","by":"pin","out":"20:20"}}');
+    ck('  돌려주는 **등원** 시각은 처음 시각', (r.body || {}).time, '08:10');
     ck('★ 그래도 `first:false`', String((r.body || {}).first), 'false');
     ck('★ 알림톡 0건', (S.sent || []).length, 0);
-    ck('  돌려주는 시각은 처음 시각', (r.body || {}).time, '08:10');
+    ck('★ 하원 **문자도 0건**(업체가 안 켰다 — 기본 꺼짐)', smsOf(S), 0);
+  }
+
+  console.log('\n════ ③-2 **간격 안**(30분 전)이면 종전 그대로 — 시각을 안 건드린다');
+  {
+    /* 가짜 「지금」은 20:20 KST — 등원이 20:10 이면 10분밖에 안 지났다(하원 아님) */
+    const S = st({ att: { [KDATE]: { 1: 'absent' } }, attTime: { [KDATE]: { 1: '20:10' } } });
+    const r = await kAtt(S, '1111');
+    ck('★ 출석으로 바뀐다(결석→출석은 그대로)', JSON.stringify(dayOf(S, 'attendance')), '{"1":"present"}');
+    ck('★ 시각은 **안 건드린다**', wrOf(S, 'attendanceTime'), 0);
+    ck('  `first:false`', String((r.body || {}).first), 'false');
+    ck('★ `leg` 는 `already-in`', (r.body || {}).leg, 'already-in');
+    ck('  남은 분을 알려 준다(30-10)', (r.body || {}).gapLeft, 20);
+    ck('  알림톡 0건 · 문자 0건', (S.sent || []).length, 0);
   }
 
   console.log('\n════ ④ 관리자가 **손으로 적은 시각**({t,by:admin})도 「처음」으로 본다');
@@ -222,8 +253,10 @@ const resultHtml = (p) => String(p.L.pr[p.L.pr.length - 1] || '');
     ck('★ `first:false`', String((r.body || {}).first), 'false');
     ck('  시각은 그 값', (r.body || {}).time, '08:00');
     ck('  알림톡 0건', (S.sent || []).length, 0);
+    /* ★ v319(73-B): 이 장면도 간격을 넘겼으니 **하원**이다 — `out` 이 붙는다.
+       그래도 **손으로 적은 `t`·`by:'admin'` 은 그대로**다(덮지 않는다는 약속은 지켜진다). */
     ck('  시각 칸을 덮지 않는다',
-      JSON.stringify(dayOf(S, 'attendanceTime')), '{"1":{"t":"08:00","by":"admin"}}');
+      JSON.stringify(dayOf(S, 'attendanceTime')), '{"1":{"t":"08:00","by":"admin","out":"20:20"}}');
   }
 
   console.log('\n════ ⑤ 다른 «회원» 은 **따로** 센다(한 사람의 둘째 누름만 막는다)');
@@ -248,9 +281,10 @@ const resultHtml = (p) => String(p.L.pr[p.L.pr.length - 1] || '');
     ck('★ 둘째 누름 — 알림톡 **0건 더**', p.L.alim.length - a1, 0);
     ck('★ 둘째 화면 「이미 출석했어요」', /이미 출석했어요/.test(resultHtml(p)), true);
     ck('  처음 시각이 보인다', /09:05/.test(resultHtml(p)), true);
+    /* ★ v319: 읽는 함수가 `out`(하원 시각) 칸을 하나 더 돌려준다 — 등원만이면 빈 값 */
     ck('  폰에도 처음 시각이 남는다',
       p.R.ev("JSON.stringify(attTimeInfo(loadAttendanceTime(),'" + TODAY + "',1))"),
-      '{"t":"09:05","by":"pin"}');
+      '{"t":"09:05","by":"pin","out":""}');
     ck('  출석은 그대로', p.R.ev("String((loadAttendance()['" + TODAY + "']||{})['1'])"), 'present');
   }
 
@@ -310,10 +344,23 @@ const resultHtml = (p) => String(p.L.pr[p.L.pr.length - 1] || '');
         + ':api/driver-auth.js', { maxBuffer: 1 << 26 }).toString()), false);
     ck('★ 앱은 `first === false` 로만 가른다(옛 서버 보호)',
       (NEW_SRC.match(/\.first === false/g) || []).length >= 2, true);
-    ck('  「이미 출석했어요」 글은 **두 자리**(판·기기)',
-      (NEW_SRC.match(/\?'이미 출석했어요':'출석 완료!'/g) || []).length, 2);
-    ck('  알림톡은 `_already` 가 아닐 때만 나간다',
-      /if\(!_already\)\{[\s\S]{0,160}?sendKakaoAlimtalk\(member, timeStr\);/.test(NEW_SRC), true);
+    /* ★★ v319(73-B): 글이 **한 벌**(`_padView`)로 모였다 — 전에는 판·기기에 **따로** 적혀 있었다
+       (갈래가 둘에서 넷으로 늘자 두 곳에 같은 네 갈래를 적을 수 없었다).
+       그래서 ① 글은 한 자리에만 있고 ② **부르는 곳이 둘**(판·기기)인지를 함께 잰다. */
+    ck('★ 「이미 출석했어요」 글은 **한 자리**(`_padView` 한 벌 · v319)',
+      (NEW_SRC.match(/\?'이미 출석했어요':'출석 완료!'/g) || []).length, 1);
+    ck('  그 한 벌을 **두 곳**이 부른다(판·기기)',
+      (NEW_SRC.match(/_padView\(/g) || []).length, 3);
+    /* 대조는 **두 쪽**이다 — v297(이 묶음의 옛 쪽 · 글이 아예 없었다)과
+       **v318**(바로 앞 회차 · 글이 두 자리였다). 둘 다 `_padView` 는 0 이다. */
+    ck('  (대조) v297 에는 글도 한 벌도 없었다',
+      (OLD_SRC.match(/_padView\(/g) || []).length + '/'
+        + (OLD_SRC.match(/\?'이미 출석했어요':'출석 완료!'/g) || []).length, '0/0');
+    ck('  (대조) 바로 앞 회차(v318)는 글이 **두 자리** · 한 벌 0',
+      (PREV_SRC.match(/_padView\(/g) || []).length + '/'
+        + (PREV_SRC.match(/\?'이미 출석했어요':'출석 완료!'/g) || []).length, '0/2');
+    ck('  알림톡은 `_already` 가 아니고 **하원도 아닐 때만** 나간다 (v319)',
+      /if\(!_already && _leg !== 'out'\)\{[\s\S]{0,160}?sendKakaoAlimtalk\(member, timeStr\);/.test(NEW_SRC), true);
   }
 
   console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

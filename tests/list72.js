@@ -15,7 +15,7 @@ const COS_ROOT = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
 const cp = require('child_process');
 const fs = require('fs');
 const E = require('./env246.js');
-const { thisRef } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
+const { thisRef, srcAt } = require('./thisref.js');   /* 회차 커밋 찾기 한 벌 */
 
 const OLD_REF = process.env.COS_SRC_OLD_REF || 'cda3a8a';   /* v314 — 고치기 전 */
 const THIS_REF = thisRef(315);
@@ -345,7 +345,10 @@ const idsOf = (json) => { try { return JSON.parse(json).map((x) => String(x.id))
        사람에게 보이는 유일한 변화다 · 커밋 전 체크리스트 3). 그 밖은 그대로여야 한다. */
     const QA = (s) => { const i = s.indexOf('var HELP_QA=['); return i < 0 ? '' : s.slice(i, s.indexOf('\n];', i)); };
     const qaN = (s) => (QA(s).match(/\{role:/g) || []).length;
-    ck('  문답이 하나만 늘었다', qaN(NEW_SRC) - qaN(OLD_SRC), 1);
+    /* ★★ v319(73-B): 문답표 검사는 **그 회차 커밋**에서 잰다 (CLAUDE.md 「검사 묶음 규칙」) —
+       작업트리로 재면 **다음 회차가 문답을 더할 때마다** 거짓으로 깨진다(v315 에 아홉이 그랬다).
+       ★ 커밋 전에는 `srcAt('')` 가 **작업트리**를 읽는다 — 그 회차에는 그게 맞다. */
+    ck('  문답이 하나만 늘었다', qaN(srcAt(THIS_REF)) - qaN(OLD_SRC), 1);
     ck('  늘어난 것은 「둘이 같은 시간에 고쳐도 되나요」',
       /t:'둘이 같은 시간에 고쳐도 되나요'/.test(NEW_SRC) && !/둘이 같은 시간에/.test(OLD_SRC), true);
     ck('  검색어에 「동시」·「덮어」가 있다',

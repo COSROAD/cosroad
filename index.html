@@ -701,7 +701,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 318;
+const APP_VERSION = 319;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -2387,11 +2387,11 @@ let orgSettings=loadOrgSettings();
 // ── 업종별 용어 사전 ──
 // 업종 코드: academy(학원,기본) / logistics(물류) / public(공공) / delivery(택배)
 var BIZ_TERMS = {
-  academy:   { 회원:'회원', 출석:'출석', 결석:'결석', 출결:'출결', 출석률:'출석률', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장' },
-  logistics: { 회원:'거래처', 출석:'납품완료', 결석:'미납품', 출결:'납품', 출석률:'납품률', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지' },
-  public:    { 회원:'이용자', 출석:'출석', 결석:'결석', 출결:'출결', 출석률:'출석률', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장' },
+  academy:   { 회원:'회원', 출석:'출석', 결석:'결석', 출결:'출결', 출석률:'출석률', 수강료:'수강료', 학부모:'학부모', 도착알림:'도착 알림', 알림장:'알림장', 하원:'하원' },
+  logistics: { 회원:'거래처', 출석:'납품완료', 결석:'미납품', 출결:'납품', 출석률:'납품률', 수강료:'운임', 학부모:'담당자', 도착알림:'납품 알림', 알림장:'공지', 하원:'하차' },
+  public:    { 회원:'이용자', 출석:'출석', 결석:'결석', 출결:'출결', 출석률:'출석률', 수강료:'이용료', 학부모:'보호자', 도착알림:'도착 알림', 알림장:'알림장', 하원:'귀가' },
   /* 택배는 알림장 탭 자체가 숨김(getOrderedAdminTabs) — 표 모양만 맞춰 fallback과 같은 값 */
-  delivery:  { 회원:'배송지', 출석:'배송완료', 결석:'미배송', 출결:'배송', 출석률:'배송률', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장' }
+  delivery:  { 회원:'배송지', 출석:'배송완료', 결석:'미배송', 출결:'배송', 출석률:'배송률', 수강료:'배송료', 학부모:'받는분', 도착알림:'배송 알림', 알림장:'알림장', 하원:'하차' }
 };
 var BIZ_LABELS = { academy:'학원', logistics:'물류', public:'공공', delivery:'택배' };
 
@@ -6702,7 +6702,7 @@ var HELP_QA=[
   {role:'admin', keys:['알림장카톡','카톡공유','카톡','알림장공유','공유링크'], t:'«알림장» 카톡으로 보내기',
    a:'1. 관리자 → 「📝 «알림장»」 탭 → 아래 「📋 «알림장» 기록」 목록에서 「💬 카톡 공유」를 누르세요 (「📩 문자 보내기」 옆이에요)\n2. 확인창에 작성일·사진 장수·내용 앞부분이 보여요 — 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n3. 휴대폰이면 공유창이 떠요. 컴퓨터면 「🔗 링크 복사」로 복사해 카톡에 붙여넣으면 돼요\n4. 받는 분은 앱에 가입하지 않아도 링크만 열면 내용과 사진을 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n5. 링크에는 내용·사진·작성일과 기관 이름만 담겨요 — 받는 대상 «회원» 이름·연락처는 들어가지 않아요\n6. 링크는 30일 뒤 자동으로 만료돼요. 보낸 뒤 앱에서 내용을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n7. 공유창을 열면 목록에 「💬 카톡 공유함」이 붙어요 — 카카오는 실제로 보냈는지를 앱에 알려주지 않아서 「보냈다」가 아니라 「공유창을 열었다」는 뜻이에요 (문자 「발송됨」과는 별개예요)\n8. 사진은 한 번 올리면 주소를 기억해 둬요 — 문자·카톡을 여러 번 보내도 같은 사진을 다시 올리지 않아요 (사진을 바꿔 수정 저장하면 다음에 새로 올려요)\n9. <b>공유 화면의 제목도 업종 용어로 나와요</b> (v309) — 물류는 「공지」, 학원·공공·택배는 「알림장」이에요. v309 이전에 보낸 링크는 「알림장」으로 그대로 보여요'},
   {role:'admin', keys:['출결','체크인','출석','결석','중복','두 번','또 눌'], t:'«출결» 체크인 (PIN)',
-   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n1-2. <b>출석 전용 기기</b>를 둘 수 있어요 (v297) — 「📋 «출결»관리」 탭의 「🎫 출석 전용 기기」에서 코드를 만들고 (v313 — 전에는 차량관리 탭에 있었어요), 태블릿·폰에서 로그인 화면의 <b>「🎫 출석 기기」</b>에 업체 번호 + 그 코드를 넣으세요. 그 기기는 <b>PIN 판만</b> 보이고 관리 화면이 열리지 않아요 (명단도 내려가지 않아요 · 알림톡은 서버가 보내요)\n1-3. <b>물류·택배는 그 기기가 「출퇴근 전용」이에요</b> (v314) — 「근태관리」 탭의 「🎫 출퇴근 전용 기기」에서 코드를 만들고, 기기에서 <b>기사·직원이 자기 PIN 4자리</b>를 누르면 출근·퇴근이 찍혀요. 관리자 기기의 「🔢 PIN 출퇴근 체크」·기사 폰·직원 폰과 <b>같은 근태</b>로 들어가요 (학원·공공 기기는 «회원» 출석만 받고, 물류·택배 기기는 «회원» 출석을 받지 않아요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n3-1. <b>같은 날 두 번 눌러도 괜찮아요</b> (v298) — 두 번째부터는 「<b>이미 출석했어요</b>」와 함께 <b>처음 찍은 시각</b>이 떠요. 기록은 처음 것이 그대로 남고 <b>알림톡도 다시 나가지 않아요</b> (출석 전용 기기도 같아요)\n3-2. 하원(귀가) 알림은 이 판에서 나가지 않아요 — 기사가 운행 화면에서 「하차 완료」를 누를 때 나가요. 이 판과 출석 기기는 <b>등원만</b> 받아요\n4. 처음 찍을 때 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
+   a:'1. «회원» 등록 화면의 「출석 PIN 번호 (4자리)」에 사람마다 다른 번호를 넣어 두세요 — <b>PIN 은 서버에만 안전하게 보관돼요</b> (v296) · 한 번 정하면 화면에 다시 보이지 않고 「PIN 설정됨」으로만 나와요. 잊으셨으면 수정 창에서 새 번호를 적으면 돼요 (비워 두고 저장하면 그대로예요)\n1-1. 명단 위에 <b>「🔢 옛 «회원» PIN 옮기기」</b> 노란 칸이 보이면 한 번 눌러 주세요 — 예전에 업체 자료에 그대로 들어 있던 PIN 을 서버로 옮겨요 (출석은 그대로 돼요)\n1-2. <b>출석 전용 기기</b>를 둘 수 있어요 (v297) — 「📋 «출결»관리」 탭의 「🎫 출석 전용 기기」에서 코드를 만들고 (v313 — 전에는 차량관리 탭에 있었어요), 태블릿·폰에서 로그인 화면의 <b>「🎫 출석 기기」</b>에 업체 번호 + 그 코드를 넣으세요. 그 기기는 <b>PIN 판만</b> 보이고 관리 화면이 열리지 않아요 (명단도 내려가지 않아요 · 알림톡은 서버가 보내요)\n1-3. <b>물류·택배는 그 기기가 「출퇴근 전용」이에요</b> (v314) — 「근태관리」 탭의 「🎫 출퇴근 전용 기기」에서 코드를 만들고, 기기에서 <b>기사·직원이 자기 PIN 4자리</b>를 누르면 출근·퇴근이 찍혀요. 관리자 기기의 「🔢 PIN 출퇴근 체크」·기사 폰·직원 폰과 <b>같은 근태</b>로 들어가요 (학원·공공 기기는 «회원» 출석만 받고, 물류·택배 기기는 «회원» 출석을 받지 않아요)\n2. 관리자 → 「📋 «출결»관리」 탭 → 「🔢 PIN 체크인 모드 열기」 — 이 판은 <b>«회원» 출석 PIN 만</b> 받아요 (v293)\n3. 본인이 자기 PIN 4자리를 직접 누르면 그 자리에서 «출석» 처리되고, 사진·이름과 함께 「출석 완료!」가 떠요 — <b>시각은 서버 시간</b>으로 남아요 (v295 · 기기 시계를 바꿔도 기록은 안 흔들려요)\n3-1. <b>같은 날 두 번 눌러도 괜찮아요</b> (v298) — 두 번째부터는 「<b>이미 출석했어요</b>」와 함께 <b>처음 찍은 시각</b>이 떠요. 기록은 처음 것이 그대로 남고 <b>알림톡도 다시 나가지 않아요</b> (출석 전용 기기도 같아요)\n3-2. <b>같은 날 두 번째로 누르면 「하원」이에요</b> (v319) — 「🏠 하원 처리됐어요 (시각)」이 뜨고, 업체가 켜 두었으면 «학부모»에게 <b>귀가 문자</b>가 나가요. 세 번째부터는 「이미 하원했어요 (처음 하원 시각)」이고 <b>기록도 문자도 다시 안 나가요</b>\n3-3. <b>출석하고 30분은 지나야 하원이 돼요</b> — 실수로 두 번 누른 것이 하원이 되지 않게요. 그 안에 누르면 「이미 출석했어요 — 하원은 ○분 뒤부터」가 떠요 (기록 0 · 문자 0)\n3-4. 기사가 운행 화면에서 「하차 완료」를 <b>먼저</b> 눌렀으면 하원 문자는 <b>나가지 않아요</b> — 하루 한 분에게 <b>한 번만</b> 가요. 반대로 하원을 먼저 찍었으면 기사가 「하차 완료」를 눌러도 알림톡이 다시 안 나가요 (「이미 하원 알림이 갔어요」가 떠요)\n3-5. 하원 시각은 «출결»관리 이름 아래(🏠 17:05)와 «출결» 엑셀 칸(✅ 08:30 / 🏠 17:05)에 나와요 — <b>학원·공공만</b> 쓰는 기능이에요\n4. 처음 찍을 때 «학부모»에게 카카오 알림톡이 자동으로 나가요 (알림톡이 안 되면 문자로 다시 보내요)\n5. 「📊 «출결» 현황 보기」를 누르면 이번 달 「총 «출석»」·「총 «결석»」·「«출석률»」, 「📋 이번 달 «출결» 다운로드」 엑셀, 「📅 연속 «결석» «회원» (3일 이상)」 목록이 나와요\n6. 날짜는 「📅 날짜 선택」으로 바꾸고, 위 단추로 코스별로 걸러 볼 수 있어요\n7. «출석» 시각이 «출결»관리 화면 이름 아래(🕘 08:30 PIN / 🕘 09:12 관리자)와 «출결» 엑셀 칸(✅ 08:30)에 나와요 — 관리자 단추는 오늘 날짜를 체크할 때만 시각이 남아요\n8. 기사·직원 출퇴근과는 <b>판이 달라요</b> (v293) — 이 판에서 「기사 PIN」·「직원 PIN」을 누르면 「🚚 기사·직원 PIN 이에요」가 뜨고 <b>«출결»에도 근태에도 기록되지 않아요</b>. 근태관리의 「🔢 PIN 출퇴근 체크」에서 찍어 주세요\n   · 그래도 «회원»·기사·직원 PIN 은 서로 다른 번호로 정하세요 — 겹친 것이 있으면 근태관리의 「🔍 PIN 겹침 찾기」로 찾을 수 있어요\n9. 기사 화면에는 PIN 판이 없어요 (둘러보기도 같아요) — «회원» 출석 PIN 은 여기 관리자 화면의 「🔢 PIN 체크인 모드」에서만 써요. 기사 자신의 출퇴근은 기사 운행 화면의 「🌅 출근 / 🌆 퇴근」 단추로 해요'},
   {role:'admin', keys:['세무','부가세','수입','지출','매출'], t:'세무 관리 (수입·지출·부가세)',
    a:'1. 관리자 → 「📊 세무관리」 탭 (택배 업종에는 이 탭이 없어요)\n2. 「📋 수입/지출」 → 「＋ 수입/지출 입력」을 펼쳐 수입·지출, 항목명, 금액, 결제수단을 넣고 「추가」\n3. 「📅 달력」을 켜면 날짜별 수입·지출 합계가 보이고, 날짜를 누르면 그날 내역이 열려요. 날짜를 고른 채로 입력하면 그날로 기록돼요 (안 고르면 오늘)\n4. 거래명세서에서 수금·결제하면 「매출 대금」·「매입 대금」으로, 수납에서 납부처리하면 «수강료» 항목으로 자동으로 들어와요 — 두 번 적을 필요 없어요\n5. 예전 거래가 빠졌으면 「🔄 거래내역 세무 동기화 (누락분 채우기)」\n6. 「🧾 세금계산」은 수입을 1기(1~6월)·2기(7~12월)로 나눠 부가세를 어림잡아 줘요 (금액을 1.1로 나눈 공급가액 기준 · 신고기간 7월 25일, 다음해 1월 25일)\n7. 「엑셀 출력」으로 월별 수입·지출·순이익·부가세를 받을 수 있어요\n8. 어림수예요 — 실제 신고액과 다를 수 있으니 신고 전 세무사와 확인하세요'},
   {role:'admin', keys:['증명서','납입증명','재원증명'], t:'증명서·영수증 발급',
@@ -6758,6 +6758,8 @@ var HELP_QA=[
   {role:'admin', keys:['차량','호차','기사','배정','차량번호','차종'], t:'차량 등록·기사 배정',
    a:'1. 관리자 → 차량관리 탭 → 「＋ 차량 추가」 (지울 땐 「🗑 현재 차량 삭제」)\n2. 위쪽 호차 단추로 차량을 바꿔 가며 관리해요\n3. 차량 카드에 기사명 · 연락처 · 차량번호 · 차종 · 출퇴근 거리(km/일) · 시급 · 식대 · 공제방식을 넣어요\n4. 차종·출퇴근 거리는 운행기록부에, 시급·식대·공제는 급여 계산에 쓰여요\n5. 기사 PIN 은 그 아래 「🔢 기사 로그인 (PIN)」 칸에서 정해요 — PIN 은 서버에만 보관돼서 화면에 값이 보이지 않아요 (「PIN 설정됨 ✓」로만 나와요)\n6. 아래 「배정된 «회원»」에서 이 차량이 도는 «회원»을 넣고 뺄 수 있어요\n7. <b>학원·공공은 등원·하원을 따로 배정해요</b> — 「추가」 위의 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요 (기본은 「둘 다」)\n8. 하원만 이 차량인 «회원»은 초록 <b>「하원」</b> 띠와 등원 차량 이름이 함께 보여요 — 「하원 해제」로 되돌려요\n9. 등원·하원이 둘 다 이 차량이면 「등원 해제」(하원은 이 차량에 남겨요) · 「전체 해제」를 고를 수 있어요\n9-1. <b>동승 도우미</b>(학원·공공) — 차량 카드 아래 「🧑‍🤝‍🧑 동승 도우미」에서 그 차에 함께 타는 <b>직원</b>을 고를 수 있어요. 한 차량에 한 명이고, PIN 이 있는 직원만 고를 수 있어요\n9-2. 고른 도우미는 <b>자기 직원 PIN</b> 으로 「🚐 기사 로그인」에 들어와 그 차량 운행 화면을 봐요 — 배정을 바꾸면 도우미 화면도 <b>바로</b> 따라가고, 떼면 그 자리에서 자료가 막혀요\n10. 배정은 <b>관리자만</b> 바꿔요 — 기사 화면에는 바꾸는 길이 없어요. 운행 중에 바꾸면 기사 화면에 바로 반영돼요\n11. 기사 PIN은 차량마다 달라야 해요 — 겹치면 서버가 알려 줘요\n12. <b>차량을 지울 때는 서버에서 먼저 정리해요</b> (v303) — 그 차량의 <b>기사 PIN·묶인 기기·동승 도우미 배정</b>을 서버에서 지운 뒤에 차량이 사라져요. 그래야 지운 차량의 기사가 그 PIN 으로 더는 로그인할 수 없어요\n12-1. 인터넷이 끊겼거나 서버가 응답하지 않으면 <b>삭제를 멈추고</b> 알려 드려요 — 차량은 그대로 남아 있으니 <b>잠시 뒤 다시</b> 지우시면 돼요 (이용 기간이 끝난 업체도 막혀요)\n12-2. <b>연결된 것이 있으면 먼저 해제해 달라고 알려 드려요</b> (v304) — ① 이 차량에 배정된 «회원» 이 있으면 「배정된 «회원» N명의 차량을 먼저 바꿔 주세요」 ② 동승 도우미가 있으면 「동승 도우미 ○○ 배정을 먼저 해제해 주세요」. 전에는 말없이 비웠는데, 어디를 고쳐야 하는지 보이도록 바꿨어요\n12-3. <b>지나간 기록은 막지 않아요</b> — «출결»·수납·급여·차계부·운행기록은 그대로 남고 삭제를 막지 않아요'},
   /* v273 — 두 차량 칸. 학원·공공만 쓰는 기능이라 그 점을 먼저 적는다. */
+  {role:'admin', keys:['하원알림','귀가','귀가알림','하원문자','귀가문자','하원알림보내기'], t:'하원(귀가) 알림 켜기·끄기',
+   a:'1. 설정 탭 → 「사용자 정보」 → <b>「하원 알림 보내기」</b>를 켜 주세요 — <b>기본은 꺼져 있어요</b> (학원·공공만 보여요)\n2. 켜면 «출결» PIN 판·출석 전용 기기에서 <b>같은 날 두 번째 PIN</b> 을 누를 때 «학부모»에게 <b>귀가 문자</b>가 나가요\n3. <b>건당 문자 요금</b>이 들어요 — 알림톡(승인 심사 중)으로 바뀌면 더 싸게 나갑니다\n4. 출석하고 <b>30분</b>은 지나야 하원으로 쳐요 (실수로 두 번 누른 것이 하원이 되지 않게요)\n5. 기사 「하차 완료」와 <b>겹치면 하루 한 번</b>만 나가요 — 먼저 간 쪽이 그날의 알림이에요\n6. 꺼 두면 <b>하원 시각은 그대로 기록</b>되고 문자만 안 나가요 («출결» 화면·엑셀에서 보실 수 있어요)\n7. 받는 번호는 출석 알림과 같아요 — «회원» 등록 화면의 연락처·비상연락처, <b>명부에 있는 번호만</b>으로 나가요'},
   {role:'admin', keys:['하원차량','하원','등원','두차량','따로배정'], t:'등원·하원 차량을 따로 (하원 차량)',
    a:'한 «회원»이 <b>등원은 1호차, 하원은 2호차</b>로 다닐 수 있어요 (학원·공공만 — 물류·택배는 하원이 없어 칸이 안 보여요)\n1. «회원»관리 → 수정 → 「차량」 아래 <b>「하원 차량」</b> 에서 고르세요. 기본은 <b>「등원과 같음」</b> 이에요\n2. 「등원과 같음」이면 지금까지처럼 <b>한 대</b>로 등·하원을 다 돌아요 — 쓰던 «회원»은 손댈 것이 없어요\n3. 차량관리에서도 바꿀 수 있어요 — 「넣을 때: 둘 다 / 등원만 / 하원만」을 고른 뒤 이름을 누르세요\n4. <b>운행 화면</b>은 방향에 따라 갈려요 — 등원 탭에는 등원 차량의 «회원», 하원 탭에는 하원 차량의 «회원»이 나와요\n5. 기사 「«회원»」 탭에는 <b>등원·하원 어느 쪽이든</b> 내 차량인 «회원»이 모두 보여요\n6. 하원 차량 기사도 그 «회원»에게 <b>하차 알림 문자</b>를 보낼 수 있어요\n7. <b>수강료·«출결»은 등원 차량 하나 기준</b>이에요 — 한 «회원»이 두 번 세어지지 않아요\n8. 기사 급여는 <b>출퇴근 시간</b>으로 계산해서 이것과 상관없어요\n9. 차량을 지우면 그 차량을 하원으로 쓰던 «회원»도 「등원과 같음」으로 돌아가요'},
   {role:'admin', keys:['노선','운행시각','출발시간','도착시간'], t:'코스(노선) 추가·운행 시각',
@@ -7264,9 +7266,14 @@ function sendDropoffNotify(member, timeStr){
   var msg=buildDropoffMessage(biz, orgSettings.name, member.name, timeStr);
   phones.forEach(function(phone){
     /* v266 — 로그인 토큰을 함께 보낸다(sendMsgApi). 읽기 전용이면 부르기 전에 막힌다. */
-    sendMsgApi('send-alimtalk',{tpl_code:tplCode,receiver:phone,name:member.name,message:msg,biz:biz})
+    /* ★ v319(73-B): **`memberId` 를 함께 보낸다** — 서버가 그 차량 «회원» 인지 확인한 뒤
+       **그날 하원 알림이 이미 갔으면 보내지 않는다**(`skipped:'left'`). 기사는 규칙상
+       출석 시각을 못 읽으므로 이 판정은 **서버에만** 둘 수 있다. */
+    sendMsgApi('send-alimtalk',{tpl_code:tplCode,receiver:phone,name:member.name,message:msg,biz:biz,memberId:String(member.id)})
     .then(function(d){
-      if(d && (d.code===0 || d.result_code>0)){
+      if(d && d.skipped==='left'){
+        showToast('이미 '+T('하원')+' 알림이 갔어요 — 다시 보내지 않았어요');
+      } else if(d && (d.code===0 || d.result_code>0)){
         console.log('하차 알림톡 발송 성공:', member.name);
       } else if(d && d.blocked){
         /* v266 — 이용 기간이 끝났다. 폰 문자앱으로 넘기지 않고 까닭만 알린다. */
@@ -9460,7 +9467,7 @@ function renderSettings(){
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
           <label style="flex:1;padding:9px;background:#F3EEFF;color:#7C3AED;border:1px solid #DDD6FE;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;text-align:center;">🖼 도장 업로드<input type="file" accept="image/*" onchange="uploadStamp(event)" style="display:none;"/></label>
           ${orgSettings.stamp?'<img src="'+escapeMasterHtml(orgSettings.stamp)+'" style="width:44px;height:44px;object-fit:contain;border:1px solid #EAECF0;border-radius:8px;"/><button onclick="removeStamp()" style="padding:8px 10px;background:#FEF3F2;color:#F04438;border:1px solid #FECDCA;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">삭제</button>':'<span style="font-size:11px;color:#98A2B3;">미등록</span>'}
-        </div>
+        </div>${(getBizType()==='academy'||getBizType()==='public') ? ('<label class=\"form-label\">'+T('하원')+' 알림 보내기</label>'+'<label style=\"display:flex;align-items:center;gap:8px;padding:9px;background:#F9FAFB;border:1px solid #EAECF0;border-radius:8px;font-size:13px;font-weight:700;color:#344054;cursor:pointer;margin-bottom:4px;\">'+'<input type=\"checkbox\" id=\"org-leavenotify\" '+(orgSettings.leaveNotify===true?'checked':'')+' style=\"width:18px;height:18px;\"/>'+'<span>두 번째 PIN(하원)에 보호자에게 <b>귀가 문자</b>를 보냄</span></label>'+'<div style=\"font-size:11px;color:#98A2B3;margin-bottom:10px;line-height:1.5;\">켜면 같은 날 <b>두 번째</b> PIN 을 누를 때(출석 뒤 '+fmtNum(LEAVE_GAP_MIN)+'분 지나야 해요) 보호자에게 귀가 문자가 나가요 — <b>건당 문자 요금</b>이 들어요. 기사가 「하차 완료」를 먼저 눌렀으면 <b>한 번만</b> 나가요.</div>') : ''}
         <label class="form-label">아이콘 (이모지)</label>
         <input class="form-input" id="org-icon-input" value="${orgSettings.icon}" placeholder="예) 🥋 🏫 🏥" style="margin-bottom:0;"/>
         <label class="form-label">도착지 이름</label>
@@ -9584,7 +9591,12 @@ function saveOrgInfo(){
      「📍 검색」으로 고르면 새 값이 들어가고, **손으로 고치면 비워진다**(`orgAddrTouched`).
      그래서 여기서는 **칸을 그대로 읽으면** 세 경우가 모두 맞는다(옛 업체는 빈 값 그대로). */
   function ga(id, k){ var e=document.getElementById(id); return e?String(e.getAttribute(k)||'').trim():''; }
-  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),addrSido:ga('org-addr','data-sido'),addrSigungu:ga('org-addr','data-sigungu'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp,insRates:_prevIns,supportAlert:_prevSup};
+  /* ★ v319(73-B): 「하원 알림 보내기」 — **학원·공공에만 칸이 있다.**
+     칸이 없는 업종(물류·택배)에서 저장하면 **종전 값을 그대로 둔다**(지원사업 알림과 같은 태도). */
+  var _leaveEl = document.getElementById('org-leavenotify');
+  var _leaveOn = _leaveEl ? (_leaveEl.checked === true)
+                          : ((orgSettings && orgSettings.leaveNotify) === true);
+  orgSettings={name:document.getElementById('org-name').value.trim(),icon:document.getElementById('org-icon-input').value.trim(),bizType:bizTypeVal,destName:document.getElementById('dest-name').value.trim(),destAddr:document.getElementById('dest-addr').value.trim(),destLat:parseFloat(document.getElementById('dest-lat').value),destLon:parseFloat(document.getElementById('dest-lon').value),bizNo:gv('org-bizno'),ceo:gv('org-ceo'),bizCat:gv('org-bizcat'),bizItem:gv('org-bizitem'),address:gv('org-addr'),addrSido:ga('org-addr','data-sido'),addrSigungu:ga('org-addr','data-sigungu'),tel:gv('org-tel'),bankAccount:gv('org-bank'),stamp:_prevStamp,insRates:_prevIns,supportAlert:_prevSup,leaveNotify:_leaveOn};
   saveOrgSettings(orgSettings);
   document.getElementById('org-name-display').textContent=orgSettings.name;
   applyOrgNameFit();
@@ -10598,14 +10610,43 @@ function saveAttendanceTime(d){
    PIN   : 'HH:MM' 문자열 (v243 에서 저장하던 형식 그대로. 하위 호환)
    관리자 : { t:'HH:MM', by:'admin' }
    읽을 때는 attTimeInfo() 하나로 둘 다 받는다. */
+/* ★ v319(73-B): 칸에 **하원 시각 `out`** 이 더해졌다 — 읽는 자리는 **이 한 벌**이라
+   화면·엑셀·PIN 판이 모두 같은 값을 본다. 옛 꼴('HH:MM'·{t,by})은 `out:''` 로 돌려준다. */
 function attTimeInfo(map, dateStr, memberId){
   var day = map && map[dateStr];
   if(!day) return null;
   var v = day[memberId];
   if(v==null) return null;
-  if(typeof v==='string') return v ? { t:v, by:'pin' } : null;
-  if(typeof v==='object' && v.t) return { t:String(v.t), by:(v.by==='admin'?'admin':'pin') };
+  if(typeof v==='string') return v ? { t:v, by:'pin', out:'' } : null;
+  if(typeof v==='object' && v.t) return { t:String(v.t), by:(v.by==='admin'?'admin':'pin'), out:String(v.out||'') };
   return null;
+}
+/* 하원 최소 간격(분) — **원본은 서버 상수**(`api/driver-auth.js LEAVE_MIN_GAP_MIN`)다.
+   여기 값은 **서버를 안 부르는 길**(둘러보기·오프라인)에서만 쓰고, 서버가 돌려준 `gapNeed`
+   가 있으면 **그 값을 쓴다**(둘이 어긋나도 서버가 이긴다). */
+var LEAVE_GAP_MIN = 30;
+function _hhmmMin(x){ var m=/^(\d{1,2}):(\d{2})$/.exec(String(x||'')); return m?(Number(m[1])*60+Number(m[2])):-1; }
+/* 지난 분 수 — 못 읽거나 자정을 넘겼으면 「간격은 지났다」로 본다(서버 `gapMin` 과 같은 규칙) */
+function _gapMin(from, to){
+  var x=_hhmmMin(from), y=_hhmmMin(to);
+  if(x<0||y<0) return 9999;
+  var d=y-x; return d<0?9999:d;
+}
+/* 하원 시각을 폰에 적는다 — 등원 칸(`t`·`by`)은 **그대로 두고** `out` 만 더한다.
+   ★ 서버가 이미 적었으면(패드·출석 기기) 폰에만 맞춰 둔다(두 번 쓰지 않는다 — v295 태도). */
+function markLeaveTime(dateStr, memberId, timeStr, localOnly){
+  var d=loadAttendanceTime();
+  if(!d[dateStr]) d[dateStr]={};
+  var info=attTimeInfo(d, dateStr, memberId);
+  if(!info) return false;                 /* 등원 기록이 없으면 하원도 없다 */
+  if(info.out) return false;              /* 이미 하원 — 처음 하원 시각을 지킨다 */
+  d[dateStr][memberId] = { t:info.t, by:info.by, out:timeStr };
+  if(localOnly){
+    try{ localStorage.setItem('tkd_attendance_time', JSON.stringify(d)); }catch(e){}
+  } else {
+    saveAttendanceTime(d);
+  }
+  return true;
 }
 /* 같은 날 다시 찍어도 **처음 시각**을 남긴다(덮어쓰지 않음).
    by 를 생략하면 PIN(문자열), 'admin' 이면 객체로 담는다. */
@@ -10615,6 +10656,31 @@ function markAttendanceTime(dateStr, memberId, timeStr, by){
   if(d[dateStr][memberId]) return;      /* 이미 있으면 그대로 */
   d[dateStr][memberId] = (by==='admin') ? { t:timeStr, by:'admin' } : timeStr;
   saveAttendanceTime(d);
+}
+/* ★★ v319(73-B): PIN 판·출석 기기가 **같은 글**을 쓰게 하는 한 벌.
+   네 갈래 — 등원('in') · 하원('out') · 간격 안('already-in') · 이미 하원('already-out').
+   ★ `leg` 가 없는 **옛 서버** 응답이면 종전 두 갈래(출석 완료 / 이미 출석했어요)로 돌아간다. */
+function _padView(leg, already, name, inTime, outTime, gapLeft, srv){
+  var need = (srv && Number(srv.gapNeed)) ? Number(srv.gapNeed) : LEAVE_GAP_MIN;
+  if(leg === 'out'){
+    return { icon:'🏠', color:'#7A5AF8', head:'하원 처리됐어요',
+             sub:(outTime||'')+' 하원' };
+  }
+  if(leg === 'already-out'){
+    return { icon:'✅', color:'#1A6BFF', head:'이미 하원했어요',
+             sub:(outTime||'')+' 하원' };
+  }
+  if(leg === 'already-in'){
+    var m = gapLeft>0 ? gapLeft : need;
+    return { icon:'✅', color:'#1A6BFF', head:'이미 출석했어요',
+             sub:(inTime||'')+' 도착 · 하원은 '+fmtNum(m)+'분 뒤부터' };
+  }
+  if(leg === 'in'){
+    return { icon:'✅', color:'#12B76A', head:'출석 완료!', sub:(inTime||'')+' 도착' };
+  }
+  /* 옛 서버 — 종전 그대로 */
+  return { icon:'✅', color:(already?'#1A6BFF':'#12B76A'),
+           head:(already?'이미 출석했어요':'출석 완료!'), sub:(inTime||'')+' 도착' };
 }
 function saveAttendanceData(data){
   // 출결 데이터는 전체 영구 보존 (과거 기록 자동삭제 안 함)
@@ -10757,7 +10823,9 @@ function renderAttendance(){
       h+='<div style="flex:1;"><div style="font-size:14px;font-weight:700;">'+escapeMasterHtml(m.name)+'</div>';
       /* 출석일 때만, 시각이 있으면 붙인다 (v244) */
       var _ti=(st==='present')?attTimeInfo(_atMap, attViewDate, m.id):null;
-      var _tiHtml=_ti?('<span style="color:#12B76A;font-weight:700;"> · 🕘 '+_ti.t+' '+(_ti.by==='admin'?'관리자':'PIN')+'</span>'):'';
+      /* ★ v319(73-B): **하원 시각**이 있으면 뒤에 한 조각 더 붙인다(없으면 종전 그대로) */
+      var _tiHtml=_ti?('<span style="color:#12B76A;font-weight:700;"> · 🕘 '+_ti.t+' '+(_ti.by==='admin'?'관리자':'PIN')+'</span>'
+        +(_ti.out?('<span style="color:#7A5AF8;font-weight:700;"> · 🏠 '+_ti.out+'</span>'):'')):'';
       h+='<div style="font-size:11px;color:#98A2B3;">'+(cr?escapeMasterHtml(cr.name):'')+(m.phone?' · '+escapeMasterHtml(m.phone):'')+(memberHasPin(m)?' · PIN 설정됨':'')+_tiHtml+'</div></div>';
       h+='<div style="display:flex;gap:6px;">';
       h+='<button onclick="setAttendance('+m.id+',\'present\')" style="padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:'+(st==='present'?'#12B76A':'#F2F4F7')+';color:'+(st==='present'?'white':'#475467')+';">✅ '+T('출석')+'</button>';
@@ -11292,13 +11360,16 @@ async function checkPin(){
          알려 준다(쓰기·알림톡 0). `first` 가 **없는 옛 서버**는 `=== false` 가 거짓이라
          종전 그대로 「출석 완료!」가 뜬다(배포 틈을 막는다). */
       var _kdone = (_kr.first === false);
+      /* ★ v319(73-B): 출석 기기도 **같은 한 벌**(`_padView`)로 글을 쓴다 — 서버가 준 `leg` 를 본다
+         (옛 서버면 `leg` 가 없어 종전 두 갈래로 돌아간다). */
+      var _kv = _padView(String(_kr.leg||''), _kdone, String(_kr.name||''), String(_kr.time||''),
+                         String(_kr.outTime||''), Number(_kr.gapLeft)||0, _kr);
       var _ke=document.getElementById('pin-result');
       if(_ke) _ke.innerHTML='<div style="text-align:center;padding:14px;">'+_kphoto
-        +'<div style="font-size:40px;margin-bottom:4px;">✅</div>'
-        +'<div style="font-size:20px;font-weight:800;color:'+(_kdone?'#1A6BFF':'#12B76A')+';margin-bottom:4px;">'
-        +(_kdone?'이미 출석했어요':'출석 완료!')+'</div>'
+        +'<div style="font-size:40px;margin-bottom:4px;">'+_kv.icon+'</div>'
+        +'<div style="font-size:20px;font-weight:800;color:'+_kv.color+';margin-bottom:4px;">'+_kv.head+'</div>'
         +'<div style="font-size:17px;font-weight:700;color:#344054;">'+escapeMasterHtml(_kr.name||'')+'</div>'
-        +'<div style="font-size:12px;color:#98A2B3;margin-top:3px;">'+escapeMasterHtml(_kr.time||'')+' 도착</div></div>';
+        +'<div style="font-size:12px;color:#98A2B3;margin-top:3px;">'+escapeMasterHtml(_kv.sub)+'</div></div>';
     } else {
       var _kmsg = (_kr && _kr.message) || 'PIN 번호가 올바르지 않습니다.';
       var _ke2=document.getElementById('pin-result');
@@ -11386,7 +11457,15 @@ async function checkPin(){
       var _mr = await padMemberPinApi(pv);
       if(_mr && _mr.ok && _mr.kind==='member'){
         _srvAtt = _mr;
-        member = members.find(function(m){ return String(m.pin||'')===pv; })
+        /* ★★ v319(73-B) 연관 고침: **서버가 준 `memberId` 로 먼저 찾는다.**
+           v296 부터 «회원» PIN 은 서버 해시라 `m.pin` 이 **비어 있다** — 평문으로만 찾으면
+           늘 못 찾아 아래 `{ id:'' }` 로 떨어졌고, 그래서 폰 출석·시각이 **빈 칸(`""`)**에
+           쌓이고 **등원 알림톡도 안 나갔다**(번호가 없다 · 크롬으로 실측).
+           ★ 평문 대조는 **아직 안 옮긴 업체**를 위해 뒤에 남겨 둔다(둘·셋째 줄). */
+        member = (_mr.memberId
+                   ? members.find(function(m){ return String(m.id)===String(_mr.memberId); })
+                   : null)
+              || members.find(function(m){ return String(m.pin||'')===pv; })
               || { id:'', name:_mr.name, photo:_mr.photo||'' };
       } else if(_mr && _mr.ok && _mr.wrongPad){
         _padOtherNotice('work');           /* 기사·직원 PIN — 찍지 않았다 */
@@ -11439,18 +11518,34 @@ async function checkPin(){
      · 로컬 길(둘러보기·오프라인): **출석 시각 칸이 이미 있나**로 같은 판정을 한다.
      ★ `first` 가 **없는 옛 서버**는 `=== false` 가 거짓이라 **종전 그대로** 돈다(배포 틈을 막는다). */
   var _already = (_srvAtt && _srvAtt.first === false);
+  /* ★★ v319(73-B): **두 번째 누름 = 하원.** 판정·기록·알림은 **서버**가 한다(`leg`) —
+     앱은 그 값으로 **화면만** 가린다. 하원 문자를 앱이 보내는 길은 **0개**다.
+     ★ `leg` 가 **없는 옛 서버**면 `_leg` 가 빈 글자라 **종전 그대로**(등원/이미 출석) 돈다. */
+  var _leg = _srvAtt ? String(_srvAtt.leg||'') : '';
+  var _outTime = _srvAtt ? String(_srvAtt.outTime||'') : '';
+  var _gapLeft = _srvAtt ? (Number(_srvAtt.gapLeft)||0) : 0;
   var today = _srvAtt ? (_srvAtt.date||todayStr()) : todayStr();
   var timeStr;
   if(_srvAtt){
     timeStr = _srvAtt.time || nowTimeStr();
-    var _d2=loadAttendance();
-    if(!_d2[today])_d2[today]={};
-    _d2[today][member.id]='present';
-    try{ localStorage.setItem('tkd_attendance', JSON.stringify(_d2)); }catch(e){}
-    var _t2=loadAttendanceTime();
-    if(!_t2[today])_t2[today]={};
-    if(!_t2[today][member.id]) _t2[today][member.id]=timeStr;
-    try{ localStorage.setItem('tkd_attendance_time', JSON.stringify(_t2)); }catch(e){}
+    /* ★★ v319(73-B) 연관 고침: **id 를 모르면 폰에 적지 않는다.**
+       전에는 `member.id` 가 빈 글자라도 적어 **`""` 라는 가짜 «회원» 칸**이 쌓였고,
+       그 뒤 관리자가 한 번 저장하면 「바뀐 칸만」 쓰기가 그 칸을 **서버로 올렸다**.
+       원본은 서버가 이미 찍었으니(이 갈래) 폰에 못 적어도 **기록은 안 잃는다** —
+       새로고침·리스너로 서버 값이 내려온다. */
+    var _mid = String(member.id == null ? '' : member.id);
+    if(_mid){
+      var _d2=loadAttendance();
+      if(!_d2[today])_d2[today]={};
+      _d2[today][_mid]='present';
+      try{ localStorage.setItem('tkd_attendance', JSON.stringify(_d2)); }catch(e){}
+      var _t2=loadAttendanceTime();
+      if(!_t2[today])_t2[today]={};
+      if(!_t2[today][_mid]) _t2[today][_mid]=timeStr;
+      try{ localStorage.setItem('tkd_attendance_time', JSON.stringify(_t2)); }catch(e){}
+      /* 서버가 하원을 찍었으면 **폰에만** 맞춰 둔다(두 번 쓰지 않는다) */
+      if(_leg==='out' && _outTime){ try{ markLeaveTime(today, _mid, _outTime, true); }catch(e){} }
+    }
   } else {
     /* 둘러보기·오프라인 — 종전 길(앱이 적고 「바뀐 칸만」으로 올린다)
        ★ v298: **그날 처음인지**를 먼저 본다(서버와 같은 기준 — 출석 시각 칸이 있으면 처음이 아니다). */
@@ -11461,10 +11556,20 @@ async function checkPin(){
     data[today][member.id]='present';
     saveAttendanceData(data);
     var now=new Date();
-    timeStr=(_ti&&_ti.t) ? _ti.t
-      : (String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
+    var _nowStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    timeStr=(_ti&&_ti.t) ? _ti.t : _nowStr;
     /* 출석 시각을 별도 키에 남긴다 (v243) — 같은 날 다시 찍어도 처음 시각 유지 */
     try{ markAttendanceTime(today, member.id, timeStr); }catch(e){}
+    /* ★ v319(73-B): 서버를 안 부르는 길도 **같은 규칙**으로 다리를 가린다 —
+       등원 없음=등원 · `out` 있음=이미 하원 · 간격 안=이미 출석 · 그 밖=하원.
+       **문자는 보내지 않는다**(둘러보기는 서버·발송을 아예 안 부른다 — v257 태도). */
+    if(!_ti || !_ti.t){ _leg='in'; }
+    else if(_ti.out){ _leg='already-out'; _outTime=_ti.out; }
+    else {
+      var _g=_gapMin(_ti.t, _nowStr);
+      if(_g < LEAVE_GAP_MIN){ _leg='already-in'; _gapLeft=LEAVE_GAP_MIN-_g; }
+      else { if(markLeaveTime(today, member.id, _nowStr)){ _leg='out'; _outTime=_nowStr; } }
+    }
   }
 
   // 성공 화면
@@ -11472,17 +11577,20 @@ async function checkPin(){
     ?('<img src="'+escapeMasterHtml(member.photo)+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;"/>')
     :('<div style="width:80px;height:80px;border-radius:50%;background:#E8F0FF;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#1A6BFF;margin:0 auto 12px;">'+escapeMasterHtml(member.name.slice(0,1))+'</div>');
   // 출석완료 멘트 표시
+  /* ★★ v319(73-B): **네 갈래 한 자리** — 등원 / 하원 / 간격 안 / 이미 하원.
+     글은 패드와 출석 기기가 **같아야 한다**(두 창구가 같은 서버 판정을 쓴다). */
+  var _pv = _padView(_leg, _already, member.name, timeStr, _outTime, _gapLeft, _srvAtt);
   document.getElementById('pin-result').innerHTML=
     '<div style="text-align:center;padding:20px;">'
-    +'<div style="font-size:48px;margin-bottom:8px;">✅</div>'
-    +'<div style="font-size:22px;font-weight:800;color:'+(_already?'#1A6BFF':'#12B76A')+';margin-bottom:6px;">'
-    +(_already?'이미 출석했어요':'출석 완료!')+'</div>'
+    +'<div style="font-size:48px;margin-bottom:8px;">'+_pv.icon+'</div>'
+    +'<div style="font-size:22px;font-weight:800;color:'+_pv.color+';margin-bottom:6px;">'+_pv.head+'</div>'
     +'<div style="font-size:18px;font-weight:700;color:#344054;">'+escapeMasterHtml(member.name)+'</div>'
-    +'<div style="font-size:13px;color:#98A2B3;margin-top:4px;">'+timeStr+' 도착</div>'
+    +'<div style="font-size:13px;color:#98A2B3;margin-top:4px;">'+_pv.sub+'</div>'
     +'</div>';
 
-  // 알림톡 발송 — ★ v298: **그날 처음 찍을 때만**(두 번째 누름에는 안 보낸다)
-  if(!_already){
+  /* 등원 알림톡 — ★ v298: **그날 처음 찍을 때만** · ★ v319: 하원 누름에도 안 보낸다
+     (하원 알림은 **서버**가 문자로 보낸다 — 앱이 보내는 길은 0개다). */
+  if(!_already && _leg !== 'out'){
     setTimeout(function(){
       loadAligoSettings();
       sendKakaoAlimtalk(member, timeStr);
@@ -19483,7 +19591,9 @@ function exportAttendanceExcel(){
       var dayStr=['일','월','화','수','목','금','토'][new Date(year,month-1,d).getDay()];
       if(!m.days.includes(dayStr)){row.push('–');continue;} scheduled++;
       var st=data[ds]&&data[ds][m.id];
-      if(st==='present'){ var _ti=attTimeInfo(atMap, ds, m.id); row.push(_ti?('✅ '+_ti.t):'✅'); present++; }
+      /* ★ v319(73-B): 하원 시각이 있으면 **같은 칸**에 붙인다 — 칸 수·머리글은 그대로 */
+      if(st==='present'){ var _ti=attTimeInfo(atMap, ds, m.id);
+        row.push(_ti?('✅ '+_ti.t+(_ti.out?(' / 🏠 '+_ti.out):'')):'✅'); present++; }
       else if(st==='absent'){row.push('❌');absent++;} else row.push('');
     }
     row.push(present,absent,scheduled?(Math.round(present/scheduled*100)+'%'):'–');

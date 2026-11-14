@@ -195,8 +195,14 @@ const srvAtt = (S) => (S.B['data/attendance'] || {})[TODAY] || {};
       mine.filter((w) => /^(set|tx) B\/data\/attendance$/.test(w)).length, 0);
     ck('  서버가 그 칸을 찍었다', JSON.stringify(srvAtt(S)[1] || null), '"present"');
     ck('  폰에도 보인다', p.R.ev("JSON.stringify((loadAttendance()['" + TODAY + "']||{})['1']||null)"), '"present"');
+    /* ★ v319(73-B): 읽는 함수 `attTimeInfo` 가 **`out`(하원 시각) 칸을 하나 더** 돌려준다
+       (등원만 찍혔으면 빈 값). **저장 꼴은 안 바뀐다** — 아래 줄이 그것을 지킨다. */
     ck('  출석 시각도 남는다',
-      p.R.ev("JSON.stringify(attTimeInfo(loadAttendanceTime(),'" + TODAY + "',1))"), '{"t":"09:05","by":"pin"}');
+      p.R.ev("JSON.stringify(attTimeInfo(loadAttendanceTime(),'" + TODAY + "',1))"),
+      '{"t":"09:05","by":"pin","out":""}');
+    ck('★ 저장된 칸에는 `out` 을 안 넣는다(등원만 찍혔다 · v319)',
+      p.R.ev("JSON.stringify((loadAttendanceTime()['" + TODAY + "']||{})['1']||null)"),
+      '"09:05"');
     /* 보낸 것은 `member:true` 깃발 하나 더(v295) · **받은 것**이 그 사람 것만인지가 핵심이다 */
     ck('  보낼 때 `member:true` 깃발을 준다',
       Object.keys((S.api.filter((x) => x.action === 'pinCheckin').pop() || {})).sort().join(','),

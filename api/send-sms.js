@@ -21,6 +21,10 @@ import {
   orgLimits, inqIpLimits, inqUidLimits, notifyPhone, clientIp, phoneDigits, sha256,
   REQ_MAX_RCV, INQ_BODY_MAX, INQ_PREFIX
 } from '../lib/send-guard.js';
+/* ★★ v319(73-B): 문자 보내기·그림 글자 거르기를 `lib/sms-core.js` **한 벌**로 모았다 —
+   서버가 직접 보내는 하원 알림(`api/driver-auth.js`)과 **같은 코드·같은 표**를 쓰기 위한 것이다.
+   ★ 여기서도 본문·제목이 그 한 벌을 지난다 — 앱이 빠뜨린 자리를 서버가 한 번 더 막는다. */
+import { postSms } from '../lib/sms-core.js';
 
 export default async function handler(req, res) {
   if (openGate(req, res)) return;
@@ -105,31 +109,12 @@ export default async function handler(req, res) {
       if (over) return fail(res, 429, over);
     }
 
-    /* ── 알리고로 ────────────────────────────────────────────────────── */
-    const apikey = process.env.ALIGO_KEY;
-    const userid = process.env.ALIGO_USER_ID;
-    const sender = process.env.ALIGO_SENDER;
-    if (!apikey || !userid || !sender) {
+    /* ── 알리고로 — **한 벌**(`lib/sms-core.js`)이 보낸다 (v319) ─────────── */
+    const sent = await postSms({ receiver: rcvList, msg: msg, title: title, msgType: msgType });
+    if (!sent.ok) {
       return fail(res, 500, '문자 설정이 아직 안 됐어요. 관리자에게 알려 주세요.');
     }
-
-    const form = new URLSearchParams();
-    form.append('key', apikey);
-    form.append('user_id', userid);
-    form.append('sender', sender);
-    form.append('receiver', rcvList.join(','));
-    form.append('msg', msg);
-    if (title) form.append('title', title);
-    form.append('msg_type', msgType);
-
-    const aligoRes = await fetch('https://apis.aligo.in/send/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: form.toString()
-    });
-
-    const data = await aligoRes.json();
-    return res.status(200).json(data);
+    return res.status(200).json(sent.data);
   } catch (e) {
     /* 자세한 내용은 서버 로그에만 — 번호·본문·키는 적지 않는다 */
     console.log('[send-sms] 실패');
