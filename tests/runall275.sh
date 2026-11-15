@@ -115,5 +115,6 @@ run map317.js      node map317.js
 run d318.js        node d318.js
 run leave73.js     node leave73.js
 run relay74.js     node relay74.js
+run install74c.js  node install74c.js
 echo "────────────────────────────────────────"
-echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 99 · 99 · 0)"
+echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 100 · 100 · 0)"

@@ -361,7 +361,15 @@ console.log('\n════ ⑩ 설치 글 — 잠길 위험을 막는 줄이 �
   ck('★ 글에 비밀 값이 없다(토큰은 사장님이 적는 칸)',
     /RELAY_TOKEN=[A-Za-z0-9]{8,}/.test(SRC.guide), false);
   ck('  relay.js 를 옮기는 길이 있다', /raw\.githubusercontent\.com|nano \/opt\/cosroad-relay\/relay\.js/.test(SRC.guide), true);
-  ck('  토큰은 **두 곳**(서버 파일 + Vercel)', /두 곳/.test(SRC.guide), true);
+  /* ★ v319(74-C): 토큰을 **서버가 만들게** 바꿨다 — 사람이 두 곳에 옮겨 적지 않는다.
+     그래서 「두 곳」이라는 글은 없어졌고, 지켜야 할 것은 **① Vercel 에 넣을 때만 꺼내 본다
+     ② 아무에게도 보내지 않는다** 둘이다(옛 글은 사장님 컴퓨터에서 만들어 옮겨 적는 길이었다). */
+  ck('★ 토큰은 **서버가 만든다**(사람이 옮겨 적지 않는다)',
+    /서버가 만듭니다/.test(SRC.guide) && /openssl rand -hex 32/.test(SRC.guide), true);
+  ck('  Vercel 에 넣을 때만 꺼내 본다', /sudo cat \/etc\/cosroad-relay\/env/.test(SRC.guide), true);
+  ck('  「아무에게도 보내지 마세요」', /아무에게도 보내지 마세요/.test(SRC.guide), true);
+  ck('★ 이미 있으면 **다시 만들지 말라**고 적었다',
+    /이미 있으면 다시 만들지 마세요|이미 있으면 그대로/.test(SRC.guide), true);
 }
 
 console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

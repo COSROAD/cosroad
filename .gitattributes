@@ -6,3 +6,8 @@
 # ★ 앱 파일(index.html 등)은 **일부러 안 적었다** — 여기에 `*` 를 적으면 저장소 전체가
 #   다시 정규화되어 쓸데없는 큰 차이가 생긴다.
 tests/** text eol=lf
+# ★ v319(74-C): 서버에 올라가는 설치 스크립트도 **LF 로 고정**한다.
+#   `raw.githubusercontent.com` 은 **커밋된 그대로**(LF) 주므로 두 줄 설치는 지금도 멀쩡하지만,
+#   윈도우에서 새로 clone 하면 작업트리가 CRLF 가 되어 그 파일을 서버로 옮기면
+#   `bash: $'\r': command not found` 로 **아예 안 돈다**. 그래서 못 박아 둔다.
+relay/*.sh text eol=lf
