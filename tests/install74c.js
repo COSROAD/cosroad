@@ -64,6 +64,44 @@ console.log('════ ① 글이 성한가 · 뼈대');
   ck('★ 요약 줄 **전부**에 ✓·•·✗ 가 있다',
     (SH.match(/^\s*note "[^"]*"/mg) || []).filter((l) => !/[✓•✗]/.test(l)).length, 0);
   ck('  요약 머리줄이 그 표시를 설명한다', /✓ 했음 · • 건너뜀 · ✗ 아직 안 됨/.test(SH), true);
+
+  /* ── v319(74-C 보정1) 셋 ───────────────────────────────────────────────── */
+  /* ① ★★ Caddy 접근 기록에 **`X-Relay-Token` 이 남지 않아야** 한다.
+     Caddy 는 요청 머리말을 함께 적고, 기본으로 가리는 것은 `Cookie`·`Set-Cookie`
+     ·`Authorization`·`Proxy-Authorization` **넷뿐**이다(공식 문서) → 켜면 토큰이 쌓인다.
+     고른 길: **`log` 블록을 아예 안 쓴다**(지우는 목록은 새 머리말이 생기면 또 샌다). */
+  const cfBlock = SH.slice(SH.indexOf('${DOMAIN} {'), SH.indexOf('EOF', SH.indexOf('${DOMAIN} {')));
+  ck('★★ Caddyfile 에 `log` 블록이 **없다**(토큰이 기록에 안 쌓인다)',
+    /\blog\s*\{/.test(cfBlock), false);
+  ck('  설치 글 Caddyfile 에도 없다', /\n\tlog \{/.test(GUIDE), false);
+  ck('  까닭을 적어 두었다(기본으로 가리는 건 넷뿐)',
+    /REDACTED/.test(SH) && /X-Relay-Token/.test(SH), true);
+  ck('  Caddy 기록 보는 길을 알려 준다', /journalctl -u caddy/.test(SH + GUIDE), true);
+  ck('  쓸데없는 기록 폴더를 만들지 않는다', /var\/log\/caddy/.test(SH), false);
+
+  /* ② ★★ `AF_UNIX` — 공식 `systemd.exec`: "in most cases, the local AF_UNIX address family
+     should be included … including for syslog(2) logging." 막히면 이름 풀이·기록이 막혀
+     **확인은 통과하는데 보내는 날 502** 가 난다. */
+  ck('★★ unit 에 `AF_UNIX` 가 있다',
+    /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6/.test(SH), true);
+  ck('  설치 글 unit 에도 있다',
+    /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6/.test(GUIDE), true);
+  ck('★ 확인에 **이름 풀이** 줄이 있다(요청 0)', /getent hosts "\$h"/.test(SH), true);
+  ck('★ 확인에 **유닉스 소켓 쓸 수 있나** 줄이 있다',
+    /systemctl show cosroad-relay -p RestrictAddressFamilies/.test(SH), true);
+  ck('  막혔으면 「보내는 날 502」라고 알려 준다', (SH.match(/502/g) || []).length >= 2, true);
+
+  /* ③ ★★ 우분투 24.04 는 ssh 를 소켓으로 켠다 → `reload` 가 실패할 수 있다.
+     `set -e` 라 거기서 멈춰 버리므로 **`restart` 로 떨어진다**.
+     `restart` 가 지금 접속을 안 끊는 근거: 공식 `man sshd` "It forks a new daemon for each
+     incoming connection." */
+  ck('★★ `reload ssh` 가 실패하면 `restart ssh` 로 떨어진다',
+    /if systemctl reload ssh 2>\/dev\/null; then[\s\S]{0,200}elif systemctl restart ssh/.test(SH), true);
+  ck('  둘 다 실패하면 까닭을 보이고 멈춘다',
+    /reload·restart 둘 다 실패/.test(SH), true);
+  ck('  「지금 접속은 안 끊깁니다」를 알려 준다', /지금 접속은 안 끊깁니다/.test(SH), true);
+  ck('  까닭(소켓 활성화)을 적어 두었다', /ssh\.socket/.test(SH) && /forks a new daemon/.test(SH), true);
+  ck('  설치 글에도 같은 떨어짐', /reload ssh \|\| sudo systemctl restart ssh/.test(GUIDE), true);
   ck('★ 멱등이라고 적어 두었다', /멱등/.test(SH), true);
 }
 
@@ -132,8 +170,23 @@ console.log('\n════ ⑤ 안전 — 80·파이프·발송');
   ck('  파이프로 하지 말라고 적어 두었다', /\| bash` 로 바로 돌리지 마세요|파이프로/.test(SH + GUIDE), true);
   /* ★ `ALIGO_RELAY_URL`·`ALIGO_RELAY_TOKEN` 은 **Vercel 환경변수 이름**이라 괜찮다 —
      가려야 할 것은 **알리고 서버 주소**다(그것이 있으면 설치가 문자를 보낼 수 있다는 뜻). */
-  ck('★★ 스크립트에 알리고 **주소** 0(발송 0)', /aligo\.in/i.test(SH), false);
-  ck('  나오는 알리고 글자는 Vercel 환경변수 이름뿐',
+  /* ★★ v319(74-C 보정1): 알리고 이름이 **`getent` 줄에만** 나온다 —
+     ⑤ 확인에서 **이름만 묻고**(요청 0) 이름 풀이가 막혔는지 본다.
+     ① 위 ①~④ 는 바깥으로 안 나가므로 **이름 풀이가 막혀도 다 통과**하고, 그러면
+       실제 발송 날에야 502 로 드러난다 → 그 틈을 여기서 막는다.
+     ★ 그래서 「알리고 글자 0」이 아니라 **「요청 보내는 줄 0」**을 재야 한다. */
+  const lines = SH.split('\n');
+  const aligoAt = lines.map((l, i) => [l, i]).filter(([l]) => /aligo\.in/i.test(l));
+  ck('★★ 알리고 주소가 나오는 줄은 **하나뿐**(이름 풀이 목록)', aligoAt.length, 1);
+  ck('★★ 그 줄은 `getent` 로 **이름만 묻는** 고리다',
+    aligoAt.length === 1
+      && /^\s*for h in apis\.aligo\.in kakaoapi\.aligo\.in; do\s*$/.test(aligoAt[0][0])
+      && /getent hosts "\$h"/.test(lines[aligoAt[0][1] + 1] || ''), true);
+  ck('★★ 알리고로 **요청 보내는 줄 0**(curl·wget 으로 부르지 않는다)',
+    /(curl|wget)[^\n]*aligo\.in|aligo\.in[^\n]*(\/send\/|akv10)/i.test(SH), false);
+  ck('  문자·알림톡 **둘 다** 이름을 묻는다',
+    /apis\.aligo\.in/.test(SH) && /kakaoapi\.aligo\.in/.test(SH), true);
+  ck('  나오는 `ALIGO_` 글자는 Vercel 환경변수 이름뿐',
     (SH.match(/ALIGO_[A-Z_]+/g) || [])
       .filter((x) => x !== 'ALIGO_RELAY_URL' && x !== 'ALIGO_RELAY_TOKEN').length, 0);
   ck('  확인은 `healthz`·401·404 뿐', /healthz/.test(SH) && /= ?401|401 이 아닙니다/.test(SH)
@@ -166,6 +219,18 @@ function sandbox(opt) {
   /* 50-cloud-init.conf — 실제 우분투처럼 yes 를 들고 있다 */
   fs.writeFileSync(path.join(dry, 'etc/ssh/sshd_config.d/50-cloud-init.conf'),
     'PasswordAuthentication yes\n');
+  /* ★ v319(74-C 보정1): **이미 옛 글이 깔린 서버**를 흉내 낼 수 있게 한다 —
+     보정1 이 Caddyfile(`log` 블록)과 unit(`AF_UNIX` 없음)을 고쳤으므로,
+     「다시 돌리면 **백업 뒤 새 글로 바뀐다**」를 재야 한다(안 바뀌면 토큰이 계속 쌓인다). */
+  if (opt.oldFiles === true) {
+    fs.mkdirSync(path.join(dry, 'etc/caddy'), { recursive: true });
+    fs.mkdirSync(path.join(dry, 'etc/systemd/system'), { recursive: true });
+    fs.writeFileSync(path.join(dry, 'etc/caddy/Caddyfile'),
+      'relay.cosroad.com {\n\thandle {\n\t\trespond 404\n\t}\n'
+      + '\tlog {\n\t\toutput file /var/log/caddy/relay.log\n\t\tformat console\n\t}\n}\n');
+    fs.writeFileSync(path.join(dry, 'etc/systemd/system/cosroad-relay.service'),
+      '[Service]\nRestrictAddressFamilies=AF_INET AF_INET6\n');
+  }
 
   const log = path.join(root, 'calls.log').replace(/\\/g, '/');
   const w = (name, body) => {
@@ -309,6 +374,33 @@ if (!BASH) {
     && fs.existsSync(path.join(sb2.dry, 'opt/cosroad-relay/relay.js'))
     && fs.existsSync(path.join(sb2.dry, 'etc/caddy/Caddyfile')), true);
   try { fs.rmSync(sb2.root, { recursive: true, force: true }); } catch (e) {}
+}
+
+console.log('\n════ ⑩ **옛 글이 깔린 서버**에서 다시 돌리면 — 백업 뒤 새 글로 바뀐다');
+if (!BASH) {
+  note('★ 옛 글 바꿔 끼우기', '못 함 — bash 없음');
+} else {
+  /* 보정1 이 Caddyfile(`log` 블록 → 없음)과 unit(AF_UNIX 추가)을 고쳤다.
+     이미 옛 글이 깔린 서버에서 **다시 돌려** 정말 바뀌는지 본다(안 바뀌면 토큰이 계속 쌓인다). */
+  const sb = sandbox({ oldFiles: true });
+  const a = runSh(sb);
+  ck('★ 돌림 성공', a.code, 0);
+  const cfp = path.join(sb.dry, 'etc/caddy/Caddyfile');
+  const unp = path.join(sb.dry, 'etc/systemd/system/cosroad-relay.service');
+  const rdx = (f) => { try { return LF(fs.readFileSync(f, 'utf8')); } catch (e) { return '(없음)'; } };
+  ck('★★ Caddyfile 의 `log` 블록이 **없어졌다**', /\blog\s*\{/.test(rdx(cfp)), false);
+  ck('★★ unit 에 `AF_UNIX` 가 **들어갔다**',
+    /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6/.test(rdx(unp)), true);
+  const baks = (d) => fs.readdirSync(path.join(sb.dry, d)).filter((f) => /\.bak-/.test(f)).length;
+  ck('★ 옛 Caddyfile 을 **백업해 두었다**', baks('etc/caddy') >= 1, true);
+  ck('★ 옛 unit 도 백업해 두었다', baks('etc/systemd/system') >= 1, true);
+  /* 두 번째 돌림 — 이제는 같으므로 「이미 같음」 갈래 */
+  const b = runSh(sb);
+  ck('★★ 두 번째 돌림도 성공', b.code, 0);
+  ck('★★ 「이미 같습니다」로 지나간다(Caddyfile)', /Caddyfile 이 이미 같습니다/.test(b.out), true);
+  ck('★★ unit 도 「같은 내용이 이미 있습니다」', /같은 내용이 이미 있습니다/.test(b.out), true);
+  ck('★ 백업이 **더 늘지 않았다**', baks('etc/caddy') + baks('etc/systemd/system'), 2);
+  try { fs.rmSync(sb.root, { recursive: true, force: true }); } catch (e) {}
 }
 
 console.log('\n════ ⑨ 설치 글 · CLAUDE.md');

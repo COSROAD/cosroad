@@ -129,7 +129,12 @@ sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|kbdinteractive'
 
 # ⑤ 그 다음에 다시 읽힙니다. ★ **지금 열려 있는 창은 닫지 말고**,
 #    새 창으로 한 번 더 들어와 보고 나서 닫으세요.
-sudo systemctl reload ssh
+#
+#    ★★ 우분투 24.04 는 ssh 를 **소켓으로** 켜므로(`ssh.socket`) `ssh.service` 가 꺼져 있을 수
+#      있고, 그때 `reload` 가 **실패합니다**. 그러면 `restart` 로 하세요 —
+#      **지금 접속은 안 끊깁니다**(공식 man sshd: "It forks a new daemon for each incoming
+#      connection." 들어온 연결은 따로 갈라진 자식이 들고 있습니다).
+sudo systemctl reload ssh || sudo systemctl restart ssh
 ```
 
 ---
@@ -223,7 +228,7 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ProtectKernelTunables=true
-RestrictAddressFamilies=AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target
@@ -249,10 +254,6 @@ relay.cosroad.com {
 	handle {
 		respond 404
 	}
-	log {
-		output file /var/log/caddy/relay.log
-		format console
-	}
 }
 EOF
 
@@ -260,6 +261,12 @@ sudo caddy validate --config /etc/caddy/Caddyfile     # 설정 글 검사
 sudo systemctl reload caddy
 sudo journalctl -u caddy -n 30 --no-pager             # 인증서를 받았는지(certificate obtained)
 ```
+
+★★ **접근 기록(`log` 블록)은 일부러 켜지 않습니다** — Caddy 접근 기록은 **요청 머리말을 함께
+적고**, 기본으로 가리는 것은 `Cookie`·`Set-Cookie`·`Authorization`·`Proxy-Authorization` **넷뿐**
+입니다(공식 문서). 그래서 켜면 **`X-Relay-Token` 이 원문 그대로 기록 파일에 쌓입니다**.
+중계 프로그램이 이미 「시각·경로·상태·ms·바이트수」를 남기니 그것으로 충분합니다
+(`sudo journalctl -u cosroad-relay`). Caddy 자기 기록은 `sudo journalctl -u caddy` 로 봅니다.
 
 ★ 인증서가 안 나오면: ⓞ의 DNS 가 아직 안 퍼졌거나 443 이 닫혀 있습니다.
 `nslookup relay.cosroad.com` 과 보안 그룹을 보시고, 그래도 안 되면 **80 을 잠깐 열고**

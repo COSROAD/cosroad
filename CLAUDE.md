@@ -1397,6 +1397,25 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
       ★★ **SSH 잠금은 되돌릴 수 있어야 한다** — `00-cosroad.conf` 를 쓰고 `sshd -t` → `sshd -T` 로
         읽힌 값 셋을 보고, **하나라도 어긋나면 그 파일을 지우고 되돌린 뒤 멈춘다**(reload 하지
         않으므로 **지금 로그인은 그대로**다). `ubuntu` 계정에 키가 없으면 잠금은 **건너뛴다**.
+      ★★ **Caddy 접근 기록(`log` 블록)을 켜면 비밀 머리말이 쌓인다** (보정1) —
+        Caddy 는 요청 머리말을 함께 적고, 기본으로 가리는 것은 `Cookie`·`Set-Cookie`
+        ·`Authorization`·`Proxy-Authorization` **넷뿐**이다(공식 문서 「logged as REDACTED」).
+        그래서 **`X-Relay-Token` 은 원문 그대로** 기록 파일에 쌓인다 → `log` 블록을 **아예 안 쓴다**
+        (`format filter` 로 그 머리말만 지울 수도 있지만, 지우는 목록은 **새 머리말이 생기면 또**
+        **샌다**. 중계 프로그램이 이미 「시각·경로·상태·ms·바이트수」를 남긴다).
+        ★ 머리말에 비밀을 싣는 창구를 만들 때는 **그 앞단(프록시·웹서버) 기록도 함께** 본다.
+      ★★ **`RestrictAddressFamilies` 에 `AF_UNIX` 를 빼면 안 된다** (보정1) — 공식 `systemd.exec`:
+        「in most cases, the local AF_UNIX address family should be included … including for
+        syslog(2) logging.」 이름 풀이(NSS·systemd-resolved)와 기록이 그 길을 쓴다. 빠지면
+        **설치 확인(healthz·401·404)은 다 통과하는데 보내는 날 502** 가 난다(그 넷은 바깥으로
+        안 나가므로 못 잡는다) → 확인에 **이름 풀이 한 줄**(`getent hosts` · 알리고에 **요청 0**)과
+        **`systemctl show … RestrictAddressFamilies`** 를 같이 넣었다.
+        ★ 「확인이 통과하는데 실제로는 막혀 있는」 자리를 찾을 때는 **확인이 바깥으로 나가는가**를 본다.
+      ★★ **우분투 24.04 는 ssh 를 소켓으로 켠다 → `reload ssh` 가 실패할 수 있다** (보정1).
+        `ssh.service` 가 꺼져 있으면 `reload` 가 실패하고 `set -e` 가 **거기서 멈춘다**(설정은
+        이미 맞게 쓴 뒤라 더 헷갈린다) → `systemctl reload ssh 2>/dev/null || systemctl restart ssh`
+        로 떨어지고, 둘 다 실패하면 까닭을 보이고 멈춘다. **`restart` 는 지금 접속을 끊지 않는다**
+        — 공식 `man sshd`: 「It forks a new daemon for each incoming connection.」
       ★ 시험 자리 `COS_RELAY_DRY_ROOT` 하나로 **임시 폴더에 두 번 돌려** 멱등·되돌림·IP 못 찾음을
         실제로 재 본다(`tests/install74c.js` · 가짜 ufw·sshd·systemctl·caddy·curl). `sudo` 는
         환경변수를 지우므로 사장님이 돌릴 때는 **늘 비어 있다**.

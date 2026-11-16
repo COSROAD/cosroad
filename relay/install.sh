@@ -161,8 +161,23 @@ EOF
         sudo grep -n 'PasswordAuthentication\\|PermitRootLogin' /etc/ssh/sshd_config.d/*.conf"
   fi
   ok "읽힌 값 셋 확인 (passwordauthentication no · permitrootlogin prohibit-password · kbdinteractive no)"
-  if [ -z "$DRY" ]; then systemctl reload ssh; fi
-  ok "ssh 다시 읽었습니다"
+  # ★★ 우분투 24.04 는 **ssh 를 소켓으로 켠다**(`ssh.socket`) — 그래서 `ssh.service` 가 꺼져
+  #   있을 수 있고, 그때 `reload` 는 **실패한다**. `set -e` 라 거기서 멈춰 버린다(설정은 이미
+  #   맞게 써 둔 뒤라 더 헷갈린다). → 실패하면 `restart` 로 떨어진다.
+  # ★ `restart` 는 **지금 접속을 끊지 않는다** — 공식 `man sshd`: "It forks a new daemon for
+  #   each incoming connection." 들어온 연결은 **따로 갈라진 자식**이 들고 있다.
+  if [ -z "$DRY" ]; then
+    if systemctl reload ssh 2>/dev/null; then
+      ok "ssh 다시 읽었습니다 (reload)"
+    elif systemctl restart ssh 2>/dev/null; then
+      ok "ssh 다시 켰습니다 (restart — 지금 접속은 안 끊깁니다)"
+    else
+      die "ssh 를 다시 읽지 못했습니다(reload·restart 둘 다 실패).
+      설정은 **맞게 써 두었습니다**(지금 로그인도 그대로입니다). 이 두 줄로 까닭을 보세요:
+        sudo systemctl status ssh ssh.socket --no-pager
+        sudo journalctl -u ssh -n 30 --no-pager"
+    fi
+  fi
   warn "★ 지금 이 창은 닫지 마세요. **새 창으로 한 번 더 접속**해 보신 뒤에 닫으세요."
   note "2 SSH 잠금 ✓ (00-cosroad.conf · 키로만)"
 fi
@@ -267,7 +282,7 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ProtectKernelTunables=true
-RestrictAddressFamilies=AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target
@@ -293,7 +308,16 @@ note "7 systemd ✓"
 
 # ── [8/8] Caddy 설정 + 확인 ──────────────────────────────────────────────────
 step 8 "Caddy 설정 · 확인 (문자는 한 통도 안 보냅니다)"
-mkdir -p "$(dirname "$CADDYFILE")" "${DRY}/var/log/caddy"
+# ★★ Caddy **접근 기록을 켜지 않는다**(`log` 블록 없음 · v319 74-C 보정1).
+#   왜 — Caddy 접근 기록은 **요청 머리말을 함께 적고**, 기본으로 가리는 것은
+#   `Cookie`·`Set-Cookie`·`Authorization`·`Proxy-Authorization` **넷뿐**이다
+#   (공식 문서 「headers with potentially sensitive information … logged as REDACTED」).
+#   그래서 **`X-Relay-Token` 은 원문 그대로 기록 파일에 쌓인다** — 설계 6절 「기록에 토큰 0」 위반.
+#   ★ `format filter` 로 그 머리말만 지울 수도 있지만, **아예 켜지 않는 쪽**을 골랐다:
+#     ① 중계 프로그램이 이미 「시각·경로·상태·ms·바이트수」를 남긴다(그 이상 필요 없다)
+#     ② 지우는 목록은 **새 머리말이 생기면 또 새는다** — 안 켜면 그런 구멍이 없다.
+#   Caddy 자기 기록(인증서·오류)은 journald 로 간다: sudo journalctl -u caddy
+mkdir -p "$(dirname "$CADDYFILE")"
 new_cf="$(mktemp)"
 cat > "$new_cf" <<EOF
 ${DOMAIN} {
@@ -306,10 +330,6 @@ ${DOMAIN} {
 	}
 	handle {
 		respond 404
-	}
-	log {
-		output file /var/log/caddy/relay.log
-		format console
 	}
 }
 EOF
@@ -361,7 +381,33 @@ if [ -z "$DRY" ]; then
     c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "https://${DOMAIN}/a/xyz" || true)"
     [ "$c" = "404" ] || die "모르는 경로에서 404 가 아닙니다(받은 값: ${c})."
     ok "④ 모르는 경로는 404"
-    note "8 확인 ✓ (살아있음 · 401 · 404)"
+
+    # ⑤ **이름 풀이** — 알리고에 **요청을 보내지 않고 이름만** 묻는다(발송 0).
+    #   왜 여기서 보나 — 위 ①~④ 는 바깥으로 나가지 않으므로 **이름 풀이가 막혀도 다 통과한다**.
+    #   그러면 실제 발송 날에야 502 로 드러난다. 그 틈을 여기서 막는다.
+    dnsbad=""
+    for h in apis.aligo.in kakaoapi.aligo.in; do
+      getent hosts "$h" >/dev/null 2>&1 || dnsbad="${dnsbad} ${h}"
+    done
+    if [ -n "$dnsbad" ]; then
+      warn "⑤ 이름 풀이가 안 되는 곳이 있습니다:${dnsbad}"
+      warn "   · 나가는 길(보안 그룹 '나감')과 /etc/resolv.conf 를 보세요."
+      warn "   · 이대로 두면 **보내는 날 502** 가 납니다(여기 ①~④ 는 통과합니다)."
+    else
+      ok "⑤ 알리고 이름 풀이 됩니다 (요청은 **안 보냈습니다** — 이름만 물었습니다)"
+    fi
+
+    # ⑥ 중계가 **유닉스 소켓을 쓸 수 있는지**(이름 풀이·기록이 그 길을 쓴다)
+    #   공식 `systemd.exec`: "in most cases, the local AF_UNIX address family should be included
+    #   in the configured allow list … frequently used for local communication, including for
+    #   syslog(2) logging." 그래서 unit 에 AF_UNIX 를 넣었고, 정말 그렇게 읽혔는지 본다.
+    raf="$(systemctl show cosroad-relay -p RestrictAddressFamilies --value 2>/dev/null || true)"
+    case "$raf" in
+      *AF_UNIX*) ok "⑥ 중계가 유닉스 소켓을 쓸 수 있습니다 (${raf})" ;;
+      *) warn "⑥ unit 의 RestrictAddressFamilies 에 AF_UNIX 가 안 보입니다(${raf})."
+         warn "   이대로면 이름 풀이·기록이 막혀 **보내는 날 502** 가 날 수 있습니다." ;;
+    esac
+    note "8 확인 ✓ (살아있음 · 401 · 404 · 이름 풀이 · 유닉스 소켓)"
   fi
 fi
 
