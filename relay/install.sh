@@ -89,10 +89,20 @@ ufw allow from "$myip" to any port 22 proto tcp >/dev/null
 ok "22 허용 (${myip} 에서만)"
 ufw allow 443/tcp >/dev/null
 ok "443 허용 (누구나 — Caddy 가 받습니다)"
+# ★★ 켜기 **전** 확인은 `ufw show added` 다 — `ufw status` 는 **꺼져 있으면**
+#   `Status: inactive` **한 줄만** 내고 더한 규칙을 안 보여 준다(사장님 실제 서버 11-24 실측:
+#   허용 두 줄은 들어갔는데 「22 허용 줄이 안 보입니다」로 **멈췄다**).
+#   공식 `man ufw` 의 `added` 보고: 「displays the list of rules as they were added on the
+#   command-line」 · 「This report does not show the status of the running firewall
+#   (use 'ufw status' instead)」 — 즉 **돌고 있든 아니든 더한 규칙을 보여 주는 쪽**이다.
+#   ★ 켜진 뒤의 상태 확인은 그대로 `ufw status` 로 본다(아래).
+add="$(ufw show added 2>/dev/null || true)"
+printf '%s\n' "$add" | grep -q '22' || die "22 허용 줄이 안 보입니다 — 켜지 않았습니다.
+      이 줄로 직접 보세요:  sudo ufw show added"
+printf '%s\n' "$add" | grep -q '443' || die "443 허용 줄이 안 보입니다 — 켜지 않았습니다.
+      이 줄로 직접 보세요:  sudo ufw show added"
+ok "두 줄 다 확인했습니다 (ufw show added)"
 st="$(ufw status 2>/dev/null || true)"
-printf '%s\n' "$st" | grep -q '22' || die "22 허용 줄이 안 보입니다 — 켜지 않았습니다."
-printf '%s\n' "$st" | grep -q '443' || die "443 허용 줄이 안 보입니다 — 켜지 않았습니다."
-ok "두 줄 다 확인했습니다"
 if printf '%s\n' "$st" | grep -qi 'Status: active'; then
   skip "ufw 는 이미 켜져 있습니다"
 else
@@ -150,8 +160,17 @@ EOF
   eff="$(sshd -T 2>/dev/null | tr 'A-Z' 'a-z' || true)"
   bad=""
   printf '%s\n' "$eff" | grep -q '^passwordauthentication no$'       || bad="${bad} passwordauthentication"
-  printf '%s\n' "$eff" | grep -q '^permitrootlogin prohibit-password$' || bad="${bad} permitrootlogin"
-  printf '%s\n' "$eff" | grep -q '^kbdinteractiveauthentication no$'  || bad="${bad} kbdinteractiveauthentication"
+  # ★★ `sshd -T` 는 `prohibit-password` 를 **옛 이름 `without-password`** 로 찍는 판이 있다
+  #   (사장님 실제 서버 11-24 실측: 이 줄 하나 때문에 멈췄다 · 나머지 둘은 통과).
+  #   까닭 — OpenSSH 소스 `servconf.c` 의 `multistate_permitrootlogin` 표에서 **두 이름이
+  #   같은 값**(`PERMIT_NO_PASSWD`)이고, 설정을 읽을 때 **글자는 버리고 값만** 남긴다.
+  #   되돌려 찍는 `fmt_multistate_int` 는 그 표를 **앞에서부터 훑어 첫 번째로 맞는 이름**을
+  #   돌려준다 → **표에 먼저 적힌 이름**이 나온다.
+  #     · OpenSSH **9.6**(우분투 24.04): `{ "without-password", … }` 가 **먼저** → `without-password`
+  #     · 지금 master: 둘이 **바뀌어** `prohibit-password` 가 먼저 → `prohibit-password`
+  #   그래서 **둘 다 맞음**으로 받는다(판이 올라가도 안 깨진다). 뜻은 똑같다 — 키로만 root 로 들어온다.
+  printf '%s\n' "$eff" | grep -qE '^permitrootlogin (prohibit-password|without-password)$' \
+    || bad="${bad} permitrootlogin"
   if [ -n "$bad" ]; then
     rm -f "$SSHD_OURS"
     [ -f "${SSHD_OURS}.bak-${STAMP}" ] && mv "${SSHD_OURS}.bak-${STAMP}" "$SSHD_OURS"
@@ -160,7 +179,7 @@ EOF
         ls /etc/ssh/sshd_config.d/
         sudo grep -n 'PasswordAuthentication\\|PermitRootLogin' /etc/ssh/sshd_config.d/*.conf"
   fi
-  ok "읽힌 값 셋 확인 (passwordauthentication no · permitrootlogin prohibit-password · kbdinteractive no)"
+  ok "읽힌 값 셋 확인 (passwordauthentication no · permitrootlogin $(printf '%s\n' "$eff" | sed -n 's/^permitrootlogin //p' | head -1) · kbdinteractive no)"
   # ★★ 우분투 24.04 는 **ssh 를 소켓으로 켠다**(`ssh.socket`) — 그래서 `ssh.service` 가 꺼져
   #   있을 수 있고, 그때 `reload` 는 **실패한다**. `set -e` 라 거기서 멈춰 버린다(설정은 이미
   #   맞게 써 둔 뒤라 더 헷갈린다). → 실패하면 `restart` 로 떨어진다.

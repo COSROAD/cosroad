@@ -1416,6 +1416,25 @@ C. **오류 수정**: 오류 원문(로그·스크린샷) 확보가 먼저다. �
         이미 맞게 쓴 뒤라 더 헷갈린다) → `systemctl reload ssh 2>/dev/null || systemctl restart ssh`
         로 떨어지고, 둘 다 실패하면 까닭을 보이고 멈춘다. **`restart` 는 지금 접속을 끊지 않는다**
         — 공식 `man sshd`: 「It forks a new daemon for each incoming connection.」
+      ★★★ **가짜 명령은 「실제 판이 내는 출력」 그대로 만든다 — 이상적인 출력으로 만들면
+        묶음은 통과하고 실서버에서 멈춘다** (보정2 · 사장님이 11-24 실제 서버에서 **두 번** 멈췄다).
+        둘 다 가짜가 실제와 달라서 못 잡았다:
+        · **`ufw status` 는 꺼져 있으면 `Status: inactive` 한 줄뿐**이고 더한 규칙을 **안 보여 준다**.
+          가짜는 꺼진 상태에서도 규칙 두 줄을 같이 냈다 → 「22 허용 줄이 안 보입니다」로 멈췄다.
+          → 켜기 **전** 확인은 **`ufw show added`**(공식 `man ufw`: 「displays the list of rules as
+          they were added on the command-line」 · 「does not show the status of the running
+          firewall (use 'ufw status' instead)」) · 켜진 **뒤**만 `ufw status` 로 본다.
+        · **`sshd -T` 는 `prohibit-password` 를 옛 이름 `without-password` 로 찍는다**(우분투 24.04).
+          까닭 — OpenSSH `servconf.c` 의 `multistate_permitrootlogin` 표에서 **두 이름이 같은 값**
+          (`PERMIT_NO_PASSWD`)이고 설정을 읽을 때 **글자는 버리고 값만** 남긴다. 되돌려 찍는
+          `fmt_multistate_int` 는 표를 앞에서부터 훑어 **첫 번째로 맞는 이름**을 돌려주므로
+          **표에 먼저 적힌 이름**이 나온다 — **9.6 은 `without-password` 가 먼저**이고
+          **지금 master 는 둘이 바뀌어** `prohibit-password` 가 먼저다(소스로 둘 다 확인).
+          → **두 이름을 둘 다 맞음**으로 받는다(판이 올라가도 안 깨진다).
+        ★ 묶음은 **고치기 전 글을 같은 가짜로 돌려** 두 자리에서 멈추는 것까지 잰다(대조 시험).
+        ★ 「실서버에서 멈췄다」는 보고를 받으면 **그 명령을 실제로 어떻게 찍는지**부터 확인하고
+          (공식 man·소스) **가짜를 그 출력으로 고친 뒤** 스크립트를 고친다 — 순서를 바꾸면
+          같은 함정이 다음 단계에서 또 난다(이번에 ①을 고치자 ②가 바로 드러났다).
       ★ 시험 자리 `COS_RELAY_DRY_ROOT` 하나로 **임시 폴더에 두 번 돌려** 멱등·되돌림·IP 못 찾음을
         실제로 재 본다(`tests/install74c.js` · 가짜 ufw·sshd·systemctl·caddy·curl). `sudo` 는
         환경변수를 지우므로 사장님이 돌릴 때는 **늘 비어 있다**.

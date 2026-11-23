@@ -240,10 +240,22 @@ function sandbox(opt) {
   };
   /* ufw — 상태를 파일에 둔다(두 번째 돌림에서 「이미 켜져 있습니다」 갈래를 지나게) */
   const ufwState = path.join(root, 'ufw.state').replace(/\\/g, '/');
+  /* ★★ v319(74-C 보정2): **실제 ufw 가 내는 그대로** 흉내 낸다 —
+     꺼져 있으면 `status` 는 **`Status: inactive` 한 줄뿐**이고 더한 규칙을 **안 보여 준다**.
+     전에는 가짜가 꺼진 상태에서도 규칙 두 줄을 같이 내서(이상적인 출력) 묶음은 통과하고
+     **실서버에서 멈췄다**(사장님 11-24). 더한 규칙은 `show added` 가 보여 준다. */
+  const ufwAdded = path.join(root, 'ufw.added').replace(/\\/g, '/');
   w('ufw', [
     'case "$1" in',
-    '  status) if [ -f "' + ufwState + '" ]; then echo "Status: active"; else echo "Status: inactive"; fi;',
-    '          echo "22/tcp ALLOW"; echo "443/tcp ALLOW";;',
+    '  status) if [ -f "' + ufwState + '" ]; then',
+    '            echo "Status: active"; echo; echo "To  Action  From"; echo "--  ------  ----";',
+    '            [ -f "' + ufwAdded + '" ] && sed "s/^ufw //" "' + ufwAdded + '";',
+    '          else echo "Status: inactive"; fi;;',       /* ★ 꺼져 있으면 이 한 줄뿐 */
+    '  show)   if [ "$2" = "added" ]; then',
+    '            echo "Added user rules (see \'ufw status\' for running firewall):";',
+    '            [ -f "' + ufwAdded + '" ] && cat "' + ufwAdded + '" || true;',
+    '          fi;;',
+    '  allow)  shift; echo "ufw allow $*" >> "' + ufwAdded + '";;',
     '  --force) touch "' + ufwState + '";;',
     'esac',
     'exit 0'
@@ -253,11 +265,16 @@ function sandbox(opt) {
     : 'echo "ubuntu   pts/0        2026-11-15 02:00 (203.0.113.7)"');
   w('ss', 'exit 1');
   /* sshd — `-T` 가 기대값을 주면 통과, `yes` 를 주면 되돌림 갈래 */
+  /* ★★ v319(74-C 보정2): 기본값은 **우분투 24.04(OpenSSH 9.6)가 실제로 찍는 글자**다 —
+     `prohibit-password` 라고 적어도 `-T` 는 **옛 이름 `without-password`** 로 찍는다
+     (`servconf.c` 표에서 두 이름이 같은 값이고 **먼저 적힌 이름**이 나온다 · 9.6 은 옛 이름이 먼저).
+     전에는 가짜가 `prohibit-password` 를 내서 묶음은 통과하고 **실서버에서 멈췄다**.
+     `sshdNew:true` 로 주면 **지금 master**(둘이 바뀜)처럼 `prohibit-password` 를 낸다. */
   w('sshd', opt.sshdBad
     ? 'if [ "$1" = "-T" ]; then echo "passwordauthentication yes"; echo "permitrootlogin yes";'
       + ' echo "kbdinteractiveauthentication yes"; fi; exit 0'
     : 'if [ "$1" = "-T" ]; then echo "passwordauthentication no";'
-      + ' echo "permitrootlogin prohibit-password";'
+      + ' echo "permitrootlogin ' + (opt.sshdNew ? 'prohibit-password' : 'without-password') + '";'
       + ' echo "kbdinteractiveauthentication no"; fi; exit 0');
   /* caddy 가 이미 있다고 둔다 → apt 단계를 지나간다 */
   w('caddy', 'if [ "$1" = "version" ]; then echo "v2.8.4 (fake)"; fi; exit 0');
@@ -401,6 +418,105 @@ if (!BASH) {
   ck('★★ unit 도 「같은 내용이 이미 있습니다」', /같은 내용이 이미 있습니다/.test(b.out), true);
   ck('★ 백업이 **더 늘지 않았다**', baks('etc/caddy') + baks('etc/systemd/system'), 2);
   try { fs.rmSync(sb.root, { recursive: true, force: true }); } catch (e) {}
+}
+
+console.log('\n════ ⑪ **실서버에서 난 결함 둘** (보정2) — 대조 시험까지');
+{
+  /* ① 켜기 전 확인은 `ufw show added` · 켜진 뒤만 `ufw status` */
+  const iAdd = SH.indexOf('ufw show added 2>/dev/null');
+  const iSt = SH.indexOf('st="$(ufw status 2>/dev/null');
+  const iEn = SH.indexOf('ufw --force enable');
+  ck('★★ 켜기 전 확인은 `ufw show added`', iAdd > 0 && iAdd < iEn, true);
+  ck('  `ufw status` 는 **그 뒤**에만 본다(켜졌나 보려고)', iSt > iAdd && iSt < iEn, true);
+  ck('  까닭을 적어 두었다(꺼져 있으면 한 줄만 낸다)',
+    /Status: inactive\*\* \*\*한 줄만\*\*|`Status: inactive` \*\*한 줄만\*\*/.test(SH), true);
+  ck('  공식 man 문장을 인용했다',
+    /does not show the status of the running firewall/.test(SH), true);
+  ck('  막히면 직접 볼 줄을 알려 준다', /sudo ufw show added/.test(SH), true);
+  ck('  설치 글도 같이 고쳤다',
+    /sudo ufw show added/.test(GUIDE) && GUIDE.indexOf('sudo ufw show added') < GUIDE.indexOf('sudo ufw --force enable'), true);
+
+  /* ② `sshd -T` 의 두 이름을 **둘 다** 받는다 */
+  ck('★★ `permitrootlogin` 은 두 이름을 **둘 다** 받는다',
+    /\^permitrootlogin \(prohibit-password\|without-password\)\$/.test(SH), true);
+  ck('  까닭(같은 값 · 먼저 적힌 이름)을 적어 두었다',
+    /PERMIT_NO_PASSWD/.test(SH) && /fmt_multistate_int/.test(SH), true);
+  ck('  9.6 과 master 가 다름을 적어 두었다',
+    /9\.6/.test(SH) && /master/.test(SH), true);
+  ck('  설치 글도 「둘 다 맞습니다」로 고쳤다',
+    /둘 다 맞습니다/.test(GUIDE) && /without-password/.test(GUIDE), true);
+  ck('  ✓ 줄은 **읽힌 글자 그대로** 보여 준다(고정 글자 아님)',
+    /sed -n 's\/\^permitrootlogin \/\/p'/.test(SH), true);
+
+  if (!BASH) {
+    note('★★ 대조 시험(옛 글은 멈춘다)', '못 함 — bash 없음');
+  } else {
+    /* ★★ **대조 시험** — 바로 앞 커밋(04ba8e0)의 글을 **같은 가짜 명령**으로 돌리면
+       실서버처럼 **두 번 멈춘다**. 그래야 「가짜를 실제 출력으로 고친 것」이 진짜 효과가 있다. */
+    /* ★ 「앞 커밋」을 **글로 찾는다** — `ufw show added` 가 **없는** 가장 최근 판이 고치기 전이다.
+       회차 번호로 찾으면(`thisRef(319)`) v319 첫 커밋이 잡히는데 그때는 이 파일이 **없었다**
+       (처음에 그렇게 적었다가 「못 읽었다」로 건너뛰었다). 커밋 전·후 어느 쪽이든 맞는다. */
+    let oldSh = '';
+    try {
+      const refs = cp.execSync('git -C ' + COS_ROOT + ' log --format=%H -8 -- relay/install.sh',
+        { maxBuffer: 1 << 24 }).toString().split('\n').filter(Boolean);
+      for (const rf of (process.env.COS_SRC_PREV_REF ? [process.env.COS_SRC_PREV_REF] : refs)) {
+        let s = '';
+        try { s = cp.execSync('git -C ' + COS_ROOT + ' show ' + rf + ':relay/install.sh',
+          { maxBuffer: 1 << 24, stdio: ['ignore', 'pipe', 'ignore'] }).toString(); } catch (e) { continue; }
+        if (s && s.indexOf('ufw show added') < 0) { oldSh = s; break; }
+      }
+    } catch (e) { oldSh = ''; }
+    if (!oldSh) {
+      note('★★ 대조 시험', '못 함 — 앞 커밋의 install.sh 를 못 읽었다');
+    } else {
+      const sbOld = sandbox({});
+      const oldPath = path.join(sbOld.root, 'old-install.sh');
+      fs.writeFileSync(oldPath, oldSh.replace(/\r\n/g, '\n'));
+      const env = Object.assign({}, process.env, {
+        COS_RELAY_DRY_ROOT: sbOld.dry,
+        PATH: sbOld.binDir + path.delimiter + process.env.PATH
+      });
+      delete env.SSH_CLIENT; delete env.SSH_CONNECTION;
+      const r = cp.spawnSync(BASH, [oldPath],
+        { encoding: 'utf8', env: env, timeout: 120000, cwd: sbOld.root });
+      const out = String(r.stdout || '') + String(r.stderr || '');
+      ck('★★ (대조) 앞 커밋 글은 **멈춘다**', r.status !== 0, true);
+      ck('★★ (대조) 멈춘 자리가 **1단계 ufw**다',
+        /22 허용 줄이 안 보입니다/.test(out), true);
+      try { fs.rmSync(sbOld.root, { recursive: true, force: true }); } catch (e) {}
+
+      /* 2단계도 같은 꼴로 — 1단계를 넘긴 옛 글(ufw 만 고친 것)이 permitrootlogin 에서 멈춘다 */
+      const sbOld2 = sandbox({});
+      const half = oldSh.replace(/\r\n/g, '\n')
+        .replace('st="$(ufw status 2>/dev/null || true)"', 'st="$(ufw show added 2>/dev/null || true)"');
+      const halfPath = path.join(sbOld2.root, 'half-install.sh');
+      fs.writeFileSync(halfPath, half);
+      const env2 = Object.assign({}, process.env, {
+        COS_RELAY_DRY_ROOT: sbOld2.dry,
+        PATH: sbOld2.binDir + path.delimiter + process.env.PATH
+      });
+      delete env2.SSH_CLIENT; delete env2.SSH_CONNECTION;
+      const r2 = cp.spawnSync(BASH, [halfPath],
+        { encoding: 'utf8', env: env2, timeout: 120000, cwd: sbOld2.root });
+      const out2 = String(r2.stdout || '') + String(r2.stderr || '');
+      ck('★★ (대조) ufw 만 고친 옛 글은 **2단계에서 멈춘다**', r2.status !== 0, true);
+      ck('★★ (대조) 멈춘 자리가 **permitrootlogin**이다',
+        /읽힌 값이 기대와 다릅니다\( permitrootlogin\)/.test(out2), true);
+      ck('  (대조) 그때도 `00-cosroad.conf` 를 지우고 reload 를 안 불렀다',
+        !fs.existsSync(path.join(sbOld2.dry, 'etc/ssh/sshd_config.d/00-cosroad.conf'))
+          && !/systemctl reload ssh/.test(fs.readFileSync(sbOld2.log, 'utf8')), true);
+      try { fs.rmSync(sbOld2.root, { recursive: true, force: true }); } catch (e) {}
+    }
+
+    /* ★ 새 판 OpenSSH(master · `prohibit-password` 를 찍는다)에서도 통과해야 한다 */
+    const sbNew = sandbox({ sshdNew: true });
+    const rn = runSh(sbNew);
+    ck('★ 새 판 OpenSSH(`prohibit-password`)에서도 통과', rn.code, 0);
+    ck('  그때 `00-cosroad.conf` 를 썼다',
+      fs.existsSync(path.join(sbNew.dry, 'etc/ssh/sshd_config.d/00-cosroad.conf')), true);
+    try { fs.rmSync(sbNew.root, { recursive: true, force: true }); } catch (e) {}
+  }
 }
 
 console.log('\n════ ⑨ 설치 글 · CLAUDE.md');

@@ -77,8 +77,13 @@ sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow from <사무실IP> to any port 22 proto tcp     # ← 사장님 사무실 IP
 sudo ufw allow 443/tcp
-sudo ufw status numbered                                     # 22·443 이 보이는지 눈으로 확인
+# ★★ 켜기 **전**에는 `ufw status` 가 아니라 **`ufw show added`** 로 봅니다 —
+#    꺼져 있으면 `status` 는 `Status: inactive` **한 줄만** 내고 더한 규칙을 안 보여 줍니다
+#    (공식 man ufw 의 `added` 보고: 「displays the list of rules as they were added on the
+#     command-line」 · 「does not show the status of the running firewall」).
+sudo ufw show added                                          # 22·443 이 보이는지 눈으로 확인
 sudo ufw --force enable
+sudo ufw status                                              # 켠 뒤에는 이것으로 봅니다
 
 sudo systemctl enable --now fail2ban
 sudo dpkg-reconfigure -plow unattended-upgrades              # 「예」
@@ -120,7 +125,15 @@ sudo grep -nE '^[[:space:]]*Include|PasswordAuthentication|PermitRootLogin' /etc
 # ④ 정말 그렇게 읽히는지 **먼저 확인**합니다
 sudo sshd -t                                                  # 설정 글 검사
 sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|kbdinteractive'
-#   기대: passwordauthentication no / permitrootlogin prohibit-password / kbdinteractiveauthentication no
+#   기대: passwordauthentication no
+#         permitrootlogin **without-password** 또는 prohibit-password  ← 둘 다 맞습니다
+#         kbdinteractiveauthentication no
+#
+#   ★★ `without-password` 가 나와도 맞습니다 — **옛 이름**이고 뜻이 똑같습니다(키로만 root).
+#     까닭: OpenSSH 소스 `servconf.c` 의 `multistate_permitrootlogin` 표에서 두 이름이
+#     **같은 값**(PERMIT_NO_PASSWD)이라 설정을 읽을 때 **글자는 버려지고**, 되돌려 찍을 때
+#     표에서 **먼저 나오는 이름**이 쓰입니다. OpenSSH 9.6(우분투 24.04)은 `without-password`
+#     가 먼저라 그렇게 찍히고, 지금 master 는 둘이 바뀌어 `prohibit-password` 로 찍힙니다.
 #
 #   ★ 그래도 yes 가 보이면 — **우리보다 앞에 있는 파일**이 그 값을 들고 있습니다.
 #     ls /etc/ssh/sshd_config.d/ 로 이름 차례를 보고(00- 보다 앞선 이름이 있나),
