@@ -9,6 +9,7 @@ const COS_ROOT = require('path').resolve(__dirname, '../..').replace(/\\/g, '/')
 const { chromium } = require('playwright');
 const cp = require('child_process');
 const fs = require('fs');
+const http = require('http');
 const os = require('os');
 const path = require('path');
 
@@ -25,6 +26,31 @@ function oldCopy(name) {
   const out = path.join(os.tmpdir(), 'cos68_' + OLD_REF + '_' + name);
   fs.writeFileSync(out, body);
   return out.replace(/\\/g, '/');
+}
+
+/* ★★ v320(코스로드75): 공유 화면의 그리는 글이 **`share/view.js` 한 벌**로 밖에 나갔다.
+   `file://` 에서는 **외부 `type="module"` 스크립트가 CORS 로 막힌다**(origin 'null' ·
+   실측 오류: 「Access to script at 'file:///…/share/view.js' … blocked by CORS policy」) →
+   화면이 「불러오는 중」에 머물러 `waitForFunction` 이 10초 뒤 던졌다(묶음이 **아예 안 돌았다**).
+   → 공유 화면만 **로컬 http 서버**로 띄운다(`run320.js` 와 같은 방법 · 바깥 요청 0).
+   꾸밈(`<link>`)은 `file://` 에서도 받아지므로 위 줄바꿈 재기는 종전 그대로 둔다. */
+const TYPE = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
+               '.js': 'text/javascript; charset=utf-8', '.json': 'application/json' };
+let SRV = null;
+function serveRoot() {
+  if (SRV) return Promise.resolve(SRV);
+  const srv = http.createServer((req, res) => {
+    let p = String(req.url || '/').split('?')[0];
+    if (p === '/') p = '/index.html';
+    const f = path.join(COS_ROOT, p);
+    if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
+    res.writeHead(200, { 'Content-Type': TYPE[path.extname(f)] || 'application/octet-stream' });
+    res.end(fs.readFileSync(f));
+  });
+  return new Promise((r) => srv.listen(0, '127.0.0.1', () => {
+    SRV = { srv, base: 'http://127.0.0.1:' + srv.address().port };
+    r(SRV);
+  }));
 }
 
 let bad = 0;
@@ -77,7 +103,12 @@ async function page(b, w, h) {
     if (/version\.json/.test(t) && /CORS/.test(t)) return;
     errs.push(t.slice(0, 130));
   });
-  await p.route('**', (r) => (r.request().url().startsWith('file://') ? r.continue() : r.abort()));
+  /* ★ v320: `127.0.0.1` 은 **이 묶음이 띄운 로컬 서버**다(저장소 파일을 내준다 · 바깥이 아니다).
+     공유 화면은 외부 `type="module"` 때문에 `file://` 로 못 띄운다 — 위 `serveRoot()` 쪽지 참고. */
+  await p.route('**', (r) => {
+    const u = r.request().url();
+    return (u.startsWith('file://') || u.startsWith('http://127.0.0.1:')) ? r.continue() : r.abort();
+  });
   p.__errs = errs;
   return p;
 }
@@ -207,7 +238,12 @@ function seed(biz) {
     })()`;
     await load(p, OLD_SHARE);
     const was = await p.evaluate(probe);
-    await load(p, SHARE);
+    /* ★ v320: 지금 판은 **http 로** 띄운다 — `file://` 로 띄우면 꾸밈은 받아져 줄바꿈은 재지는데
+       외부 모듈이 CORS 로 막혀 **콘솔 오류 한 줄**이 남아 「오류 0」이 거짓으로 깨진다(실측).
+       옛 판(`OLD_SHARE`)은 **한 파일**이라 `file://` 그대로 둔다 → 전/후 대조가 성립한다. */
+    const srv0 = await serveRoot();
+    await p.goto(srv0.base + '/s.html', { waitUntil: 'load' });
+    await p.waitForTimeout(220);
     const now = await p.evaluate(probe);
     say(was.wb === 'break-word', tag + '[옛] `break-word` 였다'.padEnd(34) + was.wb);
     say(now.wb === 'keep-all', tag + '★ 이제 `keep-all`'.padEnd(34) + now.wb);
@@ -234,8 +270,8 @@ function seed(biz) {
           + 'export function doc(){ return {}; }\n'
           + 'export function getDoc(){ return Promise.resolve({ exists:function(){ return true; },'
           + ' data:function(){ return window.__SNAP; } }); }'));
-      await q.goto('file:///' + SHARE.replace(/\\/g, '/') + '#AAAAAAAAAAAAAAAAAAAAAAAA',
-        { waitUntil: 'load' });
+      const srv = await serveRoot();                 /* ★ v320 — 아래 쪽지 참고(file:// 는 막힌다) */
+      await q.goto(srv.base + '/s.html#AAAAAAAAAAAAAAAAAAAAAAAA', { waitUntil: 'load' });
       await q.waitForFunction(() => !!document.querySelector('h1'), {}, { timeout: 10000 });
       const t2 = await q.evaluate(() => ({ h1: document.querySelector('h1').textContent,
         title: document.title, body: (document.querySelector('.nt-body') || {}).textContent || '' }));
@@ -373,6 +409,7 @@ function seed(biz) {
   }
 
   await b.close();
+  if (SRV) SRV.srv.close();                          /* ★ v320 — 띄운 로컬 서버를 거둔다 */
   console.log('\n' + (bad ? 'X 실패 ' + bad + '건' : 'o 전부 통과') + ' — 실제 크롬 4크기');
   console.log('※ 바깥 요청 차단 · Firestore 가짜 — 실제 쓰기 0 · 문자 0');
   process.exit(bad ? 1 : 0);

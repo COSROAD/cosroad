@@ -701,7 +701,7 @@ if('serviceWorker' in navigator){
 }
 // ── 앱 버전 자동 갱신 ──
 // 새 버전 배포 시: 아래 APP_VERSION 숫자를 +1, version.json의 version도 같은 숫자로 올림
-const APP_VERSION = 319;
+const APP_VERSION = 320;
 (function checkAppVersion(){
   try{
     // 캐시 우회를 위해 시각을 쿼리로 붙여 최신 version.json을 읽음
@@ -6772,6 +6772,8 @@ var HELP_QA=[
    a:'1. 물류 수납관리 → 거래처 카드의 「수금일(매입은 결제일)」 칸이 기본으로 오늘이에요\n2. 옛날 거래를 지금 받았다면 실제로 받은 날짜로 바꾼 뒤 「수금」을 누르세요\n3. 그 날짜로 수금 내역과 세무 기록(수입·지출)이 함께 잡혀요 — 귀속 월도 수금일 기준이라 돈이 들어온 달로 정리돼요\n4. 미래 날짜를 고르면 「그대로 기록할까요?」 하고 한 번 물어봐요\n5. 금액은 이 거래처 미수(미지급) 전체에서 오래된 건부터 자동 차감돼요 — 적게 넣으면 부분수금이에요\n6. 미수 합계보다 많이 넣으면 초과분 액수를 알려주며 한 번 더 물어보고, 그대로 하면 초과분은 선수금(매입은 선급금)으로 기록돼요\n7. 잘못 넣었으면 수금 내역 옆 ✕ 로 지우면 다시 미수로 돌아가요 — 달력에서도 같이 사라져요\n8. 수금한 날짜에는 달력에도 초록색으로 표시돼요 — 그 수금으로 명세서가 다 채워지면 「수금완료(매입은 결제완료)」, 덜 채워지면 「부분수금 ○○원」으로 나와요\n9. 날짜 칸은 오른쪽 달력 아이콘이 아니라 칸 아무 데나 눌러도 달력이 떠요 (앱의 모든 날짜 칸이 같아요)'},
   {role:'admin', keys:['거래내역','기간','pdf','거래처별','순미수','상계','미수미결'], t:'거래처별 기간 거래내역 (보기·인쇄·카톡)',
    a:'1. 물류 → 거래명세서 탭을 아래로 내리면 「📄 거래처별 기간 거래내역」 칸이 있어요\n2. 거래처와 시작·끝 월을 고르고 <b>「📄 기간 거래내역 보기 · 인쇄 · 💬 카톡」</b> 한 단추를 누르면 앱 안에서 문서가 바로 열려요\n3. 문서를 <b>보면서</b> 위쪽에서 고르시면 돼요 — 「🖨 인쇄·PDF」(새 창에서 인쇄하거나 PDF로 저장) · 「💬 카톡 보내기」 · 「✕ 닫기」\n4. 그 기간 거래를 한 장으로 정리해 줘요 — 거래처에 보내는 정산 자료로 쓰세요\n5. 품목별로 행이 나뉘어 품목마다 금액이 보여요 (거래 소계·전체 합계 포함)\n6. 맨 아래에 「매출 미수 / 매입 미지급 / 순 미수」 세 줄이 나와요 — 순 미수는 매출 미수에서 매입 미지급을 뺀 상계 금액이에요\n7. 공급가액·세액·합계 열은 거래한 금액 그대로예요 (상계는 미수/미결에만 적용돼요)\n8. 거래처를 안 골랐거나 월을 안 골랐거나 그 기간에 거래가 없으면 눌렀을 때 알려 줘요'},
+  {role:'admin', keys:['공유주소','링크주소','미리보기','미리보기제목','notice','invoice','payslip','주소단어'], t:'공유 링크 주소 · 문자 미리보기 제목',
+   a:'1. 공유 링크 주소가 <b>종류별로 갈려요</b> (v320) — «알림장»은 <b>cosroad.com/notice#…</b> ·\n거래명세·거래내역은 <b>cosroad.com/invoice#…</b> · 급여명세서는 <b>cosroad.com/payslip#…</b> 예요\n2. 그래서 문자·카톡에 뜨는 <b>미리보기 제목</b>이 맞게 나와요 — 전에는 무엇을 보내도\n「거래내역 명세」로 떴어요 (v319까지 주소가 모두 같았거든요)\n3. <b>이미 보낸 링크(cosroad.com/s.html#…)도 그대로 열려요</b> — 다시 보낼 필요 없어요\n4. 토큰은 주소의 <b>「#」 뒤</b>에 있어요 — 「#」 뒤는 서버로 가지 않으니 접속 기록에 토큰이 남지 않아요\n5. 보이는 화면·동작은 전과 <b>똑같아요</b> — 주소와 미리보기 제목만 바뀐 거예요\n6. 만료는 그대로예요 (거래·«알림장» 30일 · 급여명세서는 따로 정한 일수)'},
   {role:'admin', keys:['공유','공유링크','카톡','카카오','링크','전송','만료','명세서공유','한건'], t:'거래내역 명세 카톡 공유 링크',
    a:'1. 기간 거래내역: 거래명세서 탭 「📄 거래처별 기간 거래내역」 칸에서 거래처·기간을 고르고 「📄 기간 거래내역 보기 · 인쇄 · 💬 카톡」 → 문서가 열리면 위쪽 <b>「💬 카톡 보내기」</b> → 확인창(거래처·기간·건수·합계) → 「💬 카톡으로 보내기」를 누르면 카카오톡이 열려 친구·대화방을 고를 수 있어요\n2. 저장된 거래명세서 한 건만 보낼 때: 카드의 「📄 보기 · 인쇄 · 💬 카톡」 → 문서가 열리면 위쪽 「💬 카톡 보내기」 → 확인창 → 「💬 카톡으로 보내기」 (매출 명세서만)\n3. 카톡 확인창을 닫아도 <b>문서 창은 그대로</b> 남아요 — 바로 「🖨 인쇄·PDF」를 누르거나 다시 보낼 수 있어요\n4. 휴대폰이면 공유창이 떠요 — 거기서 카톡을 골라 보내세요. 컴퓨터면 링크가 복사되니 카톡에 붙여넣으면 돼요\n5. 공유창이 안 뜨면 아래에 링크가 나와요 — 「🔗 링크 복사」나 「💬 다시 공유」를 쓰세요\n6. 받는 분은 앱에 가입하지 않아도 링크만 열면 명세를 보고 그 화면에서 인쇄·PDF 저장을 할 수 있어요\n7. 링크는 만든 시점의 내용이 그대로 굳어요 — 나중에 앱에서 금액을 고쳐도 이미 보낸 링크는 바뀌지 않아요\n8. 링크는 '+SHARE_DAYS+'일 뒤 자동으로 만료돼요 (따로 회수하지 않아도 돼요)\n9. 명세에는 거래처 이름·기간(단건은 일자)·거래 내역만 담겨요 (연락처·주소나 다른 거래처 자료는 들어가지 않아요)\n10. 인쇄용 새 창에는 카톡 단추가 없어요 — 문서 창 <b>위쪽 줄</b>의 「💬 카톡 보내기」를 쓰세요'},
   {role:'admin', keys:['전체총미수','총미수','업체필터','거래처만','누적미수'], t:'업체 지정 — 목록 필터·전체 총 미수',
@@ -8578,7 +8580,7 @@ function noticeLiveShareUrl(n){
   if(!n || !n.shareToken || !n.shareTs) return '';
   if(Date.now() - Number(n.shareTs) >= SHARE_DAYS*864e5) return '';        /* 만료됐다 */
   if(String(n.shareSig||'') !== noticeShareSig(n)) return '';              /* 글이 바뀌었다 */
-  return shareUrlOf(String(n.shareToken));
+  return shareUrlOf(String(n.shareToken), 'notice');
 }
 
 function sendNoticeSms(id){
@@ -15478,7 +15480,28 @@ function openRangeDocView(){
 
 /* SHARE_DAYS · PAYSLIP_SHARE_DAYS 는 HELP_QA 위로 옮겼다 (v247) —
    도우미 문답을 만드는 자리가 여기보다 위라서 문답에 undefined 가 찍혔다. */
+/* ★★ v320(코스로드75): 공유 주소를 **종류별 단어**로 — `cosroad.com/notice#토큰` 꼴.
+   까닭 — v319 까지는 넷이 모두 `s.html#토큰` 이라 문자·카톡 **미리보기 카드**에
+   `s.html` 의 고정 제목 「거래내역 명세 — 코스로드」가 찍혔다(사장님 11-24 «알림장» 실측).
+   미리보기를 만드는 쪽은 **JS 를 돌리지 않고** `#토큰` 은 **서버로 가지 않으므로**,
+   그 쪽이 볼 수 있는 것은 **그 입구 파일의 정적인 제목뿐**이다 → 입구를 종류별로 나눴다.
+   ★ 확장자 없는 주소(`/notice`)가 `notice.html` 로 열리는 것은 **실측으로 확인**했다 —
+     `cosroad.com/s`·`/terms`·`/privacy`·`/home` 이 **200 · 되돌려보내기 없음**(Location 없음)이고
+     그때 `/notice` 는 404 였다(대조). **되돌려보내기가 없으니 `#토큰` 이 떨어질 자리가 없다.**
+     ★ GitHub Pages **공식 문서에는 이 규칙이 적혀 있지 않다**(문서 다섯 쪽 대조 — 적힌 것은
+       `index.html` 진입 파일뿐이고 예시는 `about/contact-us.html` 로 확장자를 붙인다).
+       그래서 근거는 **실측**이다. 묶음이 네 입구 파일이 **있는지**를 지킨다.
+   ★ 종류 → 단어: `notice` → notice · `oneInvoice`·`clientRange` → **invoice** · `payslip` → payslip.
+     모르는 종류는 **옛 주소**(`s.html`)로 떨어진다(새 종류가 생겨도 링크가 깨지지 않게).
+   ★ 옛 링크(`s.html#토큰`)는 **그대로 열린다** — 이미 보낸 문자·카톡을 깨지 않는다.
+   ★ 규칙·서버는 **0줄** — `shares` 문서 꼴은 그대로다(주소 꼴만 바뀐다). */
 var SHARE_BASE = 'https://cosroad.com/s.html';
+var SHARE_ENTRY = {
+  notice:      'https://cosroad.com/notice',
+  oneInvoice:  'https://cosroad.com/invoice',
+  clientRange: 'https://cosroad.com/invoice',
+  payslip:     'https://cosroad.com/payslip'
+};
 
 /* 토큰 — crypto 128비트(=16바이트)를 base64url 22자로. 순번·거래처명·날짜를 섞지 않는다. */
 function shareNewToken(){
@@ -15488,7 +15511,12 @@ function shareNewToken(){
   for(var i=0;i<b.length;i++) s += String.fromCharCode(b[i]);
   return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-function shareUrlOf(token){ return SHARE_BASE + '#' + token; }
+/* 주소 만들기 — **한 자리**다(복사 금지). `kind` 를 주면 그 종류 입구로, 없으면 옛 주소로.
+   ★ 토큰은 언제나 `#` 뒤다 — 입구가 갈려도 **서버로 안 간다**(기록·리퍼러에 안 남는다). */
+function shareUrlOf(token, kind){
+  var base = (kind && SHARE_ENTRY[kind]) || SHARE_BASE;
+  return base + '#' + token;
+}
 
 /* 공유 링크 발급 — 스냅샷을 저장하고 **주소를 돌려준다**.
    앱 화면의 기간 확인창(openRangeShare → invShareEnsureUrl)이 이것을 부른다.
@@ -15561,7 +15589,7 @@ async function shareIssueClientRange(mid, startYm, endYm){
   // 발급 기록은 남기지 않는다 — 회수 UI 없이 30일 자동 만료에만 맡긴다(사장님 결정).
   try{ showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){}
   return {
-    url:   shareUrlOf(token),
+    url:   shareUrlOf(token, 'clientRange'),
     title: '거래내역 명세',
     text:  String(sel.name||'') + ' ' + D.period.start + '~' + D.period.end + ' 거래내역 명세'
   };
@@ -15744,7 +15772,7 @@ async function shareIssueOneInvoice(id){
   // 발급 기록은 남기지 않는다 — 30일 자동 만료에만 맡긴다(9580 결정 그대로)
   try{ showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){}
   return {
-    url:   shareUrlOf(token),
+    url:   shareUrlOf(token, 'oneInvoice'),
     title: '거래명세서',
     text:  cname + ' ' + iv.date + ' 거래명세서'
   };
@@ -15841,7 +15869,7 @@ async function shareIssueNotice(id, opt){
 
   if(!opt.quiet){ try{ showToast('공유 링크를 만들었어요. ' + SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){} }
   return {
-    url:   shareUrlOf(token),
+    url:   shareUrlOf(token, 'notice'),
     title: T('알림장'),
     text:  '['+String(org.name||'')+'] '+T('알림장'),
     imageUrl: (snap.images && snap.images[0]) ? snap.images[0] : ''
@@ -15979,7 +16007,7 @@ async function shareIssuePayslip(ym, pid, payDate){
 
   try{ showToast('공유 링크를 만들었어요. ' + PAYSLIP_SHARE_DAYS + '일간 볼 수 있어요.'); }catch(e){}
   return {
-    url:   shareUrlOf(token),
+    url:   shareUrlOf(token, 'payslip'),
     title: '급여명세서',
     text:  B.name + ' ' + B.ym + ' 급여명세서'
   };

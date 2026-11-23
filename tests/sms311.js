@@ -226,8 +226,15 @@ const smsBodyOf = (p) => {
     ck('  업체 표시도 들어간다(68)', (p.R.saved[0] || {}).data.org.label, '알림장');
     ck('  만든 사람(`ownerUid`)도', (p.R.saved[0] || {}).data.ownerUid, 'uB');
     ck('★ 본문에 「▶ 알림장 보기:」 한 줄', /\n▶ 알림장 보기:\n/.test(b), true);
-    ck('★ 그 주소가 `s.html#토큰`',
-      /https:\/\/cosroad\.com\/s\.html#[A-Za-z0-9_-]{22,}$/.test(b.trim()) ? 'OK' : b.slice(-40), 'OK');
+    /* ★★ v320(코스로드75): 주소가 **종류별 단어**로 바뀌었다 — «알림장»은 `/notice#토큰`.
+       까닭 — 넷이 모두 `s.html` 이라 문자·카톡 **미리보기 제목**이 「거래내역 명세」로 떴다
+       (사장님 11-24 실측). 미리보기 쪽은 JS 를 안 돌리고 `#토큰` 은 서버로 안 가므로,
+       **그 입구 파일의 정적인 제목**만 본다 → 입구를 종류별로 나눴다.
+       ★ 옛 링크(`s.html#토큰`)는 그대로 열린다(`tests/share75.js` ⑤ 가 지킨다). */
+    ck('★ 그 주소가 `/notice#토큰`(v320)',
+      /https:\/\/cosroad\.com\/notice#[A-Za-z0-9_-]{22,}$/.test(b.trim()) ? 'OK' : b.slice(-40), 'OK');
+    ck('  (대조) 옛 꼴 `s.html#` 은 이제 안 쓴다',
+      /cosroad\.com\/s\.html#/.test(b), false);
     ck('★ **사진 주소는 안 들어간다**', /fb\.example/.test(b), false);
     ck('  주소는 **한 줄뿐**', (b.match(/https?:\/\//g) || []).length, 1);
     ck('★ 그 본문에 깨질 글자', badChars(b).join('') || '0개', '0개');
@@ -248,7 +255,10 @@ const smsBodyOf = (p) => {
 
     /* 카톡 공유를 눌러도 같은 주소 */
     const r = await p.R.ev('shareIssueNotice(1)');
-    ck('★ 카톡 공유도 **같은 주소**를 쓴다', String(r.url) === String(p.R.ev('shareUrlOf(loadNotices()[0].shareToken)')), true);
+    /* ★ v320: 주소 만들기가 **종류를 받는다** — 견줄 때도 같은 종류를 준다
+       (안 주면 옛 주소가 나와 거짓으로 깨진다 · 그 떨어짐 자체는 ⑤ 에서 따로 잰다). */
+    ck('★ 카톡 공유도 **같은 주소**를 쓴다', String(r.url) === String(p.R.ev("shareUrlOf(loadNotices()[0].shareToken, 'notice')")), true);
+    ck('  그 주소가 `/notice#` 꼴', /cosroad\.com\/notice#/.test(String(r.url)), true);
     ck('  다시 쓴 것임을 표시한다', r.reused, true);
     ck('  그래서 스냅샷 수도 그대로', p.R.saved.length, before);
 

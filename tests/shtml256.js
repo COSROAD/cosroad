@@ -16,9 +16,23 @@ fs.mkdirSync(OUT, { recursive: true });
 const BASE = process.env.COS_SRC_OLD_REF || '05a0f30';
 /* ★ 줄끝을 LF 로 맞춘다 — 작업트리가 CRLF 가 되는 때가 있어(core.autocrlf) 아래 정규식이
    조용히 안 먹고 화면이 「불러오는 중」에 머물렀다(실제로 겪어서 넣음). 배포본은 LF 다. */
+/* 입구(`s.html`)가 밖에서 부르는 한 벌을 **그 자리에 끼워 넣는다**(브라우저가 하는 일).
+   옛 커밋(한 파일이던 때)에는 그 줄이 없으므로 **아무 일도 하지 않는다** → 전/후 비교 그대로. */
+function inlineShare(src) {
+  const rd = (p) => fs.readFileSync(COS_ROOT + "/" + p, "utf8").replace(/\r\n/g, "\n");
+  return src
+    .replace(/<link rel="stylesheet" href="share\/view\.css"\/>/,
+             () => "<style>" + rd("share/view.css") + "</style>")
+    .replace(/<script type="module" src="share\/view\.js"><\/script>/,
+             () => "<script type=\"module\">" + rd("share/view.js") + "<\/script>");
+}
 const SRC = {
   old: cp.execSync('git -C ' + COS_ROOT + ' show ' + BASE + ':s.html', { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n'),
-  new: fs.readFileSync('' + COS_ROOT + '/s.html', 'utf8').replace(/\r\n/g, '\n')
+  /* ★★ v320(코스로드75): `s.html` 의 꾸밈·그리는 글이 **`share/view.*` 한 벌**로 옮겨 갔다
+     (입구가 넷이 되면서 **복사하지 않으려고** 밖으로 뺐다 · 교훈 ㉒).
+     이 묶음은 **한 파일**을 뜯어 고쳐 띄우므로, **브라우저가 하는 것처럼 끼워 넣어**
+     옛 꼴로 만든다 — 그래야 아래 바꿔치기·넘침 재기가 **한 줄도 안 바뀐다**. */
+  new: inlineShare(fs.readFileSync('' + COS_ROOT + '/s.html', 'utf8').replace(/\r\n/g, '\n'))
 };
 /* ★ 코스로드41 — **대조 시험용 「망가뜨린 판」**: 줄바꿈 CSS 를 빼면 넘침이 잡히는가.
    「넘침 0」이 거짓이 아니라는 것을 이 검사가 스스로 보인다(CLAUDE.md 「0건은 대조 뒤에」). */

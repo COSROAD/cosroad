@@ -1,0 +1,282 @@
+// 코스로드 공유 화면 — 그리는 글 **한 벌** (v320 · 코스로드75)
+//
+// ★★ 입구 넷(`s.html`·`notice.html`·`invoice.html`·`payslip.html`)이 **이 파일 하나**를 쓴다.
+//   전에는 `s.html` 안에 박혀 있었다. 종류별 입구를 만들면서 **복사하지 않고** 밖으로 뺐다
+//   (교훈 ㉒ · 복사해 두면 한쪽만 고쳐져 화면·셈이 갈린다).
+// ★ 글은 `s.html` 에 있던 것을 **그대로** 옮긴 것이다 — 한 글자도 안 바꿨다.
+// ★ 토큰은 `location.hash` 에서 읽는다 — **프래그먼트는 서버로 가지 않는다**(접근 기록·리퍼러에
+//   토큰이 안 남는다). 입구 주소가 `/notice`·`/invoice`·`/payslip` 로 갈려도 그 성질은 같다.
+// ★ 이 파일은 **`type="module"`** 로 불린다(안에서 Firebase 를 `import` 한다).
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// Firebase Auth 는 **불러오지 않는다.** 아래 load() 의 설명 참고 —
+// 공유 열람에 인증이 필요 없고, Auth 를 초기화하면 Firestore 가 그 상태를 기다리다 멈춘다.
+
+// 앱과 같은 Firebase 웹 설정 (웹 설정값은 비밀이 아니다 — 실제 방어선은 보안 규칙이다)
+const firebaseConfig = {
+  apiKey: "AIzaSyBTpvJtKQvfpmyyJS6rteCJDgsphvMyCgI",
+  authDomain: "cosroad-9a49c.firebaseapp.com",
+  projectId: "cosroad-9a49c",
+  storageBucket: "cosroad-9a49c.firebasestorage.app",
+  messagingSenderId: "491198626337",
+  appId: "1:491198626337:web:48b1e2cbd833abfd590160"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const root = document.getElementById('root');
+/* HTML escape — **따옴표까지** 바꾼다 (v247 보안).
+   v246까지는 & < > 만 바꿨다. 그러면 속성 자리(src="…")에 들어간 값이
+   따옴표 하나로 속성을 닫고 onerror= 같은 것을 끼워 넣을 수 있다(XSS).
+   s.html 은 앱(index.html)과 같은 cosroad.com 이라 앱의 localStorage·로그인 정보까지 위험해진다.
+   shares 문서는 로그인한 누구나 만들 수 있으므로(규칙이 ownerUid 만 본다)
+   **문서 값은 전부 남이 쓴 글로 보고** 다룬다.
+   & 를 먼저 바꾸는 순서는 그대로 — 나중에 바꾸면 &amp;quot; 처럼 두 번 escape 된다. */
+function esc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function won(n){ return (Number(n)||0).toLocaleString(); }
+function show(title, lines){
+  root.innerHTML = '<div class="msg"><h2>'+esc(title)+'</h2>'
+    + (lines||[]).map(function(l){ return '<p>'+esc(l)+'</p>'; }).join('') + '</div>';
+}
+
+// 토큰은 '#' 뒤에서만 읽는다
+const token = (location.hash || '').replace(/^#/, '').trim();
+// 우리가 만드는 토큰은 base64url 22자 이상 — 형식이 아니면 조회 자체를 하지 않는다
+const TOKEN_OK = /^[A-Za-z0-9_-]{22,128}$/;
+
+// 만료일 'YYYY-MM-DD' (Firestore Timestamp → 기기 날짜). 못 읽으면 빈 문자열.
+function expStr(d){
+  try{
+    const ed = d.expiresAt && d.expiresAt.toDate ? d.expiresAt.toDate() : null;
+    if(ed) return ed.getFullYear()+'-'+String(ed.getMonth()+1).padStart(2,'0')+'-'+String(ed.getDate()).padStart(2,'0');
+  }catch(e){}
+  return '';
+}
+function barHtml(){
+  return '<div class="bar"><button class="sub" onclick="window.print()">🖨 인쇄 / PDF 저장</button></div>';
+}
+function noteHtml(exp){
+  return exp ? '<div class="note">이 링크는 '+esc(exp)+'까지 볼 수 있어요.</div>' : '';
+}
+
+/* ══════════ 알림장 (kind:'notice', v246) ══════════
+   담긴 값: 기관명 · 작성일 · 본문 · 사진 주소. 받는 대상 이름·연락처는 애초에 담기지 않는다. */
+function renderNotice(d){
+  const org = String((d.org && d.org.name) || '');
+  const date = String(d.date || '');
+  const imgs = Array.isArray(d.images) ? d.images : [];
+  /* v309(코스로드68): 제목·머리글을 **업종 용어**로 — 발급할 때 `org.label` 에 담아 보낸다
+     (물류는 「공지」). 그 칸이 없는 **옛 링크**는 종전 글자 「알림장」으로 떨어진다. */
+  const label = String((d.org && d.org.label) || '알림장');
+  try{ if(org) document.title = org + ' ' + label + (date ? '_'+date : ''); }catch(e){}
+
+  let pics = '';
+  imgs.forEach(function(u){
+    const s = String(u||'');
+    /* 우리 Firebase Storage 가 준 주소만 그린다 (v247 보안).
+       앱의 getDownloadURL(SDK 10.12.0)은 반드시
+         https://firebasestorage.googleapis.com/v0/b/<버킷>/o/<경로>?alt=media&token=…
+       형태를 돌려준다(SDK 안의 _host="firebasestorage.googleapis.com" · makeUrl 실측 확인).
+       v246의 `^https://` 검사는 아무 https 주소나 통과시켰다 — 남이 만든 문서로
+       외부 주소를 심을 수 있었다. 여기서 호스트를 못 박고, esc 가 따옴표까지 막는다. */
+    if(s.indexOf('https://firebasestorage.googleapis.com/') !== 0) return;
+    pics += '<img class="nt-img" src="'+esc(s)+'" onclick="window.open(this.src,\'_blank\')" alt="첨부 사진"/>';
+  });
+
+  root.innerHTML = barHtml()
+    + '<div class="doc">'
+      + '<h1>'+esc(label)+'</h1>'
+      + '<div class="org">'+esc(org)+(date ? '　|　'+esc(date) : '')+'</div>'
+      + '<div class="nt-body">'+esc(d.content||'')+'</div>'
+      + pics
+      + (pics ? '<div class="small">사진을 누르면 원본이 새 창으로 열려요.</div>' : '')
+    + '</div>'
+    + noteHtml(expStr(d));
+}
+
+/* ══════════ 급여명세서 (kind:'payslip', v246) ══════════
+   항목 순서는 임금명세서 양식에 맞춘다 —
+   기관명 / 성명(구분) / 대상 기간 / 지급일 / 지급 내역+식대 / 지급 합계 /
+   공제 내역+합계 / 실지급액 / 근로 정보 / 안내. */
+function renderPayslip(d){
+  const org  = String((d.org && d.org.name) || '');
+  const w    = d.worker || {};
+  const ym   = String(d.ym || '');
+  const y    = ym.slice(0,4), m = Number(ym.slice(5,7));
+  const last = (y && m) ? new Date(Number(y), m, 0).getDate() : 0;
+  const period = (y && m) ? (ym+'-01 ~ '+ym+'-'+String(last).padStart(2,'0')) : '';
+  const lines  = Array.isArray(d.lines) ? d.lines : [];
+  const deds   = Array.isArray(d.deductions) ? d.deductions : [];
+  try{ if(w.name && ym) document.title = '급여명세서_'+String(w.name).replace(/[\\/:*?"<>|]/g,' ').trim()+'_'+ym; }catch(e){}
+
+  let pay = '';
+  lines.forEach(function(l){
+    const h = Number(l.hours)||0, r = Number(l.rate)||0;
+    pay += '<tr><td>'+esc(l.label)+'</td>'
+         + '<td class="rgt">'+(h?h:'')+(h&&r?' × '+won(r)+'원':'')+'</td>'
+         + '<td class="rgt">'+won(l.amount)+'</td></tr>';
+  });
+  if(Number(d.meal)||0){
+    pay += '<tr><td>식대</td><td class="rgt">—</td><td class="rgt">'+won(d.meal)+'</td></tr>';
+  }
+  if(!pay) pay = '<tr><td colspan="3" style="text-align:center;color:#98A2B3;">지급 내역이 없어요</td></tr>';
+
+  let ded = '';
+  deds.forEach(function(x){
+    ded += '<tr><td>'+esc(x.label)+'</td><td class="rgt">'+won(x.amount)+'</td></tr>';
+  });
+  if(!ded) ded = '<tr><td colspan="2" style="text-align:center;color:#98A2B3;">공제 내역이 없어요</td></tr>';
+
+  /* 지급 합계 = 항목 합계(d.total) + 식대. 실지급액(d.net)은 앱이 계산한 값을 그대로 쓴다. */
+  const payTotal = (Number(d.total)||0) + (Number(d.meal)||0);
+  /* 4대보험은 공제가 네 줄로 온다 — 그때만 참고 계산 안내를 붙인다 */
+  const isIns4 = deds.length > 1;
+
+  root.innerHTML = barHtml()
+    + '<div class="doc">'
+      + '<h1>임금명세서</h1>'
+      + '<div class="org">'+esc(org)+'</div>'
+      + '<div class="meta">'
+        + '<div>성명 : <b>'+esc(w.name||'')+'</b>'+(w.role?' ('+esc(w.role)+')':'')+'</div>'
+        + '<div>대상 기간 : <b>'+esc(period)+'</b></div>'
+        + '<div>지급일 : <b>'+esc(d.payDate||'')+'</b></div>'
+      + '</div>'
+      + '<div class="ps-sec">지급 내역</div>'
+      + '<table class="ps-tbl"><thead><tr><th>항목</th><th>계산 방법 (시간 × 시급)</th><th>금액</th></tr></thead>'
+      + '<tbody>'+pay+'</tbody>'
+      + '<tfoot><tr class="sum"><td colspan="2" class="rgt">지급 합계</td><td class="rgt">'+won(payTotal)+'</td></tr></tfoot></table>'
+      + '<div class="ps-sec">공제 내역</div>'
+      + '<table class="ps-tbl"><thead><tr><th>항목</th><th>금액</th></tr></thead>'
+      + '<tbody>'+ded+'</tbody>'
+      + '<tfoot><tr class="sum"><td class="rgt">공제 합계</td><td class="rgt">'+won(d.dedTotal)+'</td></tr></tfoot></table>'
+      + '<div class="ps-net"><span>실지급액</span><b>'+won(d.net)+' 원</b></div>'
+      + '<div class="ps-sec">근로 정보</div>'
+      + '<div class="meta" style="border-top:none;padding-top:0;">'
+        + '<div>출근일수 : <b>'+esc(d.workDays==null?'':d.workDays)+'일</b></div>'
+        + '<div>총 근로시간 (출퇴근 기록 기준) : <b>'+esc(d.totalHours==null?'':d.totalHours)+'시간</b></div>'
+      + '</div>'
+      + (isIns4 ? '<div class="small">4대보험은 요율 기준 참고 계산이에요 — 실제 고지액과 다를 수 있어요.</div>' : '')
+    + '</div>'
+    + noteHtml(expStr(d));
+}
+
+function render(d){
+  const rows = Array.isArray(d.rows) ? d.rows : [];
+  const t = d.totals || {};
+  const nb = d.net || {};
+  let body = '';
+  rows.forEach(function(r){
+    const its = Array.isArray(r.items) ? r.items : [];
+    body += '<tbody>';
+    if(its.length >= 2){
+      const span = its.length + 1;
+      its.forEach(function(it, ii){
+        body += '<tr>'
+          + (ii===0 ? '<td class="ctr" rowspan="'+span+'">'+esc(r.date)+'</td><td class="ctr" rowspan="'+span+'">'+esc(r.kind)+'</td>' : '')
+          + '<td class="item">'+esc(it.label)+'</td>'
+          + '<td class="rgt">'+won(it.supply)+'</td>'
+          + '<td class="rgt">'+won(it.vat)+'</td>'
+          + '<td class="rgt">'+won((Number(it.supply)||0)+(Number(it.vat)||0))+'</td>'
+          + '<td></td><td></td></tr>';
+      });
+      body += '<tr class="subt"><td class="rgt">소계</td>'
+        + '<td class="rgt">'+won(r.supply)+'</td><td class="rgt">'+won(r.vat)+'</td>'
+        + '<td class="rgt">'+won(r.grand)+'</td><td class="rgt">'+won(r.paid)+'</td>'
+        + '<td class="rgt">'+won(r.unpaid)+'</td></tr>';
+    } else {
+      body += '<tr><td class="ctr">'+esc(r.date)+'</td><td class="ctr">'+esc(r.kind)+'</td>'
+        + '<td class="item">'+esc(its.length ? its[0].label : '')+'</td>'
+        + '<td class="rgt">'+won(r.supply)+'</td><td class="rgt">'+won(r.vat)+'</td>'
+        + '<td class="rgt">'+won(r.grand)+'</td><td class="rgt">'+won(r.paid)+'</td>'
+        + '<td class="rgt">'+won(r.unpaid)+'</td></tr>';
+    }
+    body += '</tbody>';
+  });
+
+  const period = (d.period && (esc(d.period.start)+' ~ '+esc(d.period.end))) || '';
+
+  // 받는 분이 인쇄→PDF 저장할 때의 기본 파일명 = 이 title → 앱과 같은 「거래처명_기간」.
+  // 스냅샷에 이미 있는 값(client.name · period)만 쓴다. 다른 정보는 넣지 않는다.
+  try{
+    const cn = String((d.client && d.client.name) || '').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim();
+    const ps = d.period && d.period.start, pe = d.period && d.period.end;
+    if(cn && ps && pe) document.title = cn + '_' + ps + '~' + pe;
+  }catch(e){}
+
+  let exp = '';
+  try{
+    const ed = d.expiresAt && d.expiresAt.toDate ? d.expiresAt.toDate() : null;
+    if(ed) exp = ed.getFullYear()+'-'+String(ed.getMonth()+1).padStart(2,'0')+'-'+String(ed.getDate()).padStart(2,'0');
+  }catch(e){}
+
+  root.innerHTML =
+    '<div class="bar">'
+      + '<button class="sub" onclick="window.print()">🖨 인쇄 / PDF 저장</button>'
+    + '</div>'
+    + '<div class="inv-sheet">'
+      + '<div class="inv-head"><div class="inv-title">거래내역 명세</div>'
+      + '<div class="inv-sub">'+esc((d.client&&d.client.name)||'')+' · '+period+'</div></div>'
+      + '<div class="inv-date">공급자 : '+esc((d.org&&d.org.name)||'')+'　|　거래처 : '+esc((d.client&&d.client.name)||'')+'　|　건수 : '+esc(d.count||rows.length)+'건</div>'
+      + '<table class="range-tbl"><colgroup><col class="rc-date"><col class="rc-kind"><col class="rc-item">'
+      + '<col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"><col class="rc-num"></colgroup>'
+      + '<thead><tr><th>거래일자</th><th>구분</th><th>품목</th><th>공급가액</th><th>세액</th><th>합계</th><th>수금/결제</th><th>미수/미결</th></tr></thead>'
+      + body
+      + '<tfoot><tr><td colspan="3" class="rgt">합 계</td>'
+      + '<td class="rgt">'+won(t.supply)+'</td><td class="rgt">'+won(t.vat)+'</td>'
+      + '<td class="rgt">'+won(t.grand)+'</td><td class="rgt">'+won(t.paid)+'</td>'
+      + '<td class="rgt">'+won(nb.net)+'</td></tr></tfoot>'
+      + '</table>'
+      + '<div class="inv-foot"><div>기간 내 거래를 모두 표시합니다.</div>'
+      + '<div class="inv-net">'
+        + '<div>매출 미수 : '+won(nb.sale)+' 원</div>'
+        + '<div>매입 미지급 : '+won(nb.purchase)+' 원</div>'
+        + '<div class="inv-grand">순 미수 : '+won(nb.net)+' 원</div>'
+      + '</div></div>'
+    + '</div>'
+    + (exp ? '<div class="note">이 링크는 '+esc(exp)+'까지 볼 수 있어요.</div>' : '');
+}
+
+async function load(){
+  if(!token){
+    show('주소가 올바르지 않아요', ['링크를 다시 확인해 주세요.']);
+    return;
+  }
+  if(!TOKEN_OK.test(token)){
+    show('링크가 올바르지 않아요', ['주소가 잘렸는지 확인해 주세요.']);
+    return;
+  }
+  /* 로그인하지 않고 바로 읽는다. 보안 규칙의 공유 열람 조건이
+       allow get: if resource.data.expiresAt > request.time
+     이라 **인증이 필요 없다.**
+     예전에는 signInAnonymously 를 먼저 했는데 화면이 "불러오는 중…" 에서 멈췄다.
+     원인은 로그인 자체가 아니라 **같은 Firebase 앱에 Auth 를 초기화한 것**이다 —
+     Auth 가 붙어 있으면 Firestore 가 인증 상태가 정해질 때까지 요청을 미룬다.
+     그래서 로그인을 백그라운드로 돌려도 소용이 없고, Auth 를 아예 안 부르는 것이 답이다.
+     (실측: Auth 초기화 O → 멈춤 / Auth 초기화 X → 정상 렌더) */
+  try{
+    const snap = await getDoc(doc(db, 'shares', token));
+    if(!snap.exists()){
+      // 만료된 문서도 규칙에서 막히므로 여기로 떨어질 수 있다 — 어느 쪽인지 알려주지 않는다
+      show('링크가 만료되었거나 주소가 올바르지 않아요', ['보낸 분께 새 링크를 받아 주세요.']);
+      return;
+    }
+    /* 문서의 kind 로 화면을 가른다 (v246).
+       kind 가 없거나 'oneInvoice'·'clientRange'(지금까지 만든 문서들)이면
+       **종전 render() 그대로** — 이미 보낸 링크가 그대로 열려야 한다. */
+    const d = snap.data();
+    const kind = String((d && d.kind) || '');
+    if(kind === 'notice')       renderNotice(d);
+    else if(kind === 'payslip') renderPayslip(d);
+    else                        render(d);
+  }catch(e){
+    // permission-denied = 만료 또는 없는 토큰. 구분해 알려주면 토큰 확인 수단이 되므로 합쳐서 안내한다.
+    show('링크가 만료되었거나 주소가 올바르지 않아요', ['보낸 분께 새 링크를 받아 주세요.']);
+  }
+}
+load();
+// 같은 탭에서 토큰만 바뀌는 경우도 다시 그린다
+window.addEventListener('hashchange', function(){ location.reload(); });

@@ -158,7 +158,15 @@ const checkinBody = (p) => {
       (NEW_SRC.match(/function buildDropoffMessage\([\s\S]*?\n\}/) || [''])[0]
         === (OLD_SRC.match(/function buildDropoffMessage\([\s\S]*?\n\}/) || [''])[0], true);
     /* 공유 주소는 토큰만 — 이름이 안 들어간다 */
-    ck('★ 공유 주소는 `#토큰` 하나', /function shareUrlOf\(token\)\{ return SHARE_BASE \+ '#' \+ token; \}/.test(NEW_SRC), true);
+    /* ★★ v320(코스로드75): 주소 만들기가 **종류를 받는다**(입구가 넷) — 글자는 바뀌었지만
+     지켜야 할 것은 그대로다: **토큰은 언제나 `#` 뒤**이고 **물음표 칸이 없다**
+     (`#` 뒤는 서버로 가지 않으니 접속 기록·리퍼러에 토큰이 안 남는다). */
+  ck('★ 공유 주소는 `#토큰` 하나(입구가 넷이어도)',
+    /function shareUrlOf\(token, kind\)\{[\s\S]{0,200}?return base \+ '#' \+ token;/.test(NEW_SRC), true);
+  ck('  주소 만드는 자리에 `?t=`·`?token=` 0',
+    /[?&](t|token)=/.test((NEW_SRC.match(/var SHARE_BASE =[\s\S]{0,1200}?return base \+ '#' \+ token;/) || [''])[0]), false);
+  ck('  입구 표의 주소 넷에도 물음표 0',
+    ((NEW_SRC.match(/var SHARE_ENTRY = \{[\s\S]*?\};/) || [''])[0]).indexOf('?'), -1);
     ck('  카톡 공유 글에도 이름 주소 0', /shareUrlOf\([^)]*name/.test(NEW_SRC), false);
   }
 

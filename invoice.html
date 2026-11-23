@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!--
+  코스로드 공유 화면 입구 (자료 없음 · v320 · 코스로드75).
+    주소: https://cosroad.com/invoice#<토큰>  (kind: oneInvoice · clientRange)
+  ★ 토큰은 반드시 「#」 프래그먼트다 — 프래그먼트는 **서버로 전송되지 않으므로**
+    웹서버 접근 기록·외부 링크 리퍼러에 토큰이 남지 않는다. 「?t=」 로 바꾸지 말 것.
+  ★ 이 파일에는 자료가 **없다** — 열릴 때 토큰으로 `shares/{token}` 스냅샷을 읽어 그린다.
+  ★ 화면을 그리는 글·꾸밈은 `share/view.js`·`share/view.css` **한 벌**이다(복사 금지).
+-->
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="referrer" content="no-referrer"/>
+<title>거래명세 — 코스로드</title>
+<!-- 문자·카톡 **미리보기 카드**가 읽는 칸 (v320 · 코스로드75).
+     ★★ 미리보기를 만드는 쪽은 **JS 를 돌리지 않고**, `#토큰` 은 **서버로 가지 않는다** →
+       그 쪽이 볼 수 있는 것은 **이 정적인 글자뿐**이다. 그래서 입구마다 자기 제목을 둔다
+       (v319 까지는 모두 `s.html` 하나였고 그 고정 제목 「거래내역 명세」가 «알림장» 문자
+        미리보기에도 찍혔다 — 사장님 11-24 실측).
+     ★ 업종 용어(「알림장」↔「공지」)는 미리보기에서 **알 수 없다**(토큰이 안 가므로) →
+       업종에 두루 맞는 글자를 쓰고, 화면이 열린 뒤에는 `org.label` 로 바꿔 그린다(v309 그대로). -->
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="코스로드"/>
+<meta property="og:title" content="거래명세 — 코스로드"/>
+<meta property="og:description" content="보내 드린 거래명세입니다. 링크를 열면 내용을 보실 수 있어요."/>
+<meta name="description" content="보내 드린 거래명세입니다. 링크를 열면 내용을 보실 수 있어요."/>
+<!-- 꾸밈·그리는 글은 **한 벌**이다 — 입구 넷이 같은 두 파일을 쓴다(복사 금지 · 교훈 ㉒).
+     상대 주소로 적는다 — `/notice`(확장자 없는 주소)에서도 `/share/…` 로 풀린다. -->
+<link rel="stylesheet" href="share/view.css"/>
+</head>
+<body>
+<div class="wrap" id="root">
+  <div class="msg"><h2>불러오는 중…</h2><p>잠시만 기다려 주세요.</p></div>
+</div>
+<script type="module" src="share/view.js"></script>
+</body>
+</html>

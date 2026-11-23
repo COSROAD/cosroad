@@ -19,7 +19,12 @@ const OLD = (p) => cp.execSync('git -C ' + COS_ROOT + ' show ' + OLD_REF + ':' +
   { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n');
 const NEW_SRC = F('index.html'), OLD_SRC = OLD('index.html');
 const HOME = F('home.html'), HOME_OLD = OLD('home.html');
-const SHTML = F('s.html'), SHTML_OLD = OLD('s.html');
+/* ★★ v320(코스로드75): `s.html` 의 꾸밈·그리는 글이 **`share/view.*` 한 벌**로 옮겨 갔다.
+   아래 검사들이 보는 것은 **공유 화면에 그 글이 있는가**이므로, 입구 + 한 벌을 **합쳐** 본다
+   (글은 한 글자도 안 바뀌었다 — `tests/share75.js` ③ 이 옛 커밋과 맞대어 지킨다).
+   옛 쪽(`SHTML_OLD`)은 한 파일이던 때라 그대로 둔다 → 전/후 대조가 성립한다. */
+const SHTML = F('s.html') + F('share/view.css') + F('share/view.js');
+const SHTML_OLD = OLD('s.html');
 /* ★ 이 회차 커밋 — 버전 글자로 찾는다(63~67 과 같은 방법) */
 const THIS_REF = thisRef(309);   /* 그 회차 커밋 — 제목이 (v309) 인 것 */
 

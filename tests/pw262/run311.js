@@ -156,8 +156,14 @@ const sendNotice = async (p) => {
     say(badChars(now.body).length === 0, tag + '★ 본문에 깨질 글자 0'.padEnd(36)
       + ([...new Set(badChars(now.body))].join('') || '0개'));
     say(badChars(now.title).length === 0, tag + '  제목도 0'.padEnd(36) + now.title);
-    say(now.body.indexOf('https://cosroad.com/s.html#' + now.tokens[0]) > 0,
+    /* ★★ v320(코스로드75): 입구가 **종류별 단어**로 갈렸다 — «알림장»은 `/notice#토큰`.
+       까닭 — 넷이 모두 `s.html` 이라 문자·카톡 **미리보기 제목**이 「거래내역 명세」로 떴다.
+       미리보기 쪽은 JS 를 안 돌리고 `#토큰` 은 서버로 안 가므로 **입구 파일의 정적 제목**만 본다.
+       ★ 토큰은 **그대로 `#` 뒤**다(서버 기록·리퍼러에 안 남는다 — 이 회차의 약속). */
+    say(now.body.indexOf('https://cosroad.com/notice#' + now.tokens[0]) > 0,
       tag + '  그 주소가 그 스냅샷 토큰'.padEnd(36) + String(now.tokens[0]).slice(0, 12) + '…');
+    say(!/cosroad\.com\/s\.html#/.test(now.body),
+      tag + '  (대조) 옛 꼴 `s.html#` 은 안 쓴다'.padEnd(36) + 'OK');
     say(p.__errs.length === 0, tag + '오류 0'.padEnd(36) + (p.__errs[0] || 'OK'));
     await p.close();
   }

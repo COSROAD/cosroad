@@ -16,9 +16,24 @@ const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const OUT = path.join(DIR, 'sh256b');
 fs.mkdirSync(OUT, { recursive: true });
 const BASE = process.env.COS_SRC_OLD_REF || '05a0f30';
+/* 입구(`s.html`)가 밖에서 부르는 한 벌을 **그 자리에 끼워 넣는다**(브라우저가 하는 일).
+   옛 커밋(한 파일이던 때)에는 그 줄이 없으므로 **아무 일도 하지 않는다** → 전/후 비교 그대로. */
+function inlineShare(src) {
+  const rd = (p) => fs.readFileSync(COS_ROOT + "/" + p, "utf8").replace(/\r\n/g, "\n");
+  return src
+    .replace(/<link rel="stylesheet" href="share\/view\.css"\/>/,
+             () => "<style>" + rd("share/view.css") + "</style>")
+    .replace(/<script type="module" src="share\/view\.js"><\/script>/,
+             () => "<script type=\"module\">" + rd("share/view.js") + "<\/script>");
+}
 const SRC = {
   old: cp.execSync('git -C ' + COS_ROOT + ' show ' + BASE + ':s.html', { maxBuffer: 1 << 28 }).toString().replace(/\r\n/g, '\n'),
-  new: fs.readFileSync('' + COS_ROOT + '/s.html', 'utf8').replace(/\r\n/g, '\n')
+  /* ★★ v320(코스로드75): `s.html` 의 꾸밈(`<style>`)·그리는 글(`<script type="module">`)이
+     **`share/view.*` 한 벌**로 옮겨 갔다(입구가 넷이 되면서 복사하지 않으려고 밖으로 뺐다 · 교훈 ㉒).
+     이 묶음은 **그 두 덩어리를 글자로 떠서** node vm·iframe 에 넣으므로, **브라우저가 하는 것처럼
+     끼워 넣어** 옛 꼴로 만든다 — 그래야 아래 그리기·넘침 재기가 **한 줄도 안 바뀐다**.
+     (안 하면 `runS` 가 「module 블록을 못 찾음」으로 던져 **묶음이 아예 안 돌았다** — 실측.) */
+  new: inlineShare(fs.readFileSync('' + COS_ROOT + '/s.html', 'utf8').replace(/\r\n/g, '\n'))
 };
 let pass = 0, fail = 0;
 const ck = (label, got, want) => {

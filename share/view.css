@@ -1,0 +1,68 @@
+/* 코스로드 공유 화면 — 꾸밈 **한 벌** (v320 · 코스로드75)
+   ★★ 입구 넷(`s.html`·`notice.html`·`invoice.html`·`payslip.html`)이 **이 파일 하나**를 쓴다.
+     복사해 두면 한쪽만 고쳐져 화면이 갈린다(교훈 ㉒ — `lib/otp-core.js` 와 같은 까닭).
+   ★ 글은 `s.html` 에 있던 것을 **그대로** 옮긴 것이다(한 글자도 안 바꿨다). */
+  *{box-sizing:border-box;}
+  /* v256 보정3: 한국어 줄바꿈을 **이 페이지 전체에** — 앱(index.html body)과 같은 두 줄.
+     keep-all = 낱글자로 쪼개지 않고 어절 단위로 넘긴다 /
+     overflow-wrap:anywhere = 띄어쓰기 없는 긴 URL·번호가 화면 밖으로 삐져나가지 않게.
+     둘을 **같이** 써야 한다 (keep-all 만 쓰면 긴 URL 이 가로 스크롤을 만든다). */
+  body{margin:0;padding:10px;background:#F2F4F7;font-family:"Malgun Gothic","맑은 고딕",-apple-system,sans-serif;color:#1D2939;word-break:keep-all;overflow-wrap:anywhere;}
+  .wrap{max-width:900px;margin:0 auto;}
+  .msg{background:white;border-radius:12px;padding:28px 20px;text-align:center;line-height:1.7;}
+  .msg h2{margin:0 0 8px;font-size:17px;color:#1D2939;}
+  .msg p{margin:4px 0;font-size:13px;color:#667085;}
+  .bar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px;}
+  .bar button{padding:9px 16px;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;background:#7C3AED;color:white;}
+  .bar .sub{background:white;color:#475467;border:1px solid #D0D5DD;}
+  .note{font-size:11px;color:#98A2B3;text-align:right;margin-top:6px;}
+
+  /* 표 모양은 앱의 기간 거래내역 PDF(printClientRange)와 같게 맞췄다 */
+  .inv-sheet{width:185mm;max-width:100%;margin:0 auto 5mm;border:2px solid #C00;background:white;}
+  .inv-head{text-align:center;padding:6px;}
+  .inv-title{font-size:22px;font-weight:800;color:#C00;letter-spacing:6px;}
+  .inv-sub{font-size:11px;color:#C00;}
+  .inv-date{font-size:12px;padding:2px 8px;}
+  .range-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;}
+  .range-tbl th,.range-tbl td{border:1px solid #C00;font-size:11px;padding:2px 4px;overflow:hidden;}
+  .range-tbl th{background:#FEF2F2;color:#C00;text-align:center;}
+  .range-tbl td.ctr{text-align:center;}
+  .range-tbl td.rgt{text-align:right;}
+  /* v256 보정3: 품목 칸도 **단어 단위**로 (index.html 의 같은 표와 맞췄다) */
+  .range-tbl td.item{text-align:left;word-break:keep-all;overflow-wrap:anywhere;}
+  .range-tbl tr.subt td{background:#FFFBFA;font-weight:700;}
+  .range-tbl tfoot td{background:#FEF2F2;font-weight:800;}
+  .rc-date{width:13%;}.rc-kind{width:7%;}.rc-item{width:28%;}.rc-num{width:10.4%;}
+  .inv-foot{display:flex;justify-content:space-between;align-items:flex-end;padding:5px 8px;font-size:12px;}
+  .inv-grand{font-weight:800;font-size:14px;color:#C00;}
+  .inv-net{text-align:right;line-height:1.65;white-space:nowrap;}
+  .inv-net .inv-grand{border-top:1px solid #C00;padding-top:2px;margin-top:2px;}
+
+  /* ── 알림장 · 급여명세서 (v246) — 거래명세서 표(.inv-*)와 섞이지 않게 따로 둔다 ── */
+  .doc{background:white;border-radius:12px;padding:20px 18px;max-width:640px;margin:0 auto;}
+  .doc h1{margin:0 0 2px;font-size:19px;font-weight:800;}
+  .doc .org{font-size:13px;color:#667085;margin-bottom:14px;}
+  .doc .meta{font-size:13px;color:#475467;line-height:1.9;border-top:1px solid #EAECF0;padding-top:10px;}
+  .doc .meta b{color:#1D2939;}
+  /* ★ v309(코스로드68): «알림장» 본문도 **앱과 같은 두 줄**(keep-all + overflow-wrap:anywhere).
+     `word-break:break-word` 는 한글을 **낱글자로 쪼갤** 수 있어 기본 원칙(v256 보정3)과 어긋났다 —
+     띄어쓰기 없는 긴 주소·번호는 `overflow-wrap:anywhere` 가 맡는다. */
+  .nt-body{font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;margin:4px 0 14px;}
+  .nt-img{display:block;width:100%;height:auto;border-radius:10px;border:1px solid #EAECF0;margin-bottom:10px;cursor:pointer;}
+  .ps-tbl{width:100%;border-collapse:collapse;margin:6px 0 2px;}
+  .ps-tbl th,.ps-tbl td{border:1px solid #D0D5DD;font-size:13px;padding:6px 8px;}
+  .ps-tbl th{background:#F9FAFB;color:#344054;font-weight:700;text-align:center;}
+  .ps-tbl td.rgt{text-align:right;}
+  .ps-tbl tr.sum td{background:#F9FAFB;font-weight:800;}
+  .ps-net{display:flex;justify-content:space-between;align-items:baseline;border:2px solid #7C3AED;border-radius:10px;padding:10px 12px;margin:12px 0 4px;}
+  .ps-net span{font-size:13px;font-weight:800;color:#344054;}
+  .ps-net b{font-size:19px;color:#7C3AED;}
+  .ps-sec{font-size:13px;font-weight:800;color:#344054;margin:14px 0 2px;}
+  .small{font-size:11px;color:#98A2B3;line-height:1.6;margin-top:8px;}
+  @media print{
+    body{background:white;padding:0;}
+    .bar,.note{display:none !important;}
+    .inv-sheet{border-width:2px;margin:0;}
+    .doc{border-radius:0;padding:0;max-width:none;}
+    .nt-img{break-inside:avoid;}
+  }
