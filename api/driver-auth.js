@@ -707,15 +707,23 @@ export default async function handler(req, res) {
       let okSent = false;
       if (tpl) {                                       /* 승인 코드가 들어온 뒤 — 알림톡 먼저 */
         try {
+          /* ★★ v321(76): **`noButton:true`** — 귀가 템플릿은 **단추 없음**으로 승인됐다.
+             없으면 `buttonFor('academy')` 가 「패밀리 링크 열기」를 붙여 **거절**된다. */
           const form = AT.alimtalkForm({ tplCode: tpl, receiver: rcv, name: mr.name,
-                                         message: atMsg, biz: biz, courier: '', invoice: '' });
-          if (form) { await AT.postAlimtalk(form); okSent = true; }
+                                         message: atMsg, biz: biz, courier: '', invoice: '',
+                                         noButton: true });
+          /* ★★ v321(76): **알리고 응답을 본다.** v320 까지는 `await` 만 하고 `okSent = true` 라
+             알리고가 거절해도(`code !== 0`) **문자로 떨어지지 않았다** — 아무것도 안 가고
+             화면·기록에도 표시가 없었다. 판정은 `AT.atOk()` 한 벌(공식 `code === 0`). */
+          if (form) okSent = AT.atOk(await AT.postAlimtalk(form));
         } catch (e) { okSent = false; }
       }
       if (!okSent) {
         try {
           const r = await SMS.postSms({ receiver: rcv, msg: smsMsg, title: '귀가 알림', msgType: 'LMS' });
-          okSent = !!(r && r.ok);
+          /* ★★ v321(76): `r.ok` 는 「설정이 있고 호출했다」일 뿐이다 — 알리고의 답까지 본다
+             (`SMS.smsOk()` 한 벌 · 공식 `result_code > 0` · 알림톡과 **규칙이 다르다**). */
+          okSent = SMS.smsOk(r);
         } catch (e) { okSent = false; }
       }
       /* ★★ v319(74-B): **조용한 자리에 기록 한 줄** — 하원은 이미 찍혔으니 응답은 막지 않지만,
@@ -768,9 +776,15 @@ export default async function handler(req, res) {
       const form = AT.alimtalkForm({ tplCode: tpl, receiver: rcv, name: mr.name, message: msg,
                                      biz: biz, courier: mr._courier, invoice: mr._invoice });
       if (!form) break;                              /* 알리고 설정이 없다 */
-      /* ★ v319(74-B): 조용한 자리에 **기록 한 줄**(번호·본문·이름 없이) — 출석은 이미 찍혔다 */
-      try { await AT.postAlimtalk(form); sent++; }
-      catch (e) { console.log('[kiosk] 출석 알림톡 실패'); }
+      /* ★ v319(74-B): 조용한 자리에 **기록 한 줄**(번호·본문·이름 없이) — 출석은 이미 찍혔다
+         ★★ v321(76): **알리고 응답까지 본다**(하원 길과 **같은 꼴** · `AT.atOk()` 한 벌).
+           v320 까지는 던지지만 않으면 `sent++` 라 **거절(`code !== 0`)도 「보냈다」로 셌다** —
+           응답의 `notified` 수가 거짓이 되고 기록에도 아무 표시가 없었다.
+         ★ 출석 템플릿(`UI_7310`…)은 **단추가 승인돼 있다** → `noButton` 을 주지 않는다. */
+      try {
+        if (AT.atOk(await AT.postAlimtalk(form))) sent++;
+        else console.log('[kiosk] 출석 알림톡 거절 (알리고 code != 0)');
+      } catch (e) { console.log('[kiosk] 출석 알림톡 실패'); }
     }
     return sent;
   }

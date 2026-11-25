@@ -117,5 +117,6 @@ run leave73.js     node leave73.js
 run relay74.js     node relay74.js
 run install74c.js  node install74c.js
 run share75.js     node share75.js
+run leave76.js     node leave76.js
 echo "────────────────────────────────────────"
-echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 101 · 101 · 0)"
+echo "돈 묶음 $N 개 · 통과 $OK · 문제 $BAD   (기대: 102 · 102 · 0)"

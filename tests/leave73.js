@@ -160,13 +160,15 @@ console.log('\n════ ② 「하원 알림 보내기」 — **기본 꺼�
   ck('   그래도 하원은 찍혔다', JSON.stringify((dayOf(S, 'attendanceTime') || {})['1'] || {}).indexOf('"out":"20:20"') > 0, true);
   ck('   응답 `leaveSent:0`', r.body.leaveSent, 0);
 
-  /* ㉡ 켜짐 — 문자 1건 · 알림톡은 **승인 코드가 없어** 0 */
+  /* ㉡ 켜짐 — **알림 1건**.
+     ★★ v321(코스로드76): 귀가 템플릿 `UN_7423`·`UN_7424` 가 **승인돼** 코드가 들어왔다 →
+       이제 **알림톡이 먼저** 가고 문자는 **떨어질 때만** 간다(v319·v320 은 코드가 빈 값이라
+       늘 문자였다). 그 떨어짐(알리고 거절·던짐)은 `tests/leave76.js` ④ 가 전수로 잰다. */
   const S2 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true });
   const r2 = await kAtt(S2);
-  ck('㉡ 켜면 문자 **1건**', smsOf(S2), 1);
+  ck('㉡ 켜면 **알림톡 1건**(v321 — 전에는 문자였다)', alimOf(S2), 1);
   ck('   응답 `leaveSent:1`', r2.body.leaveSent, 1);
-  ck('   알림톡은 0건(승인 코드가 아직 없다 — 자리만 두었다)', alimOf(S2), 0);
-  ck('   등원 알림톡도 0건(하원 누름이라 안 보낸다)', alimOf(S2), 0);
+  ck('   알림톡이 됐으니 **문자는 0건**', smsOf(S2), 0);
 
   /* ㉢ 번호가 **번호 꼴이 아니면** 안 보낸다(적다가 지운 칸·내부 메모가 들어간 경우) */
   const S3 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true });
@@ -197,7 +199,7 @@ console.log('\n════ ② 「하원 알림 보내기」 — **기본 꺼�
   const S7 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true });
   await kAtt(S7);
   await kAtt(S7);
-  ck('㉤ 하원을 두 번 눌러도 문자 **1건**', smsOf(S7), 1);
+  ck('㉤ 하원을 두 번 눌러도 알림 **1건**', alimOf(S7) + smsOf(S7), 1);   /* v321 — 알림톡으로 간다 */
 }
 
 console.log('\n════ ③ 기사 「하차 완료」가 **먼저**면 하원 문자 0 (하루 한 사람 한 번)');
@@ -205,18 +207,19 @@ console.log('\n════ ③ 기사 「하차 완료」가 **먼저**면 하�
   const S = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true,
                  dropDone: { 1: KDATE } });
   const r = await kAtt(S);
-  ck('★ 하차가 먼저면 문자 0', smsOf(S) + '/' + r.body.leaveSent, '0/0');
+  /* ★ v321: 「알림 0」은 **두 길을 합쳐** 센다(알림톡이 먼저 가므로) */
+  ck('★ 하차가 먼저면 알림 0', (alimOf(S) + smsOf(S)) + '/' + r.body.leaveSent, '0/0');
   ck('  그래도 **하원은 찍힌다**(기록은 기록이다)', r.body.leg, 'out');
   /* (대조) 어제 하차면 오늘 것이 아니다 → 보낸다 */
   const S2 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true,
                   dropDone: { 1: '2026-10-30' } });
   await kAtt(S2);
-  ck('  (대조) **어제** 하차면 오늘 문자는 간다', smsOf(S2), 1);
+  ck('  (대조) **어제** 하차면 오늘 알림은 간다', alimOf(S2) + smsOf(S2), 1);
   /* (대조) 다른 «회원» 의 하차는 상관없다 */
   const S3 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true,
                   dropDone: { 2: KDATE } });
   await kAtt(S3);
-  ck('  (대조) **다른 «회원»** 하차는 상관없다', smsOf(S3), 1);
+  ck('  (대조) **다른 «회원»** 하차는 상관없다', alimOf(S3) + smsOf(S3), 1);
 }
 
 console.log('\n════ ④ 하원이 **먼저**면 기사 하차 알림톡이 안 나간다 (`skipped:left`)');
@@ -280,7 +283,7 @@ console.log('\n════ ⑤ 물류·택배는 **영향 0** · 기간 끝난 
   ck('  (대조) 같은 장면에서 학원이면 1건', await (async () => {
     const S2 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true });
     await padAtt(S2);
-    return smsOf(S2);
+    return alimOf(S2) + smsOf(S2);      /* v321 — 알림톡으로 간다 */
   })(), 1);
   const S3 = st({ biz: 'delivery', attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true });
   await padAtt(S3);
@@ -300,7 +303,8 @@ console.log('\n════ ⑤ 물류·택배는 **영향 0** · 기간 끝난 
   const S6 = st({ attTime: { [KDATE]: { 1: '08:10' } }, leaveOn: true });
   const r6 = await call(SRC.drv, S6, { action: 'kioskCheckin', pin: '1111', org: 'academy_other' },
     'kioskTok', '1.2.3.4');
-  ck('★ 본문에 남의 업체를 적어도 **내 업체**로 찍는다', r6.body.leg + '/' + smsOf(S6), 'out/1');
+  ck('★ 본문에 남의 업체를 적어도 **내 업체**로 찍는다',
+    r6.body.leg + '/' + (alimOf(S6) + smsOf(S6)), 'out/1');
   ck('  남의 업체 문서는 안 건드렸다',
     Object.keys(S6.docs).filter((k) => k.indexOf('orgs/academy_other/') === 0).length, 0);
 }
@@ -439,11 +443,16 @@ console.log('\n════ ⑧ 한 벌·노출 줄 — 문자는 `lib/sms-core.
     (DRV.match(/const LEAVE_MIN_GAP_MIN = 30;/g) || []).length, 1);
   ck('  앱은 서버가 준 `gapNeed` 를 쓰고, 없을 때만 자기 값',
     /_gapNeed|gapNeed/.test(APP), true);
-  /* 알림톡 자리는 **비워 두었다** — 승인 코드가 오면 여기만 채운다 */
+  /* ★★ v321(코스로드76): 알림톡 자리가 **채워졌다** — v319·v320 은 빈 값이었다(심사 중).
+     그 **빈 값일 때 문자로 떨어지는 길**은 없어지지 않았다(알리고가 거절하거나 코드를 다시
+     비우면 그대로 문자다) — `tests/leave76.js` ①④ 가 코드와 떨어짐을 함께 잰다.
+     ★ 이 묶음은 **그 회차의 약속**(「자리만 두었다」)을 재던 자리이므로, 여기서는 「두 갈래가
+       **여전히 있다**」로 바꿔 둔다(한쪽을 지우지 않았음을 지킨다). */
   const AT = LF(fs.readFileSync(COS_ROOT + '/lib/alimtalk-core.js', 'utf8'));
-  ck('★ `TPL_LEAVE_BY_BIZ` 는 아직 빈 값(학원·공공 둘)',
-    /TPL_LEAVE_BY_BIZ = \{ academy: '', public: '' \}/.test(AT.replace(/\s+/g, ' ')), true);
-  ck('  빈 값이면 **문자로 떨어진다**(위 ② ㉡ 가 실측)', true, true);
+  ck('★ `TPL_LEAVE_BY_BIZ` 에 학원·공공 두 가지가 있다',
+    /TPL_LEAVE_BY_BIZ = \{ academy: '[^']*', public: *'[^']*' \}/.test(AT.replace(/\s+/g, ' ')), true);
+  ck('  코드가 비면 **문자로 떨어지는 길**이 그대로 있다',
+    /tplLeaveCodeFor/.test(AT) && /buildLeaveSmsText/.test(AT), true);
 }
 
 console.log('\n' + (fail ? '✘ 실패 ' + fail + '건 / 통과 ' + pass + '건'

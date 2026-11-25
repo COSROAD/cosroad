@@ -189,7 +189,9 @@ const DATEFIELD = (id) => {
   for (const k of ['approve_ok', 'extend', 'setperiod', 'signup']) {
     for (const tag of Object.keys(out[k] || {})) {
       const v = out[k][tag];
-      const ok = v && v.align === 'flex-start' && v.top >= -0.5;
+      /* ★ 계산값 이름은 **한 벌**(`align.js`)이 본다 — 크롬 158 이 `flex-start` 를
+         `flow-start` 로 찍는다(소스는 그대로 · 코스로드76 에 실측). */
+      const ok = v && require('./align.js').isFlexStart(v.align) && v.top >= -0.5;
       say(ok, (k + ' 창 안 잘림 ').padEnd(22) + tag.padEnd(10)
           + (v ? ('align=' + v.align + ' 윗변=' + v.top + '/' + v.vh) : '(못 찾음)'));
     }

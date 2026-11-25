@@ -202,15 +202,30 @@ console.log('\n════ ⑦ 문자 길이 — 주소가 짧아졌다');
 
 console.log('\n════ ⑧ 규칙·서버 0줄 · 버전 · 공통 원칙');
 {
-  const changed = cp.execSync('git -C ' + COS_ROOT + ' diff --name-only HEAD', { maxBuffer: 1 << 24 })
+  /* ★★ 「이 회차에 규칙·서버를 안 건드렸다」는 **그 회차를 두고 한 약속**이다 —
+     작업트리로 재면 **뒷 회차가 `api/`·`lib/`·버전을 고칠 때마다 거짓으로 깨진다**
+     (v321/76 이 귀가 알림톡을 켜면서 실제로 셋이 깨졌다 · CLAUDE.md 검사 묶음 규칙).
+     → **그 회차 커밋 하나**가 무엇을 바꿨는지로 잰다: `<v320 커밋>^ → <v320 커밋>`.
+     ★ `thisRef(319)` 를 앞 커밋으로 쓰면 안 된다 — 그 사이에 **74-B·74-C 커밋 넷**이
+       「(v319 유지)」로 `api/`·`lib/` 를 고쳤다(제목이 「(v319)」로 끝나는 커밋은 73-B 하나다).
+       그래서 **부모 커밋**(`^`)이 이 약속의 올바른 기준이다. */
+  const NEW_REF = process.env.COS_SRC_NEW_REF || require('./thisref.js').thisRef(320);
+  const OLD_REF = process.env.COS_SRC_OLD_REF || (NEW_REF + '^');
+  const changed = cp.execSync('git -C ' + COS_ROOT + ' diff --name-only '
+    + OLD_REF + ' ' + NEW_REF, { maxBuffer: 1 << 24 })
     .toString().trim().split('\n').filter(Boolean);
   ck('★★ `firestore.rules` 안 바뀜', changed.indexOf('firestore.rules'), -1);
   ck('★★ `storage.rules` 안 바뀜', changed.indexOf('storage.rules'), -1);
   ck('★★ `api/` 안 바뀜', changed.filter((f) => f.indexOf('api/') === 0).length, 0);
   ck('★★ `lib/` 안 바뀜', changed.filter((f) => f.indexOf('lib/') === 0).length, 0);
-  const v = Number((APP.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
-  ck('★ 버전 320', v, 320);
-  ck('  `version.json` 과 같다', String(JSON.parse(F('version.json')).version), String(v));
+  /* 버전도 **그 커밋의 글**로 본다(지금 작업트리는 더 올라가 있을 수 있다) */
+  const APP75 = require('./thisref.js').srcAt(NEW_REF, 'index.html');
+  const v = Number((APP75.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
+  ck('★ 그 회차 버전 320', v, 320);
+  ck('  그 커밋의 `version.json` 과 같다',
+    String(JSON.parse(require('./thisref.js').srcAt(NEW_REF, 'version.json')).version), String(v));
+  ck('  (지금은 더 올라갔을 수 있다 — 작업트리)',
+    Number((APP.match(/const APP_VERSION = (\d+);/) || [])[1] || 0) >= v, true);
   /* 공통 원칙 — 한국어 줄바꿈 두 줄은 **한 벌**에 있고 넷이 상속받는다 */
   ck('★ keep-all·overflow-wrap 이 한 벌에 있다',
     /word-break:keep-all;overflow-wrap:anywhere;/.test(F('share/view.css')), true);

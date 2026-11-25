@@ -195,7 +195,10 @@ const press = (p, kind, pin) => p.evaluate(async (a) => {
     const tag = '[' + vp.width + 'x' + vp.height + '] ';
     say(r.xTop >= 0, (tag + '★ 닫기 ✕ 가 화면 안').padEnd(44) + 'top ' + r.xTop + 'px');
     say(r.boxTop >= 0, (tag + '상자 위가 안 잘린다').padEnd(44) + 'top ' + r.boxTop + 'px (높이 ' + r.boxH + ')');
-    say(r.align === 'flex-start', (tag + '덮개 `flex-start`').padEnd(44) + r.align);
+    /* ★ 계산값 이름은 **한 벌**(`align.js`)이 본다 — 크롬 158 이 `flex-start` 를
+       `flow-start` 로 찍는다(소스는 그대로 · 코스로드76 에 실측). */
+    say(require('./align.js').isFlexStart(r.align),
+      (tag + '덮개 `flex-start`(계산값 이름 둘 다)').padEnd(44) + r.align);
     say(r.overflowY === 'auto', (tag + '덮개 `overflow-y:auto`').padEnd(44) + r.overflowY);
     say(p.__errs.length === 0, (tag + '오류 0').padEnd(44) + (p.__errs[0] || 'OK'));
     await p.close();

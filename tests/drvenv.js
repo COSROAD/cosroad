@@ -298,11 +298,26 @@ function makeHandler(src, S) {
     { log: (...a) => S.logs.push(a.map(x => String(x)).join(' ')) },
     fakeRequire, FakeDate,
     /* ★ v297(60-B4b): 가짜 `fetch` — **실제 알리고 호출 0건**.
-       보낸 것은 `S.sent` 에 쌓는다(주소와 **길이만** — 번호·본문 원문은 남기지 않는다). */
+       보낸 것은 `S.sent` 에 쌓는다(주소와 **길이만** — 번호·본문 원문은 남기지 않는다).
+       ★★ v321(76): **창구마다 「실제 판이 내는 답」을 돌려준다.** v320 까지는 둘 다
+         `{code:0}` 이었는데 **문자 응답에는 `code` 가 없다** — 칸 이름이 `result_code` 다.
+         이상적인(둘 다 같은) 답을 내면 **묶음은 통과하고 실서비스에서 틀린다**
+         (CLAUDE.md ★★★ 가짜 명령 교훈과 같은 자리).
+         · 알림톡 `kakaoapi.aligo.in` → 공식 성공 예시 `{ "code": 0, "message": "성공적으로
+           전송요청 하였습니다.", "info": {…} }`  (https://smartsms.aligo.in/alimapi.html)
+         · 문자 `apis.aligo.in/send` → 공식 성공 예시 `{ "result_code": 1, … }`
+           (https://smartsms.aligo.in/smsapi.html · 실패는 `-101` 처럼 **0 보다 작다**)
+       ★ 묶음이 **거절**을 흉내 내려면 `S.atReply`·`S.smsReply` 에 답을 넣는다(없으면 성공). */
     (S.fetch || (async (url, init) => {
       S.sent = S.sent || [];
-      S.sent.push({ url: String(url), len: String((init && init.body) || '').length });
-      return { json: async () => ({ code: 0, message: 'success' }) };
+      const u = String(url);
+      S.sent.push({ url: u, len: String((init && init.body) || '').length });
+      const isAt = /kakaoapi\.aligo\.in|\/a\/alimtalk/.test(u);
+      const body = isAt
+        ? (S.atReply || { code: 0, message: '성공적으로 전송요청 하였습니다.',
+                          info: { type: 'AT', mid: 1, current: 0, unit: 0, total: 0, scnt: 1, fcnt: 0 } })
+        : (S.smsReply || { result_code: 1, message: 'success', msg_id: 1, success_cnt: 1 });
+      return { json: async () => body };
     })),
     URLSearchParams);
 }
